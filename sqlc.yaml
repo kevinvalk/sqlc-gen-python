@@ -3,7 +3,7 @@ plugins:
   - name: python
     wasm:
       url: file://./target/wasm32-wasip1/debug/rust-sqlc-gen-python.wasm
-      # sha256: eac0521553c8fbc5a01116e116da05a65a86db35d081821210f7215bd79c62a2
+      # sha256: fd9e616c99ee5448df719b8a8db06f7b8f68d2d6e353f4633ef58e5f1a9f358f
 sql:
   - schema: schema.sql
     queries: query.sql
@@ -17,3 +17,6 @@ sql:
           emit_module: false
           emit_generators: true
           emit_async: false
+          sup:
+            blup:
+              fuck: duck
