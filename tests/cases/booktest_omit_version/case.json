@@ -1,0 +1,7 @@
+{
+  "schema": "booktest",
+  "options": {
+    "package": "booktest",
+    "omit_sqlc_version": true
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "schema": "types",
+  "options": {
+    "package": "db"
+  }
+}

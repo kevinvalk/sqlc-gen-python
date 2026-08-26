@@ -1,0 +1,1903 @@
+{
+  "catalog": {
+    "comment": "",
+    "default_schema": "public",
+    "name": "",
+    "schemas": [
+      {
+        "comment": "",
+        "composite_types": [],
+        "enums": [
+          {
+            "comment": "",
+            "name": "book_type",
+            "vals": [
+              "FICTION",
+              "NONFICTION"
+            ]
+          }
+        ],
+        "name": "public",
+        "tables": [
+          {
+            "columns": [
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "author_id",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "authors",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "serial",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "name",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "authors",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              }
+            ],
+            "comment": "",
+            "rel": {
+              "catalog": "",
+              "name": "authors",
+              "schema": ""
+            }
+          },
+          {
+            "columns": [
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "book_id",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "books",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "serial",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "author_id",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "books",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "int4",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "isbn",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "books",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "book_type",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "books",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "book_type",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "title",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "books",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "year",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "books",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "int4",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "available",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "books",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "timestamptz",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 1,
+                "comment": "",
+                "embed_table": null,
+                "is_array": true,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "tags",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "books",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "varchar",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              }
+            ],
+            "comment": "",
+            "rel": {
+              "catalog": "",
+              "name": "books",
+              "schema": ""
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "queries": [
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "author_id",
+          "not_null": true,
+          "original_name": "author_id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "serial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "name",
+          "not_null": true,
+          "original_name": "name",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "GetAuthor",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "author_id",
+            "not_null": true,
+            "original_name": "author_id",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "authors",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "serial",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        }
+      ],
+      "text": "SELECT author_id, name FROM authors\nWHERE author_id = $1"
+    },
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "book_id",
+          "not_null": true,
+          "original_name": "book_id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "serial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "author_id",
+          "not_null": true,
+          "original_name": "author_id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "int4",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "isbn",
+          "not_null": true,
+          "original_name": "isbn",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "book_type",
+          "not_null": true,
+          "original_name": "book_type",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "book_type",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "title",
+          "not_null": true,
+          "original_name": "title",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "year",
+          "not_null": true,
+          "original_name": "year",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "int4",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "available",
+          "not_null": true,
+          "original_name": "available",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "timestamptz",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 1,
+          "comment": "",
+          "embed_table": null,
+          "is_array": true,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "tags",
+          "not_null": true,
+          "original_name": "tags",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "varchar",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "GetBook",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "book_id",
+            "not_null": true,
+            "original_name": "book_id",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "serial",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        }
+      ],
+      "text": "SELECT book_id, author_id, isbn, book_type, title, year, available, tags FROM books\nWHERE book_id = $1"
+    },
+    {
+      "cmd": ":exec",
+      "columns": [],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "DeleteBook",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "book_id",
+            "not_null": true,
+            "original_name": "book_id",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "serial",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        }
+      ],
+      "text": "DELETE FROM books\nWHERE book_id = $1"
+    },
+    {
+      "cmd": ":many",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "book_id",
+          "not_null": true,
+          "original_name": "book_id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "serial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "author_id",
+          "not_null": true,
+          "original_name": "author_id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "int4",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "isbn",
+          "not_null": true,
+          "original_name": "isbn",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "book_type",
+          "not_null": true,
+          "original_name": "book_type",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "book_type",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "title",
+          "not_null": true,
+          "original_name": "title",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "year",
+          "not_null": true,
+          "original_name": "year",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "int4",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "available",
+          "not_null": true,
+          "original_name": "available",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "timestamptz",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 1,
+          "comment": "",
+          "embed_table": null,
+          "is_array": true,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "tags",
+          "not_null": true,
+          "original_name": "tags",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "varchar",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "BooksByTitleYear",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "title",
+            "not_null": true,
+            "original_name": "title",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "year",
+            "not_null": true,
+            "original_name": "year",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "pg_catalog.int4",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 2
+        }
+      ],
+      "text": "SELECT book_id, author_id, isbn, book_type, title, year, available, tags FROM books\nWHERE title = $1 AND year = $2"
+    },
+    {
+      "cmd": ":many",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "book_id",
+          "not_null": true,
+          "original_name": "book_id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "serial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "title",
+          "not_null": true,
+          "original_name": "title",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "name",
+          "not_null": false,
+          "original_name": "name",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "isbn",
+          "not_null": true,
+          "original_name": "isbn",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 1,
+          "comment": "",
+          "embed_table": null,
+          "is_array": true,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "tags",
+          "not_null": true,
+          "original_name": "tags",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "varchar",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "BooksByTags",
+      "params": [
+        {
+          "column": {
+            "array_dims": 1,
+            "comment": "",
+            "embed_table": null,
+            "is_array": true,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "",
+            "not_null": true,
+            "original_name": "",
+            "scope": "",
+            "table": null,
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "varchar",
+              "schema": "pg_catalog"
+            },
+            "unsigned": false
+          },
+          "number": 1
+        }
+      ],
+      "text": "SELECT \n  book_id,\n  title,\n  name,\n  isbn,\n  tags\nFROM books\nLEFT JOIN authors ON books.author_id = authors.author_id\nWHERE tags && $1::varchar[]"
+    },
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "author_id",
+          "not_null": true,
+          "original_name": "author_id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "serial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "name",
+          "not_null": true,
+          "original_name": "name",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": {
+        "catalog": "",
+        "name": "authors",
+        "schema": ""
+      },
+      "name": "CreateAuthor",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "name",
+            "not_null": true,
+            "original_name": "name",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "authors",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        }
+      ],
+      "text": "INSERT INTO authors (name) VALUES ($1)\nRETURNING author_id, name"
+    },
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "book_id",
+          "not_null": true,
+          "original_name": "book_id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "serial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "author_id",
+          "not_null": true,
+          "original_name": "author_id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "int4",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "isbn",
+          "not_null": true,
+          "original_name": "isbn",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "book_type",
+          "not_null": true,
+          "original_name": "book_type",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "book_type",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "title",
+          "not_null": true,
+          "original_name": "title",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "year",
+          "not_null": true,
+          "original_name": "year",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "int4",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "available",
+          "not_null": true,
+          "original_name": "available",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "timestamptz",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 1,
+          "comment": "",
+          "embed_table": null,
+          "is_array": true,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "tags",
+          "not_null": true,
+          "original_name": "tags",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "books",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "varchar",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": {
+        "catalog": "",
+        "name": "books",
+        "schema": ""
+      },
+      "name": "CreateBook",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "author_id",
+            "not_null": true,
+            "original_name": "author_id",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "pg_catalog.int4",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "isbn",
+            "not_null": true,
+            "original_name": "isbn",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 2
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "book_type",
+            "not_null": true,
+            "original_name": "book_type",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "book_type",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 3
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "title",
+            "not_null": true,
+            "original_name": "title",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 4
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "year",
+            "not_null": true,
+            "original_name": "year",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "pg_catalog.int4",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 5
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "available",
+            "not_null": true,
+            "original_name": "available",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "pg_catalog.timestamptz",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 6
+        },
+        {
+          "column": {
+            "array_dims": 1,
+            "comment": "",
+            "embed_table": null,
+            "is_array": true,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "tags",
+            "not_null": true,
+            "original_name": "tags",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "pg_catalog.varchar",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 7
+        }
+      ],
+      "text": "INSERT INTO books (\n    author_id,\n    isbn,\n    book_type,\n    title,\n    year,\n    available,\n    tags\n) VALUES (\n    $1,\n    $2,\n    $3,\n    $4,\n    $5,\n    $6,\n    $7\n)\nRETURNING book_id, author_id, isbn, book_type, title, year, available, tags"
+    },
+    {
+      "cmd": ":exec",
+      "columns": [],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "UpdateBook",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "title",
+            "not_null": true,
+            "original_name": "title",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        },
+        {
+          "column": {
+            "array_dims": 1,
+            "comment": "",
+            "embed_table": null,
+            "is_array": true,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "tags",
+            "not_null": true,
+            "original_name": "tags",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "pg_catalog.varchar",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 2
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "book_id",
+            "not_null": true,
+            "original_name": "book_id",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "serial",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 3
+        }
+      ],
+      "text": "UPDATE books\nSET title = $1, tags = $2\nWHERE book_id = $3"
+    },
+    {
+      "cmd": ":exec",
+      "columns": [],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "UpdateBookISBN",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "title",
+            "not_null": true,
+            "original_name": "title",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        },
+        {
+          "column": {
+            "array_dims": 1,
+            "comment": "",
+            "embed_table": null,
+            "is_array": true,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "tags",
+            "not_null": true,
+            "original_name": "tags",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "pg_catalog.varchar",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 2
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "book_id",
+            "not_null": true,
+            "original_name": "book_id",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "serial",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 3
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "isbn",
+            "not_null": true,
+            "original_name": "isbn",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "books",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 4
+        }
+      ],
+      "text": "UPDATE books\nSET title = $1, tags = $2, isbn = $4\nWHERE book_id = $3"
+    }
+  ],
+  "settings": {
+    "codegen": {
+      "env": [],
+      "options": "",
+      "out": "",
+      "plugin": "",
+      "process": null,
+      "wasm": null
+    },
+    "engine": "postgresql",
+    "queries": [
+      "query.sql"
+    ],
+    "schema": [
+      "schema.sql"
+    ],
+    "version": "2"
+  },
+  "sqlc_version": "v1.30.0"
+}

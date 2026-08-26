@@ -1,0 +1,12 @@
+{
+  "schema": "types",
+  "options": {
+    "package": "db",
+    "models": {
+      "style": "pydantic"
+    },
+    "enums": {
+      "style": "str_enum"
+    }
+  }
+}

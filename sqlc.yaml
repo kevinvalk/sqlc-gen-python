@@ -1,22 +1,18 @@
+# Example configuration, used to smoke-test the plugin end to end against the
+# schema under tests/schemas/src/types.
 version: "2"
 plugins:
   - name: python
     wasm:
-      url: file://./target/wasm32-wasip1/debug/rust-sqlc-gen-python.wasm
-      # sha256: fd9e616c99ee5448df719b8a8db06f7b8f68d2d6e353f4633ef58e5f1a9f358f
+      url: file://./target/wasm32-wasip1/release/sqlc-gen-python.wasm
 sql:
-  - schema: schema.sql
-    queries: query.sql
+  - schema: tests/schemas/src/types/schema.sql
+    queries: tests/schemas/src/types/query.sql
     engine: postgresql
     codegen:
-      - out: gen
+      - out: example
         plugin: python
         options:
-          debug: true
-          package: authors
-          emit_module: false
-          emit_generators: true
-          emit_async: false
-          sup:
-            blup:
-              fuck: duck
+          package: example
+          models:
+            style: dataclass

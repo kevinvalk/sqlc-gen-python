@@ -1,0 +1,1421 @@
+{
+  "catalog": {
+    "comment": "",
+    "default_schema": "public",
+    "name": "",
+    "schemas": [
+      {
+        "comment": "",
+        "composite_types": [],
+        "enums": [
+          {
+            "comment": "",
+            "name": "mood",
+            "vals": [
+              "sad",
+              "ok",
+              "happy"
+            ]
+          }
+        ],
+        "name": "public",
+        "tables": [
+          {
+            "columns": [
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "id",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "bigserial",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "small",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "int2",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "regular",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "int4",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "big",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "int8",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "approximate",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "float8",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "Exact numeric, so this must not become a float.",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "exact",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "numeric",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "price",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "money",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "flag",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "bool",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "label",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "fixed",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "bpchar",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "varying",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "varchar",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "raw",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "bytea",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "identifier",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "uuid",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "document",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "jsonb",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "day",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "date",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "clock",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "time",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "Timezone-aware.\nThe driver returns an aware datetime.",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "moment",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "timestamptz",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "duration",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "interval",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "address",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "inet",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "feeling",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "scalars",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "mood",
+                  "schema": ""
+                },
+                "unsigned": false
+              }
+            ],
+            "comment": "One column per PostgreSQL type worth mapping.",
+            "rel": {
+              "catalog": "",
+              "name": "scalars",
+              "schema": ""
+            }
+          },
+          {
+            "columns": [
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "required",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "nullables",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "optional",
+                "not_null": false,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "nullables",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 1,
+                "comment": "",
+                "embed_table": null,
+                "is_array": true,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "tags",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "nullables",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 1,
+                "comment": "",
+                "embed_table": null,
+                "is_array": true,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "maybe_tags",
+                "not_null": false,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "nullables",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 2,
+                "comment": "",
+                "embed_table": null,
+                "is_array": true,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "grid",
+                "not_null": false,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "nullables",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "int4",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              }
+            ],
+            "comment": "",
+            "rel": {
+              "catalog": "",
+              "name": "nullables",
+              "schema": ""
+            }
+          }
+        ]
+      },
+      {
+        "comment": "",
+        "composite_types": [],
+        "enums": [
+          {
+            "comment": "",
+            "name": "event_kind",
+            "vals": [
+              "click",
+              "page-view"
+            ]
+          }
+        ],
+        "name": "analytics",
+        "tables": [
+          {
+            "columns": [
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "id",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "events",
+                  "schema": "analytics"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "bigserial",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "kind",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "events",
+                  "schema": "analytics"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "event_kind",
+                  "schema": "analytics"
+                },
+                "unsigned": false
+              }
+            ],
+            "comment": "",
+            "rel": {
+              "catalog": "",
+              "name": "events",
+              "schema": "analytics"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "queries": [
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "id",
+          "not_null": true,
+          "original_name": "id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "bigserial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "small",
+          "not_null": true,
+          "original_name": "small",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "int2",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "regular",
+          "not_null": true,
+          "original_name": "regular",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "int4",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "big",
+          "not_null": true,
+          "original_name": "big",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "int8",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "approximate",
+          "not_null": true,
+          "original_name": "approximate",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "float8",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "exact",
+          "not_null": true,
+          "original_name": "exact",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "numeric",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "price",
+          "not_null": true,
+          "original_name": "price",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "money",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "flag",
+          "not_null": true,
+          "original_name": "flag",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "bool",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "label",
+          "not_null": true,
+          "original_name": "label",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "fixed",
+          "not_null": true,
+          "original_name": "fixed",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "bpchar",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "varying",
+          "not_null": true,
+          "original_name": "varying",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "varchar",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "raw",
+          "not_null": true,
+          "original_name": "raw",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "bytea",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "identifier",
+          "not_null": true,
+          "original_name": "identifier",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "uuid",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "document",
+          "not_null": true,
+          "original_name": "document",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "jsonb",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "day",
+          "not_null": true,
+          "original_name": "day",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "date",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "clock",
+          "not_null": true,
+          "original_name": "clock",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "time",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "moment",
+          "not_null": true,
+          "original_name": "moment",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "timestamptz",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "duration",
+          "not_null": true,
+          "original_name": "duration",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "interval",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "address",
+          "not_null": true,
+          "original_name": "address",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "inet",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "feeling",
+          "not_null": true,
+          "original_name": "feeling",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "scalars",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "mood",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "GetScalars",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "id",
+            "not_null": true,
+            "original_name": "id",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "scalars",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "bigserial",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        }
+      ],
+      "text": "SELECT id, small, regular, big, approximate, exact, price, flag, label, fixed, varying, raw, identifier, document, day, clock, moment, duration, address, feeling FROM scalars WHERE id = $1"
+    },
+    {
+      "cmd": ":many",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "id",
+          "not_null": true,
+          "original_name": "id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "events",
+            "schema": "analytics"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "bigserial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "kind",
+          "not_null": true,
+          "original_name": "kind",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "events",
+            "schema": "analytics"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "event_kind",
+            "schema": "analytics"
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "ListEvents",
+      "params": [],
+      "text": "SELECT id, kind FROM analytics.events"
+    }
+  ],
+  "settings": {
+    "codegen": {
+      "env": [],
+      "options": "",
+      "out": "",
+      "plugin": "",
+      "process": null,
+      "wasm": null
+    },
+    "engine": "postgresql",
+    "queries": [
+      "query.sql"
+    ],
+    "schema": [
+      "schema.sql"
+    ],
+    "version": "2"
+  },
+  "sqlc_version": "v1.30.0"
+}

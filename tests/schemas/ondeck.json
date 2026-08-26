@@ -1,0 +1,1805 @@
+{
+  "catalog": {
+    "comment": "",
+    "default_schema": "public",
+    "name": "",
+    "schemas": [
+      {
+        "comment": "",
+        "composite_types": [],
+        "enums": [
+          {
+            "comment": "Venues can be either open or closed",
+            "name": "status",
+            "vals": [
+              "op!en",
+              "clo@sed"
+            ]
+          }
+        ],
+        "name": "public",
+        "tables": [
+          {
+            "columns": [
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "slug",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "city",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "name",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "city",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              }
+            ],
+            "comment": "",
+            "rel": {
+              "catalog": "",
+              "name": "city",
+              "schema": ""
+            }
+          },
+          {
+            "columns": [
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "id",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "venue",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "serial",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "status",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "venue",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "status",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 1,
+                "comment": "",
+                "embed_table": null,
+                "is_array": true,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "statuses",
+                "not_null": false,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "venue",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "status",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "This value appears in public URLs",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "slug",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "venue",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "name",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "venue",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "varchar",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "city",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "venue",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "spotify_playlist",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "venue",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "varchar",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "songkick_id",
+                "not_null": false,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "venue",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 1,
+                "comment": "",
+                "embed_table": null,
+                "is_array": true,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "tags",
+                "not_null": false,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "venue",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "created_at",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "venue",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "timestamp",
+                  "schema": "pg_catalog"
+                },
+                "unsigned": false
+              }
+            ],
+            "comment": "Venues are places where muisc happens",
+            "rel": {
+              "catalog": "",
+              "name": "venue",
+              "schema": ""
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "queries": [
+    {
+      "cmd": ":many",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "slug",
+          "not_null": true,
+          "original_name": "slug",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "city",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "name",
+          "not_null": true,
+          "original_name": "name",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "city",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "city.sql",
+      "insert_into_table": null,
+      "name": "ListCities",
+      "params": [],
+      "text": "SELECT slug, name\nFROM city\nORDER BY name"
+    },
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "slug",
+          "not_null": true,
+          "original_name": "slug",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "city",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "name",
+          "not_null": true,
+          "original_name": "name",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "city",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "city.sql",
+      "insert_into_table": null,
+      "name": "GetCity",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "slug",
+            "not_null": true,
+            "original_name": "slug",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "city",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        }
+      ],
+      "text": "SELECT slug, name\nFROM city\nWHERE slug = $1"
+    },
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "slug",
+          "not_null": true,
+          "original_name": "slug",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "city",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "name",
+          "not_null": true,
+          "original_name": "name",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "city",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [
+        " Create a new city. The slug must be unique.",
+        " This is the second line of the comment",
+        " This is the third line"
+      ],
+      "filename": "city.sql",
+      "insert_into_table": {
+        "catalog": "",
+        "name": "city",
+        "schema": ""
+      },
+      "name": "CreateCity",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "name",
+            "not_null": true,
+            "original_name": "name",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "city",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "slug",
+            "not_null": true,
+            "original_name": "slug",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "city",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 2
+        }
+      ],
+      "text": "INSERT INTO city (\n    name,\n    slug\n) VALUES (\n    $1,\n    $2\n) RETURNING slug, name"
+    },
+    {
+      "cmd": ":exec",
+      "columns": [],
+      "comments": [],
+      "filename": "city.sql",
+      "insert_into_table": null,
+      "name": "UpdateCityName",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "slug",
+            "not_null": true,
+            "original_name": "slug",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "city",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "name",
+            "not_null": true,
+            "original_name": "name",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "city",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 2
+        }
+      ],
+      "text": "UPDATE city\nSET name = $2\nWHERE slug = $1"
+    },
+    {
+      "cmd": ":many",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "id",
+          "not_null": true,
+          "original_name": "id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "serial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "status",
+          "not_null": true,
+          "original_name": "status",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "status",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 1,
+          "comment": "",
+          "embed_table": null,
+          "is_array": true,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "statuses",
+          "not_null": false,
+          "original_name": "statuses",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "status",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "slug",
+          "not_null": true,
+          "original_name": "slug",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "name",
+          "not_null": true,
+          "original_name": "name",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "varchar",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "city",
+          "not_null": true,
+          "original_name": "city",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "spotify_playlist",
+          "not_null": true,
+          "original_name": "spotify_playlist",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "varchar",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "songkick_id",
+          "not_null": false,
+          "original_name": "songkick_id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 1,
+          "comment": "",
+          "embed_table": null,
+          "is_array": true,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "tags",
+          "not_null": false,
+          "original_name": "tags",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "created_at",
+          "not_null": true,
+          "original_name": "created_at",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "timestamp",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "venue.sql",
+      "insert_into_table": null,
+      "name": "ListVenues",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "city",
+            "not_null": true,
+            "original_name": "city",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        }
+      ],
+      "text": "SELECT id, status, statuses, slug, name, city, spotify_playlist, songkick_id, tags, created_at\nFROM venue\nWHERE city = $1\nORDER BY name"
+    },
+    {
+      "cmd": ":exec",
+      "columns": [],
+      "comments": [],
+      "filename": "venue.sql",
+      "insert_into_table": null,
+      "name": "DeleteVenue",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "slug",
+            "not_null": true,
+            "original_name": "slug",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        }
+      ],
+      "text": "DELETE FROM venue\nWHERE slug = $1 AND slug = $1"
+    },
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "id",
+          "not_null": true,
+          "original_name": "id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "serial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "status",
+          "not_null": true,
+          "original_name": "status",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "status",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 1,
+          "comment": "",
+          "embed_table": null,
+          "is_array": true,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "statuses",
+          "not_null": false,
+          "original_name": "statuses",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "status",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "slug",
+          "not_null": true,
+          "original_name": "slug",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "name",
+          "not_null": true,
+          "original_name": "name",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "varchar",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "city",
+          "not_null": true,
+          "original_name": "city",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "spotify_playlist",
+          "not_null": true,
+          "original_name": "spotify_playlist",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "varchar",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "songkick_id",
+          "not_null": false,
+          "original_name": "songkick_id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 1,
+          "comment": "",
+          "embed_table": null,
+          "is_array": true,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "tags",
+          "not_null": false,
+          "original_name": "tags",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "created_at",
+          "not_null": true,
+          "original_name": "created_at",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "timestamp",
+            "schema": "pg_catalog"
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "venue.sql",
+      "insert_into_table": null,
+      "name": "GetVenue",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "slug",
+            "not_null": true,
+            "original_name": "slug",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "city",
+            "not_null": true,
+            "original_name": "city",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 2
+        }
+      ],
+      "text": "SELECT id, status, statuses, slug, name, city, spotify_playlist, songkick_id, tags, created_at\nFROM venue\nWHERE slug = $1 AND city = $2"
+    },
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "id",
+          "not_null": true,
+          "original_name": "id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "serial",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "venue.sql",
+      "insert_into_table": {
+        "catalog": "",
+        "name": "venue",
+        "schema": ""
+      },
+      "name": "CreateVenue",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "slug",
+            "not_null": true,
+            "original_name": "slug",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "name",
+            "not_null": true,
+            "original_name": "name",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "pg_catalog.varchar",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 2
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "city",
+            "not_null": true,
+            "original_name": "city",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 3
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "spotify_playlist",
+            "not_null": true,
+            "original_name": "spotify_playlist",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "pg_catalog.varchar",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 4
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "status",
+            "not_null": true,
+            "original_name": "status",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "status",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 5
+        },
+        {
+          "column": {
+            "array_dims": 1,
+            "comment": "",
+            "embed_table": null,
+            "is_array": true,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "statuses",
+            "not_null": false,
+            "original_name": "statuses",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "status",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 6
+        },
+        {
+          "column": {
+            "array_dims": 1,
+            "comment": "",
+            "embed_table": null,
+            "is_array": true,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "tags",
+            "not_null": false,
+            "original_name": "tags",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 7
+        }
+      ],
+      "text": "INSERT INTO venue (\n    slug,\n    name,\n    city,\n    created_at,\n    spotify_playlist,\n    status,\n    statuses,\n    tags\n) VALUES (\n    $1,\n    $2,\n    $3,\n    NOW(),\n    $4,\n    $5,\n    $6,\n    $7\n) RETURNING id"
+    },
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "id",
+          "not_null": true,
+          "original_name": "id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "serial",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "venue.sql",
+      "insert_into_table": null,
+      "name": "UpdateVenueName",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "slug",
+            "not_null": true,
+            "original_name": "slug",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "name",
+            "not_null": true,
+            "original_name": "name",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "venue",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "pg_catalog.varchar",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 2
+        }
+      ],
+      "text": "UPDATE venue\nSET name = $2\nWHERE slug = $1\nRETURNING id"
+    },
+    {
+      "cmd": ":many",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "city",
+          "not_null": true,
+          "original_name": "city",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "venue",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": true,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "count",
+          "not_null": true,
+          "original_name": "",
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "bigint",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "venue.sql",
+      "insert_into_table": null,
+      "name": "VenueCountByCity",
+      "params": [],
+      "text": "SELECT\n    city,\n    count(*)\nFROM venue\nGROUP BY 1\nORDER BY 1"
+    }
+  ],
+  "settings": {
+    "codegen": {
+      "env": [],
+      "options": "",
+      "out": "",
+      "plugin": "",
+      "process": null,
+      "wasm": null
+    },
+    "engine": "postgresql",
+    "queries": [
+      "query"
+    ],
+    "schema": [
+      "schema"
+    ],
+    "version": "2"
+  },
+  "sqlc_version": "v1.30.0"
+}

@@ -1,5 +1,7 @@
-[build]
-target = "wasm32-wasip1"
+# Native is the default so `cargo test` works without a flag; the WASM plugin is
+# an explicit `cargo wasm`.
+[alias]
+wasm = "build --release --target wasm32-wasip1"
 
 [target.wasm32-wasip1]
 runner = "sqlc generate"

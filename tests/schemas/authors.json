@@ -1,0 +1,526 @@
+{
+  "catalog": {
+    "comment": "",
+    "default_schema": "public",
+    "name": "",
+    "schemas": [
+      {
+        "comment": "",
+        "composite_types": [],
+        "enums": [],
+        "name": "public",
+        "tables": [
+          {
+            "columns": [
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "id",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "authors",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "bigserial",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "name",
+                "not_null": true,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "authors",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              },
+              {
+                "array_dims": 0,
+                "comment": "",
+                "embed_table": null,
+                "is_array": false,
+                "is_func_call": false,
+                "is_named_param": false,
+                "is_sqlc_slice": false,
+                "length": -1,
+                "name": "bio",
+                "not_null": false,
+                "original_name": "",
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "name": "authors",
+                  "schema": ""
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "name": "text",
+                  "schema": ""
+                },
+                "unsigned": false
+              }
+            ],
+            "comment": "",
+            "rel": {
+              "catalog": "",
+              "name": "authors",
+              "schema": ""
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "queries": [
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "id",
+          "not_null": true,
+          "original_name": "id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "bigserial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "name",
+          "not_null": true,
+          "original_name": "name",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "bio",
+          "not_null": false,
+          "original_name": "bio",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "GetAuthor",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "id",
+            "not_null": true,
+            "original_name": "id",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "authors",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "bigserial",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        }
+      ],
+      "text": "SELECT id, name, bio FROM authors\nWHERE id = $1 LIMIT 1"
+    },
+    {
+      "cmd": ":many",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "id",
+          "not_null": true,
+          "original_name": "id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "bigserial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "name",
+          "not_null": true,
+          "original_name": "name",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "bio",
+          "not_null": false,
+          "original_name": "bio",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "ListAuthors",
+      "params": [],
+      "text": "SELECT id, name, bio FROM authors\nORDER BY name"
+    },
+    {
+      "cmd": ":one",
+      "columns": [
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "id",
+          "not_null": true,
+          "original_name": "id",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "bigserial",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "name",
+          "not_null": true,
+          "original_name": "name",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        },
+        {
+          "array_dims": 0,
+          "comment": "",
+          "embed_table": null,
+          "is_array": false,
+          "is_func_call": false,
+          "is_named_param": false,
+          "is_sqlc_slice": false,
+          "length": -1,
+          "name": "bio",
+          "not_null": false,
+          "original_name": "bio",
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "name": "authors",
+            "schema": ""
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "name": "text",
+            "schema": ""
+          },
+          "unsigned": false
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": {
+        "catalog": "",
+        "name": "authors",
+        "schema": ""
+      },
+      "name": "CreateAuthor",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "name",
+            "not_null": true,
+            "original_name": "name",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "authors",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        },
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "bio",
+            "not_null": false,
+            "original_name": "bio",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "authors",
+              "schema": "public"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "text",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 2
+        }
+      ],
+      "text": "INSERT INTO authors (\n          name, bio\n) VALUES (\n  $1, $2\n)\nRETURNING id, name, bio"
+    },
+    {
+      "cmd": ":exec",
+      "columns": [],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null,
+      "name": "DeleteAuthor",
+      "params": [
+        {
+          "column": {
+            "array_dims": 0,
+            "comment": "",
+            "embed_table": null,
+            "is_array": false,
+            "is_func_call": false,
+            "is_named_param": false,
+            "is_sqlc_slice": false,
+            "length": -1,
+            "name": "id",
+            "not_null": true,
+            "original_name": "id",
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "name": "authors",
+              "schema": ""
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "name": "bigserial",
+              "schema": ""
+            },
+            "unsigned": false
+          },
+          "number": 1
+        }
+      ],
+      "text": "DELETE FROM authors\nWHERE id = $1"
+    }
+  ],
+  "settings": {
+    "codegen": {
+      "env": [],
+      "options": "",
+      "out": "",
+      "plugin": "",
+      "process": null,
+      "wasm": null
+    },
+    "engine": "postgresql",
+    "queries": [
+      "query.sql"
+    ],
+    "schema": [
+      "schema.sql"
+    ],
+    "version": "2"
+  },
+  "sqlc_version": "v1.30.0"
+}
