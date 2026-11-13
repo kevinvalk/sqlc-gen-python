@@ -1,0 +1,10 @@
+# The developer scripts: the generated-code contract in pyproject.toml, plus
+# what tools that report on stdout and run sqlc, git, docker and uv need.
+extend = "pyproject.toml"
+
+[lint]
+extend-ignore = [
+  "S603",  # subprocess with arguments the script built
+  "S607",  # executables found on PATH: uv, git, docker, sqlc
+  "T201",  # reporting is what these scripts do
+]

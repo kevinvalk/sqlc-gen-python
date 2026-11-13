@@ -1,0 +1,6 @@
+-- schema.sql
+CREATE TABLE "user" (
+    "id" INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    "metadata" JSONB
+);
+;

@@ -1,0 +1,3 @@
+-- mysql.schema.sql
+
+;

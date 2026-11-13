@@ -1,0 +1,364 @@
+//! The queries sqlc resolved, as the functions we will generate
+//! (`docs/python-output.md` §6).
+//!
+//! Like [`super::models`], this decides everything once: names, types, and the
+//! shape of each result. [`crate::render`] only writes it down.
+
+use std::collections::HashMap;
+use std::ffi::OsStr;
+use std::path::Path;
+
+use anyhow::{Context, Result, bail};
+use heck::{ToSnakeCase, ToUpperCamelCase};
+use ruff_python_stdlib::builtins::is_python_builtin;
+
+use super::models::{self, Field, FieldType, Model, Repeats, Resolver};
+use crate::backend::Backend;
+use crate::engine::{Engine, Sql};
+use crate::plugin;
+use crate::python::{self, Type};
+
+#[cfg(test)]
+#[path = "queries_spec.rs"]
+mod spec;
+
+/// The queries of one query file, which become one module.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Module {
+    /// The query file's stem: `invoices.sql` is the module `invoices`.
+    pub name: String,
+    pub queries: Vec<Query>,
+}
+
+/// One query, as a SQL constant, perhaps a class, and a function.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Query {
+    pub function: String,
+    pub constant: String,
+    pub comment: String,
+    /// The statement as sqlc wrote it, cut at its placeholders.
+    pub sql: Sql,
+    pub params: Vec<Field>,
+    /// Every column of the result as the database returns it, embeds expanded.
+    pub columns: Vec<Field>,
+    pub command: Command,
+}
+
+impl Query {
+    /// The class the query defines, if any.
+    pub fn class(&self) -> Option<&str> {
+        match &self.command {
+            Command::CopyFrom(class)
+            | Command::One(Shape::Row(class, _))
+            | Command::Many(Shape::Row(class, _)) => Some(class),
+            _ => None,
+        }
+    }
+}
+
+/// What a query's function does with the statement it runs (`cmd`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Command {
+    Exec,
+    ExecRows,
+    ExecResult,
+    /// Executes once per row of the `<Query>Params` class named here.
+    CopyFrom(String),
+    /// Returns the only row; none, or more than one, raises.
+    One(Shape),
+    /// Returns every row, as a list.
+    Many(Shape),
+}
+
+/// What one row of a result becomes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Shape {
+    /// The value of the only column.
+    Scalar(FieldType),
+    /// The model of the table the columns are exactly those of.
+    Model(String),
+    /// The `<Query>Row` class named here, of these fields.
+    Row(String, Vec<RowField>),
+}
+
+/// One field of a `<Query>Row`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RowField {
+    Column(Field),
+    /// `sqlc.embed(t)`: `t`'s model, built from the next `width` columns.
+    Embed {
+        name: String,
+        model: String,
+        width: usize,
+    },
+}
+
+/// The modules of `queries`, in the order sqlc lists them.
+pub fn modules(
+    queries: &[plugin::Query],
+    resolver: &Resolver,
+    models: &[Model],
+    backend: Backend,
+) -> Result<Vec<Module>> {
+    let mut modules: Vec<Module> = Vec::new();
+    // The functions and classes of each module, and the query each is for.
+    let mut defined = HashMap::new();
+    for query in queries {
+        let file = &query.filename;
+        let name = module_name(file)?;
+        let resolved = resolve(query, resolver, models, backend)
+            .with_context(|| format!("{file}: query \"{}\"", query.name))?;
+        for python in std::iter::once(resolved.function.as_str()).chain(resolved.class()) {
+            if let Some(first) = defined.insert((name.clone(), python.to_owned()), &query.name) {
+                bail!(
+                    "{file}: \"{first}\" and \"{}\" both become the Python name \"{python}\"",
+                    query.name
+                );
+            }
+        }
+        match modules.iter_mut().find(|module| module.name == name) {
+            Some(module) => module.queries.push(resolved),
+            None => modules.push(Module {
+                name,
+                queries: vec![resolved],
+            }),
+        }
+    }
+    Ok(modules)
+}
+
+/// The module a query file becomes, named after its stem, unless that is no
+/// module name, or would replace a module the plugin writes itself.
+fn module_name(file: &str) -> Result<String> {
+    let stem = (Path::new(file).file_stem())
+        .and_then(OsStr::to_str)
+        .unwrap_or("");
+    if ["models", "__init__"].contains(&stem.to_lowercase().as_str()) {
+        bail!(
+            "{file}: query file \"{file}\" would overwrite the generated module \"{stem}.py\"; rename it"
+        );
+    }
+    if !python::is_module_name(stem) {
+        bail!("{file}: \"{stem}\" is not a lowercase Python module name; rename the file");
+    }
+    Ok(stem.into())
+}
+
+fn resolve(
+    query: &plugin::Query,
+    resolver: &Resolver,
+    models: &[Model],
+    backend: Backend,
+) -> Result<Query> {
+    let cmd = query.cmd.as_str();
+    let class = query.name.to_upper_camel_case();
+    let (command, columns) = match cmd {
+        ":exec" => (Command::Exec, Vec::new()),
+        ":execrows" => (Command::ExecRows, Vec::new()),
+        ":execresult" => (Command::ExecResult, Vec::new()),
+        ":copyfrom" => (Command::CopyFrom(class + "Params"), Vec::new()),
+        ":one" | ":many" => {
+            let (fields, columns) = columns(&query.columns, resolver, models)?;
+            let shape = match fields.as_slice() {
+                [] => bail!(
+                    "{cmd} has no result columns in sqlc's report; if the query returns rows, \
+                     list them with casts (SELECT n::int, s::text FROM ...), otherwise use :exec"
+                ),
+                [RowField::Column(field)] => Shape::Scalar(field.ty.clone()),
+                _ => row_shape(
+                    models,
+                    &query.columns,
+                    fields,
+                    resolver.catalog,
+                    class + "Row",
+                ),
+            };
+            match cmd {
+                ":one" => (Command::One(shape), columns),
+                _ => (Command::Many(shape), columns),
+            }
+        }
+        ":execlastid" => bail!(":execlastid is not supported; use INSERT ... RETURNING with :one"),
+        ":batchexec" | ":batchmany" | ":batchone" => bail!(
+            "{cmd} is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])"
+        ),
+        _ => bail!("{cmd} is not a command sqlc-gen-python knows"),
+    };
+    let params = params(&query.params, resolver)?;
+    let numbered: Vec<(i32, &str)> = (query.params.iter().zip(&params))
+        .map(|(param, field)| (param.number, field.name.as_str()))
+        .collect();
+    let sql = resolver.engine.sql(&query.text, &numbered)?;
+
+    // A module-level function also takes the trailing `_` for a builtin it
+    // would hide (`Any` is `any_`, ruff A001).
+    let function = models::names(&[query.name.as_str()], Repeats::Forbidden)?.remove(0);
+    let function = match is_python_builtin(&function, 10, false) {
+        true => function + "_",
+        false => function,
+    };
+    let resolved = Query {
+        constant: format!("_{}", function.to_uppercase()),
+        function,
+        comment: (query.comments.iter())
+            .map(|line| line.strip_prefix(' ').unwrap_or(line))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        sql,
+        params,
+        columns,
+        command,
+    };
+    backend.check(resolver.engine, &resolved)?;
+    Ok(resolved)
+}
+
+/// A query's parameters, in sqlc's order.
+fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field>> {
+    let columns: Vec<plugin::Column> = (params.iter())
+        .map(|param| param.column.clone().unwrap_or_default())
+        .collect();
+    // sqlc's Go codegen numbers parameters that spell one name, but a name
+    // the user chose (`sqlc.arg`, `@name`) must bind the placeholder it was
+    // written at, not take, or give another, a suffix.
+    // A name the user chose is the identifier after `@`. sqlc names the
+    // operand of `@` after its parts when it is an expression, which `@`
+    // takes when an operator binds tighter (`@day::date AT TIME ZONE 'UTC'`
+    // is `@(pg_catalog.timezone('UTC', day::date))`), and may then have
+    // replaced all of it with the placeholder.
+    if let Some(column) = (columns.iter()).find(|c| {
+        c.is_named_param
+            && (!resolver.engine.is_identifier(&c.name) || c.name.starts_with("pg_catalog"))
+    }) {
+        bail!(
+            "sqlc named a parameter \"{}\" after an expression, not a name: an operator that \
+             binds tighter than @, such as AT TIME ZONE or +, made @ take the expression, and \
+             sqlc may have replaced all of it; write sqlc.arg(name), or parenthesise (@name::type)",
+            column.name
+        );
+    }
+    let mut seen: HashMap<String, &plugin::Column> = HashMap::new();
+    for column in columns.iter().filter(|c| !c.name.is_empty()) {
+        if let Some(first) = seen.insert(column.name.to_snake_case(), column)
+            && (first.is_named_param || column.is_named_param)
+        {
+            bail!(
+                "parameters \"{}\" and \"{}\" both become the Python name \"{}\"; rename one",
+                first.name,
+                column.name,
+                column.name.to_snake_case()
+            );
+        }
+    }
+    let spellings: Vec<&str> = columns.iter().map(|c| c.name.as_str()).collect();
+    let names = models::names(&spellings, Repeats::Numbered)?;
+
+    let mut fields = Vec::new();
+    for ((name, column), param) in names.into_iter().zip(columns).zip(params) {
+        let what = format!("parameter ${} (\"{name}\")", param.number);
+        if column.is_sqlc_slice {
+            match resolver.engine {
+                Engine::PostgreSql => {
+                    bail!(
+                        "sqlc.slice is MySQL/SQLite only; on PostgreSQL use = ANY(@{name}::type[])"
+                    )
+                }
+                Engine::Sqlite => bail!("sqlc.slice is not supported yet"),
+            }
+        }
+        // The cast goes on the placeholder: a parameter cannot be coalesced.
+        let cast = format!(
+            "{}, or {} if it can be NULL",
+            resolver.engine.cast(&format!("@{name}")),
+            resolver.engine.cast(&format!("sqlc.narg('{name}')"))
+        );
+        let ty = resolver.field_type(&column, &what, &cast)?;
+        if matches!(ty.element, Type::Json(_)) && ty.array_dims > 0 {
+            bail!(
+                "{what} is an array of \"{}\", which has no verified Python mapping",
+                column.data_type()
+            );
+        }
+        fields.push(Field {
+            name,
+            comment: String::new(),
+            ty,
+        });
+    }
+    Ok(fields)
+}
+
+/// A result's fields, and its columns as the database returns them.
+fn columns(
+    columns: &[plugin::Column],
+    resolver: &Resolver,
+    models: &[Model],
+) -> Result<(Vec<RowField>, Vec<Field>)> {
+    let embeds: Vec<Option<&Model>> = (columns.iter())
+        .map(|column| {
+            let Some(table) = column.embed_table.as_ref().filter(|t| !t.name.is_empty()) else {
+                return Ok(None);
+            };
+            (models
+                .iter()
+                .find(|model| table.is(&model.table, resolver.catalog)))
+            .map(Some)
+            .with_context(|| format!("sqlc.embed({}) names no table", table.name))
+        })
+        .collect::<Result<_>>()?;
+    let spellings: Vec<&str> = (columns.iter().zip(&embeds))
+        .map(|(column, embed)| embed.map_or(column.name.as_str(), |model| model.name.as_str()))
+        .collect();
+
+    let mut fields = Vec::new();
+    let mut flat = Vec::new();
+    for ((name, column), embed) in models::names(&spellings, Repeats::Numbered)?
+        .into_iter()
+        .zip(columns)
+        .zip(embeds)
+    {
+        match embed {
+            Some(model) => {
+                flat.extend(model.fields.iter().cloned());
+                fields.push(RowField::Embed {
+                    name,
+                    model: model.name.clone(),
+                    width: model.fields.len(),
+                });
+            }
+            None => {
+                let field = resolver.field(name, column)?;
+                flat.push(field.clone());
+                fields.push(RowField::Column(field));
+            }
+        }
+    }
+    Ok((fields, flat))
+}
+
+/// The shape of a row of several columns: the model of the table they are
+/// exactly the columns of, as sqlc-gen-go reuses one (at least two columns,
+/// all of one table, with that table's names, order, types and nullability),
+/// or else a `<Query>Row`.
+fn row_shape(
+    models: &[Model],
+    columns: &[plugin::Column],
+    fields: Vec<RowField>,
+    catalog: &plugin::Catalog,
+    class: String,
+) -> Shape {
+    // Fewer than two columns never get here: one is a scalar, and one embed
+    // is no column of the table.
+    let is_model = |model: &&Model| {
+        (columns.iter()).all(|c| (c.table.as_ref()).is_some_and(|t| t.is(&model.table, catalog)))
+            && model.fields.len() == fields.len()
+            && (model.fields.iter().zip(&fields)).all(|(a, b)| match b {
+                RowField::Column(b) => a.name == b.name && a.ty == b.ty,
+                RowField::Embed { .. } => false,
+            })
+    };
+    match models.iter().find(is_model) {
+        Some(model) => Shape::Model(model.name.clone()),
+        None => Shape::Row(class, fields),
+    }
+}

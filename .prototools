@@ -1,5 +1,4 @@
-rust = "stable"
-sqlc = "1.30.0"
+sqlc = "1.31.1"
 
 [plugins.tools]
 protoc = "https://raw.githubusercontent.com/b4nst/proto-plugins/refs/heads/main/toml/protoc.toml"

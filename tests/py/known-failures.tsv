@@ -1,0 +1,18 @@
+# Failures the runtime sweep must keep finding in what the generator emits for
+# corpus cases, because sqlc reports something PostgreSQL does not do, and the
+# generator is right to follow sqlc (CLAUDE.md: never re-infer what sqlc
+# reports). Each is a documented limitation (docs/python-output.md, "Known
+# limitations") or a sqlc catalog bug. Each names the function (from its
+# leading `.`, so that it matches it and its coroutine) or model and
+# the field, and matches only a value outside its annotation (an
+# AssertionError from deep.check), with any list index written `[]`. `verify`
+# counts each one where it happens and goes on; one that no longer happens
+# fails it, so it is removed once sqlc or the generator changes.
+#
+# corpus case	text of the failure	why
+create_table_as/postgresql	Foo.from_row on public.second_table.val: NoneType None is not <class 'str'>	sqlc copies NOT NULL into CREATE TABLE AS; PostgreSQL does not
+create_table_as/postgresql	.get_first() ->[]: NoneType None is not <class 'str'>	the same column, read by a query
+ddl_create_table_inherits/postgresql/pgx/v4	Organisation.from_row on public.organisation.legal_name: NoneType None is not <class 'str'>	sqlc applies a child's NOT NULL (llc.legal_name) to its parent's column
+ddl_create_table_inherits/postgresql/pgx/v4	.get_all_organisations() ->[].legal_name: NoneType None is not <class 'str'>	the same column, read by a query
+subquery_calculated_column/postgresql/pgx/v4	.subquery_calc_column() ->[]: NoneType None is not <class 'int'>	computed column: a scalar subquery of no rows is NULL
+null_if_type/postgresql/stdlib	.get_restricted_id() ->:	computed column: sqlc types NULLIF(id, $1) as a NOT NULL bool

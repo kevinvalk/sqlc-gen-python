@@ -1,0 +1,5 @@
+# Written by `cargo xtask capture`. Do not edit.
+sqlc = "v1.31.1"
+commit = "a95e91d70ad9e1181253c333a1cfdd75ae4b95a5"
+testdata = "https://github.com/sqlc-dev/sqlc/tree/a95e91d70ad9e1181253c333a1cfdd75ae4b95a5/internal/endtoend/testdata"
+managed_db = "PostgreSQL 16.15"

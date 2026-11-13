@@ -1,0 +1,32 @@
+{
+  "settings": {
+    "engine": "sqlite"
+  },
+  "catalog": {
+    "comment": "",
+    "default_schema": "main",
+    "name": "",
+    "schemas": [
+      {
+        "comment": "",
+        "name": "main",
+        "tables": [],
+        "enums": [],
+        "composite_types": []
+      }
+    ]
+  },
+  "queries": [
+    {
+      "text": "CREATE TABLE test (id INTEGER NOT NULL)",
+      "name": "CreateTable",
+      "cmd": ":exec",
+      "columns": [],
+      "params": [],
+      "comments": [],
+      "filename": "sqlite.query.sql",
+      "insert_into_table": null
+    }
+  ],
+  "sqlc_version": "v1.31.1"
+}

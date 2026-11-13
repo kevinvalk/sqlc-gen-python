@@ -1,3 +1,4 @@
+// Copied verbatim from https://github.com/sqlc-dev/sqlc/blob/v1.31.1/protos/plugin/codegen.proto (sqlc release v1.31.1)
 syntax = "proto3";
 
 package plugin;

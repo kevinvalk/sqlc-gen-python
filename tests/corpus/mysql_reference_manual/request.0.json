@@ -1,0 +1,384 @@
+{
+  "settings": {
+    "engine": "mysql"
+  },
+  "catalog": {
+    "comment": "",
+    "default_schema": "public",
+    "name": "",
+    "schemas": [
+      {
+        "comment": "",
+        "name": "public",
+        "tables": [
+          {
+            "rel": {
+              "catalog": "",
+              "schema": "",
+              "name": "student"
+            },
+            "columns": [
+              {
+                "name": "student_name",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 255,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "student"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "varchar"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "test_score",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "student"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "double"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              }
+            ],
+            "comment": ""
+          }
+        ],
+        "enums": [],
+        "composite_types": []
+      }
+    ]
+  },
+  "queries": [
+    {
+      "text": "\nSELECT DATE_ADD('2018-05-01',INTERVAL 1 DAY)",
+      "name": "DateAddOneDay",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "date_add",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "date"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [
+        " https://dev.mysql.com/doc/refman/8.0/en/date-and-time-functions.html#function_date-add"
+      ],
+      "filename": "date_add.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT DATE_ADD('2020-12-31 23:59:59',\n                INTERVAL 1 SECOND)",
+      "name": "DateAddOneSecond",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "date_add",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "date"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [],
+      "filename": "date_add.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT DATE_ADD('2018-12-31 23:59:59',\n                INTERVAL 1 DAY)",
+      "name": "DateAddTimestampOneSecond",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "date_add",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "date"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [],
+      "filename": "date_add.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT DATE_ADD('2100-12-31 23:59:59',\n                INTERVAL '1:1' MINUTE_SECOND)",
+      "name": "DateAddMinuteSecond",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "date_add",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "date"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [],
+      "filename": "date_add.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT DATE_ADD('1900-01-01 00:00:00',\n                INTERVAL '-1 10' DAY_HOUR)",
+      "name": "DateAddDayHour",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "date_add",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "date"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [],
+      "filename": "date_add.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT DATE_ADD('1992-12-31 23:59:59.000002',\n           INTERVAL '1.999999' SECOND_MICROSECOND)",
+      "name": "DateAddSecondMicrosecond",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "date_add",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "date"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [],
+      "filename": "date_add.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT DATE_SUB('2018-05-01',INTERVAL 1 YEAR)",
+      "name": "DateSubOneYear",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "date_sub",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "date"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [],
+      "filename": "date_sub.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT DATE_SUB('2025-01-01 00:00:00',\n                INTERVAL '1 1:1:1' DAY_SECOND)",
+      "name": "DateSubDaySecond",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "date_sub",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "date"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [],
+      "filename": "date_sub.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT DATE_SUB('1998-01-02', INTERVAL 31 DAY)",
+      "name": "DateSub31Days",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "date_sub",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "date"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [],
+      "filename": "date_sub.sql",
+      "insert_into_table": null
+    }
+  ],
+  "sqlc_version": "v1.31.1"
+}

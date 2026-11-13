@@ -1,19 +1,28 @@
-//! Specification for backend selection.
+//! Specification for choosing a backend.
 
 use super::*;
 
 #[test]
-fn a_backend_is_named_in_the_configuration() {
-    let parse = |json| serde_json::from_str::<Backend>(json).unwrap();
-    assert_eq!(parse(r#""sqlalchemy""#), Backend::SqlAlchemy);
+fn each_backend_runs_its_engines() {
+    use Engine::{PostgreSql, Sqlite};
+    for (backend, engines) in [
+        (Backend::SqlAlchemy, &[PostgreSql, Sqlite][..]),
+        (Backend::Psycopg, &[PostgreSql]),
+        (Backend::Sqlite3, &[Sqlite]),
+    ] {
+        for engine in [PostgreSql, Sqlite] {
+            assert_eq!(
+                backend.runs(engine),
+                engines.contains(&engine),
+                "{backend:?}"
+            );
+        }
+    }
 }
 
 #[test]
-fn selection_dispatches_to_the_backend() {
-    let backend = Backend::SqlAlchemy;
-    assert_eq!(
-        backend.sql("WHERE id = $1", Engine::PostgreSql),
-        "WHERE id = :p1"
-    );
-    assert!(!backend.connection(true).import().is_none());
+fn only_a_driver_without_its_own_defines_the_errors_of_a_one() {
+    assert!(!Backend::SqlAlchemy.defines_errors());
+    assert!(Backend::Psycopg.defines_errors());
+    assert!(Backend::Sqlite3.defines_errors());
 }

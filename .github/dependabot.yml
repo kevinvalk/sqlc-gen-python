@@ -1,0 +1,28 @@
+# Everything pinned stays current: one grouped PR per ecosystem per week, held
+# to CI like any other change. A week's cooldown lets a compromised release be
+# caught and yanked before it is proposed; security updates skip it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+    groups: { github-actions: { patterns: ["*"] } }
+
+  # The workspace: the plugin and xtask share the root Cargo.lock.
+  - package-ecosystem: cargo
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+    groups: { cargo: { patterns: ["*"] } }
+
+  - package-ecosystem: rust-toolchain
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+
+  - package-ecosystem: uv
+    directory: /tests/py
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+    groups: { uv: { patterns: ["*"] } }

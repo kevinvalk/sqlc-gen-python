@@ -1,0 +1,9 @@
+# Test code: the developer scripts' rules, plus what pytest idiom needs.
+extend = "../ruff.toml"
+
+[lint]
+extend-ignore = [
+  "INP001",  # a pytest directory, not a package
+  "PLR2004", # expected values are literals on purpose
+  "S101",    # pytest asserts
+]

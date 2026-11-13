@@ -1,0 +1,180 @@
+{
+  "settings": {
+    "engine": "mysql"
+  },
+  "catalog": {
+    "comment": "",
+    "default_schema": "public",
+    "name": "",
+    "schemas": [
+      {
+        "comment": "",
+        "name": "public",
+        "tables": [
+          {
+            "rel": {
+              "catalog": "",
+              "schema": "",
+              "name": "foo"
+            },
+            "columns": [
+              {
+                "name": "foobar",
+                "not_null": true,
+                "is_array": false,
+                "comment": "",
+                "length": 5,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "foo"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "foo_foobar"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "digit",
+                "not_null": true,
+                "is_array": false,
+                "comment": "",
+                "length": 1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "foo"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "foo_digit"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              }
+            ],
+            "comment": ""
+          }
+        ],
+        "enums": [
+          {
+            "name": "foo_foobar",
+            "vals": [
+              "foo-a",
+              "foo_b",
+              "foo:c",
+              "foo/d",
+              "foo@e",
+              "foo+f",
+              "foo!g"
+            ],
+            "comment": ""
+          },
+          {
+            "name": "foo_digit",
+            "vals": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "#",
+              "*"
+            ],
+            "comment": ""
+          }
+        ],
+        "composite_types": []
+      }
+    ]
+  },
+  "queries": [
+    {
+      "text": "SELECT foobar, digit FROM foo",
+      "name": "ListFoo",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "foobar",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": 5,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "foo"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "foo_foobar"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "foobar",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "digit",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": 1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "foo"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "foo_digit"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "digit",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null
+    }
+  ],
+  "sqlc_version": "v1.31.1"
+}

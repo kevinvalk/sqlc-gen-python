@@ -1,0 +1,1 @@
+{ "schema": "booktest", "options": { "backend": "sqlalchemy", "async": false } }

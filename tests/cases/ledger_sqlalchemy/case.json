@@ -1,0 +1,1 @@
+{ "schema": "ledger", "options": { "backend": "sqlalchemy", "async": false } }

@@ -1,0 +1,4 @@
+-- schema.sql
+CREATE TABLE bar (id integer(10) NOT NULL AUTO_INCREMENT PRIMARY KEY);
+
+;

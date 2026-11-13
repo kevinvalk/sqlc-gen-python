@@ -1,0 +1,9 @@
+{
+  "sqlalchemy": { "backend": "sqlalchemy", "async": false },
+  "sqlalchemy_async": { "backend": "sqlalchemy", "async": true },
+  "psycopg": { "backend": "psycopg", "async": false },
+  "psycopg_async": { "backend": "psycopg", "async": true },
+  "sqlite3": { "backend": "sqlite3", "async": false },
+  "sqlite3_async": { "backend": "sqlite3", "async": true },
+  "exact_names": { "backend": "sqlalchemy", "async": false, "models": { "exact_table_names": true } }
+}

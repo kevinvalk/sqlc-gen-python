@@ -1,0 +1,5 @@
+-- schema.sql
+CREATE SCHEMA foo;
+CREATE TABLE bar (name text);
+ALTER TABLE bar SET SCHEMA foo;
+;

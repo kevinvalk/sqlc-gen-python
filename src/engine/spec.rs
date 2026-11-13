@@ -1,30 +1,24 @@
-//! Specification for engine selection and dispatch.
+//! Specification for choosing the engine.
 
 use super::*;
 
 #[test]
-fn every_supported_engine_parses() {
-    assert_eq!(Engine::parse("postgresql").unwrap(), Engine::PostgreSql);
-    assert_eq!(Engine::parse("mysql").unwrap(), Engine::MySql);
-    assert_eq!(Engine::parse("sqlite").unwrap(), Engine::Sqlite);
-}
-
-#[test]
-fn an_unsupported_engine_is_named_in_the_error() {
-    let error = Engine::parse("oracle").unwrap_err();
-    assert!(error.to_string().contains("oracle"), "{error}");
-}
-
-#[test]
-fn selection_dispatches_to_the_engines_own_table() {
-    // Each engine spells its integer and text types differently; the dispatch
-    // is what makes the right table answer.
-    for (engine, integer, text) in [
-        (Engine::PostgreSql, "bigserial", "citext"),
-        (Engine::MySql, "bigint unsigned", "longtext"),
-        (Engine::Sqlite, "unsignedbigint", "nvarchar"),
-    ] {
-        assert_eq!(engine.scalar_type(integer), Some(Type::INT));
-        assert_eq!(engine.scalar_type(text), Some(Type::STR));
+fn postgresql_and_sqlite_are_supported() {
+    let request = |engine: &str| plugin::GenerateRequest {
+        settings: Some(plugin::Settings {
+            engine: engine.into(),
+            ..plugin::Settings::default()
+        }),
+        ..plugin::GenerateRequest::default()
+    };
+    for engine in [Engine::PostgreSql, Engine::Sqlite] {
+        assert_eq!(Engine::of(&request(engine.name())).unwrap(), engine);
+    }
+    // MySQL has no driver evidence behind a type map yet.
+    for engine in ["mysql", "oracle"] {
+        assert_eq!(
+            Engine::of(&request(engine)).unwrap_err().to_string(),
+            format!(r#"engine "{engine}" is not supported yet; only postgresql and sqlite are"#)
+        );
     }
 }

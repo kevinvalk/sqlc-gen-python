@@ -1,10 +1,1 @@
-{
-  "schema": "authors",
-  "options": {
-    "package": "authors",
-    "models": {
-      "exact_table_names": true,
-      "file": "schema.py"
-    }
-  }
-}
+{ "schema": "authors", "options": { "backend": "sqlalchemy", "async": false, "models": { "exact_table_names": true } } }

@@ -1,0 +1,87 @@
+# A `v*` tag on main becomes a GitHub Release once it names Cargo.toml's
+# version and CI passes on it. What is published is the plugin CI ran under sqlc
+# and rebuilt to the same bytes, with its checksum, a signed build provenance
+# attestation, and release notes holding the `sqlc.yaml` block to paste.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+jobs:
+  version:
+    name: tag is on main and is v + Cargo.toml's version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Full history, no file contents: enough to ask whether main contains it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+      - run: |
+          version=$(yq -p toml -o yaml .package.version Cargo.toml)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME is not v$version, the version in Cargo.toml"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::tag $GITHUB_REF_NAME is not on main"
+            exit 1
+          fi
+
+  ci:
+    needs: version
+    # Not `$/`: actionlint does not know it yet, and `./` is this commit too.
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
+    permissions:
+      contents: read
+
+  publish:
+    name: publish the release
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+      id-token: write # sign the attestation with a Sigstore certificate
+      attestations: write # store the attestation
+    steps:
+      # Only what the release notes are made from.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/release-notes.md
+            /.prototools
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sqlc-gen-python.wasm
+          path: dist
+      # One digest: the attestation signs what SHA256SUMS states.
+      - run: sha256sum sqlc-gen-python.wasm > SHA256SUMS
+        working-directory: dist
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: dist/SHA256SUMS
+      # Only these variables are substituted; any other `$` in the template stays.
+      - name: Write the release notes
+        env:
+          SERVER: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          export SHA256 SQLC
+          SHA256=$(cut -d ' ' -f 1 dist/SHA256SUMS)
+          SQLC=$(yq -p toml -o yaml .sqlc .prototools)
+          # shellcheck disable=SC2016 # names the variables, unexpanded
+          envsubst '$SERVER $REPO $TAG $SHA256 $SQLC' < .github/release-notes.md > dist/notes.md
+      - run: >
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+          --notes-file dist/notes.md dist/sqlc-gen-python.wasm dist/SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
