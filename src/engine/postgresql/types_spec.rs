@@ -122,13 +122,13 @@ fn an_array_a_driver_does_not_load_as_a_list_says_what_it_does() {
 }
 
 /// The fixture the runtime proof reads back through every driver
-/// (`tests/py/typemap.py`).
+/// (`tests/python/typemap.py`).
 #[test]
 fn every_mapped_type_has_a_column_the_runtime_proof_reads() {
     // Where cargo runs the test from, not where it was built (a reused
     // `target/` may come from another copy of the tree).
     let path = std::path::Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").unwrap())
-        .join("tests/schemas/pgtypes.json");
+        .join("tests/sqlc/examples/pgtypes.json");
     let request: plugin::GenerateRequest =
         serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     let columns = || {

@@ -1,11 +1,11 @@
 //! PostgreSQL's lexer, as far as finding sqlc's placeholders needs it: what is
 //! code and what is a string, a quoted identifier or a comment, as `scan.l`
-//! reads it. `tests/py/scanner.py` holds it to libpg_query, the lexer sqlc
+//! reads it. `tests/python/scanner.py` holds it to libpg_query, the lexer sqlc
 //! parses with.
 
 use anyhow::{Result, bail};
 
-use crate::engine::{Sql, cut};
+use crate::engine::{Engine, Sql, cut};
 
 #[cfg(test)]
 #[path = "lexer_spec.rs"]
@@ -27,7 +27,7 @@ pub fn sql(text: &str, params: &[(i32, &str)]) -> Result<Sql> {
         Kind::Placeholder(number) => Some((token.start..token.end, number)),
         _ => None,
     });
-    cut(&chars, placeholders, params, |number| format!("${number}"))
+    cut(&chars, placeholders, params, Engine::PostgreSql)
 }
 
 /// A character PostgreSQL's lexer continues a dollar-quote tag with: an

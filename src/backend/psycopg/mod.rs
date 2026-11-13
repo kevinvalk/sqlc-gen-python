@@ -16,6 +16,10 @@ pub const DRIVER: Driver = Driver {
         "psycopg.RawCursor[tuple[Any, ...]]",
         "psycopg.AsyncRawCursor[tuple[Any, ...]]",
     ],
+    placeholder: None,
+    execute_counts: false,
+    // PostgreSQL has no `sqlc.slice`.
+    no_rows: "",
     bind,
     // psycopg knows no type the schema declares.
     text_arrays: true,

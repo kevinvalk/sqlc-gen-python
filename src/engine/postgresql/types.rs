@@ -18,7 +18,7 @@ mod spec;
 /// The type map of `docs/python-output.md` §5, keyed by PostgreSQL's own name
 /// for each type (`pg_type.typname`): what psycopg (sync and async) and asyncpg
 /// were observed to return, as a scalar and, outside [`NO_ARRAYS`], as an
-/// array. A type nobody has probed is not here. `tests/schemas/src/pgtypes`
+/// array. A type nobody has probed is not here. `examples/pgtypes`
 /// has a column of each, and an array column of each that arrays allow, so the
 /// runtime proof holds every entry to what the drivers return.
 const TYPES: &[(&str, Type)] = &[

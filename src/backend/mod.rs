@@ -12,6 +12,7 @@
 
 mod dbapi;
 mod psycopg;
+mod pymysql;
 pub mod sqlalchemy;
 mod sqlite3;
 
@@ -37,6 +38,8 @@ pub enum Backend {
     Psycopg,
     /// `sqlite3`, and `aiosqlite` for coroutines, on SQLite.
     Sqlite3,
+    /// PyMySQL, on MySQL, without coroutines.
+    Pymysql,
 }
 
 impl Backend {
@@ -46,6 +49,7 @@ impl Backend {
             Self::SqlAlchemy => "sqlalchemy",
             Self::Psycopg => "psycopg",
             Self::Sqlite3 => "sqlite3",
+            Self::Pymysql => "pymysql",
         }
     }
 
@@ -55,6 +59,18 @@ impl Backend {
             Self::SqlAlchemy => true,
             Self::Psycopg => engine == Engine::PostgreSql,
             Self::Sqlite3 => engine == Engine::Sqlite,
+            Self::Pymysql => engine == Engine::MySql,
+        }
+    }
+
+    /// Why the backend has no coroutines, if it has none.
+    pub fn async_problem(self) -> Option<&'static str> {
+        match self {
+            Self::SqlAlchemy | Self::Psycopg | Self::Sqlite3 => None,
+            Self::Pymysql => Some(
+                "no async MySQL driver is both typed and right, so the pymysql backend has no \
+                 coroutines; use the sqlalchemy backend, on mysql+asyncmy",
+            ),
         }
     }
 
@@ -64,6 +80,7 @@ impl Backend {
             Self::SqlAlchemy => None,
             Self::Psycopg => Some(&psycopg::DRIVER),
             Self::Sqlite3 => Some(&sqlite3::DRIVER),
+            Self::Pymysql => Some(&pymysql::DRIVER),
         }
     }
 
@@ -100,7 +117,7 @@ impl Backend {
     pub fn statement(self, query: &Query) -> ast::Expr {
         match self.driver() {
             None => sqlalchemy::statement(query),
-            Some(_) => dbapi::statement(query),
+            Some(driver) => dbapi::statement(driver, query),
         }
     }
 

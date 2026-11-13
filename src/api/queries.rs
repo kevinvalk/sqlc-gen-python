@@ -38,7 +38,14 @@ pub struct Query {
     pub comment: String,
     /// The statement as sqlc wrote it, cut at its placeholders.
     pub sql: Sql,
+    /// The function's parameters: each name sqlc reported, once.
     pub params: Vec<Field>,
+    /// The parameter each placeholder binds, by the placeholder's number: a
+    /// name the user chose and used twice is two placeholders on MySQL.
+    pub binds: Vec<String>,
+    /// The parameters that are a `sqlc.slice`, a list bound as one
+    /// placeholder per item.
+    pub slices: Vec<String>,
     /// Every column of the result as the database returns it, embeds expanded.
     pub columns: Vec<Field>,
     pub command: Command,
@@ -62,6 +69,8 @@ pub enum Command {
     Exec,
     ExecRows,
     ExecResult,
+    /// Returns the id the `INSERT` generated.
+    ExecLastId,
     /// Executes once per row of the `<Query>Params` class named here.
     CopyFrom(String),
     /// Returns the only row; none, or more than one, raises.
@@ -178,17 +187,38 @@ fn resolve(
                 _ => (Command::Many(shape), columns),
             }
         }
-        ":execlastid" => bail!(":execlastid is not supported; use INSERT ... RETURNING with :one"),
+        ":execlastid" if resolver.engine.has_last_insert_id() => (Command::ExecLastId, Vec::new()),
+        ":execlastid" => bail!(
+            ":execlastid is not supported on {}; use INSERT ... RETURNING with :one",
+            resolver.engine.name()
+        ),
         ":batchexec" | ":batchmany" | ":batchone" => bail!(
             "{cmd} is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])"
         ),
         _ => bail!("{cmd} is not a command sqlc-gen-python knows"),
     };
-    let params = params(&query.params, resolver)?;
-    let numbered: Vec<(i32, &str)> = (query.params.iter().zip(&params))
+    let uses = params(&query.params, resolver)?;
+    let numbered: Vec<(i32, &str)> = (query.params.iter().zip(&uses))
         .map(|(param, field)| (param.number, field.name.as_str()))
         .collect();
     let sql = resolver.engine.sql(&query.text, &numbered)?;
+    // Each placeholder's parameter, by its number; and each parameter once.
+    let mut binds = numbered.clone();
+    binds.sort_by_key(|&(number, _)| number);
+    let binds = binds
+        .into_iter()
+        .map(|(_, name)| name.to_string())
+        .collect();
+    let slices = (query.params.iter().zip(&uses))
+        .filter(|(param, _)| param.column.as_ref().is_some_and(|c| c.is_sqlc_slice))
+        .map(|(_, field)| field.name.clone())
+        .collect();
+    let mut params: Vec<Field> = Vec::new();
+    for field in uses {
+        if !params.iter().any(|p| p.name == field.name) {
+            params.push(field);
+        }
+    }
 
     // A module-level function also takes the trailing `_` for a builtin it
     // would hide (`Any` is `any_`, ruff A001).
@@ -206,6 +236,8 @@ fn resolve(
             .join("\n"),
         sql,
         params,
+        binds,
+        slices,
         columns,
         command,
     };
@@ -213,7 +245,9 @@ fn resolve(
     Ok(resolved)
 }
 
-/// A query's parameters, in sqlc's order.
+/// A query's parameters, in sqlc's order, one per placeholder: a name the
+/// user chose names one parameter wherever it is used, which on MySQL sqlc
+/// reports once per use.
 fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field>> {
     let columns: Vec<plugin::Column> = (params.iter())
         .map(|param| param.column.clone().unwrap_or_default())
@@ -237,8 +271,21 @@ fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field
             column.name
         );
     }
+    // Each use of a name the user chose after the first: which use it repeats.
+    let mut chosen: HashMap<String, usize> = HashMap::new();
+    let repeats: Vec<Option<usize>> = (columns.iter().enumerate())
+        .map(|(i, c)| match c.is_named_param && !c.name.is_empty() {
+            true => match chosen.get(&c.name) {
+                Some(&first) => Some(first),
+                None => chosen.insert(c.name.clone(), i).and(None),
+            },
+            false => None,
+        })
+        .collect();
     let mut seen: HashMap<String, &plugin::Column> = HashMap::new();
-    for column in columns.iter().filter(|c| !c.name.is_empty()) {
+    for (column, _) in
+        (columns.iter().zip(&repeats)).filter(|(c, r)| !c.name.is_empty() && r.is_none())
+    {
         if let Some(first) = seen.insert(column.name.to_snake_case(), column)
             && (first.is_named_param || column.is_named_param)
         {
@@ -250,29 +297,64 @@ fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field
             );
         }
     }
-    let spellings: Vec<&str> = columns.iter().map(|c| c.name.as_str()).collect();
-    let names = models::names(&spellings, Repeats::Numbered)?;
+    let firsts: Vec<(usize, &str)> = (columns.iter().zip(&repeats).enumerate())
+        .filter(|(_, (_, repeat))| repeat.is_none())
+        .map(|(i, (c, _))| (i, c.name.as_str()))
+        .collect();
+    let spellings: Vec<&str> = firsts.iter().map(|&(_, spelling)| spelling).collect();
+    let mut names: Vec<String> = vec![String::new(); columns.len()];
+    for ((i, _), name) in firsts
+        .iter()
+        .zip(models::names(&spellings, Repeats::Numbered)?)
+    {
+        names[*i] = name;
+    }
+    for (i, repeat) in repeats.iter().enumerate() {
+        if let Some(first) = repeat {
+            names[i] = names[*first].clone();
+        }
+    }
 
-    let mut fields = Vec::new();
-    for ((name, column), param) in names.into_iter().zip(columns).zip(params) {
-        let what = format!("parameter ${} (\"{name}\")", param.number);
-        if column.is_sqlc_slice {
-            match resolver.engine {
-                Engine::PostgreSql => {
-                    bail!(
-                        "sqlc.slice is MySQL/SQLite only; on PostgreSQL use = ANY(@{name}::type[])"
-                    )
-                }
-                Engine::Sqlite => bail!("sqlc.slice is not supported yet"),
-            }
+    let mut fields: Vec<Field> = Vec::new();
+    for (((name, column), param), repeat) in
+        names.into_iter().zip(columns).zip(params).zip(&repeats)
+    {
+        let what = format!(
+            "parameter {} (\"{name}\")",
+            resolver.engine.placeholder(param.number)
+        );
+        if column.is_sqlc_slice && resolver.engine == Engine::PostgreSql {
+            bail!("sqlc.slice is MySQL/SQLite only; on PostgreSQL use = ANY(@{name}::type[])")
         }
         // The cast goes on the placeholder: a parameter cannot be coalesced.
         let cast = format!(
             "{}, or {} if it can be NULL",
-            resolver.engine.cast(&format!("@{name}")),
+            resolver.engine.cast(&match resolver.engine {
+                Engine::PostgreSql => format!("@{name}"),
+                _ => format!("sqlc.arg({name})"),
+            }),
             resolver.engine.cast(&format!("sqlc.narg('{name}')"))
         );
-        let ty = resolver.field_type(&column, &what, &cast)?;
+        let mut ty = resolver.field_type(&column, &what, &cast)?;
+        if column.is_sqlc_slice {
+            if ty.array_dims > 0 {
+                bail!("{what} is a sqlc.slice of an array, which binds no placeholder per item");
+            }
+            ty.array_dims = 1;
+        }
+        // Every use must take one type; one that admits NULL makes it
+        // optional, as sqlc reports each use's own column.
+        if let Some(first) = repeat.map(|first| &mut fields[first]) {
+            if (&first.ty.element, first.ty.array_dims) != (&ty.element, ty.array_dims) {
+                bail!(
+                    "{what} is used as {} and as {}; cast each use to one type",
+                    first.ty.annotation(crate::python::Scope::Queries),
+                    ty.annotation(crate::python::Scope::Queries)
+                );
+            }
+            first.ty.optional |= ty.optional;
+            ty.optional = first.ty.optional;
+        }
         if matches!(ty.element, Type::Json(_)) && ty.array_dims > 0 {
             bail!(
                 "{what} is an array of \"{}\", which has no verified Python mapping",

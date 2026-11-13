@@ -10,6 +10,8 @@ build = "build.rs"
 license = "AGPL-3.0-or-later OR LicenseRef-KevinValk-Commercial"
 description = "A sqlc codegen plugin that generates Python"
 repository = "https://github.com/kevinvalk/sqlc-gen-python"
+# `examples/` holds sqlc projects, not Rust programs.
+autoexamples = false
 
 [lib]
 name = "sqlc_gen_python"
@@ -49,6 +51,7 @@ protoc-bin-vendored = "3.3.0"
 [dev-dependencies]
 # SQLAlchemy's bind expressions use look-around, which `regex` does not have.
 fancy-regex = "0.19.0"
+serde_yaml_ng = "0.10.0"
 sha2 = "0.11.1"
 similar-asserts = "2.0.0"
 

@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn every_name_singularises_as_sqlc_singularises_it() {
     // `name<TAB>sqlc's singular`, from sqlc's own code (`cargo xtask capture`).
-    let table = include_str!("../../tests/corpus/inflection.tsv");
+    let table = include_str!("../../tests/sqlc/endtoend/inflection.tsv");
     let wrong: Vec<String> = (table.lines())
         .filter_map(|line| line.split_once('\t'))
         .filter(|(name, sqlc)| singular(name) != *sqlc)

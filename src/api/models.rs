@@ -266,7 +266,7 @@ impl<'a> Resolver<'a> {
         }
         let Some(element) = self
             .engine
-            .scalar_type(&data_type)
+            .scalar_type(column)
             .or_else(|| self.declared_type(&data_type))
         else {
             // sqlc sends a domain's name, never its base type.
@@ -280,6 +280,11 @@ impl<'a> Resolver<'a> {
                 };
             bail!("{what} has type \"{data_type}\", which has no verified Python mapping{domain}")
         };
+        if let Some(sql_enum) = self.declared_enum(&data_type)
+            && let Some(problem) = self.engine.enum_problem(column, &sql_enum.vals)
+        {
+            bail!("{what} {problem}")
+        }
         let array_dims = column.array_dims as usize;
         if column.is_array && array_dims == 0 {
             bail!("{what} is an array, but sqlc reported no array depth for it")
@@ -307,10 +312,17 @@ impl<'a> Resolver<'a> {
     /// (`docs/python-output.md` §5, rule 3). Composite types get no class yet,
     /// so a column of one is as unknown as a type nothing declares.
     fn declared_type(&self, data_type: &str) -> Option<Type> {
+        let (schema, _) = data_type.rsplit_once('.').unwrap_or(("", data_type));
+        let sql_enum = self.declared_enum(data_type)?;
+        Some(Type::Enum(
+            self.class_name(self.catalog.schema(schema)?, &sql_enum.name),
+        ))
+    }
+
+    /// The enum of the catalog `data_type` names, if any.
+    fn declared_enum(&self, data_type: &str) -> Option<&'a plugin::Enum> {
         let (schema, name) = data_type.rsplit_once('.').unwrap_or(("", data_type));
-        let schema = self.catalog.schema(schema)?;
-        (schema.enums.iter().any(|e| e.name == name))
-            .then(|| Type::Enum(self.class_name(schema, name)))
+        (self.catalog.schema(schema)?.enums.iter()).find(|e| e.name == name)
     }
 }
 

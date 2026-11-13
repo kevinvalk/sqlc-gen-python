@@ -1,1 +1,0 @@
-{ "schema": "authors", "options": { "backend": "sqlalchemy", "async": false, "models": { "exact_table_names": true } } }

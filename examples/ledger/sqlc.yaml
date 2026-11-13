@@ -1,0 +1,32 @@
+version: "2"
+plugins:
+  - name: python
+    # This repository's plugin, as `cargo install --path .` builds it. Elsewhere,
+    # use a release's `wasm` url and sha256 (see the README).
+    process:
+      cmd: sqlc-gen-python
+sql:
+  - engine: sqlite
+    schema: schema.sql
+    queries: query.sql
+    codegen:
+      - out: ledger_sqlalchemy
+        plugin: python
+        options:
+          backend: sqlalchemy
+          async: false
+      - out: ledger_sqlalchemy_async
+        plugin: python
+        options:
+          backend: sqlalchemy
+          async: true
+      - out: ledger_sqlite3
+        plugin: python
+        options:
+          backend: sqlite3
+          async: false
+      - out: ledger_sqlite3_async
+        plugin: python
+        options:
+          backend: sqlite3
+          async: true

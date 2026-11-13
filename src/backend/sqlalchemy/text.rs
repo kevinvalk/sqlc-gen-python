@@ -22,14 +22,33 @@ use crate::engine::{Piece, Sql};
 mod spec;
 
 /// `sql` as `text()` takes it: each placeholder `:name`, every other colon
-/// escaped.
+/// escaped. A `sqlc.slice` is a bind SQLAlchemy expands into its items in
+/// parentheses of its own, so it takes the place of sqlc's: `IN :ids`.
 pub fn text(sql: &Sql) -> String {
-    (sql.0.iter())
-        .map(|piece| match piece {
-            Piece::Text(text) => text.replace(':', r"\:"),
-            Piece::Param { name, .. } => format!(":{name}"),
-        })
-        .collect()
+    let mut text = String::new();
+    let mut slice = false;
+    for piece in &sql.0 {
+        match piece {
+            Piece::Text(part) => {
+                let part = if slice { &part[1..] } else { part };
+                text += &part.replace(':', r"\:");
+                slice = false;
+            }
+            Piece::Param { name, placeholder } => {
+                slice = is_slice(placeholder);
+                if slice {
+                    text.pop();
+                }
+                text += &format!(":{name}");
+            }
+        }
+    }
+    text
+}
+
+/// Whether a placeholder is a `sqlc.slice`'s.
+fn is_slice(placeholder: &str) -> bool {
+    placeholder.starts_with("/*SLICE:")
 }
 
 /// An error if `text()` would not bind a placeholder of `sql` as that
@@ -48,6 +67,17 @@ pub fn check(sql: &Sql) -> Result<()> {
         let Piece::Param { placeholder, .. } = piece else {
             continue;
         };
+        if is_slice(placeholder) {
+            let before = i.checked_sub(1).and_then(|j| ends(&sql.0[j]).1);
+            let after = sql.0.get(i + 1).and_then(|next| ends(next).0);
+            if (before, after) != (Some('('), Some(')')) {
+                bail!(
+                    "SQLAlchemy expands a sqlc.slice into parentheses of its own, so it must be \
+                     written directly inside them: IN (sqlc.slice(name))"
+                );
+            }
+            continue;
+        }
         let before = (i.checked_sub(1).and_then(|j| ends(&sql.0[j]).1))
             .filter(|&c| matches!(c, ':' | '\\') || is_word(c))
             .map(|c| ("after", c));

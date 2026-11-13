@@ -34,6 +34,11 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
             resolver.engine.name()
         );
     }
+    if config.asynchronous
+        && let Some(problem) = config.backend.async_problem()
+    {
+        bail!("async: {problem}");
+    }
     let (enums, models) = models::resolve(&resolver, &config.models)?;
     let modules = queries::modules(&request.queries, &resolver, &models, config.backend)?;
     let api = Api {

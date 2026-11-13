@@ -1,9 +1,8 @@
 # Project rules for agents
 
 A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates
-Python 3.10+ for PostgreSQL and SQLite (MySQL is an error until it has driver
-evidence). It builds a ruff Python AST
-and renders it with ruff's formatter. Read `README.md` for the architecture.
+Python 3.10+ for PostgreSQL, MySQL and SQLite. It builds a ruff Python AST
+and renders it with ruff's formatter. Read `docs/development.md` for the architecture.
 
 ## Non-negotiables
 
@@ -38,11 +37,11 @@ and renders it with ruff's formatter. Read `README.md` for the architecture.
 
 ## Decided
 
-- Backends: `sqlalchemy` (SQLAlchemy Core, PostgreSQL and SQLite), `psycopg`
-  (psycopg 3 raw cursors, PostgreSQL) and `sqlite3` (`sqlite3`/`aiosqlite`).
+- Backends: `sqlalchemy` (SQLAlchemy Core, every engine), `psycopg` (psycopg 3
+  raw cursors, PostgreSQL), `sqlite3` (`sqlite3`/`aiosqlite`) and `pymysql`
+  (PyMySQL, MySQL, sync only: no async MySQL driver is typed and right).
   `backend` and `async` are both required. Each query file is one module of
-  functions taking `conn`, coroutines when `async: true`. MySQL is a clean error (the
-  corpus sweep holds that), until it gets a type map with driver evidence.
+  functions taking `conn`, coroutines when `async: true`.
 - Python 3.10 minimum: `X | None`, `list[T]`, keyword-only dataclass fields,
   PascalCase classes, snake_case functions, UPPER_SNAKE constants and enum
   members, ruff-isort-clean import blocks.
@@ -52,7 +51,7 @@ and renders it with ruff's formatter. Read `README.md` for the architecture.
 - Class names follow sqlc's own inflection (`media` -> `Medium`).
 - Types follow driver reality; enums are coerced into the enum class.
 - `cargo test` stays hermetic: no Python, Docker or network. Python tooling lives
-  in a uv project under `tests/py`; Docker is needed for `capture`, `verify`,
+  in a uv project under `tests/python`; Docker is needed for `capture`, `verify`,
   CI, and a `bless` that changes a case the runtime proof reads
   (`pgtypes_sqlalchemy`, `invoicing_*`, `ledger_*`), and they fail
   loudly without it.
@@ -62,15 +61,19 @@ and renders it with ruff's formatter. Read `README.md` for the architecture.
 
 - Unit specs live in a `_spec.rs` sibling (`foo.rs` / `foo_spec.rs`, `mod.rs` /
   `spec.rs`). Each spec names one rule and checks it.
-- Golden output under `tests/cases/` pins exact bytes. Only re-bless when you
+- Golden output pins exact bytes: each `examples/<example>/` is a sqlc
+  project (`sqlc.yaml`, its SQL), and each `codegen` entry's `out` beside it
+  holds what the plugin generates, which the tests compare against. What sqlc
+  sends for each example is captured in `tests/sqlc/examples/`. Only re-bless when you
   have verified the new output is *more correct*, and say why. Never bless to
   make a red check green.
 - Every rule in the generator should be traceable to a source of truth above.
-- `tests/cases/` holds, beside each `case.json`, only what the generator
-  produces, and `cargo xtask bless` owns it. The invoicing cases are the
-  acceptance fixture: `cargo xtask verify` proves them with the runtime suite in `tests/py/suite/`, and bless
-  will not accept a change to them, or to `pgtypes_sqlalchemy`, that it fails.
+- An example's `out` directories hold only what the generator produces, and
+  `cargo xtask bless` owns them. The invoicing cases are the acceptance
+  fixture: `cargo xtask verify` proves them with the runtime suite in
+  `tests/python/suite/`, and bless will not accept a change to them, or to another
+  case the runtime proof reads, that it fails.
 - An unknown or unprobed type is an error, never `Any`; the tests reject an
   `Any` field. A type joins the map in `src/engine/postgresql/types.rs` only
   with driver evidence, recorded in `docs/python-output.md` §5 and proven by
-  `tests/py/typemap.py`.
+  `tests/python/typemap.py`.

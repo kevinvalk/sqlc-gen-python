@@ -3,7 +3,7 @@
 //!
 //! This ports sqlc's `internal/inflection`: its corrections, then the rules of
 //! `github.com/jinzhu/inflection` v1.0.0 in the order that library tries them,
-//! quirks included (`leaves` is `leafe`). `tests/corpus/inflection.tsv`,
+//! quirks included (`leaves` is `leafe`). `tests/sqlc/endtoend/inflection.tsv`,
 //! captured from sqlc's own code, holds the port to it.
 
 use std::sync::LazyLock;

@@ -53,30 +53,39 @@ fn query(cmd: &str, text: &str) -> plugin::Query {
 }
 
 fn try_resolve_all(queries: Vec<plugin::Query>) -> Result<Vec<Module>> {
+    try_resolve_on("postgresql", queries)
+}
+
+/// `queries`, resolved on `engine` against the `authors` catalog.
+fn try_resolve_on(engine: &str, queries: Vec<plugin::Query>) -> Result<Vec<Module>> {
     let request = plugin::GenerateRequest {
         settings: Some(plugin::Settings {
-            engine: "postgresql".into(),
+            engine: engine.into(),
             ..Default::default()
         }),
         catalog: Some(plugin::Catalog {
             default_schema: "public".into(),
-            schemas: vec![plugin::Schema {
-                name: "public".into(),
-                tables: vec![plugin::Table {
-                    rel: Some(plugin::Identifier {
-                        name: "authors".into(),
+            // The catalog's types are PostgreSQL's.
+            schemas: (engine == "postgresql")
+                .then(|| plugin::Schema {
+                    name: "public".into(),
+                    tables: vec![plugin::Table {
+                        rel: Some(plugin::Identifier {
+                            name: "authors".into(),
+                            ..Default::default()
+                        }),
+                        columns: authors(),
                         ..Default::default()
-                    }),
-                    columns: authors(),
+                    }],
+                    enums: vec![plugin::Enum {
+                        name: "mood".into(),
+                        vals: vec!["happy".into()],
+                        ..Default::default()
+                    }],
                     ..Default::default()
-                }],
-                enums: vec![plugin::Enum {
-                    name: "mood".into(),
-                    vals: vec!["happy".into()],
-                    ..Default::default()
-                }],
-                ..Default::default()
-            }],
+                })
+                .into_iter()
+                .collect(),
             ..Default::default()
         }),
         queries,
@@ -269,10 +278,9 @@ fn errors_name_the_file_and_the_query() {
 
 #[test]
 fn commands_without_a_postgresql_meaning_are_errors_that_say_what_to_use() {
-    assert!(
-        error(query(":execlastid", ""))
-            .contains(":execlastid is not supported; use INSERT ... RETURNING with :one")
-    );
+    assert!(error(query(":execlastid", "")).contains(
+        ":execlastid is not supported on postgresql; use INSERT ... RETURNING with :one"
+    ));
     for batch in [":batchexec", ":batchmany", ":batchone"] {
         let error = error(query(batch, ""));
         assert!(
@@ -724,4 +732,107 @@ fn an_embed_of_a_table_the_catalog_lacks_is_an_error() {
         })
         .ends_with("sqlc.embed(ghosts) names no table")
     );
+}
+
+// -- MySQL and SQLite ----------------------------------------------------------
+
+/// `query` on `engine`, its only query.
+fn on(engine: &str, query: plugin::Query) -> Result<Query> {
+    try_resolve_on(engine, vec![query]).map(|mut modules| modules.remove(0).queries.remove(0))
+}
+
+fn named(number: i32, name: &str, data_type: &str, not_null: bool) -> plugin::Parameter {
+    param(
+        number,
+        plugin::Column {
+            is_named_param: true,
+            ..column(name, data_type, not_null)
+        },
+    )
+}
+
+#[test]
+fn a_name_the_user_chose_is_one_parameter_wherever_mysql_binds_it() {
+    // MySQL's `?` cannot be bound twice, so sqlc reports each use.
+    let resolved = on(
+        "mysql",
+        plugin::Query {
+            params: vec![named(1, "q", "text", true), named(2, "q", "text", false)],
+            ..query(":exec", "SELECT 1 WHERE a = ? OR b = ?")
+        },
+    )
+    .unwrap();
+    let names: Vec<&str> = resolved.params.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, ["q"]);
+    assert_eq!(resolved.binds, ["q", "q"]);
+    // Either use admitting NULL makes it optional.
+    assert!(resolved.params[0].ty.optional);
+    // Two uses of two types cannot be one parameter.
+    let error = on(
+        "mysql",
+        plugin::Query {
+            params: vec![named(1, "q", "text", true), named(2, "q", "int", true)],
+            ..query(":exec", "SELECT 1 WHERE a = ? OR b = ?")
+        },
+    )
+    .unwrap_err();
+    assert!(
+        format!("{error:#}").contains("is used as str and as int"),
+        "{error:#}"
+    );
+}
+
+#[test]
+fn a_slice_is_a_list_of_its_type_bound_one_placeholder_per_item() {
+    let slice = param(
+        1,
+        plugin::Column {
+            is_sqlc_slice: true,
+            ..column("ids", "integer", true)
+        },
+    );
+    let resolved = on(
+        "sqlite",
+        plugin::Query {
+            params: vec![slice.clone()],
+            ..query(":exec", "SELECT 1 WHERE id IN (/*SLICE:ids*/?)")
+        },
+    )
+    .unwrap();
+    assert_eq!(resolved.slices, ["ids"]);
+    assert_eq!(
+        resolved.params[0]
+            .ty
+            .annotation(crate::python::Scope::Queries),
+        "list[int]"
+    );
+    assert!(resolved.sql.0.contains(&Piece::Param {
+        placeholder: "/*SLICE:ids*/?".into(),
+        name: "ids".into(),
+    }));
+    let error = on(
+        "postgresql",
+        plugin::Query {
+            params: vec![slice],
+            ..query(":exec", "SELECT 1 WHERE id IN ($1)")
+        },
+    )
+    .unwrap_err();
+    assert!(format!("{error:#}").contains("sqlc.slice is MySQL/SQLite only"));
+}
+
+#[test]
+fn execlastid_is_mysqls_alone() {
+    let insert = query(":execlastid", "INSERT INTO authors (name) VALUES ('a')");
+    assert_eq!(
+        on("mysql", insert.clone()).unwrap().command,
+        Command::ExecLastId
+    );
+    for engine in ["postgresql", "sqlite"] {
+        let error = format!("{:#}", on(engine, insert.clone()).unwrap_err());
+        assert!(
+            error.contains("use INSERT ... RETURNING with :one"),
+            "{engine}: {error}"
+        );
+    }
 }

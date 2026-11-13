@@ -7,3 +7,6 @@ license = "AGPL-3.0-or-later OR LicenseRef-KevinValk-Commercial"
 description = "Developer commands for this repository: `cargo xtask <command>`"
 
 [dependencies]
+anyhow = "1.0.104"
+serde_json = "1.0.154"
+sqlc-gen-python = { path = ".." }

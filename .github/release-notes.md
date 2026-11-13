@@ -15,7 +15,7 @@ sql:
       - out: src/db
         plugin: python
         options:
-          backend: psycopg # or sqlalchemy; sqlite3 for engine: sqlite
+          backend: psycopg # or sqlalchemy; sqlite3 or pymysql for sqlite or mysql
           async: false # true for coroutines
 ```
 

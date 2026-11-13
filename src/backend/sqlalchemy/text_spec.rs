@@ -67,3 +67,27 @@ fn a_placeholder_touching_what_text_would_read_as_part_of_its_bind_is_an_error()
     // A dollar quote's `$` ends it, and is no word character.
     assert_eq!(written("SELECT $$x$$$1").unwrap(), "SELECT $$x$$:id");
 }
+
+#[test]
+fn a_slice_takes_the_place_of_the_parentheses_sqlc_wrote_around_it() {
+    // SQLAlchemy writes an expanding bind's own: `IN (:ids)` would be
+    // `IN ((?, ?))`, which MySQL and SQLite reject.
+    let sql = |before: &str, after: &str| {
+        Sql(vec![
+            Piece::Text(format!("SELECT 1 WHERE id IN {before}")),
+            Piece::Param {
+                placeholder: "/*SLICE:ids*/?".into(),
+                name: "ids".into(),
+            },
+            Piece::Text(format!("{after} AND x::int = 1")),
+        ])
+    };
+    let slice = sql("(", ")");
+    check(&slice).unwrap();
+    assert_eq!(text(&slice), r"SELECT 1 WHERE id IN :ids AND x\:\:int = 1");
+    let error = check(&sql("( ", ")")).unwrap_err();
+    assert!(
+        error.to_string().contains("directly inside them"),
+        "{error}"
+    );
+}

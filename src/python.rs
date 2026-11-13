@@ -477,6 +477,7 @@ const VOCABULARY: [&[Import]; 3] = [
     &[
         Import::Module("aiosqlite"),
         Import::Module("psycopg"),
+        Import::Module("pymysql"),
         Import::Module("sqlalchemy"),
         Import::From("psycopg.rows", "tuple_row"),
         Import::From("psycopg.types.json", "Json"),

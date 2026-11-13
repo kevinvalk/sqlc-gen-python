@@ -5,6 +5,7 @@
 //! Each method is an exhaustive `match`, so a new engine is a new variant
 //! and the compiler lists everything it has to answer.
 
+mod mysql;
 mod postgresql;
 mod sqlite;
 
@@ -23,6 +24,7 @@ use crate::python::Type;
 pub enum Engine {
     PostgreSql,
     Sqlite,
+    MySql,
 }
 
 /// A statement as sqlc wrote it, cut at its placeholders: what an engine reads
@@ -36,7 +38,8 @@ pub enum Piece {
     /// Text, as sqlc wrote it.
     Text(String),
     /// A placeholder as sqlc wrote it (`$1`, `?`, `?2`), of the parameter
-    /// Python names `name`.
+    /// Python names `name`. A `sqlc.slice` is `/*SLICE:name*/?`, whose `?`
+    /// stands for as many as the list has items.
     Param { placeholder: String, name: String },
 }
 
@@ -60,8 +63,9 @@ impl Engine {
         match request.settings.as_ref().map_or("", |s| s.engine.as_str()) {
             "postgresql" => Ok(Self::PostgreSql),
             "sqlite" => Ok(Self::Sqlite),
+            "mysql" => Ok(Self::MySql),
             engine => {
-                bail!("engine \"{engine}\" is not supported yet; only postgresql and sqlite are")
+                bail!("engine \"{engine}\" is not supported; only postgresql, mysql and sqlite are")
             }
         }
     }
@@ -71,6 +75,16 @@ impl Engine {
         match self {
             Self::PostgreSql => "postgresql",
             Self::Sqlite => "sqlite",
+            Self::MySql => "mysql",
+        }
+    }
+
+    /// Placeholder `number`, as an error names it.
+    pub fn placeholder(self, number: i32) -> String {
+        match self {
+            Self::PostgreSql => format!("${number}"),
+            Self::Sqlite => format!("?{number}"),
+            Self::MySql => format!("? #{number}"),
         }
     }
 
@@ -78,16 +92,36 @@ impl Engine {
     pub fn cast(self, expr: &str) -> String {
         match self {
             Self::PostgreSql => format!("{expr}::<type>"),
-            Self::Sqlite => format!("CAST({expr} AS <type>)"),
+            Self::Sqlite | Self::MySql => format!("CAST({expr} AS <type>)"),
         }
     }
 
-    /// The Python type of a column type the engine defines, with driver
-    /// evidence, or `None`.
-    pub fn scalar_type(self, data_type: &str) -> Option<Type> {
+    /// The Python type of `column`'s type, if the engine defines it and has
+    /// driver evidence for it.
+    pub fn scalar_type(self, column: &plugin::Column) -> Option<Type> {
         match self {
-            Self::PostgreSql => postgresql::scalar_type(data_type),
-            Self::Sqlite => sqlite::scalar_type(data_type),
+            Self::PostgreSql => postgresql::scalar_type(&column.data_type()),
+            Self::Sqlite => sqlite::scalar_type(&column.data_type()),
+            Self::MySql => mysql::scalar_type(column),
+        }
+    }
+
+    /// Why `column`, of an enum of `labels`, is no enum, if it is not.
+    pub fn enum_problem(self, column: &plugin::Column, labels: &[String]) -> Option<&'static str> {
+        match self {
+            Self::PostgreSql | Self::Sqlite => None,
+            Self::MySql => mysql::enum_problem(column, labels),
+        }
+    }
+
+    /// Whether the engine reports the id an `INSERT` generated
+    /// (`:execlastid`). PostgreSQL and SQLite have `RETURNING` instead, and
+    /// SQLite's last id is the connection's, which an `INSERT` that inserted
+    /// nothing leaves at the previous one's.
+    pub fn has_last_insert_id(self) -> bool {
+        match self {
+            Self::PostgreSql | Self::Sqlite => false,
+            Self::MySql => true,
         }
     }
 
@@ -96,6 +130,7 @@ impl Engine {
         match self {
             Self::PostgreSql => postgresql::is_guess(data_type),
             Self::Sqlite => sqlite::is_guess(data_type),
+            Self::MySql => mysql::is_guess(data_type),
         }
     }
 
@@ -104,6 +139,7 @@ impl Engine {
         match self {
             Self::PostgreSql => postgresql::array_problem(data_type),
             Self::Sqlite => sqlite::array_problem(data_type),
+            Self::MySql => mysql::array_problem(data_type),
         }
     }
 
@@ -113,6 +149,7 @@ impl Engine {
         match self {
             Self::PostgreSql => postgresql::sql(text, params),
             Self::Sqlite => sqlite::sql(text, params),
+            Self::MySql => mysql::sql(text, params),
         }
     }
 
@@ -121,6 +158,7 @@ impl Engine {
         match self {
             Self::PostgreSql => postgresql::merges(sql),
             Self::Sqlite => sqlite::merges(sql),
+            Self::MySql => mysql::merges(sql),
         }
     }
 
@@ -129,14 +167,14 @@ impl Engine {
         match self {
             Self::PostgreSql => postgresql::is_identifier(name),
             Self::Sqlite => sqlite::is_identifier(name),
+            Self::MySql => mysql::is_identifier(name),
         }
     }
 }
 
 /// `chars` cut at its `placeholders`, each its range and the number of the
 /// parameter it binds, which `params` names: they must be exactly the
-/// parameters sqlc reported. `spell` writes a number as the engine's
-/// placeholder.
+/// parameters sqlc reported. Errors name a placeholder as `engine` does.
 ///
 /// Either mismatch is an error: had a lexer taken a placeholder for text, the
 /// driver would bind its own placeholder there, which is silently another
@@ -145,7 +183,7 @@ fn cut(
     chars: &[char],
     placeholders: impl Iterator<Item = (Range<usize>, i32)>,
     params: &[(i32, &str)],
-    spell: fn(i32) -> String,
+    engine: Engine,
 ) -> Result<Sql> {
     let placeholders: Vec<(Range<usize>, i32)> = placeholders.collect();
     if let Some((number, name)) =
@@ -153,7 +191,7 @@ fn cut(
     {
         bail!(
             "sqlc reported parameter {} (\"{name}\"), but the SQL has no placeholder for it outside strings and comments",
-            spell(*number)
+            engine.placeholder(*number)
         );
     }
     let text = |range: Range<usize>| chars[range].iter().collect::<String>();
@@ -164,8 +202,20 @@ fn cut(
         let Some(&(_, name)) = params.iter().find(|(n, _)| *n == number) else {
             bail!("the SQL uses {placeholder}, which sqlc reported no parameter for");
         };
-        if from < range.start {
-            pieces.push(Piece::Text(text(from..range.start)));
+        // A `sqlc.slice` is its marker comment and its placeholder.
+        let before = text(from..range.start);
+        let marker = (before.rfind("/*SLICE:")).filter(|&at| {
+            before[at..].ends_with("*/") && !before[at + 2..before.len() - 2].contains("*/")
+        });
+        let (before, placeholder) = match marker {
+            Some(at) => (
+                before[..at].to_string(),
+                before[at..].to_string() + &placeholder,
+            ),
+            None => (before, placeholder),
+        };
+        if !before.is_empty() {
+            pieces.push(Piece::Text(before));
         }
         from = range.end;
         pieces.push(Piece::Param {

@@ -33,6 +33,8 @@ fn query(command: Command, params: Vec<Field>) -> Query {
         constant: "_GET".into(),
         comment: String::new(),
         sql: Sql(pieces),
+        binds: params.iter().map(|p| p.name.clone()).collect(),
+        slices: Vec::new(),
         params,
         columns: Vec::new(),
         command,
@@ -55,11 +57,14 @@ fn a_driver_binds_each_parameter_by_position_json_wrapped_on_psycopg() {
     let (_, body) = Backend::Psycopg.body(&query(Command::Exec, params.clone()), false);
     assert_eq!(
         body,
-        "psycopg.RawCursor(conn, row_factory=tuple_row).execute(_GET, \
-         (id, None if data is None else Jsonb(data)))"
+        "cur = psycopg.RawCursor(conn, row_factory=tuple_row)\n\
+         cur.execute(_GET, (id, None if data is None else Jsonb(data)))"
     );
     let (_, body) = Backend::Sqlite3.body(&query(Command::Exec, params[..1].to_vec()), true);
-    assert_eq!(body, "await conn.execute(_GET, (id,))");
+    assert_eq!(
+        body,
+        "cur = await conn.cursor()\nawait cur.execute(_GET, (id,))"
+    );
 }
 
 #[test]
@@ -69,7 +74,8 @@ fn a_one_raises_without_exactly_one_row_on_a_driver() {
     assert_eq!(returns, "int");
     assert_eq!(
         body,
-        "cur = conn.execute(_GET)\n\
+        "cur = conn.cursor()\n\
+         cur.execute(_GET)\n\
          match cur.fetchmany(2):\n    \
          case [row]:\n        value: int = row[0]\n        return value\n    \
          case []:\n        raise NoRowError\n    \
@@ -111,5 +117,46 @@ fn psycopg_reads_an_array_of_an_enum_only_if_no_label_is_quoted_in_it() {
         Backend::SqlAlchemy
             .check_array_enum(&sql_enum(&["with space"]))
             .is_ok()
+    );
+}
+
+#[test]
+fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
+    let mut query = query(Command::Exec, vec![field("p", Type::STR)]);
+    query.sql.0[1] = Piece::Param {
+        placeholder: "?".into(),
+        name: "p".into(),
+    };
+    query.sql.0.push(Piece::Text(" LIKE '%:x%'".into()));
+    let statement = python::render(&[python::constant("_GET", Backend::Pymysql.statement(&query))]);
+    assert!(
+        statement.contains(r#""SELECT %s LIKE '%%:x%%'""#),
+        "{statement}"
+    );
+    // Without parameters PyMySQL formats nothing, so nothing is doubled.
+    let query = Query {
+        sql: Sql(vec![Piece::Text("SELECT '%:x%'".into())]),
+        binds: Vec::new(),
+        params: Vec::new(),
+        ..query
+    };
+    let statement = python::render(&[python::constant("_GET", Backend::Pymysql.statement(&query))]);
+    assert!(statement.contains(r#""SELECT '%:x%'""#), "{statement}");
+}
+
+#[test]
+fn a_slice_is_one_placeholder_per_item_and_a_subquery_of_none_when_empty() {
+    let mut query = query(Command::Exec, vec![field("ids", Type::INT)]);
+    query.sql.0[1] = Piece::Param {
+        placeholder: "/*SLICE:ids*/?".into(),
+        name: "ids".into(),
+    };
+    query.slices = vec!["ids".into()];
+    let (_, body) = Backend::Pymysql.body(&query, false);
+    assert!(
+        body.contains(
+            r#"cur.execute(_GET.replace("/*SLICE:ids*/%s", ", ".join(["%s"] * len(ids)) or "SELECT NULL FROM DUAL WHERE FALSE"), (*ids,))"#
+        ),
+        "{body}"
     );
 }

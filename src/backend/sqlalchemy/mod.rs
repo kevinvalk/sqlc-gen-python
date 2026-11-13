@@ -34,9 +34,10 @@ pub fn check(engine: Engine, query: &Query) -> Result<()> {
 
 /// `sqlalchemy.text(...)`, typed only where a driver needs it (§6, "On SQLAlchemy",
 /// rule 4):
-/// each JSON parameter binds through SQLAlchemy's JSON type, and each column
-/// of enum arrays loads through an `ARRAY` of the enum, without which psycopg
-/// returns the array's text.
+/// each JSON parameter binds through SQLAlchemy's JSON type, each
+/// `sqlc.slice` expands to a placeholder per item, and each column of enum
+/// arrays loads through an `ARRAY` of the enum, without which psycopg returns
+/// the array's text.
 ///
 /// The columns are typed by position, every one of them, as SQLAlchemy matches
 /// a positional list: by name, it would miss a column PostgreSQL names
@@ -49,13 +50,14 @@ pub fn statement(query: &Query) -> ast::Expr {
     );
     let binds: Vec<ast::Expr> = (query.params.iter())
         .filter_map(|param| {
-            let ty = match param.ty.element {
-                Type::Json(Json::Json) => "JSON",
-                Type::Json(Json::Jsonb) => "JSONB",
+            let how = match param.ty.element {
+                _ if query.slices.contains(&param.name) => "expanding=True",
+                Type::Json(Json::Json) => "type_=postgresql.JSON(none_as_null=True)",
+                Type::Json(Json::Jsonb) => "type_=postgresql.JSONB(none_as_null=True)",
                 _ => return None,
             };
             Some(python::expr(&format!(
-                "sqlalchemy.bindparam(\"{}\", type_=postgresql.{ty}(none_as_null=True))",
+                "sqlalchemy.bindparam(\"{}\", {how})",
                 param.name
             )))
         })
@@ -121,6 +123,7 @@ pub fn body(query: &Query, asynchronous: bool) -> (String, String) {
     let (returns, body) = match &query.command {
         Command::Exec => ("None".into(), execute("")),
         Command::ExecRows => ("int".into(), format!("return {}", execute(".rowcount"))),
+        Command::ExecLastId => ("int".into(), format!("return {}", execute(".lastrowid"))),
         Command::ExecResult => (
             "sqlalchemy.CursorResult[Any]".into(),
             format!("return {}", execute("")),

@@ -1,4 +1,3 @@
 target/
-tests/schemas/src/*/gen/
 .DS_Store
 __pycache__/

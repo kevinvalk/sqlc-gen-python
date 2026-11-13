@@ -22,7 +22,7 @@ updates:
     cooldown: { default-days: 7 }
 
   - package-ecosystem: uv
-    directory: /tests/py
+    directory: /tests/python
     schedule: { interval: weekly }
     cooldown: { default-days: 7 }
     groups: { uv: { patterns: ["*"] } }

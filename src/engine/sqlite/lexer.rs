@@ -4,7 +4,7 @@
 
 use anyhow::{Result, bail};
 
-use crate::engine::{Sql, cut};
+use crate::engine::{Engine, Sql, cut};
 
 #[cfg(test)]
 #[path = "lexer_spec.rs"]
@@ -39,9 +39,7 @@ pub fn sql(text: &str, params: &[(i32, &str)]) -> Result<Sql> {
             _ => {}
         }
     }
-    cut(&chars, placeholders.into_iter(), params, |number| {
-        format!("?{number}")
-    })
+    cut(&chars, placeholders.into_iter(), params, Engine::Sqlite)
 }
 
 /// Whether `name` is one identifier to SQLite, unquoted.

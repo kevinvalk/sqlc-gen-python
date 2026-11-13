@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     }
 
     // sqlc dumps a `GenerateRequest` as protobuf JSON via its built-in `json`
-    // codegen (see `tests/py/capture.py`), and the tests read those dumps back.
+    // codegen (see `tests/python/capture.py`), and the tests read those dumps back.
     // Deriving `Deserialize` on the wire types lets them load directly, with the
     // one convention serde does not share handled here: absent fields fall back
     // to the proto3 zero value rather than failing.

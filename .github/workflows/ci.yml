@@ -35,7 +35,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version-file: tests/py/pyproject.toml
+          version-file: tests/python/pyproject.toml
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo xtask ${{ matrix.task }}
 
@@ -47,10 +47,10 @@ jobs:
         with:
           persist-credentials: false
       # Pinned like everything else here: uv runs the build that is released.
-      # The pin is `required-version` in tests/py/pyproject.toml.
+      # The pin is `required-version` in tests/python/pyproject.toml.
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version-file: tests/py/pyproject.toml
+          version-file: tests/python/pyproject.toml
       # sqlc's own singularisation is Go. Any Go bootstraps it: sqlc's go.mod
       # selects the toolchain (GOTOOLCHAIN=auto), so `stable` is not a pin.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0

@@ -1,15 +1,16 @@
 # Generated Python: the output specification
 
 This is the normative definition of what the plugin emits: for PostgreSQL
-through SQLAlchemy Core 2.x or psycopg 3, and for SQLite through SQLAlchemy or
-`sqlite3` and `aiosqlite`, each sync and async. "MUST" is a requirement on the
+through SQLAlchemy Core 2.x or psycopg 3, for SQLite through SQLAlchemy or
+`sqlite3` and `aiosqlite`, each sync and async, and for MySQL through
+SQLAlchemy, sync and async, or PyMySQL, sync. "MUST" is a requirement on the
 generator. A rule that is not here is not a promise.
 
-The acceptance fixture is `tests/schemas/src/invoicing/` on PostgreSQL. Its
-byte-exact output is the golden cases `tests/cases/invoicing_sqlalchemy/` and
-`tests/cases/invoicing_psycopg/`, proven by `cargo xtask verify` (see
-[Proof](#proof)). `tests/schemas/src/ledger/` is SQLite's, as
-`tests/cases/ledger_sqlalchemy/` and `tests/cases/ledger_sqlite3/`. When this
+The acceptance fixture is the example `examples/invoicing/` on PostgreSQL. Its
+byte-exact output is the generated directories beside its `sqlc.yaml`
+(`invoicing_sqlalchemy/`, `invoicing_psycopg/` and their `_async` twins),
+proven by `cargo xtask verify` (see [Proof](#proof)). `examples/ledger/` is
+SQLite's, and `examples/billing/` MySQL's. When this
 document and those files disagree, that is a bug in one of them.
 
 Every rule cites the source of truth it rests on, using the ranking in
@@ -18,7 +19,7 @@ Every rule cites the source of truth it rests on, using the ranking in
 | Tag | Source |
 |---|---|
 | **[1]** | the sqlc plugin contract (`protos/sqlc.proto`, sqlc's runner) |
-| **[2]** | what the pinned sqlc (`tests/corpus/SOURCE.toml`) puts in the request |
+| **[2]** | what the pinned sqlc (`tests/sqlc/endtoend/SOURCE.toml`) puts in the request |
 | **[3]** | what PostgreSQL and the drivers return at runtime (the versions recorded at the top of `docs/typemap.md`) |
 | **[4]** | sqlc-gen-go and sqlc's inflection rules |
 | **[5]** | pyright strict, `mypy --strict`, ruff `ALL` (the [lint contract](#lint-contract)), all targeting Python 3.10 |
@@ -78,6 +79,7 @@ Every rule cites the source of truth it rests on, using the ranking in
    | `Any`, `Final` | `from typing import ...` |
    | SQLAlchemy | `import sqlalchemy`, `from sqlalchemy.dialects import postgresql`, `from sqlalchemy.ext.asyncio import AsyncConnection` |
    | psycopg | `import psycopg`, `from psycopg.rows import tuple_row`, `from psycopg.types.json import Json, Jsonb` |
+   | PyMySQL | `import pymysql` |
    | SQLite | `import sqlite3`, `import aiosqlite` |
    | the models, and the errors of `:one` | `from . import MultipleRowsError, NoRowError, models` |
 
@@ -93,7 +95,7 @@ Every rule cites the source of truth it rests on, using the ranking in
 
 | Thing | Rule | Example | Source |
 |---|---|---|---|
-| model class | sqlc inflection: singular, PascalCase, schema prefix outside the default schema | `media` → `Medium`, `billing.payments` → `BillingPayment` | [4]: `src/inflection.rs` ports sqlc's `internal/inflection`, quirks included (`leaves` → `Leafe`), and is held to `tests/corpus/inflection.tsv`, captured from sqlc's own code |
+| model class | sqlc inflection: singular, PascalCase, schema prefix outside the default schema | `media` → `Medium`, `billing.payments` → `BillingPayment` | [4]: `src/inflection.rs` ports sqlc's `internal/inflection`, quirks included (`leaves` → `Leafe`), and is held to `tests/sqlc/endtoend/inflection.tsv`, captured from sqlc's own code |
 | enum class | PascalCase, schema prefix outside the default schema, never singularised | `billing.payment_method` → `BillingPaymentMethod` | [4] |
 | enum member | Go's `EnumReplace` (`-`, `/`, `:` and `_` become `_`; other characters that are not ASCII letters or digits are dropped), then upper-cased. | `direct-debit` → `DIRECT_DEBIT` | [4], PEP 8 |
 | function | snake_case of the query name | `GetInvoiceWithCustomer` → `get_invoice_with_customer` | PEP 8 |
@@ -206,9 +208,9 @@ This is PostgreSQL's; SQLite's follows. The annotation follows what the
 drivers return, not what the old plugins assumed. psycopg as a backend returns
 what it returns under SQLAlchemy, which hands its values through untouched. *[3]: every row was observed through SQLAlchemy `text()` on psycopg
 (sync and async) and asyncpg; see the evidence column. This is enforced:
-`tests/schemas/src/pgtypes` has a column of every mapped type and an array
+`examples/pgtypes` has a column of every mapped type and an array
 column of every type whose arrays are allowed (a Rust spec fails otherwise),
-and `tests/py/typemap.py` reads every one back through all three drivers, at
+and `tests/python/typemap.py` reads every one back through all three drivers, at
 its edges.*
 
 | PostgreSQL (`schema.name` with `pg_catalog.` stripped) | Annotation | Evidence and notes |
@@ -314,7 +316,34 @@ type, reads back. *[3]*
    the float `12.5`. Store money as `INTEGER` cents, or as `TEXT`. So MUST
    `any` or no type, sqlc's report of an expression it could not type (add a
    `CAST(<expr> AS <type>)`), and an array, which SQLite does not have.
-2. `sqlc.slice` is not supported yet on SQLite, and MUST be an error.
+
+### MySQL
+
+PyMySQL and asyncmy read MySQL's text protocol with one set of
+conversions, which SQLAlchemy hands through; every row below was observed on
+MySQL 8.4 through each. *[3]* sqlc reports a type by its lowercase name, its
+length and its signedness apart.
+
+| MySQL | Annotation | Notes |
+|---|---|---|
+| `TINYINT`, `SMALLINT`, `MEDIUMINT`, `INT`, `INTEGER`, `BIGINT`, signed or not, `YEAR` | `int` | `BIGINT UNSIGNED`'s largest value round-trips. |
+| `BOOL`, `BOOLEAN`, `TINYINT(1)` | `bool` | Stored as an integer; `from_row` converts with `bool(...)`, as sqlc-gen-go reads `TINYINT(1)` as a boolean. *[4]* |
+| `FLOAT`, `DOUBLE`, `REAL` | `float` | |
+| `DECIMAL`, `NUMERIC` | `Decimal` | Scale survives. |
+| `CHAR`, `VARCHAR`, `TEXT` and its sizes, `JSON` | `str` | A JSON document comes back as its text, undecoded. |
+| `BINARY`, `VARBINARY`, `BLOB` and its sizes, `BIT` | `bytes` | |
+| `DATE`, `DATETIME`, `TIMESTAMP`, `TIME` | `dt.date`, `dt.datetime`, `dt.datetime`, `dt.timedelta` | Naive: MySQL stores no time zone, and converts a `TIMESTAMP` to the session's. A `TIME` is a duration, negative (`'-01:02:03'`) or over a day. |
+| `ENUM(...)` | `models.X` | sqlc names it `<table>_<column>`. |
+
+1. A `SET` MUST be an error. sqlc reports it as an `ENUM` of its members, but
+   it holds several (`'x,y'`), which no member is; the column's length tells
+   them apart (a `SET`'s is all its labels joined by commas). So MUST any
+   other type (spatial types), `any` or no type, and an array.
+2. `:execlastid` returns the id the `INSERT` generated, as `int`: the
+   connection's `LAST_INSERT_ID()`, which MySQL reports with the statement's
+   result. On PostgreSQL and SQLite it MUST be an error, as they have
+   `RETURNING`, and SQLite's last id is the connection's, which an `INSERT`
+   that inserted nothing leaves at the previous one's. *[2], [3]*
 
 ### Nullability
 
@@ -380,7 +409,10 @@ entries; each then has its own model classes.*
    and `?N`) and parameters by position, so nothing is rewritten and the
    database runs exactly sqlc's statement. *[1], [2]* `Final` keeps the
    string a literal, which psycopg's `execute` asks for (`LiteralString`).
-   *[5]*
+   *[5]* PyMySQL formats the statement with Python's `%` operator, so on it
+   each `?` MUST be `%s` and every other `%` MUST be `%%`, unless the query
+   has no parameters, which PyMySQL then does not format: `sql % args` is
+   then exactly sqlc's text. *[3]*
 2. The SQL string MUST be triple-quoted if and only if the SQL contains a
    newline, and then holds the SQL as
    written, escaping only a backslash, a `"` that would end the string early,
@@ -412,7 +444,7 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    them so in a statement it does not analyse, MERGE, and reports no
    parameter for them; PostgreSQL then reads `@amount` as the absolute value
    of the column `amount`, silently. `@>`, `<@`, `@@` and `@-x` are operators. *[2]:
-   held to libpg_query's own scanner by `tests/py/scanner.py` (see Proof).
+   held to libpg_query's own scanner by `tests/python/scanner.py` (see Proof).
    Where libpg_query and PostgreSQL disagree, sqlc's numbering follows
    libpg_query: it does not continue an `E` string after a `--` comment and
    a newline (`E'a' -- c` `\n` `'\'b'`), which PostgreSQL does.*
@@ -442,7 +474,7 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    parameter names in the emitted text. Rendering each as its placeholder and
    then unescaping with SQLAlchemy's own expression, as the compiler does, MUST
    give `query.text` byte for byte. `cargo test` checks this for every query
-   of every golden case and corpus request (`tests/output/support`).
+   of every golden case and corpus request (`tests/rust/support`).
 4. **Typed statements**, only where a driver needs them, and nothing else gets
    a type: *[3]*
    - Each `json`/`jsonb` parameter gets
@@ -474,6 +506,17 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      | `sqlalchemy` | `sqlalchemy.Connection` | `AsyncConnection` |
      | `psycopg` | `psycopg.Connection[Any]` | `psycopg.AsyncConnection[Any]` |
      | `sqlite3` | `sqlite3.Connection` | `aiosqlite.Connection` |
+     | `pymysql` | `pymysql.Connection` | an error |
+
+     PyMySQL's `Connection` is generic only in its stubs, over a cursor class
+     defaulting to the plain one: subscripted, it raises at import, and so
+     would quoted, for `typing.get_type_hints`. `pymysql` has no
+     coroutines, and `async: true` on it MUST be an error naming the
+     `sqlalchemy` backend: asyncmy's stubs leave `execute` untyped, which
+     strict pyright rejects; aiomysql has no types, and cannot bind `bytes`
+     with PyMySQL 1.2; and mysql-connector's
+     prepared cursors read a negative `TIME` as positive, and its C
+     extension an unsigned `BIGINT`'s largest value as `-1`. *[3], [5]*
 
    - every SQL parameter follows it keyword-only, in sqlc's parameter order,
      with no defaults;
@@ -489,22 +532,39 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    `async def`, its connection, and `await` on each execution and fetch.
    - SQLAlchemy: `conn.execute(<constant>, {"<name>": <name>, ...})`,
      the dict omitted when there are no parameters;
-   - psycopg: `psycopg.RawCursor(conn, row_factory=tuple_row)`
-     `.execute(<constant>, (<p1>, <p2>, ...))`, each parameter in its
-     placeholder's place, and a JSON one as `None if p is None else Jsonb(p)`
-     (`Json` for `json`). A raw cursor takes `$N`; the row factory makes rows
-     tuples whatever the connection's is; psycopg cannot tell a JSON document
-     from any other `dict` or `list`, and `None` stays SQL NULL. *[3]*
-   - `sqlite3`: `conn.execute(<constant>, (<p1>, <p2>, ...))`.
+   - a driver: `cur = <cursor>`, then `cur.execute(<constant>, (<p1>, <p2>,
+     ...))`, each parameter in its placeholder's place, in placeholder order:
+     a name the user chose and used twice (MySQL reports each use) is one
+     parameter, in both places. The cursor is
+     `psycopg.RawCursor(conn, row_factory=tuple_row)` on psycopg,
+     `conn.cursor()` on `sqlite3`, and `conn.cursor(pymysql.cursors.Cursor)`
+     on PyMySQL: each makes rows tuples whatever the connection's row
+     factory or cursor class. On psycopg a JSON parameter is
+     `None if p is None else Jsonb(p)` (`Json` for `json`): psycopg cannot
+     tell a JSON document from any other `dict` or `list`, and `None` stays
+     SQL NULL. *[3]*
+   - **`sqlc.slice`** arrives as `/*SLICE:<name>*/?`, of a parameter
+     `list[T]`. On SQLAlchemy it is `:<name>`, bound by
+     `sqlalchemy.bindparam("<name>", expanding=True)`, which writes one
+     placeholder per item in parentheses of its own, so it takes the place of
+     the parentheses sqlc's marker MUST be written directly inside
+     (`IN (sqlc.slice(ids))` becomes `IN :ids`), and for none what SQLAlchemy
+     writes for an empty `IN`. On a driver, the function replaces it in the statement with one
+     placeholder per item, `", ".join(["?"] * len(ids))`, or with a subquery
+     of no rows for none (`SELECT NULL FROM DUAL WHERE FALSE` on MySQL,
+     `SELECT NULL WHERE 0` on SQLite), so that `x IN (...)` is false and
+     `x NOT IN (...)` true, as for an empty list; and passes the items as
+     values of their own, `(*ids,)`. *[2], [3]*
 3. Results, by command. *[2] cmd*
 
-   | cmd | Returns | SQLAlchemy | psycopg, `sqlite3` |
+   | cmd | Returns | SQLAlchemy | a driver |
    |---|---|---|---|
    | `:one` | `X` | `X.from_row(….one())` | `match cur.fetchmany(2):` with `case [row]: return X.from_row(row)`, `case []: raise NoRowError`, `case _: raise MultipleRowsError` |
    | `:many` | `list[X]` | `[X.from_row(row) for row in …]` | `[X.from_row(row) for row in cur.fetchall()]` |
-   | `:exec` | `None` | `….execute(…)` | `….execute(…)` |
-   | `:execrows` | `int` | `….rowcount` | `….rowcount` |
-   | `:execresult` | the result | `sqlalchemy.CursorResult[Any]` | the cursor: `psycopg.RawCursor[tuple[Any, ...]]` (`AsyncRawCursor`), `sqlite3.Cursor` (`aiosqlite.Cursor`) |
+   | `:exec` | `None` | `….execute(…)` | `cur.execute(…)` |
+   | `:execrows` | `int` | `….rowcount` | `cur.rowcount`; on PyMySQL, what `cur.execute(…)` returns, the same count |
+   | `:execlastid` | `int` | `….lastrowid` | `cur.lastrowid` (MySQL only) |
+   | `:execresult` | the result | `sqlalchemy.CursorResult[Any]` | the cursor: `psycopg.RawCursor[tuple[Any, ...]]` (`AsyncRawCursor`), `sqlite3.Cursor` (`aiosqlite.Cursor`), `pymysql.cursors.Cursor` |
    | `:copyfrom` | `None` | rule 6 | rule 6 |
 
    - `:one` raises without exactly one row, as sqlc's Go returns
@@ -561,7 +621,7 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `backend` | required | The library the generated code runs its SQL through: `sqlalchemy` (SQLAlchemy Core, either engine), `psycopg` (psycopg 3, PostgreSQL) or `sqlite3` (`sqlite3` and `aiosqlite`, SQLite). Another pairing is an error. *[D]: no one library suits every application.* |
+| `backend` | required | The library the generated code runs its SQL through: `sqlalchemy` (SQLAlchemy Core, any engine), `psycopg` (psycopg 3, PostgreSQL), `sqlite3` (`sqlite3` and `aiosqlite`, SQLite) or `pymysql` (PyMySQL, MySQL, without coroutines). Another pairing is an error. *[D]: no one library suits every application.* |
 | `async` | required | `true` makes every function a coroutine on the backend's async connection, `false` a blocking function (§6). *[D]: required, as either is a surprise to whoever expected the other.* |
 | `omit_sqlc_version` | `false` | Leave the sqlc line out of the header. |
 | `models.exact_table_names` | `false` | Name model classes after the table verbatim, without singularising. *[4]* |
@@ -596,7 +656,9 @@ table "<table>": column "<col>" is an array, but sqlc reported no array depth fo
 table "<table>": column "<col>" is an array of "citext", which psycopg returns as text, not a list
 enum class `<Class>`: psycopg returns an array of this enum as its text, in which PostgreSQL quotes the label "<label>"; rename the label, or use the sqlalchemy backend
 the psycopg backend does not run sqlite
-engine "mysql" is not supported yet; only postgresql and sqlite are
+the pymysql backend does not run postgresql
+async: no async MySQL driver is both typed and right, so the pymysql backend has no coroutines; use the sqlalchemy backend, on mysql+asyncmy
+engine "oracle" is not supported; only postgresql, mysql and sqlite are
 ```
 
 Where is a query (`<file>: query "<Name>": `), a query file (`<file>: `), a
@@ -613,7 +675,7 @@ Generated files MUST pass `ruff format --check`, `ruff check` with `select =
 and `mypy --strict`, both also reading each package as installed, and import
 with warnings as errors. They must pass on
 Python 3.10 with SQLAlchemy 2.0, and on the newest stable CPython (`PYTHONS` in
-`tests/py/gate.py`) with 2.1. The contract is `tests/py/pyproject.toml`, which
+`tests/python/gate.py`) with 2.1. The contract is `tests/python/pyproject.toml`, which
 `gate.py` applies to every generated output, and only
 these rules are ignored:
 
@@ -768,16 +830,16 @@ This section is the one description of how the output is proven; the
 commands are `cargo xtask help`.
 
 `cargo test` holds every golden case and every corpus output to the
-invariants any correct output meets, listed in `tests/output/corpus.rs` and
-each specified by a planted bug in `tests/output/invariants.rs`. They are
+invariants any correct output meets, listed in `tests/rust/corpus.rs` and
+each specified by a planted bug in `tests/rust/invariants.rs`. They are
 what no type checker or runtime probe can see, such as a NOT NULL column
 annotated `X | None`, two parameters of one type bound to each other's
 names, a field named after another column, a dropped docstring, or a
 `# type: ignore`. `cargo xtask check` then holds every distinct output, golden
-and corpus, to the [static gate](#lint-contract) (`tests/py/gate.py`), and
+and corpus, to the [static gate](#lint-contract) (`tests/python/gate.py`), and
 runs the scanner proof:
 
-- **the scanner proof** (`tests/py/scanner.py`) holds SQLAlchemy's
+- **the scanner proof** (`tests/python/scanner.py`) holds SQLAlchemy's
   rewriting (§6, "On SQLAlchemy", rules 1 and 2) to PostgreSQL's own
   scanner. Hypothesis draws a few
   thousand texts, the same on every run, from a grammar of what PostgreSQL
@@ -787,7 +849,7 @@ runs the scanner proof:
   colons; identifiers holding `$`; non-ASCII; `@` and `sqlc.arg`),
   placeholders glued to all of them. For each that pglast (libpg_query, the
   scanner sqlc parses with) scans, the plugin's rewriting
-  (`examples/sql_text.rs`) must bind exactly the placeholders it reports, at
+  (`cargo xtask sql-text`) must bind exactly the placeholders it reports, at
   their positions, so that SQLAlchemy's `text()` compiles back to the input
   byte for byte, as SQLAlchemy renders it and as its asyncpg dialect sends
   it, or refuse it for one of the reasons rules 2 and 3 name, read off
@@ -797,10 +859,10 @@ runs the scanner proof:
   every colon, and refusing a placeholder beside any non-ASCII character,
   makes the rewriting the same whatever a Python takes for a word character.
 
-Then `cargo xtask verify [--mutants]` (`tests/py/verify.py`) runs these
+Then `cargo xtask verify [--mutants]` (`tests/python/verify.py`) runs these
 layers:
 
-- **the static gate** (`tests/py/gate.py`, the [Lint contract](#lint-contract)),
+- **the static gate** (`tests/python/gate.py`, the [Lint contract](#lint-contract)),
   over the golden cases and over `usage.py`, on every Python in `PYTHONS`.
   `usage.py` pins the types application code sees and lists the mistakes that
   must stay type errors: positional arguments, a missing nullable argument, a
@@ -809,9 +871,9 @@ layers:
   annotation can close, so that they stay visible: a `datetime` for a
   `date`, a `bool` for an `int`, a `Decimal` inside JSON, and hashing a
   record that holds a list.
-- **pytest** (`tests/py/suite/`):
+- **pytest** (`tests/python/suite/`):
   - `test_runtime.py` runs one invoicing scenario through every function
-    against the newest PostgreSQL (`NEWEST` in `tests/py/postgres.py`, in
+    against the newest PostgreSQL (`NEWEST` in `tests/python/postgres.py`, in
     Docker, or `SQLC_TEST_DATABASE_URL`): `invoicing_sqlalchemy` on psycopg,
     `invoicing_sqlalchemy_async` on asyncpg and psycopg async, and
     `invoicing_psycopg` and `invoicing_psycopg_async`. Every argument and result is checked against
@@ -821,19 +883,25 @@ layers:
     `ledger_sqlite3` on `sqlite3`, `ledger_sqlite3_async` on `aiosqlite`, and
     `ledger_sqlalchemy` and `ledger_sqlalchemy_async` on SQLAlchemy's
     `sqlite` and `sqlite+aiosqlite`, in process;
+  - `test_mysql.py` runs a billing scenario through every function of
+    `billing_pymysql` on PyMySQL, `billing_sqlalchemy` on `mysql+pymysql`
+    and `billing_sqlalchemy_async` on `mysql+asyncmy`, against MySQL 8.4 (in
+    Docker, or `SQLC_TEST_MYSQL_URL`), at the types' edges: an id above the
+    signed `BIGINT` range, a negative `TIME`, every byte in a `BLOB`, `%` and
+    `:` in data, and slices of several items, one and none;
   - `test_contract.py` checks that the copies of SQLAlchemy's expressions
     `cargo test` uses are SQLAlchemy's.
 
   Every pytest run fails if it skips a test or collects an empty
   parametrization, so a layer cannot pass by running nothing.
-- **the type-truth probe** (`tests/py/typemap.py`) selects every type in the
+- **the type-truth probe** (`tests/python/typemap.py`) selects every type in the
   map at its edges (NULL, extremes, NaN and infinities, unicode, empty and
   two-dimensional arrays) through all three drivers, and fails on a value
   outside the annotation the generator writes in
-  `tests/cases/pgtypes_sqlalchemy*`, or JSON that is not the decoded document.
+  `examples/pgtypes/pgtypes_sqlalchemy*`, or JSON that is not the decoded document.
   What raises, or does not bind back to the value it read, is recorded in
   `docs/typemap.md`.
-- **the runtime sweep** (`tests/py/autoprop.py`) applies the schema of every
+- **the runtime sweep** (`tests/python/autoprop.py`) applies the schema of every
   PostgreSQL golden case and corpus request generated on SQLAlchemy to a
   fresh database, seeds every table, and calls every function and coroutine
   with arguments Hypothesis draws,
@@ -856,7 +924,7 @@ layers:
   statement whose two direct runs differ (a sequence, `random()`) is not
   compared, and the sweep fails if nothing was. Where sqlc
   misreports a schema (the known limitations above among them), the failure
-  is listed in `tests/py/known-failures.tsv`.
+  is listed in `tests/python/known-failures.tsv`.
   What it called, with the corpus ledger, is `docs/compat.md`: for each sqlc
   feature, per engine and backend, whether at least one query using it ran
   at runtime (on PostgreSQL) or all only generated, and how many of them are
@@ -880,6 +948,6 @@ the types to, by its `# type: ignore` lines, which the gate fails on once
 they are unused. With `--check`, as CI runs
 it, a document that would change fails the run instead of being written.
 `cargo xtask bless` also runs `verify` before it accepts a change to
-`tests/cases/pgtypes_sqlalchemy` or the invoicing and ledger cases, since a wrong type that
+the `pgtypes`, `invoicing`, `ledger` or `billing` examples, since a wrong type that
 is still well typed passes the static gate, and so updates the documents with
 it.
