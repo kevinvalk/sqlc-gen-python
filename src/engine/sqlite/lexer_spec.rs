@@ -1,7 +1,7 @@
 //! Specification for finding sqlc's placeholders as SQLite's tokenizer does.
 
 use super::*;
-use crate::engine::Piece;
+use crate::engine::{Piece, binds};
 
 /// What `sql` binds where, with `$N` named `pN`.
 fn cut(sql: &str, params: &[i32]) -> Result<Vec<Piece>> {
@@ -9,7 +9,7 @@ fn cut(sql: &str, params: &[i32]) -> Result<Vec<Piece>> {
     let params: Vec<(i32, &str)> = (params.iter().copied())
         .zip(names.iter().map(String::as_str))
         .collect();
-    super::sql(sql, &params).map(|sql| sql.0)
+    super::sql(sql, &binds(&params)).map(|sql| sql.0)
 }
 
 /// The names of the parameters `sql` binds, in order.
@@ -17,7 +17,7 @@ fn bound(sql: &str, params: &[i32]) -> Vec<String> {
     (cut(sql, params).unwrap().into_iter())
         .filter_map(|piece| match piece {
             Piece::Param { name, .. } => Some(name),
-            Piece::Text(_) => None,
+            _ => None,
         })
         .collect()
 }
@@ -32,7 +32,7 @@ fn a_bare_placeholder_takes_the_number_after_the_largest_before_it() {
 #[test]
 fn a_statement_is_cut_back_to_sqlcs_text() {
     let text = "SELECT 'é', ?2 WHERE x = ?1";
-    let sql = super::sql(text, &[(1, "a"), (2, "b")]).unwrap();
+    let sql = super::sql(text, &binds(&[(1, "a"), (2, "b")])).unwrap();
     assert_eq!(sql.text(), text);
 }
 

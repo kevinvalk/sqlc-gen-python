@@ -1,7 +1,7 @@
 //! Specification for finding sqlc's placeholders as PostgreSQL's lexer does.
 
 use super::*;
-use crate::engine::Piece;
+use crate::engine::{Piece, binds};
 
 /// The numbers of the placeholders `sql` holds as code, in order.
 fn found(sql: &str) -> Vec<i32> {
@@ -15,7 +15,7 @@ fn found(sql: &str) -> Vec<i32> {
 }
 
 fn error(sql: &str, params: &[(i32, &str)]) -> String {
-    format!("{:#}", super::sql(sql, params).unwrap_err())
+    format!("{:#}", super::sql(sql, &binds(params)).unwrap_err())
 }
 
 #[test]
@@ -43,7 +43,7 @@ fn a_placeholder_is_only_code_never_text_postgresql_would_not_read_as_code() {
 #[test]
 fn a_statement_is_cut_at_its_placeholders_each_named_and_back_to_sqlcs_text() {
     let text = "SELECT 'é', $12 WHERE $12 = $1";
-    let cut = sql(text, &[(12, "p"), (1, "q")]).unwrap();
+    let cut = sql(text, &binds(&[(12, "p"), (1, "q")])).unwrap();
     let param = |number: i32, name: &str| Piece::Param {
         placeholder: format!("${number}"),
         name: name.into(),

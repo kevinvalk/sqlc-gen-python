@@ -144,6 +144,20 @@ def list_entries(conn: sqlalchemy.Connection, *, account_id: int) -> list[models
     ]
 
 
+_LIST_ENTRY_IDS: Final = sqlalchemy.text("""SELECT id FROM entries
+WHERE id IN :ids AND account_id = :account_id
+ORDER BY id""").bindparams(sqlalchemy.bindparam("ids", expanding=True))
+
+
+def list_entry_ids(
+    conn: sqlalchemy.Connection, *, ids: list[int], account_id: int
+) -> list[int]:
+    """The entries of the account among the ids: a slice, then a numbered parameter."""
+    return list(
+        conn.execute(_LIST_ENTRY_IDS, {"ids": ids, "account_id": account_id}).scalars()
+    )
+
+
 _LIST_MEMOS: Final = sqlalchemy.text("""SELECT memo FROM entries
 WHERE memo LIKE :pattern AND (account_id = :account_id OR :account_id = 0)
 ORDER BY id""")

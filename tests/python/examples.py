@@ -39,6 +39,16 @@ class GoldenCase:
         return REQUESTS / f"{self.example}.json"
 
     @property
+    def backend(self) -> str:
+        """The library it runs its SQL through."""
+        return str(self.options["backend"])
+
+    @property
+    def is_async(self) -> bool:
+        """Whether its functions are coroutines."""
+        return bool(self.options["async"])
+
+    @property
     def schema_sql(self) -> Path:
         """Its example's schema."""
         return EXAMPLES / self.example / "schema.sql"
@@ -56,8 +66,3 @@ def golden_cases() -> tuple[GoldenCase, ...]:
             for codegen in package.get("codegen", [])
         )
     return tuple(found)
-
-
-def golden_case(name: str) -> GoldenCase:
-    """The golden case named ``name``."""
-    return next(case for case in golden_cases() if case.name == name)

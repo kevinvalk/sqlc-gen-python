@@ -5,9 +5,8 @@ usage: verify.py [-h] [--mutants] [--check] GENERATED
 GENERATED is what ``cargo test`` exported (``cargo xtask verify`` fills it).
 Each layer, a row of the summary at the end, is described in
 ``docs/python-output.md`` §Proof: the static gate, pytest, the type-truth
-probe (writing ``docs/typemap.md``), the runtime sweep (writing
-``docs/compat.md``), the same again on newer Pythons, and with ``--mutants``
-planted bugs. Every layer runs on copies in a temporary
+probe (writing ``docs/typemap.md``), the runtime sweep, pytest and the probe
+again on newer Pythons, and with ``--mutants`` planted bugs. Every layer runs on copies in a temporary
 directory, against one PostgreSQL (Docker, or ``SQLC_TEST_DATABASE_URL``) and
 one MySQL (Docker, or ``SQLC_TEST_MYSQL_URL``).
 With ``--check``, a document that would change fails the run instead of being
@@ -29,7 +28,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import autoprop
-import compat
 import mysql
 import postgres
 import typemap
@@ -382,8 +380,8 @@ def main() -> int:
         summary = [
             static_and_pytest(control, database),
             types(control, server, write),
-            sweep(control, generated, server, write),
-            newer(control, generated, database),
+            sweep(control, generated, server),
+            newer(control, database),
         ]
         if args.mutants:
             summary.append(mutants(tmp, cases, generated, server))
@@ -405,12 +403,8 @@ def static_and_pytest(control: Path, database: str) -> Row:
         for layer, command in [(GATE, gate(control)), ("pytest", pytest())]
         if failure(command, control, database, quiet=False) is not None
     ]
-    cases = sorted(p.name for p in control.iterdir() if p.name != "usage")
-    detail = (
-        f"failed: {', '.join(fails)}"
-        if fails
-        else f"{len(cases)} cases: {', '.join(cases)}"
-    )
+    cases = sum(1 for p in control.iterdir() if p.name != "usage")
+    detail = f"failed: {', '.join(fails)}" if fails else f"{cases} cases"
     return "gate+pytest", bool(fails), detail
 
 
@@ -435,21 +429,14 @@ def types(control: Path, server: sqlalchemy.URL, write: Write) -> Row:
     return "typemap", bool(mismatches) or stale, detail
 
 
-def sweep(control: Path, generated: Path, server: sqlalchemy.URL, write: Write) -> Row:
+def sweep(control: Path, generated: Path, server: sqlalchemy.URL) -> Row:
     """The runtime sweep over every generated PostgreSQL package."""
     print("\nruntime sweep:", flush=True)
     reports = autoprop.sweep(
         server, autoprop.targets(control, generated), [control, generated]
     )
-    features, stale_document = write(
-        ROOT / "docs/compat.md", compat.render(reports, generated, control)
-    )
     fails, totals = autoprop.summarize(reports)
-    lines = [
-        *totals,
-        f"per sqlc feature: docs/compat.md ({features})",
-    ]
-    return "autoprop", fails or stale_document, "\n".join(lines)
+    return "autoprop", fails, "\n".join(totals)
 
 
 def newer_versions() -> str:
@@ -460,10 +447,11 @@ def newer_versions() -> str:
     )
 
 
-def newer(control: Path, generated: Path, database: str) -> Row:
-    """The runtime proof again on each newer Python, which installs SQLAlchemy
-    2.1: pytest, the type-truth probe and the runtime sweep.
-    Only the verdicts: the documents record the oldest Python.
+def newer(control: Path, database: str) -> Row:
+    """pytest and the type-truth probe again on each newer Python, which
+    installs SQLAlchemy 2.1. Only the verdicts: the document records the
+    oldest Python. The drivers are the same on every Python, so the corpus
+    sweep runs once.
     """
     env = layer_env(control, database)
     failed = []
@@ -473,14 +461,11 @@ def newer(control: Path, generated: Path, database: str) -> Row:
         for layer, command in [
             ("pytest", ["-m", "pytest", "-q", str(SUITE)]),
             ("typemap", [str(HERE / "typemap.py"), str(control)]),
-            ("autoprop", [str(HERE / "autoprop.py"), str(control), str(generated)]),
         ]:
             run = subprocess.run([*python, *command], env=env, cwd=HERE, check=False)
             if run.returncode:
                 failed.append(f"{layer} on {version}")
-    detail = (
-        ", ".join(failed) or f"pytest, typemap and autoprop on {', '.join(PYTHONS[1:])}"
-    )
+    detail = ", ".join(failed) or f"pytest and typemap on {', '.join(PYTHONS[1:])}"
     return "newer", bool(failed), detail
 
 

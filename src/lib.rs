@@ -8,9 +8,9 @@
 //! - [`render`] writes it as Python files, asking the backend for each
 //!   statement and function body.
 //! - [`engine`] is the database: which Python type each column type is, and
-//!   where its SQL's placeholders are. PostgreSQL today.
-//! - [`backend`] is the Python library the generated code runs SQL through.
-//!   SQLAlchemy today.
+//!   where its SQL's placeholders are: PostgreSQL, MySQL or SQLite.
+//! - [`backend`] is the Python library the generated code runs SQL through:
+//!   SQLAlchemy, or a driver (psycopg, `sqlite3`, PyMySQL).
 //!
 //! Beside them, [`plugin`] is the sqlc wire protocol, [`config`] what the user
 //! asked for, and [`python`] how Python is written and rendered. `main.rs` is

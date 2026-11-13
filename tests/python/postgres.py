@@ -14,15 +14,14 @@ from __future__ import annotations
 import inspect
 import os
 import secrets
-import shutil
-import subprocess
-import sys
 import time
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 import psycopg
 import sqlalchemy
+
+from containers import container
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -44,57 +43,22 @@ def server(
     if given := os.environ.get(env):
         yield sqlalchemy.make_url(given).set(drivername="postgresql+psycopg")
         return
-    docker = shutil.which("docker")
-    if (
-        docker is None
-        or subprocess.run([docker, "info"], capture_output=True, check=False).returncode
-    ):
-        sys.exit(f"a PostgreSQL server is needed: start docker, or set {env}")
-
-    name = f"sqlcdx-{secrets.token_hex(4)}"
-    subprocess.run(
-        [
-            docker,
-            "run",
-            "--detach",
-            "--rm",
-            "--publish=127.0.0.1::5432",
-            f"--name={name}",
-            "--env=POSTGRES_PASSWORD=postgres",
-            # A statement that would need more memory fails with SQLSTATE
-            # 53200 instead of the kernel killing the server: the runtime
-            # sweep draws values such as an array index of 10**8.
-            f"--ulimit=data={BACKEND_MEMORY}",
-            image,
-            "-c",
-            "fsync=off",
-            "-c",
-            "synchronous_commit=off",
-            "-c",
-            "max_connections=200",
-        ],
-        check=True,
-        capture_output=True,
-    )
-    try:
-        published = subprocess.run(
-            [docker, "port", name, "5432/tcp"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-        port = published.splitlines()[0].rsplit(":", 1)[1]
+    args = [
+        "--env=POSTGRES_PASSWORD=postgres",
+        # A statement that would need more memory fails with SQLSTATE 53200
+        # instead of the kernel killing the server: the runtime sweep draws
+        # values such as an array index of 10**8.
+        f"--ulimit=data={BACKEND_MEMORY}",
+        image,
+        *["-c", "fsync=off", "-c", "synchronous_commit=off"],
+        *["-c", "max_connections=200"],
+    ]
+    with container("PostgreSQL", env, 5432, args) as port:
         url = sqlalchemy.make_url(
             f"postgresql+psycopg://postgres:postgres@127.0.0.1:{port}/postgres"
         )
         wait_for(url)
         yield url
-    finally:
-        subprocess.run(
-            [docker, "rm", "--force", "--volumes", name],
-            capture_output=True,
-            check=False,
-        )
 
 
 class SchemaRejectedError(Exception):

@@ -15,11 +15,12 @@ from typing import Any
 import aiosqlite
 import pytest
 import sqlalchemy
+from examples import GoldenCase
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from conftest import SCHEMAS, Case, cases, functions, queries
+from conftest import cases, functions, queries
 
-SCHEMA = (SCHEMAS / "ledger/schema.sql").read_text()
+SCHEMA = cases("ledger")[0].schema_sql.read_text()
 STATEMENTS = [s for s in SCHEMA.split(";") if s.strip()]
 # Characters a driver or a careless generator could misread.
 AWKWARD = "it's :x $1 ?2 %s"
@@ -28,7 +29,7 @@ RUNS = [pytest.param(case, id=case.name) for case in cases("ledger")]
 
 
 @pytest.mark.parametrize("case", RUNS)
-def test_every_function_against_sqlite(case: Case) -> None:
+def test_every_function_against_sqlite(case: GoldenCase) -> None:
     called: set[str] = set()
     run = {
         ("sqlite3", False): _sqlite3,
@@ -41,8 +42,16 @@ def test_every_function_against_sqlite(case: Case) -> None:
     assert called == public, f"never called: {sorted(public - called)}"
 
 
-async def _sqlite3(case: Case, called: set[str]) -> None:
+def _dicts(cursor: sqlite3.Cursor, row: tuple[Any, ...]) -> dict[str, Any]:
+    """A row factory of the caller's, which generated code must not read."""
+    return {
+        column[0]: value for column, value in zip(cursor.description, row, strict=True)
+    }
+
+
+async def _sqlite3(case: GoldenCase, called: set[str]) -> None:
     conn = sqlite3.connect(":memory:")
+    conn.row_factory = _dicts
     try:
         conn.executescript(SCHEMA)
         await scenario(_api(case, conn, called))
@@ -50,13 +59,14 @@ async def _sqlite3(case: Case, called: set[str]) -> None:
         conn.close()
 
 
-async def _aiosqlite(case: Case, called: set[str]) -> None:
+async def _aiosqlite(case: GoldenCase, called: set[str]) -> None:
     async with aiosqlite.connect(":memory:") as conn:
+        conn.row_factory = _dicts
         await conn.executescript(SCHEMA)
         await scenario(_api(case, conn, called))
 
 
-async def _sqlalchemy_sync(case: Case, called: set[str]) -> None:
+async def _sqlalchemy_sync(case: GoldenCase, called: set[str]) -> None:
     engine = sqlalchemy.create_engine("sqlite://")
     try:
         with engine.connect() as conn:
@@ -67,7 +77,7 @@ async def _sqlalchemy_sync(case: Case, called: set[str]) -> None:
         engine.dispose()
 
 
-async def _sqlalchemy_async(case: Case, called: set[str]) -> None:
+async def _sqlalchemy_async(case: GoldenCase, called: set[str]) -> None:
     engine = create_async_engine("sqlite+aiosqlite://")
     try:
         async with engine.connect() as conn:
@@ -78,7 +88,7 @@ async def _sqlalchemy_async(case: Case, called: set[str]) -> None:
         await engine.dispose()
 
 
-def _api(case: Case, conn: object, called: set[str]) -> Any:  # noqa: ANN401
+def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
     api = queries(case, conn, called)
     if case.backend == "sqlalchemy":
         api.NoRow = sqlalchemy.exc.NoResultFound
@@ -129,6 +139,11 @@ async def scenario(api: Any) -> None:  # noqa: ANN401
         (-250, None, None, None),
     ]
     assert entries[1].id == second
+    # A slice's items, then `?2`: each bound in its own place.
+    ids = [e.id for e in entries]
+    assert await q.list_entry_ids(ids=[*ids, 0], account_id=cash.id) == ids
+    assert await q.list_entry_ids(ids=ids, account_id=cash.id + 1) == []
+    assert await q.list_entry_ids(ids=[], account_id=cash.id) == []
     # One parameter used twice is one argument (`?2`).
     assert await q.list_memos(pattern="it%", account_id=0) == [AWKWARD]
     assert await q.list_memos(pattern="%", account_id=cash.id) == [AWKWARD]

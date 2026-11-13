@@ -21,7 +21,7 @@ use ruff_text_size::{Ranged, TextRange};
 use sqlc_gen_python::api::models::{self, Repeats};
 use sqlc_gen_python::backend::Backend;
 use sqlc_gen_python::config::Config;
-use sqlc_gen_python::engine::{Engine, Piece};
+use sqlc_gen_python::engine::{Bind, Engine, Piece, Sql};
 use sqlc_gen_python::plugin;
 
 /// The source of an expression, as ruff writes it.
@@ -183,7 +183,7 @@ pub fn export(package: &str, files: &[plugin::File]) {
 pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -> Vec<String> {
     let request = &renamed(request);
     let mut problems = Vec::new();
-    let stems: BTreeSet<&str> = (request.queries.iter())
+    let stems: BTreeSet<String> = (request.queries.iter())
         .map(|query| stem(&query.filename))
         .collect();
     let expected: BTreeSet<String> = ["__init__.py", "models.py"]
@@ -226,7 +226,7 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
         let file = format!("{stem}.py");
         if let Some(module) = body(&file) {
             let mut found = Vec::new();
-            queries_follow_sqlc(request, stem, module, models, &mut found);
+            queries_follow_sqlc(request, &stem, module, models, &mut found);
             problems.extend(found.into_iter().map(|p| format!("{file}: {p}")));
         }
     }
@@ -604,6 +604,7 @@ fn queries_follow_sqlc(
                 function,
                 constant,
                 &parameters,
+                engine,
                 asynchronous,
                 problems,
             );
@@ -703,12 +704,12 @@ fn takes_rows(query: &plugin::Query) -> bool {
     query.cmd == ":copyfrom" || query.cmd.starts_with(":batch")
 }
 
-/// A query file's stem, which names its module.
-fn stem(filename: &str) -> &str {
-    Path::new(filename)
-        .file_stem()
+/// The module a query file is: its stem, each `-` a `_`.
+fn stem(filename: &str) -> String {
+    (Path::new(filename).file_stem())
         .and_then(|stem| stem.to_str())
         .unwrap_or_default()
+        .replace('-', "_")
 }
 
 /// Checks what makes one query's function safe to call (§6, "Functions"):
@@ -777,6 +778,7 @@ fn runs_its_statement(
     function: &StmtFunctionDef,
     constant: &str,
     parameters: &[(&str, &Expr)],
+    engine: Engine,
     asynchronous: bool,
     problems: &mut Vec<String>,
 ) {
@@ -797,6 +799,8 @@ fn runs_its_statement(
                 {
                     self.calls.push(call)
                 }
+                // psycopg counts in a pipeline of its own.
+                Expr::Attribute(_) if unparse(expr) == "conn.pipeline" => return,
                 Expr::Name(name) if name.id.as_str() == "conn" => self.conns += 1,
                 Expr::Call(call) if unparse(&call.func) == "copy.write_row" => {
                     self.writes.push(call.range());
@@ -864,21 +868,33 @@ fn runs_its_statement(
         true => format!("r.{name}"),
         false => name.to_string(),
     };
-    // Each parameter as it is bound: by name, or by its number's position,
-    // a slice's items each in a place of its own.
-    let uses = uses(query);
-    let firsts: Vec<usize> = (0..uses.len()).filter(|&i| uses[i] == i).collect();
-    let mut expected: Vec<(String, String)> = (query.params.iter().zip(&uses))
-        .filter_map(|(param, first)| {
-            let (name, _) = parameters.get(firsts.iter().position(|f| f == first)?)?;
-            let slice = param.column.as_ref().is_some_and(|c| c.is_sqlc_slice);
-            let value = if slice {
-                format!("*{}", value(name))
-            } else {
-                value(name)
-            };
-            Some((format!("${}", param.number), value))
-        })
+    // Each parameter as it is bound: by name, or by position, a slice's
+    // items each in a place of its own. psycopg binds `$N` by `N`; PyMySQL's
+    // and `sqlite3`'s own placeholders bind in the text's order.
+    let names: Vec<&str> = parameters.iter().map(|(name, _)| *name).collect();
+    let Some(pieces) = cut(query, engine, &names) else {
+        return problems.push(format!("{}: sqlc's text does not cut", query.name));
+    };
+    let mut placed: Vec<(i32, String)> = Vec::new();
+    for (at, piece) in pieces.0.iter().enumerate() {
+        let (placeholder, value) = match piece {
+            Piece::Text(_) => continue,
+            Piece::Param { placeholder, name } => (placeholder, value(name)),
+            Piece::Slice {
+                placeholder, name, ..
+            } => (placeholder, format!("*{}", value(name))),
+        };
+        let number = match engine {
+            Engine::PostgreSql => placeholder[1..].parse().unwrap_or_default(),
+            _ => at as i32,
+        };
+        if !placed.iter().any(|(n, _)| *n == number) {
+            placed.push((number, value));
+        }
+    }
+    placed.sort_by_key(|(number, _)| *number);
+    let mut expected: Vec<(String, String)> = (placed.into_iter().enumerate())
+        .map(|(i, (_, value))| (format!("${}", i + 1), value))
         .collect();
     let bound = match (&args[1..], copyfrom) {
         ([], false) => Some(Vec::new()),
@@ -931,8 +947,6 @@ fn runs_its_statement(
         expected = (parameters.iter())
             .map(|(name, _)| (name.to_string(), value(name)))
             .collect();
-    } else {
-        expected.sort_by_key(|(number, _)| number[1..].parse::<i32>().unwrap_or_default());
     }
     if bound.as_ref() != Some(&expected) {
         problems.push(format!(
@@ -1142,7 +1156,18 @@ fn sql_round_trips(
             }
             _ => sql.to_string(),
         };
-        if sql != query.text {
+        // `sqlite3` binds a bare `?` per value, in the text's order.
+        let text = match (backend, cut(query, engine, &[])) {
+            (Backend::Sqlite3, Some(pieces)) => (pieces.0.iter())
+                .map(|piece| match piece {
+                    Piece::Text(text) => text.clone(),
+                    Piece::Param { .. } => "?".into(),
+                    Piece::Slice { marker, .. } => format!("{marker}?"),
+                })
+                .collect(),
+            _ => query.text.clone(),
+        };
+        if sql != text {
             problems.push(format!(
                 "{}: runs {sql:?}, not sqlc's {:?}",
                 query.name, query.text
@@ -1176,20 +1201,17 @@ fn sql_round_trips(
         ));
         return;
     }
-    // Each placeholder of sqlc's text, as written, and the parameter it binds.
-    let uses = uses(query);
-    let firsts: Vec<usize> = (0..uses.len()).filter(|&i| uses[i] == i).collect();
-    let numbered: Vec<(i32, &str)> = (query.params.iter().zip(&uses))
-        .filter_map(|(param, first)| {
-            let at = firsts.iter().position(|f| f == first)?;
-            Some((param.number, *names.get(at)?))
-        })
-        .collect();
-    let Ok(pieces) = engine.sql(&query.text, &numbered) else {
+    let Some(pieces) = cut(query, engine, &names) else {
         return problems.push(format!("{}: sqlc's text does not cut", query.name));
     };
     let mut placeholders = (pieces.0.into_iter()).filter_map(|piece| match piece {
         Piece::Param { placeholder, name } => Some((placeholder, name)),
+        // An expanding bind is its parentheses too.
+        Piece::Slice {
+            marker,
+            placeholder,
+            name,
+        } => Some((format!("({marker}{placeholder})"), name)),
         Piece::Text(_) => None,
     });
     let mut misplaced = Vec::new();
@@ -1198,11 +1220,7 @@ fn sql_round_trips(
         if name != captures[1] {
             misplaced.push(format!("{} at {placeholder}", &captures[1]));
         }
-        // An expanding bind is its parentheses too.
-        match placeholder.starts_with("/*SLICE:") {
-            true => format!("({placeholder})"),
-            false => placeholder,
-        }
+        placeholder
     });
     let rendered = escaped.replace_all(&rendered, "$1");
     if !misplaced.is_empty() || rendered != query.text {
@@ -1211,6 +1229,28 @@ fn sql_round_trips(
             query.name, query.text
         ));
     }
+}
+
+/// sqlc's text of `query`, cut at its placeholders as `engine` reads them,
+/// each named as `names`, the function's parameters, name it (or `?`).
+fn cut(query: &plugin::Query, engine: Engine, names: &[&str]) -> Option<Sql> {
+    let uses = uses(query);
+    let firsts: Vec<usize> = (0..uses.len()).filter(|&i| uses[i] == i).collect();
+    let binds: Vec<Bind> = (query.params.iter().zip(&uses).enumerate())
+        .map(|(i, (param, first))| {
+            let at = firsts.iter().position(|f| f == first);
+            let column = param.column.as_ref();
+            Bind {
+                number: match engine {
+                    Engine::PostgreSql => param.number,
+                    _ => i as i32 + 1,
+                },
+                name: at.and_then(|at| names.get(at)).copied().unwrap_or("?"),
+                slice: (column.filter(|c| c.is_sqlc_slice)).map(|c| c.name.as_str()),
+            }
+        })
+        .collect();
+    engine.sql(&query.text, &binds).ok()
 }
 
 /// Checks that what a `:one` or `:many` returns follows sqlc's columns: a

@@ -28,29 +28,30 @@ async def add_shape(
     area: str,
     lsn: str,
 ) -> models.Shape:
-    cur = psycopg.AsyncRawCursor(conn, row_factory=tuple_row)
-    await cur.execute(
-        _ADD_SHAPE, (flags, mask, spot, edge, segment, frame, route, outline, area, lsn)
-    )
-    match await cur.fetchmany(2):
-        case [row]:
-            return models.Shape.from_row(row)
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+        await cur.execute(
+            _ADD_SHAPE,
+            (flags, mask, spot, edge, segment, frame, route, outline, area, lsn),
+        )
+        match await cur.fetchmany(2):
+            case [row]:
+                return models.Shape.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _GET_SHAPE: Final = "SELECT id, flags, mask, spot, edge, segment, frame, route, outline, area, lsn FROM shapes WHERE id = $1"
 
 
 async def get_shape(conn: psycopg.AsyncConnection[Any], *, id: int) -> models.Shape:
-    cur = psycopg.AsyncRawCursor(conn, row_factory=tuple_row)
-    await cur.execute(_GET_SHAPE, (id,))
-    match await cur.fetchmany(2):
-        case [row]:
-            return models.Shape.from_row(row)
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+        await cur.execute(_GET_SHAPE, (id,))
+        match await cur.fetchmany(2):
+            case [row]:
+                return models.Shape.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError

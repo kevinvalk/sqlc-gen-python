@@ -19,12 +19,13 @@ from typing import Any
 import mysql
 import pytest
 import sqlalchemy
+from examples import GoldenCase
 from postgres import aw
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from conftest import SCHEMAS, Case, cases, functions, queries
+from conftest import cases, functions, queries
 
-SCHEMA = (SCHEMAS / "billing/schema.sql").read_text()
+SCHEMA = cases("billing")[0].schema_sql.read_text()
 # Characters PyMySQL's `%` formatting, SQLAlchemy's `:name` binds or a careless
 # generator could misread.
 AWKWARD = 'it\'s "quoted" \\ :name %s %(x)s %% ? /*SLICE:ids*/?'
@@ -51,7 +52,7 @@ def mysql_server() -> Iterator[sqlalchemy.URL]:
 
 @pytest.mark.parametrize(("case", "driver"), RUNS)
 def test_every_function_against_mysql(
-    case: Case, driver: str, mysql_server: sqlalchemy.URL
+    case: GoldenCase, driver: str, mysql_server: sqlalchemy.URL
 ) -> None:
     called: set[str] = set()
     with mysql.database(mysql_server, SCHEMA) as database:
@@ -78,7 +79,7 @@ def _setup(url: sqlalchemy.URL) -> None:
         conn.close()
 
 
-def _pymysql(case: Case, url: sqlalchemy.URL, called: set[str]) -> None:
+def _pymysql(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
     conn = mysql.connect(url)
     try:
         asyncio.run(scenario(_api(case, conn, called)))
@@ -87,7 +88,7 @@ def _pymysql(case: Case, url: sqlalchemy.URL, called: set[str]) -> None:
         conn.close()
 
 
-def _sqlalchemy_sync(case: Case, url: sqlalchemy.URL, called: set[str]) -> None:
+def _sqlalchemy_sync(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
     engine = sqlalchemy.create_engine(url)
     try:
         with engine.connect() as conn:
@@ -97,7 +98,9 @@ def _sqlalchemy_sync(case: Case, url: sqlalchemy.URL, called: set[str]) -> None:
         engine.dispose()
 
 
-async def _sqlalchemy_async(case: Case, url: sqlalchemy.URL, called: set[str]) -> None:
+async def _sqlalchemy_async(
+    case: GoldenCase, url: sqlalchemy.URL, called: set[str]
+) -> None:
     engine = create_async_engine(url)
     try:
         async with engine.connect() as conn:
@@ -107,7 +110,7 @@ async def _sqlalchemy_async(case: Case, url: sqlalchemy.URL, called: set[str]) -
         await engine.dispose()
 
 
-def _api(case: Case, conn: object, called: set[str]) -> Any:  # noqa: ANN401
+def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
     api = queries(case, conn, called)
     if case.backend == "sqlalchemy":
         api.NoRow = sqlalchemy.exc.NoResultFound

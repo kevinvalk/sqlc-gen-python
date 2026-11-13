@@ -2,6 +2,7 @@
 # versions:
 #   sqlc-gen-python v0.1.0
 #   sqlc v1.31.1
+import contextlib
 import dataclasses
 import sqlite3
 from collections.abc import Sequence
@@ -16,15 +17,16 @@ RETURNING id, name, archived, opened_on, settings"""
 def open_account(
     conn: sqlite3.Connection, *, name: str, opened_on: str, settings: str | None
 ) -> models.Account:
-    cur = conn.cursor()
-    cur.execute(_OPEN_ACCOUNT, (name, opened_on, settings))
-    match cur.fetchmany(2):
-        case [row]:
-            return models.Account.from_row(row)
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_OPEN_ACCOUNT, (name, opened_on, settings))
+        match cur.fetchmany(2):
+            case [row]:
+                return models.Account.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _GET_ACCOUNT: Final = (
@@ -33,32 +35,34 @@ _GET_ACCOUNT: Final = (
 
 
 def get_account(conn: sqlite3.Connection, *, id: int) -> models.Account:
-    cur = conn.cursor()
-    cur.execute(_GET_ACCOUNT, (id,))
-    match cur.fetchmany(2):
-        case [row]:
-            return models.Account.from_row(row)
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_GET_ACCOUNT, (id,))
+        match cur.fetchmany(2):
+            case [row]:
+                return models.Account.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _GET_ACCOUNT_BY_NAME: Final = (
-    "SELECT id, name, archived, opened_on, settings FROM accounts WHERE name = ?1"
+    "SELECT id, name, archived, opened_on, settings FROM accounts WHERE name = ?"
 )
 
 
 def get_account_by_name(conn: sqlite3.Connection, *, name: str) -> models.Account:
-    cur = conn.cursor()
-    cur.execute(_GET_ACCOUNT_BY_NAME, (name,))
-    match cur.fetchmany(2):
-        case [row]:
-            return models.Account.from_row(row)
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_GET_ACCOUNT_BY_NAME, (name,))
+        match cur.fetchmany(2):
+            case [row]:
+                return models.Account.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _ARCHIVE_ACCOUNT: Final = (
@@ -67,24 +71,26 @@ _ARCHIVE_ACCOUNT: Final = (
 
 
 def archive_account(conn: sqlite3.Connection, *, id: int) -> int:
-    cur = conn.cursor()
-    cur.execute(_ARCHIVE_ACCOUNT, (id,))
-    return cur.rowcount
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_ARCHIVE_ACCOUNT, (id,))
+        return cur.rowcount
 
 
 _IS_ARCHIVED: Final = "SELECT archived FROM accounts WHERE id = ?"
 
 
 def is_archived(conn: sqlite3.Connection, *, id: int) -> bool:
-    cur = conn.cursor()
-    cur.execute(_IS_ARCHIVED, (id,))
-    match cur.fetchmany(2):
-        case [row]:
-            return bool(row[0])
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_IS_ARCHIVED, (id,))
+        match cur.fetchmany(2):
+            case [row]:
+                return bool(row[0])
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _LIST_ACCOUNTS: Final = (
@@ -93,9 +99,10 @@ _LIST_ACCOUNTS: Final = (
 
 
 def list_accounts(conn: sqlite3.Connection) -> list[models.Account]:
-    cur = conn.cursor()
-    cur.execute(_LIST_ACCOUNTS)
-    return [models.Account.from_row(row) for row in cur.fetchall()]
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_ACCOUNTS)
+        return [models.Account.from_row(row) for row in cur.fetchall()]
 
 
 _LIST_ACCOUNTS_BY_IDS: Final = "SELECT id, name, archived, opened_on, settings FROM accounts WHERE id IN (/*SLICE:ids*/?) ORDER BY id"
@@ -104,14 +111,15 @@ _LIST_ACCOUNTS_BY_IDS: Final = "SELECT id, name, archived, opened_on, settings F
 def list_accounts_by_ids(
     conn: sqlite3.Connection, *, ids: list[int]
 ) -> list[models.Account]:
-    cur = conn.cursor()
-    cur.execute(
-        _LIST_ACCOUNTS_BY_IDS.replace(
-            "/*SLICE:ids*/?", ", ".join(["?"] * len(ids)) or "SELECT NULL WHERE 0"
-        ),
-        (*ids,),
-    )
-    return [models.Account.from_row(row) for row in cur.fetchall()]
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(
+            _LIST_ACCOUNTS_BY_IDS.replace(
+                "/*SLICE:ids*/?", ", ".join(["?"] * len(ids)) or "SELECT NULL WHERE 0"
+            ),
+            (*ids,),
+        )
+        return [models.Account.from_row(row) for row in cur.fetchall()]
 
 
 _BOOK: Final = """INSERT INTO entries (account_id, amount_cents, rate, memo, receipt)
@@ -127,8 +135,9 @@ def book(
     memo: str | None,
     receipt: bytes | None,
 ) -> None:
-    cur = conn.cursor()
-    cur.execute(_BOOK, (account_id, amount_cents, rate, memo, receipt))
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_BOOK, (account_id, amount_cents, rate, memo, receipt))
 
 
 _BOOK_RETURNING_ID: Final = """INSERT INTO entries (account_id, amount_cents, memo) VALUES (?, ?, ?)
@@ -138,16 +147,17 @@ RETURNING id"""
 def book_returning_id(
     conn: sqlite3.Connection, *, account_id: int, amount_cents: int, memo: str | None
 ) -> int:
-    cur = conn.cursor()
-    cur.execute(_BOOK_RETURNING_ID, (account_id, amount_cents, memo))
-    match cur.fetchmany(2):
-        case [row]:
-            value: int = row[0]
-            return value
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_BOOK_RETURNING_ID, (account_id, amount_cents, memo))
+        match cur.fetchmany(2):
+            case [row]:
+                value: int = row[0]
+                return value
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _BALANCE: Final = """SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS balance_cents
@@ -155,29 +165,51 @@ FROM entries WHERE account_id = ?"""
 
 
 def balance(conn: sqlite3.Connection, *, account_id: int) -> int:
-    cur = conn.cursor()
-    cur.execute(_BALANCE, (account_id,))
-    match cur.fetchmany(2):
-        case [row]:
-            value: int = row[0]
-            return value
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_BALANCE, (account_id,))
+        match cur.fetchmany(2):
+            case [row]:
+                value: int = row[0]
+                return value
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _LIST_ENTRIES: Final = "SELECT id, account_id, amount_cents, rate, memo, receipt, booked_at FROM entries WHERE account_id = ? ORDER BY id"
 
 
 def list_entries(conn: sqlite3.Connection, *, account_id: int) -> list[models.Entry]:
-    cur = conn.cursor()
-    cur.execute(_LIST_ENTRIES, (account_id,))
-    return [models.Entry.from_row(row) for row in cur.fetchall()]
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_ENTRIES, (account_id,))
+        return [models.Entry.from_row(row) for row in cur.fetchall()]
+
+
+_LIST_ENTRY_IDS: Final = """SELECT id FROM entries
+WHERE id IN (/*SLICE:ids*/?) AND account_id = ?
+ORDER BY id"""
+
+
+def list_entry_ids(
+    conn: sqlite3.Connection, *, ids: list[int], account_id: int
+) -> list[int]:
+    """The entries of the account among the ids: a slice, then a numbered parameter."""
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(
+            _LIST_ENTRY_IDS.replace(
+                "/*SLICE:ids*/?", ", ".join(["?"] * len(ids)) or "SELECT NULL WHERE 0"
+            ),
+            (*ids, account_id),
+        )
+        return [row[0] for row in cur.fetchall()]
 
 
 _LIST_MEMOS: Final = """SELECT memo FROM entries
-WHERE memo LIKE ?1 AND (account_id = ?2 OR ?2 = 0)
+WHERE memo LIKE ? AND (account_id = ? OR ? = 0)
 ORDER BY id"""
 
 
@@ -185,9 +217,10 @@ def list_memos(
     conn: sqlite3.Connection, *, pattern: str | None, account_id: int
 ) -> list[str | None]:
     """Entries with a memo matching the pattern, in the account or every account."""
-    cur = conn.cursor()
-    cur.execute(_LIST_MEMOS, (pattern, account_id))
-    return [row[0] for row in cur.fetchall()]
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_MEMOS, (pattern, account_id, account_id))
+        return [row[0] for row in cur.fetchall()]
 
 
 _LIST_ENTRIES_WITH_ACCOUNT: Final = """SELECT entries.id, entries.account_id, entries.amount_cents, entries.rate, entries.memo, entries.receipt, entries.booked_at, accounts.id, accounts.name, accounts.archived, accounts.opened_on, accounts.settings
@@ -211,9 +244,10 @@ class ListEntriesWithAccountRow:
 def list_entries_with_account(
     conn: sqlite3.Connection,
 ) -> list[ListEntriesWithAccountRow]:
-    cur = conn.cursor()
-    cur.execute(_LIST_ENTRIES_WITH_ACCOUNT)
-    return [ListEntriesWithAccountRow.from_row(row) for row in cur.fetchall()]
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_ENTRIES_WITH_ACCOUNT)
+        return [ListEntriesWithAccountRow.from_row(row) for row in cur.fetchall()]
 
 
 _DELETE_ENTRIES: Final = "DELETE FROM entries WHERE account_id = ?"
@@ -221,5 +255,6 @@ _DELETE_ENTRIES: Final = "DELETE FROM entries WHERE account_id = ?"
 
 def delete_entries(conn: sqlite3.Connection, *, account_id: int) -> sqlite3.Cursor:
     cur = conn.cursor()
+    cur.row_factory = None
     cur.execute(_DELETE_ENTRIES, (account_id,))
     return cur

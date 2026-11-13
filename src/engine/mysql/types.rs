@@ -41,21 +41,24 @@ pub fn scalar_type(column: &plugin::Column) -> Option<Type> {
     })
 }
 
-/// Whether `data_type` is sqlc's guess rather than a type it read: `any` for
-/// an expression it could not type, or nothing.
-pub fn is_guess(data_type: &str, _database: bool) -> bool {
-    ["", "any"].contains(&data_type.to_ascii_lowercase().as_str())
-}
-
 /// Why a column of an enum of `labels` is no enum, if it is not: sqlc reports
 /// a `SET` as an `ENUM` of its members, but a `SET` holds several, as
-/// `'x,y'`, which no member is. Its length tells them apart: an `ENUM`'s is
-/// its longest label's, a `SET`'s all of them joined by commas.
+/// `'x,y'`, which no member is. Its length, in bytes, tells them apart: an
+/// `ENUM`'s is its longest label's, a `SET`'s all of them joined by commas.
+/// Of one label, the two are one length.
 pub fn enum_problem(column: &plugin::Column, labels: &[String]) -> Option<&'static str> {
-    let longest = labels.iter().map(|l| l.chars().count()).max().unwrap_or(0);
-    let joined =
-        labels.iter().map(|l| l.chars().count()).sum::<usize>() + labels.len().saturating_sub(1);
+    let longest = labels.iter().map(String::len).max().unwrap_or(0);
+    let joined = labels.iter().map(String::len).sum::<usize>() + labels.len().saturating_sub(1);
     let length = usize::try_from(column.length).unwrap_or(0);
-    (labels.len() > 1 && length == joined && length > longest)
-        .then_some("is a SET, which holds several of its members; store them otherwise, such as in a JSON column")
+    match labels.len() {
+        1 => Some(
+            "has one member, which sqlc reports alike for an ENUM and a SET; give it a second, \
+             or store it otherwise",
+        ),
+        _ if length == joined && length > longest => Some(
+            "is a SET, which holds several of its members; store them otherwise, such as in a \
+             JSON column",
+        ),
+        _ => None,
+    }
 }

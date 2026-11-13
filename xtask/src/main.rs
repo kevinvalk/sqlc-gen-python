@@ -10,6 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
+mod generate;
 mod sql_text;
 
 const USAGE: &str = "\
@@ -28,7 +29,7 @@ commands:
           a case the runtime proof reads back (pgtypes_sqlalchemy, invoicing_*,
           ledger_*)
           also needs verify to pass (docker or SQLC_TEST_DATABASE_URL), which
-          rewrites docs/typemap.md and docs/compat.md to match
+          rewrites docs/typemap.md to match
   capture [--sqlc-bin PATH] [--check]
           re-capture tests/sqlc/endtoend and tests/sqlc/examples/*.json from the sqlc
           .prototools pins (downloaded, or the binary at PATH; several
@@ -40,9 +41,12 @@ commands:
   verify [--mutants] [--check]
           prove what the generator emits against PostgreSQL (docker or
           SQLC_TEST_DATABASE_URL), on every supported Python, rewriting
-          docs/typemap.md and docs/compat.md (docs/python-output.md, Proof);
+          docs/typemap.md (docs/python-output.md, Proof);
           with --mutants, also plant bugs that must each be caught; with
           --check, fail instead of writing a document that would change
+  generate REQUEST OPTIONS [OUT]
+          run the plugin on a request as JSON (tests/sqlc/...) with OPTIONS as
+          JSON, printing each file, or writing them into OUT
   sql-text
           (for tests/python/scanner.py) answer each stdin line `[sql, params]`
           with the SQLAlchemy text() of PostgreSQL's `sql`
@@ -72,6 +76,10 @@ fn main() -> ExitCode {
         ["capture", options @ ..] => run(uv_python("tests/python/capture.py").args(options)),
         ["verify", options @ ..] => GenDir::with(|generated| verify(generated, options)),
         ["sql-text"] => sql_text::serve().map_err(|error| format!("{error:#}")),
+        ["generate", request, options, out @ ..] if out.len() <= 1 => {
+            generate::run(request, options, out.first().copied())
+                .map_err(|error| format!("{error:#}"))
+        }
         _ => usage(),
     };
     match result {

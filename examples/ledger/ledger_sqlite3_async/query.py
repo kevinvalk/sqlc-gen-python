@@ -17,15 +17,16 @@ RETURNING id, name, archived, opened_on, settings"""
 async def open_account(
     conn: aiosqlite.Connection, *, name: str, opened_on: str, settings: str | None
 ) -> models.Account:
-    cur = await conn.cursor()
-    await cur.execute(_OPEN_ACCOUNT, (name, opened_on, settings))
-    match await cur.fetchmany(2):
-        case [row]:
-            return models.Account.from_row(row)
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_OPEN_ACCOUNT, (name, opened_on, settings))
+        match await cur.fetchmany(2):
+            case [row]:
+                return models.Account.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _GET_ACCOUNT: Final = (
@@ -34,34 +35,36 @@ _GET_ACCOUNT: Final = (
 
 
 async def get_account(conn: aiosqlite.Connection, *, id: int) -> models.Account:
-    cur = await conn.cursor()
-    await cur.execute(_GET_ACCOUNT, (id,))
-    match await cur.fetchmany(2):
-        case [row]:
-            return models.Account.from_row(row)
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_GET_ACCOUNT, (id,))
+        match await cur.fetchmany(2):
+            case [row]:
+                return models.Account.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _GET_ACCOUNT_BY_NAME: Final = (
-    "SELECT id, name, archived, opened_on, settings FROM accounts WHERE name = ?1"
+    "SELECT id, name, archived, opened_on, settings FROM accounts WHERE name = ?"
 )
 
 
 async def get_account_by_name(
     conn: aiosqlite.Connection, *, name: str
 ) -> models.Account:
-    cur = await conn.cursor()
-    await cur.execute(_GET_ACCOUNT_BY_NAME, (name,))
-    match await cur.fetchmany(2):
-        case [row]:
-            return models.Account.from_row(row)
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_GET_ACCOUNT_BY_NAME, (name,))
+        match await cur.fetchmany(2):
+            case [row]:
+                return models.Account.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _ARCHIVE_ACCOUNT: Final = (
@@ -70,24 +73,26 @@ _ARCHIVE_ACCOUNT: Final = (
 
 
 async def archive_account(conn: aiosqlite.Connection, *, id: int) -> int:
-    cur = await conn.cursor()
-    await cur.execute(_ARCHIVE_ACCOUNT, (id,))
-    return cur.rowcount
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_ARCHIVE_ACCOUNT, (id,))
+        return cur.rowcount
 
 
 _IS_ARCHIVED: Final = "SELECT archived FROM accounts WHERE id = ?"
 
 
 async def is_archived(conn: aiosqlite.Connection, *, id: int) -> bool:
-    cur = await conn.cursor()
-    await cur.execute(_IS_ARCHIVED, (id,))
-    match await cur.fetchmany(2):
-        case [row]:
-            return bool(row[0])
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_IS_ARCHIVED, (id,))
+        match await cur.fetchmany(2):
+            case [row]:
+                return bool(row[0])
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _LIST_ACCOUNTS: Final = (
@@ -96,9 +101,10 @@ _LIST_ACCOUNTS: Final = (
 
 
 async def list_accounts(conn: aiosqlite.Connection) -> list[models.Account]:
-    cur = await conn.cursor()
-    await cur.execute(_LIST_ACCOUNTS)
-    return [models.Account.from_row(row) for row in await cur.fetchall()]
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_LIST_ACCOUNTS)
+        return [models.Account.from_row(row) for row in await cur.fetchall()]
 
 
 _LIST_ACCOUNTS_BY_IDS: Final = "SELECT id, name, archived, opened_on, settings FROM accounts WHERE id IN (/*SLICE:ids*/?) ORDER BY id"
@@ -107,14 +113,15 @@ _LIST_ACCOUNTS_BY_IDS: Final = "SELECT id, name, archived, opened_on, settings F
 async def list_accounts_by_ids(
     conn: aiosqlite.Connection, *, ids: list[int]
 ) -> list[models.Account]:
-    cur = await conn.cursor()
-    await cur.execute(
-        _LIST_ACCOUNTS_BY_IDS.replace(
-            "/*SLICE:ids*/?", ", ".join(["?"] * len(ids)) or "SELECT NULL WHERE 0"
-        ),
-        (*ids,),
-    )
-    return [models.Account.from_row(row) for row in await cur.fetchall()]
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(
+            _LIST_ACCOUNTS_BY_IDS.replace(
+                "/*SLICE:ids*/?", ", ".join(["?"] * len(ids)) or "SELECT NULL WHERE 0"
+            ),
+            (*ids,),
+        )
+        return [models.Account.from_row(row) for row in await cur.fetchall()]
 
 
 _BOOK: Final = """INSERT INTO entries (account_id, amount_cents, rate, memo, receipt)
@@ -130,8 +137,9 @@ async def book(
     memo: str | None,
     receipt: bytes | None,
 ) -> None:
-    cur = await conn.cursor()
-    await cur.execute(_BOOK, (account_id, amount_cents, rate, memo, receipt))
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_BOOK, (account_id, amount_cents, rate, memo, receipt))
 
 
 _BOOK_RETURNING_ID: Final = """INSERT INTO entries (account_id, amount_cents, memo) VALUES (?, ?, ?)
@@ -141,16 +149,17 @@ RETURNING id"""
 async def book_returning_id(
     conn: aiosqlite.Connection, *, account_id: int, amount_cents: int, memo: str | None
 ) -> int:
-    cur = await conn.cursor()
-    await cur.execute(_BOOK_RETURNING_ID, (account_id, amount_cents, memo))
-    match await cur.fetchmany(2):
-        case [row]:
-            value: int = row[0]
-            return value
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_BOOK_RETURNING_ID, (account_id, amount_cents, memo))
+        match await cur.fetchmany(2):
+            case [row]:
+                value: int = row[0]
+                return value
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _BALANCE: Final = """SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS balance_cents
@@ -158,16 +167,17 @@ FROM entries WHERE account_id = ?"""
 
 
 async def balance(conn: aiosqlite.Connection, *, account_id: int) -> int:
-    cur = await conn.cursor()
-    await cur.execute(_BALANCE, (account_id,))
-    match await cur.fetchmany(2):
-        case [row]:
-            value: int = row[0]
-            return value
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_BALANCE, (account_id,))
+        match await cur.fetchmany(2):
+            case [row]:
+                value: int = row[0]
+                return value
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _LIST_ENTRIES: Final = "SELECT id, account_id, amount_cents, rate, memo, receipt, booked_at FROM entries WHERE account_id = ? ORDER BY id"
@@ -176,13 +186,34 @@ _LIST_ENTRIES: Final = "SELECT id, account_id, amount_cents, rate, memo, receipt
 async def list_entries(
     conn: aiosqlite.Connection, *, account_id: int
 ) -> list[models.Entry]:
-    cur = await conn.cursor()
-    await cur.execute(_LIST_ENTRIES, (account_id,))
-    return [models.Entry.from_row(row) for row in await cur.fetchall()]
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_LIST_ENTRIES, (account_id,))
+        return [models.Entry.from_row(row) for row in await cur.fetchall()]
+
+
+_LIST_ENTRY_IDS: Final = """SELECT id FROM entries
+WHERE id IN (/*SLICE:ids*/?) AND account_id = ?
+ORDER BY id"""
+
+
+async def list_entry_ids(
+    conn: aiosqlite.Connection, *, ids: list[int], account_id: int
+) -> list[int]:
+    """The entries of the account among the ids: a slice, then a numbered parameter."""
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(
+            _LIST_ENTRY_IDS.replace(
+                "/*SLICE:ids*/?", ", ".join(["?"] * len(ids)) or "SELECT NULL WHERE 0"
+            ),
+            (*ids, account_id),
+        )
+        return [row[0] for row in await cur.fetchall()]
 
 
 _LIST_MEMOS: Final = """SELECT memo FROM entries
-WHERE memo LIKE ?1 AND (account_id = ?2 OR ?2 = 0)
+WHERE memo LIKE ? AND (account_id = ? OR ? = 0)
 ORDER BY id"""
 
 
@@ -190,9 +221,10 @@ async def list_memos(
     conn: aiosqlite.Connection, *, pattern: str | None, account_id: int
 ) -> list[str | None]:
     """Entries with a memo matching the pattern, in the account or every account."""
-    cur = await conn.cursor()
-    await cur.execute(_LIST_MEMOS, (pattern, account_id))
-    return [row[0] for row in await cur.fetchall()]
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_LIST_MEMOS, (pattern, account_id, account_id))
+        return [row[0] for row in await cur.fetchall()]
 
 
 _LIST_ENTRIES_WITH_ACCOUNT: Final = """SELECT entries.id, entries.account_id, entries.amount_cents, entries.rate, entries.memo, entries.receipt, entries.booked_at, accounts.id, accounts.name, accounts.archived, accounts.opened_on, accounts.settings
@@ -216,9 +248,10 @@ class ListEntriesWithAccountRow:
 async def list_entries_with_account(
     conn: aiosqlite.Connection,
 ) -> list[ListEntriesWithAccountRow]:
-    cur = await conn.cursor()
-    await cur.execute(_LIST_ENTRIES_WITH_ACCOUNT)
-    return [ListEntriesWithAccountRow.from_row(row) for row in await cur.fetchall()]
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_LIST_ENTRIES_WITH_ACCOUNT)
+        return [ListEntriesWithAccountRow.from_row(row) for row in await cur.fetchall()]
 
 
 _DELETE_ENTRIES: Final = "DELETE FROM entries WHERE account_id = ?"
@@ -228,5 +261,6 @@ async def delete_entries(
     conn: aiosqlite.Connection, *, account_id: int
 ) -> aiosqlite.Cursor:
     cur = await conn.cursor()
+    cur.row_factory = None
     await cur.execute(_DELETE_ENTRIES, (account_id,))
     return cur

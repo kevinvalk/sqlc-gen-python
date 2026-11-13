@@ -26,8 +26,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # --check: docs/typemap.md and docs/compat.md must already say what
-        # verify finds, so neither a hand edit nor a driver's change slips by.
+        # --check: docs/typemap.md must already say what verify finds, so
+        # neither a hand edit nor a driver's change slips by.
         task: [check, verify --mutants --check]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

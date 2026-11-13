@@ -26,15 +26,15 @@ def record_payment(
     from_: str | None,
     received_at: dt.datetime,
 ) -> models.BillingPayment:
-    cur = psycopg.RawCursor(conn, row_factory=tuple_row)
-    cur.execute(_RECORD_PAYMENT, (invoice_id, method, amount, from_, received_at))
-    match cur.fetchmany(2):
-        case [row]:
-            return models.BillingPayment.from_row(row)
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+        cur.execute(_RECORD_PAYMENT, (invoice_id, method, amount, from_, received_at))
+        match cur.fetchmany(2):
+            case [row]:
+                return models.BillingPayment.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _LIST_PAYMENTS_BY_METHODS: Final = """SELECT id, invoice_id, method, amount, "from", received_at FROM billing.payments
@@ -45,9 +45,9 @@ ORDER BY received_at"""
 def list_payments_by_methods(
     conn: psycopg.Connection[Any], *, methods: list[models.BillingPaymentMethod]
 ) -> list[models.BillingPayment]:
-    cur = psycopg.RawCursor(conn, row_factory=tuple_row)
-    cur.execute(_LIST_PAYMENTS_BY_METHODS, (methods,))
-    return [models.BillingPayment.from_row(row) for row in cur.fetchall()]
+    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+        cur.execute(_LIST_PAYMENTS_BY_METHODS, (methods,))
+        return [models.BillingPayment.from_row(row) for row in cur.fetchall()]
 
 
 _LIST_INVOICE_PAYMENT_METHODS: Final = """SELECT ARRAY(
@@ -59,15 +59,15 @@ def list_invoice_payment_methods(
     conn: psycopg.Connection[Any], *, invoice_id: UUID
 ) -> list[models.BillingPaymentMethod]:
     """An unnamed column: PostgreSQL names it `array`, and sqlc nothing."""
-    cur = psycopg.RawCursor(conn, row_factory=tuple_row)
-    cur.execute(_LIST_INVOICE_PAYMENT_METHODS, (invoice_id,))
-    match cur.fetchmany(2):
-        case [row]:
-            return models.BillingPaymentMethod.from_array(row[0])
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+        cur.execute(_LIST_INVOICE_PAYMENT_METHODS, (invoice_id,))
+        match cur.fetchmany(2):
+            case [row]:
+                return models.BillingPaymentMethod.from_array(row[0])
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _LIST_INVOICE_BALANCES: Final = "SELECT invoice_id, customer_id, number, paid FROM invoice_balances WHERE customer_id = $1 ORDER BY number"
@@ -76,6 +76,6 @@ _LIST_INVOICE_BALANCES: Final = "SELECT invoice_id, customer_id, number, paid FR
 def list_invoice_balances(
     conn: psycopg.Connection[Any], *, customer_id: UUID
 ) -> list[models.InvoiceBalance]:
-    cur = psycopg.RawCursor(conn, row_factory=tuple_row)
-    cur.execute(_LIST_INVOICE_BALANCES, (customer_id,))
-    return [models.InvoiceBalance.from_row(row) for row in cur.fetchall()]
+    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+        cur.execute(_LIST_INVOICE_BALANCES, (customer_id,))
+        return [models.InvoiceBalance.from_row(row) for row in cur.fetchall()]

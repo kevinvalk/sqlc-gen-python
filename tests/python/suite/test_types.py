@@ -15,9 +15,10 @@ from typing import Any
 import psycopg
 import pytest
 import sqlalchemy
+from examples import GoldenCase
 from postgres import conninfo, database
 
-from conftest import SCHEMAS, Case, cases, functions, queries
+from conftest import cases, functions, queries
 
 # A value of each type `pgtext` maps, as PostgreSQL writes it back.
 SHAPE = {
@@ -38,7 +39,7 @@ SHAPE = {
 def schema_db(request: pytest.FixtureRequest, server: sqlalchemy.URL) -> Iterator[str]:
     """A fresh database of the example's schema, as a libpq URL."""
     example: str = request.param
-    with database(server, (SCHEMAS / example / "schema.sql").read_text()) as url:
+    with database(server, cases(example)[0].schema_sql.read_text()) as url:
         yield conninfo(url)
 
 
@@ -71,7 +72,7 @@ async def _custom(api: Any) -> None:  # noqa: ANN401
 
 @pytest.mark.parametrize("schema_db", ["pgtext"], indirect=True)
 @pytest.mark.parametrize("case", cases("pgtext"), ids=lambda case: case.name)
-def test_text_types_on_psycopg(case: Case, schema_db: str) -> None:
+def test_text_types_on_psycopg(case: GoldenCase, schema_db: str) -> None:
     called: set[str] = set()
 
     async def run() -> None:

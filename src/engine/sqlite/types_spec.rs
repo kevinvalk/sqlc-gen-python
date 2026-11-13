@@ -3,36 +3,38 @@
 use super::*;
 
 #[test]
-fn a_declared_type_maps_by_the_class_sqlite_stores_it_as() {
+fn a_declared_type_maps_by_the_class_its_affinity_stores() {
     for (declared, python) in [
         ("INTEGER", Type::INT),
         ("bigint", Type::INT),
+        // SQLite's rules, in their order: `INT` first, wherever it is.
+        ("FLOATING POINT", Type::INT),
         ("REAL", Type::FLOAT),
         ("DOUBLEPRECISION", Type::FLOAT),
+        ("float", Type::FLOAT),
         ("TEXT", Type::STR),
         ("VARCHAR(32)", Type::STR),
         ("NVARCHAR(32)", Type::STR),
         ("CLOB", Type::STR),
         ("blob", Type::BYTES),
         ("BOOLEAN", Type::BOOL_FROM_INT),
-        ("DATETIME", Type::STR),
-        ("json", Type::STR),
     ] {
         assert_eq!(scalar_type(declared), Some(python), "{declared}");
     }
 }
 
 #[test]
-fn a_type_whose_values_sqlite_may_round_is_not_mapped() {
-    for declared in ["NUMERIC", "DECIMAL(10,5)", "money", ""] {
+fn a_type_of_numeric_affinity_is_not_mapped() {
+    // Each stores `'2024'` as an integer and `'12.50'` as a real.
+    for declared in [
+        "NUMERIC",
+        "DECIMAL(10,5)",
+        "DATE",
+        "DATETIME",
+        "JSON",
+        "money",
+        "",
+    ] {
         assert_eq!(scalar_type(declared), None, "{declared}");
     }
-}
-
-#[test]
-fn any_and_nothing_are_guesses() {
-    for guess in ["any", ""] {
-        assert!(is_guess(guess, false));
-    }
-    assert!(!is_guess("integer", false));
 }

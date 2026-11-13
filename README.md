@@ -45,6 +45,16 @@ with psycopg.connect(DSN) as conn:
 projects, and [`docs/python-output.md`](docs/python-output.md) for every rule
 and option.
 
+A type the plugin has no Python type for is an error; name one with an
+override. pgvector's `vector`, which every driver returns as its text:
+
+```yaml
+        options:
+          overrides:
+            - db_type: vector
+              python_type: str
+```
+
 ## Develop
 
 ```sh

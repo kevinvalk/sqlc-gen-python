@@ -4,7 +4,7 @@
 //! Like [`super::models`], this decides everything once: names, types, and the
 //! shape of each result. [`crate::render`] only writes it down.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::path::Path;
 
@@ -12,9 +12,10 @@ use anyhow::{Context, Result, bail};
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use ruff_python_stdlib::builtins::is_python_builtin;
 
+use super::Problems;
 use super::models::{self, Field, FieldType, Model, Repeats, Resolver};
 use crate::backend::Backend;
-use crate::engine::{Engine, Sql};
+use crate::engine::{Bind, Engine, Sql};
 use crate::plugin;
 use crate::python::{self, Type};
 
@@ -40,14 +41,9 @@ pub struct Query {
     pub sql: Sql,
     /// The function's parameters: each name sqlc reported, once.
     pub params: Vec<Field>,
-    /// The parameter each placeholder binds, by the placeholder's number: a
-    /// name the user chose and used twice is two placeholders on MySQL.
-    pub binds: Vec<String>,
-    /// The parameters that are a `sqlc.slice`, a list bound as one
-    /// placeholder per item.
-    pub slices: Vec<String>,
-    /// A `:copyfrom`'s table, `schema` empty for the search path's, and its
-    /// columns, one per parameter: what `COPY` writes into.
+    /// A `:copyfrom`, an `:exec` over `rows`: its table, `schema` empty for
+    /// the search path's, and its columns, one per parameter, which `COPY`
+    /// writes into.
     pub copy_into: Option<CopyInto>,
     /// Every column of the result as the database returns it, embeds expanded.
     pub columns: Vec<Field>,
@@ -85,8 +81,6 @@ pub enum Command {
     ExecResult,
     /// Returns the id the `INSERT` generated.
     ExecLastId,
-    /// Inserts the rows, at once.
-    CopyFrom,
     /// Returns the only row; none, or more than one, raises.
     One(Shape),
     /// Returns every row, as a list.
@@ -122,21 +116,44 @@ pub fn modules(
     resolver: &Resolver,
     models: &[Model],
     backend: Backend,
-) -> Result<Vec<Module>> {
+    problems: &mut Problems,
+) -> Vec<Module> {
     let mut modules: Vec<Module> = Vec::new();
     // The functions and classes of each module, and the query each is for.
     let mut defined = HashMap::new();
+    let mut misnamed = HashSet::new();
+    // The file each module is of.
+    let mut files: HashMap<String, &String> = HashMap::new();
     for query in queries {
         let file = &query.filename;
-        let name = module_name(file)?;
-        let resolved = resolve(query, resolver, models, backend)
-            .with_context(|| format!("{file}: query \"{}\"", query.name))?;
+        let name = match module_name(file) {
+            Ok(name) => Some(name),
+            // A file's name is one problem, however many queries it holds.
+            Err(error) => {
+                if misnamed.insert(file) {
+                    problems.note(error);
+                }
+                None
+            }
+        };
+        let what = format!("{file}: query \"{}\"", query.name);
+        let resolved = problems.take(&what, resolve(query, resolver, models, backend));
+        let (Some(name), Some(resolved)) = (name, resolved) else {
+            continue;
+        };
+        if let Some(other) = files.insert(name.clone(), file)
+            && other != file
+        {
+            problems.note(anyhow::anyhow!(
+                "{other} and {file} both become the module \"{name}.py\"; rename one"
+            ));
+        }
         for python in std::iter::once(resolved.function.as_str()).chain(resolved.classes()) {
             if let Some(first) = defined.insert((name.clone(), python.to_owned()), &query.name) {
-                bail!(
+                problems.note(anyhow::anyhow!(
                     "{file}: \"{first}\" and \"{}\" both become the Python name \"{python}\"",
                     query.name
-                );
+                ));
             }
         }
         match modules.iter_mut().find(|module| module.name == name) {
@@ -147,24 +164,26 @@ pub fn modules(
             }),
         }
     }
-    Ok(modules)
+    modules
 }
 
-/// The module a query file becomes, named after its stem, unless that is no
-/// module name, or would replace a module the plugin writes itself.
+/// The module a query file becomes, named after its stem, each `-` a `_`,
+/// unless that is no module name, or would replace a module the plugin
+/// writes itself.
 fn module_name(file: &str) -> Result<String> {
     let stem = (Path::new(file).file_stem())
         .and_then(OsStr::to_str)
-        .unwrap_or("");
+        .unwrap_or("")
+        .replace('-', "_");
     if ["models", "__init__"].contains(&stem.to_lowercase().as_str()) {
         bail!(
             "{file}: query file \"{file}\" would overwrite the generated module \"{stem}.py\"; rename it"
         );
     }
-    if !python::is_module_name(stem) {
+    if !python::is_module_name(&stem) {
         bail!("{file}: \"{stem}\" is not a lowercase Python module name; rename the file");
     }
-    Ok(stem.into())
+    Ok(stem)
 }
 
 fn resolve(
@@ -193,7 +212,7 @@ fn resolve(
         ":exec" => (Command::Exec, Vec::new()),
         ":execrows" => (Command::ExecRows, Vec::new()),
         ":execresult" => (Command::ExecResult, Vec::new()),
-        ":copyfrom" => (Command::CopyFrom, Vec::new()),
+        ":copyfrom" => (Command::Exec, Vec::new()),
         ":one" | ":many" => {
             let (fields, columns) = columns(&query.columns, resolver, models)?;
             let shape = match fields.as_slice() {
@@ -223,21 +242,23 @@ fn resolve(
         _ => bail!("{cmd} is not a command sqlc-gen-python knows"),
     };
     let uses = params(&query.params, resolver)?;
-    let numbered: Vec<(i32, &str)> = (query.params.iter().zip(&uses))
-        .map(|(param, field)| (param.number, field.name.as_str()))
+    // PostgreSQL's `$N` is its parameter's number. MySQL's and SQLite's `?`
+    // are numbered by sqlc's order of the parameters, as sqlc-gen-go binds
+    // them: the numbers sqlc reports there may not be the text's.
+    let binds: Vec<Bind> = (query.params.iter().zip(&uses).enumerate())
+        .map(|(i, (param, field))| {
+            let column = param.column.as_ref();
+            Bind {
+                number: match resolver.engine {
+                    Engine::PostgreSql => param.number,
+                    Engine::MySql | Engine::Sqlite => i as i32 + 1,
+                },
+                name: &field.name,
+                slice: (column.filter(|c| c.is_sqlc_slice)).map(|c| c.name.as_str()),
+            }
+        })
         .collect();
-    let sql = resolver.engine.sql(&query.text, &numbered)?;
-    // Each placeholder's parameter, by its number; and each parameter once.
-    let mut binds = numbered.clone();
-    binds.sort_by_key(|&(number, _)| number);
-    let binds = binds
-        .into_iter()
-        .map(|(_, name)| name.to_string())
-        .collect();
-    let slices = (query.params.iter().zip(&uses))
-        .filter(|(param, _)| param.column.as_ref().is_some_and(|c| c.is_sqlc_slice))
-        .map(|(_, field)| field.name.clone())
-        .collect();
+    let sql = resolver.engine.sql(&query.text, &binds)?;
     let mut params: Vec<Field> = Vec::new();
     for field in uses {
         if !params.iter().any(|p| p.name == field.name) {
@@ -261,8 +282,6 @@ fn resolve(
             .join("\n"),
         sql,
         params,
-        binds,
-        slices,
         copy_into: copy_into(query),
         columns,
         command,
@@ -336,14 +355,14 @@ fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field
     for (column, _) in
         (columns.iter().zip(&repeats)).filter(|(c, r)| !c.name.is_empty() && r.is_none())
     {
-        if let Some(first) = seen.insert(column.name.to_snake_case(), column)
+        let name = resolver.spelling(&column.name).to_snake_case();
+        if let Some(first) = seen.insert(name.clone(), column)
             && (first.is_named_param || column.is_named_param)
         {
             bail!(
-                "parameters \"{}\" and \"{}\" both become the Python name \"{}\"; rename one",
+                "parameters \"{}\" and \"{}\" both become the Python name \"{name}\"; rename one",
                 first.name,
                 column.name,
-                column.name.to_snake_case()
             );
         }
     }
@@ -390,7 +409,9 @@ fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field
             if ty.array_dims > 0 {
                 bail!("{what} is a sqlc.slice of an array, which binds no placeholder per item");
             }
+            // The list is never NULL: its items are each bound.
             ty.array_dims = 1;
+            ty.optional = false;
         }
         // Every use must take one type; one that admits NULL makes it
         // optional, as sqlc reports each use's own column.

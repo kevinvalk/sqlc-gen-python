@@ -75,7 +75,7 @@ pub struct Override {
     /// A column, `table.column` or `schema.table.column`.
     pub column: Option<String>,
     /// The annotation: builtins, the names generated code imports, and
-    /// dotted paths, whose module is imported: `numpy.typing.NDArray[numpy.float64]`.
+    /// dotted paths, whose module is imported: `app.types.Embedding`.
     pub python_type: String,
 }
 
@@ -127,12 +127,14 @@ impl Config {
             [] => b"{}",
             options => options,
         };
-        let config: Self = serde_json::from_slice(options).context("reading plugin options")?;
-        for (i, rule) in config.overrides.iter().enumerate() {
+        let mut config: Self = serde_json::from_slice(options).context("reading plugin options")?;
+        for (i, rule) in config.overrides.iter_mut().enumerate() {
             if rule.db_type.is_some() == rule.column.is_some() {
                 bail!("overrides[{i}]: name exactly one of db_type and column");
             }
-            python::modules_of(&rule.python_type)
+            // As ruff writes it: nothing after it, such as a `# comment`,
+            // can then swallow what generated code writes after it.
+            (rule.python_type, _) = python::annotation(&rule.python_type)
                 .with_context(|| format!("overrides[{i}]: python_type \"{}\"", rule.python_type))?;
         }
         if let Some((sql, python)) =
@@ -146,7 +148,10 @@ impl Config {
     /// The modules the overrides' types are read from, to import.
     pub fn modules(&self) -> Vec<String> {
         (self.overrides.iter())
-            .flat_map(|rule| python::modules_of(&rule.python_type).unwrap_or_default())
+            .flat_map(|rule| {
+                (python::annotation(&rule.python_type).map(|(_, modules)| modules))
+                    .unwrap_or_default()
+            })
             .collect()
     }
 }

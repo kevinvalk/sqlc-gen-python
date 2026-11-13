@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 
-use crate::engine::{Engine, Sql, cut};
+use crate::engine::{Bind, Engine, Sql, cut};
 
 #[cfg(test)]
 #[path = "lexer_spec.rs"]
@@ -12,7 +12,7 @@ mod spec;
 /// `text` cut at its placeholders, as [`cut`] names them: sqlc writes every
 /// parameter as `?`, numbered by its position, and a parameter used twice as
 /// two.
-pub fn sql(text: &str, params: &[(i32, &str)]) -> Result<Sql> {
+pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
     let chars: Vec<char> = text.chars().collect();
     let placeholders = (tokens(&chars).into_iter())
         .filter(|&(start, end)| chars[start..end] == ['?'])

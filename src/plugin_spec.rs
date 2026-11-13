@@ -47,3 +47,23 @@ fn the_engines_own_schemas_are_never_walked() {
     assert_eq!(names, ["public", "analytics"]);
     assert!(catalog.schema("pg_catalog").is_none());
 }
+
+#[test]
+fn sqlc_sends_a_plugin_no_overrides_or_renames_of_its_own() {
+    // So this plugin's `overrides` and `rename` options are the only ones; a
+    // sqlc that sends sqlc-gen-go's must be supported before it is pinned.
+    let proto = include_str!("../protos/sqlc.proto");
+    let settings = &proto[proto.find("message Settings {").unwrap()..];
+    let fields: Vec<&str> = (settings.lines().skip(1))
+        .take_while(|line| *line != "}")
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect();
+    for field in ["rename", "overrides"] {
+        assert!(
+            !fields
+                .iter()
+                .any(|line| line.contains(&format!(" {field} ="))),
+            "sqlc now sends {field} to plugins"
+        );
+    }
+}

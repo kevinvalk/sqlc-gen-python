@@ -60,3 +60,13 @@ fn a_set_is_told_from_an_enum_by_its_length() {
     assert!(enum_problem(&column("t_cset", 13), &labels).is_some());
     assert!(enum_problem(&column("t_cenum", 5), &labels).is_none());
 }
+
+#[test]
+fn a_set_is_measured_in_bytes_and_one_member_is_ambiguous() {
+    let labels = ["é".to_string(), "ü".into()];
+    // Each label two bytes: a SET's length is 2 + 1 + 2.
+    assert!(enum_problem(&column("t_cset", 5), &labels).is_some());
+    assert!(enum_problem(&column("t_cenum", 2), &labels).is_none());
+    let error = enum_problem(&column("t_one", 1), &["a".to_string()]).unwrap();
+    assert!(error.contains("one member"), "{error}");
+}

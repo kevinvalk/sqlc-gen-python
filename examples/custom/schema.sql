@@ -6,7 +6,8 @@ CREATE DOMAIN positive_amount AS numeric(12, 2) CHECK (VALUE > 0);
 
 CREATE TABLE devices (
   id bigserial PRIMARY KEY,
-  ip inet NOT NULL,
+  -- An IPv4 address, as the override that types it says.
+  ip inet NOT NULL CHECK (family(ip) = 4),
   location ltree,
   budget positive_amount NOT NULL
 );

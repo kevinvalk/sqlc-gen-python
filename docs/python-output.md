@@ -41,11 +41,11 @@ Every rule cites the source of truth it rests on, using the ranking in
    There is no `py.typed`: the package lives inside the application's own
    distribution, and PEP 561 reads the marker only at that distribution's
    root, which is the application's to write (sqlc never deletes a file it
-   did not write). The static gate imports every package as installed, with
-   that marker.*
-2. A query file whose stem is `models` or `__init__` in any case, or is not a
-   lowercase Python identifier (`Invoices.sql`, `query.v2.sql`), MUST be an
-   error. *[1]: sqlc would silently overwrite the other file, and on a
+   did not write).*
+2. A `-` in a query file's stem becomes `_` (`ws-requests.sql` is
+   `ws_requests.py`). A stem that is then `models` or `__init__` in any case,
+   or is not a lowercase Python identifier (`Invoices.sql`, `query.v2.sql`),
+   MUST be an error, and so MUST two files that become one module. *[1]: sqlc would silently overwrite the other file, and on a
    case-insensitive file system (macOS, Windows) `Models.py` is `models.py`.
    [5]: ruff N999.* So MUST an `out` whose last part is not one
    (`out: app/my-db`): the package's own modules import each other
@@ -309,19 +309,26 @@ column's declared type decides the class a value written to it is stored as
 (its affinity). So the annotation is what generated code, which binds that
 type, reads back. *[3]*
 
-| Declared (any case, sqlc's spelling) | Annotation | Notes |
-|---|---|---|
-| `INTEGER`, `INT`, `TINYINT`, `SMALLINT`, `MEDIUMINT`, `BIGINT`, `UNSIGNEDBIGINT`, `INT2`, `INT8` | `int` | |
-| `REAL`, `DOUBLE`, `DOUBLEPRECISION`, `FLOAT` | `float` | |
-| `TEXT`, `CLOB`, and `CHARACTER…`, `VARCHAR…`, `NCHAR…`, `NVARCHAR…` | `str` | |
-| `BLOB` | `bytes` | |
-| `BOOLEAN`, `BOOL` | `bool` | Stored as `0` or `1`; `from_row` converts with `bool(...)`. |
-| `DATE`, `DATETIME`, `TIMESTAMP`, `JSON`, `JSONB` | `str` | SQLite has no date or JSON type: the text written is the text read. |
+The affinity follows SQLite's own rules, in their order, on the declared
+type (any case, sqlc's spelling):
 
-1. `NUMERIC` and `DECIMAL` MUST be an error: their affinity stores `12.50` as
-   the float `12.5`. Store money as `INTEGER` cents, or as `TEXT`. So MUST
-   `any` or no type, sqlc's report of an expression it could not type (add a
-   `CAST(<expr> AS <type>)`), and an array, which SQLite does not have.
+| Declared type | Affinity | Annotation |
+|---|---|---|
+| contains `INT` (`INTEGER`, `BIGINT`, also `POINT`) | INTEGER | `int` |
+| contains `CHAR`, `CLOB` or `TEXT` | TEXT | `str` |
+| contains `BLOB` | BLOB | `bytes` |
+| contains `REAL`, `FLOA` or `DOUB` | REAL | `float` |
+| exactly `BOOL` or `BOOLEAN` | NUMERIC | `bool`: generated code binds a `bool`, stored as `0` or `1`; `from_row` converts with `bool(...)` |
+
+1. Any other declared type has NUMERIC affinity, and MUST be an error:
+   SQLite stores a value of it as whichever of an integer, a real and text it
+   looks like, so a `DATE` of `'2024'` is the integer `2024`, a `DECIMAL` of
+   `12.50` the real `12.5`, and a `JSON` of `'1'` the integer `1`. Declare
+   dates and JSON `TEXT`, and money `INTEGER` cents. So MUST `any` or no type,
+   sqlc's report of an expression it could not type, a result column of no
+   table typed `int` or `float`, which is how sqlc reports any arithmetic
+   whatever its operands (add a `CAST(<expr> AS <type>)`), and an array,
+   which SQLite does not have.
 
 ### MySQL
 
@@ -342,9 +349,13 @@ length and its signedness apart.
 | `ENUM(...)` | `models.X` | sqlc names it `<table>_<column>`. |
 
 1. A `SET` MUST be an error. sqlc reports it as an `ENUM` of its members, but
-   it holds several (`'x,y'`), which no member is; the column's length tells
-   them apart (a `SET`'s is all its labels joined by commas). So MUST any
-   other type (spatial types), `any` or no type, and an array.
+   it holds several (`'x,y'`), which no member is; the column's length in
+   bytes tells them apart (a `SET`'s is all its labels joined by commas). An
+   `ENUM` or `SET` of one label is the same length either way, and MUST be an
+   error too. So MUST any other type (spatial types), `any` or no type, a
+   result column of no table typed `int` or `float` (sqlc's report of any
+   arithmetic, and `1.0`, a `DECIMAL`, as `float`; add a `CAST`), and an
+   array.
 2. `:execlastid` returns the id the `INSERT` generated, as `int`: the
    connection's `LAST_INSERT_ID()`, which MySQL reports with the statement's
    result. On PostgreSQL and SQLite it MUST be an error, as they have
@@ -538,14 +549,19 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    `async def`, its connection, and `await` on each execution and fetch.
    - SQLAlchemy: `conn.execute(<constant>, {"<name>": <name>, ...})`,
      the dict omitted when there are no parameters;
-   - a driver: `cur = <cursor>`, then `cur.execute(<constant>, (<p1>, <p2>,
-     ...))`, each parameter in its placeholder's place, in placeholder order:
-     a name the user chose and used twice (MySQL reports each use) is one
-     parameter, in both places. The cursor is
+   - a driver: `with <cursor> as cur:` (`async with` for coroutines), then
+     `cur.execute(<constant>, (<p1>, <p2>, ...))`, each parameter in its
+     placeholder's place: by `$N` on psycopg, which takes sqlc's text as
+     written; on `sqlite3` and PyMySQL, one value per placeholder in the
+     text's order, each placeholder written bare (`?`, `%s`), as `?N` would
+     not mix with a `sqlc.slice`'s items. A name the user chose and used
+     twice is one parameter, in both places. The cursor is
      `psycopg.RawCursor(conn, row_factory=tuple_row)` on psycopg,
-     `conn.cursor()` on `sqlite3`, and `conn.cursor(pymysql.cursors.Cursor)`
-     on PyMySQL: each makes rows tuples whatever the connection's row
-     factory or cursor class. On psycopg a JSON parameter is
+     `contextlib.closing(conn.cursor())` then `cur.row_factory = None` on
+     `sqlite3` (`conn.cursor()` on aiosqlite), and
+     `conn.cursor(pymysql.cursors.Cursor)` on PyMySQL: each makes rows tuples
+     whatever the connection's row factory or cursor class, and is closed
+     after, but for `:execresult`'s, which is the result. On psycopg a JSON parameter is
      `None if p is None else Jsonb(p)` (`Json` for `json`): psycopg cannot
      tell a JSON document from any other `dict` or `list`, and `None` stays
      SQL NULL. *[3]*
@@ -568,7 +584,7 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    | `:one` | `X` | `X.from_row(….one())` | `match cur.fetchmany(2):` with `case [row]: return X.from_row(row)`, `case []: raise NoRowError`, `case _: raise MultipleRowsError` |
    | `:many` | `list[X]` | `[X.from_row(row) for row in …]` | `[X.from_row(row) for row in cur.fetchall()]` |
    | `:exec` | `None` | `….execute(…)` | `cur.execute(…)` |
-   | `:execrows` | `int` | `….rowcount` | `cur.rowcount`; on PyMySQL, what `cur.execute(…)` returns, the same count |
+   | `:execrows` | `int` | `….rowcount` | `cur.rowcount`; on PyMySQL, what `cur.execute(…)` returns, the same count; on psycopg, the execute in a `conn.pipeline()` block of its own, as psycopg counts a statement in a pipeline only once it syncs (so does `:execresult`) |
    | `:execlastid` | `int` | `….lastrowid` | `cur.lastrowid` (MySQL only) |
    | `:execresult` | the result | `sqlalchemy.CursorResult[Any]` | the cursor: `psycopg.RawCursor[tuple[Any, ...]]` (`AsyncRawCursor`), `sqlite3.Cursor` (`aiosqlite.Cursor`), `pymysql.cursors.Cursor` |
    | `:copyfrom` | `None` | rule 6 | rule 6 |
@@ -645,8 +661,8 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
 | `omit_sqlc_version` | `false` | Leave the sqlc line out of the header. |
 | `models.exact_table_names` | `false` | Name model classes after the table verbatim, without singularising. *[4]* |
 | `models.inflection_exclude` | `[]` | Table names that must not be singularised. *[4]* |
-| `overrides` | `[]` | Python types the type map does not decide: `{db_type: <type>, python_type: <annotation>}` for every column of a type as sqlc reports it (`pg_catalog.` optional), or `{column: <table.column>, python_type: ...}` (or `schema.table.column`) for one, which wins. The annotation may use builtins, the names of §2, and dotted names, whose module is imported (`ipaddress.IPv4Address` imports `ipaddress`); `| None` and lists are added as the column says. The value is passed as the driver returns and takes it, except that a JSON column's still binds as JSON. *[4]: sqlc-gen-go's `overrides`, which sqlc does not send to a plugin.* |
-| `rename` | `{}` | Python names for SQL names: a table's or enum's (`name` or `schema.name`) becomes the class named, a column's or parameter's the field or parameter. *[4]: sqlc-gen-go's `rename`.* |
+| `overrides` | `[]` | Python types the type map does not decide: `{db_type: <type>, python_type: <annotation>}` for every column of a type as sqlc reports it (`pg_catalog.` optional), or `{column: <table.column>, python_type: ...}` (the default schema's; `schema.table.column` for another) for one, which wins. The annotation may use builtins, `Decimal`, `UUID`, `dt.<name>` and the `ipaddress` classes of §2, and dotted names, whose module is imported (`app.types.Embedding` imports `app.types`), but not of a module ruff's import conventions alias (`numpy`, `pandas`, `datetime`, ...), nor of a name generated code binds; it is written as ruff writes it. `| None` and lists are added as the column says; an array of enums cannot be overridden. No field or function may take the name of a module an override imports. The value is passed as the driver returns and takes it, except that a JSON column's still binds as JSON. An override that matches nothing MUST be an error. *[4]: sqlc-gen-go's `overrides`, which sqlc does not send to a plugin.* |
+| `rename` | `{}` | Python names for SQL names: a table's or enum's (`schema.name`, or `name` in the default schema) becomes the class named, a column's or parameter's the field or parameter. A class MUST be CapWords and hide no builtin; a key that names nothing MUST be an error. *[4]: sqlc-gen-go's `rename`.* |
 | `database_analysis` | `false` | sqlc analysed the queries on a database (§5, rule 2). PostgreSQL only. |
 
 Unknown keys MUST be an error. *[1]: stderr is not shown on success.* Each
@@ -687,15 +703,13 @@ Where is a query (`<file>: query "<Name>": `), a query file (`<file>: `), a
 table (`table "<table>": `), an enum (`enum "<enum>": `), or nothing for the
 catalog as a whole (two classes of one name, an engine). Every error, and
 every rule above that makes one, is specified with its message in the unit
-specs (`src/*_spec.rs`); `docs/compat.md` lists the ones the sqlc corpus
-meets.
+specs (`src/*_spec.rs`).
 
 ## Lint contract
 
 Generated files MUST pass `ruff format --check`, `ruff check` with `select =
 ["ALL"]` targeting py310, pyright strict with unnecessary type-ignore reporting,
-and `mypy --strict`, both also reading each package as installed, and import
-with warnings as errors. They must pass on
+and `mypy --strict`, and import with warnings as errors. They must pass on
 Python 3.10 with SQLAlchemy 2.0, and on the newest stable CPython (`PYTHONS` in
 `tests/python/gate.py`) with 2.1. The contract is `tests/python/pyproject.toml`, which
 `gate.py` applies to every generated output, and only
@@ -837,6 +851,32 @@ sqlc reports *[2]*.
   a JSON string, not parsed: pass `json.loads(text)` for JSON text. A recursive JSON type would reject only the first, and
   would refuse a `dict[str, str]`, since `dict` is invariant. `usage.py` pins
   the `Decimal`.
+- **A `:one` that writes still writes** before it raises: an `UPDATE ...
+  RETURNING` that matched two rows updated both, and then raises
+  `MultipleRowsError`. Roll the transaction back, as the caller owns it.
+- **Batches are not atomic** by themselves: on psycopg every row is sent in
+  one pipeline, on SQLAlchemy one execution per row, and a failing row
+  leaves the rows before it run. Run a batch inside a transaction.
+- **Row counts differ on MySQL.** PyMySQL counts the rows an `UPDATE`
+  matched only with the `CLIENT.FOUND_ROWS` flag, and the rows it changed
+  otherwise; SQLAlchemy's MySQL dialects set it. `:execrows` returns what the
+  connection counts.
+- **`:execlastid`** is MySQL's `LAST_INSERT_ID()`: the first id of a
+  multi-row `INSERT`, and `0` for an `INSERT` that generated none.
+- **MySQL loses precision and zones.** A `FLOAT` column stores single
+  precision, so `0.1` comes back as `0.10000000149011612`; a `TIMESTAMP` is
+  converted to the session's time zone and back, naive; and a zero date
+  (`'0000-00-00'`) comes back as the text `'0000-00-00'`, against
+  `dt.date`. Use `DOUBLE`, `DATETIME` in UTC, and strict SQL mode.
+- **MySQL casts are NOT NULL to sqlc** too, as on PostgreSQL: coalesce what
+  can be NULL before casting it.
+- **psycopg 3.3 and libpq 14** at least: a batch reads each row's result
+  through `cur.results()`, and a count runs in a pipeline.
+- **psycopg reads with the connection's adapters.** The psycopg backend's
+  types are psycopg's defaults: a loader the application registers on the
+  connection for a type the schema uses (`register_hstore`, `register_enum`,
+  pgvector's `register_vector`) changes what the generated code gets, and
+  its annotation is then wrong. Register them on another connection.
 - **Records hash, but their lists do not.** A frozen dataclass gets a
   `__hash__`, so every type checker accepts a record in a `set` or as a
   `dict` key, and one with a list or JSON field raises `TypeError` there.
@@ -924,9 +964,11 @@ layers:
   What raises, or does not bind back to the value it read, is recorded in
   `docs/typemap.md`.
 - **the runtime sweep** (`tests/python/autoprop.py`) applies the schema of every
-  PostgreSQL golden case and corpus request generated on SQLAlchemy to a
-  fresh database, seeds every table, and calls every function and coroutine
-  with arguments Hypothesis draws,
+  PostgreSQL golden case and corpus request generated on SQLAlchemy or psycopg
+  to a fresh database, seeds every table, and calls every function and
+  coroutine with arguments Hypothesis draws (a psycopg package on the psycopg
+  connection under SQLAlchemy's, in its transaction, its rows read back
+  through psycopg),
   checking each argument and result against its annotation. It fails on a
   type mismatch, a crash, a bind error, or a schema PostgreSQL rejects,
   which would leave a package proven by nothing; a call the database refuses (a
@@ -947,13 +989,9 @@ layers:
   compared, and the sweep fails if nothing was. Where sqlc
   misreports a schema (the known limitations above among them), the failure
   is listed in `tests/python/known-failures.tsv`.
-  What it called, with the corpus ledger, is `docs/compat.md`: for each sqlc
-  feature, per engine and backend, whether at least one query using it ran
-  at runtime (on PostgreSQL) or all only generated, and how many of them are
-  a clean error.
-- **newer Pythons**: pytest, the type-truth probe and the runtime sweep run
-  again on every newer Python in `PYTHONS`, which installs SQLAlchemy 2.1
-  where 3.10 has 2.0. The documents record the oldest.
+- **newer Pythons**: pytest and the type-truth probe run again on every newer
+  Python in `PYTHONS`, which installs SQLAlchemy 2.1 where 3.10 has 2.0. The
+  document records the oldest.
 
 With `--mutants`, plausible generator bugs (`MUTANTS` in `verify.py`) are
 planted one at a time, and each must be caught by the layer named for it,

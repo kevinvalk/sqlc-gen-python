@@ -559,6 +559,15 @@ fn a_function_runs_its_own_statement_with_each_parameter_as_itself() {
             "(statuses, customer_id)",
             "not each parameter as itself",
         ),
+        // A slice's items, then the parameter after it: by number, `?2`
+        // would bind the slice's second item.
+        (
+            "ledger_sqlite3",
+            "query.py",
+            "AND account_id = ?\n",
+            "AND account_id = ?2\n",
+            "not sqlc's",
+        ),
         (
             "billing_pymysql",
             "query.py",

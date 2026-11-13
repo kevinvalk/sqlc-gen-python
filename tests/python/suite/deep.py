@@ -151,6 +151,10 @@ def coerce(value: object, hint: Any) -> object:  # noqa: ANN401
         return hint(value)
     if origin is list:
         (item,) = typing.get_args(hint)
+        if isinstance(value, str):
+            # psycopg returns an array of a type it does not know, an enum's,
+            # as its text: `{a,b}`, whose labels need no quoting (§5).
+            value = [label for label in value[1:-1].split(",") if label]
         return [coerce(v, item) for v in typing.cast("list[object]", value)]
     if origin in (typing.Union, types.UnionType):
         rest = [a for a in typing.get_args(hint) if a is not type(None)]

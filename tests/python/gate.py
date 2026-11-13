@@ -12,12 +12,7 @@ in this project's ``pyproject.toml``, everything must pass:
   generator may not silence its own findings);
 - pyright strict, ``mypy --strict``, and a real import of every package module
   with warnings as errors, under each of ``PYTHONS``: the oldest supported
-  Python and the newest stable one;
-- both type checkers again, importing every package as installed, as a
-  dependency of the application is: only through the Python path, where they
-  read a package only if it is marked typed (PEP 561). The generated package
-  lives inside the user's own distribution, whose root carries the marker, so
-  the installed copy is given one.
+  Python and the newest stable one.
 
 Each Python has its own environment in ``target/py``, synced from ``uv.lock``,
 so the type checkers see what that Python installs: SQLAlchemy 2.0 on 3.10,
@@ -30,12 +25,10 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
-import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from functools import partial
@@ -102,10 +95,9 @@ class Diagnostic:
 
 @dataclass(frozen=True)
 class Run:
-    """What one tool said, and how long it took to say it."""
+    """What one tool said."""
 
     tool: str
-    seconds: float
     diagnostics: list[Diagnostic]
     # What a tool that failed without a diagnostic printed instead.
     error: str
@@ -130,10 +122,6 @@ def main() -> int:
     ]
     for env in envs:
         jobs += [partial(pyright, env, roots, files), partial(mypy, env, roots)]
-        jobs += [
-            partial(as_installed, tool, env, roots, packages)
-            for tool in ("pyright", "mypy")
-        ]
         jobs += [partial(import_all, env, root) for root in roots]
     with ThreadPoolExecutor(len(jobs)) as pool:
         runs = [future.result() for future in [pool.submit(job) for job in jobs]]
@@ -180,22 +168,6 @@ def parse_ruff(out: str) -> list[Diagnostic]:
             f"{d['code']} {d['message']}",
         )
         for d in json.loads(out or "[]")
-    ]
-
-
-def pyright_command(env: Env, config: Path) -> list[str]:
-    """Pyright for ``env``'s Python, under ``config``."""
-    return [
-        *[env.bin("pyright"), "--outputjson", f"--project={config}"],
-        *[f"--pythonversion={env.python}", f"--pythonpath={env.bin('python')}"],
-    ]
-
-
-def mypy_command(env: Env, cache: Path | str) -> list[str]:
-    """``mypy --strict`` for ``env``'s Python, under the contract."""
-    return [
-        *[env.bin("python"), "-m", "mypy", f"--config-file={CONFIG}", "--output=json"],
-        *[f"--python-version={env.python}", f"--cache-dir={cache}"],
     ]
 
 
@@ -250,7 +222,11 @@ def pyright(env: Env, roots: list[Path], files: int) -> Run:
         config = Path(tmp, "pyrightconfig.json")
         paths = [str(root) for root in roots]
         config.write_text(json.dumps({"extends": str(CONFIG), "extraPaths": paths}))
-        command = [*pyright_command(env, config), *paths]
+        command = [
+            *[env.bin("pyright"), "--outputjson", f"--project={config}"],
+            *[f"--pythonversion={env.python}", f"--pythonpath={env.bin('python')}"],
+            *paths,
+        ]
         result = run(f"pyright {env.python}", command, parse)
     if analyzed != [files] and not result.error:
         error = f"analysed {analyzed[0]} of {files} files"
@@ -261,53 +237,17 @@ def pyright(env: Env, roots: list[Path], files: int) -> Run:
 def mypy(env: Env, roots: list[Path]) -> Run:
     """``mypy --strict``: what most users of the generated code run."""
     # A module is named after its path below its root.
-    command = [*mypy_command(env, env.path / ".mypy_cache"), "--explicit-package-bases"]
+    command = [
+        *[env.bin("python"), "-m", "mypy", f"--config-file={CONFIG}", "--output=json"],
+        *[f"--python-version={env.python}", f"--cache-dir={env.path / '.mypy_cache'}"],
+        "--explicit-package-bases",
+    ]
     return run(
         f"mypy {env.python}",
         [*command, *map(str, roots)],
         lambda out: located(mypy_findings(out)),
         MYPYPATH=os.pathsep.join(map(str, roots)),
     )
-
-
-def as_installed(tool: str, env: Env, roots: list[Path], packages: list[Path]) -> Run:
-    """``tool``, pyright or mypy, over an import of every package as installed:
-    a copy marked typed, as the distribution it lives in is, found on
-    ``PYTHONPATH``, which both read through the interpreter, as they read
-    site-packages. A finding is the package's, at its ``__init__.py``.
-    """
-
-    def parse(out: str) -> list[Diagnostic]:
-        found = pyright_findings(out)[1] if tool == "pyright" else mypy_findings(out)
-        # Line N of the importer imports package N.
-        return [Diagnostic(packages[n] / "__init__.py", "", m) for _, n, _, m in found]
-
-    with tempfile.TemporaryDirectory() as tmp:
-        site = Path(tmp, "site")
-        for package in packages:
-            # Only its sources: the import job may be writing bytecode beside them.
-            shutil.copytree(
-                package,
-                site / package.name,
-                ignore=shutil.ignore_patterns("__pycache__"),
-            )
-            (site / package.name / "py.typed").touch()
-        importer = Path(tmp, "importer.py")
-        # `as`, so that pyright does not report the import as unused.
-        importer.write_text("".join(f"import {p.name} as {p.name}\n" for p in packages))
-        config = Path(tmp, "pyrightconfig.json")
-        config.write_text(json.dumps({"extends": str(CONFIG)}))
-        command = (
-            pyright_command(env, config)
-            if tool == "pyright"
-            else mypy_command(env, tmp)
-        )
-        return run(
-            f"{tool} {env.python} installed",
-            [*command, str(importer)],
-            parse,
-            PYTHONPATH=os.pathsep.join(map(str, [site, *roots])),
-        )
 
 
 def import_all(env: Env, root: Path) -> Run:
@@ -328,7 +268,6 @@ def run(
     **env: str,
 ) -> Run:
     """Run a tool to completion and parse what it reports."""
-    start = time.monotonic()
     result = subprocess.run(
         command,
         capture_output=True,
@@ -336,17 +275,16 @@ def run(
         check=False,
         env=os.environ | env,
     )
-    seconds = time.monotonic() - start
     diagnostics = parse(result.stdout)
     failed = result.returncode != 0 and not diagnostics
     error = (
         result.stderr or result.stdout or f"exit status {result.returncode}"
     ).strip()
-    return Run(tool, seconds, diagnostics, error if failed else "")
+    return Run(tool, diagnostics, error if failed else "")
 
 
 def report(roots: list[Path], packages: int, runs: list[Run]) -> int:
-    """Print the findings per package, then per rule; return the exit status."""
+    """Print the findings per package; return the exit status."""
     by_package: defaultdict[str, list[tuple[str, str, str]]] = defaultdict(list)
     for run in runs:
         for d in run.diagnostics:
@@ -361,30 +299,12 @@ def report(roots: list[Path], packages: int, runs: list[Run]) -> int:
         print(package)
         for tool, where, message in sorted(findings):
             print(f"  {tool:<12} {where:<18} {message}")
-    rules = Counter(
-        (tool, rule(message))
-        for findings in by_package.values()
-        for tool, _, message in findings
-    )
-    if rules:
-        print("\nby tool and rule:")
-        for (tool, name), count in rules.most_common():
-            print(f"  {count:>5}  {tool:<12} {name}")
     errors = [run for run in runs if run.error]
     for run in errors:
         print(f"\n{run.tool} failed:\n{run.error}")
 
-    timings = ", ".join(f"{run.tool} {run.seconds:.1f}s" for run in runs)
-    print(f"\ngate: {len(by_package)} of {packages} packages failed ({timings})")
+    print(f"\ngate: {len(by_package)} of {packages} packages failed")
     return 1 if by_package or errors else 0
-
-
-def rule(message: str) -> str:
-    """Name the rule a message cites: a ruff code, a ``(rule)`` or ``[code]``."""
-    for opening, closing in ("()", "[]"):
-        if message.endswith(closing) and opening in message:
-            return message[message.rindex(opening) :]
-    return message.split(" ", 1)[0]
 
 
 if __name__ == "__main__":

@@ -1,10 +1,11 @@
 """The runtime sweep: run what the generator emits against PostgreSQL.
 
-For every PostgreSQL package generated on SQLAlchemy from a golden case or a
-corpus request, the request's schema is applied to a fresh database, the
-package is imported, and Hypothesis draws examples for its functions (its
-coroutines, in an async package, on asyncpg). Each example, in a transaction
-it rolls back:
+For every PostgreSQL package generated on SQLAlchemy or psycopg from a golden
+case or a corpus request, the request's schema is applied to a fresh database,
+the package is imported, and Hypothesis draws examples for its functions (its
+coroutines, in an async package: on asyncpg, or psycopg's own on psycopg).
+A psycopg package's functions take the psycopg connection under SQLAlchemy's,
+in its transaction. Each example, in a transaction it rolls back:
 
 1. seeds every table in foreign-key order, taking referenced values from rows
    seeded before, and reads each row back through its model, which must
@@ -15,7 +16,7 @@ it rolls back:
    result is checked against its annotation (``deep.checked``).
 
 A call returned ``rows``, came back ``empty`` (for a ``:one``, raised
-``NoResultFound``), ``ran`` (``:exec`` and
+``NoResultFound``, or the package's ``NoRowError``), ``ran`` (``:exec`` and
 ``:copyfrom`` return nothing), or was ``inconclusive``: the database refused
 the drawn data (an integrity, data or cardinality error, a timeout), or it
 rejects the SQL itself. Anything else fails the package: a value that does not
@@ -40,7 +41,8 @@ code. The direct run happens twice, each rolled back; if the two differ (a
 sequence, ``random()``), nothing is compared. A coroutine runs the same SQL as
 its function.
 
-Functions run on psycopg, coroutines on asyncpg.
+Functions run on psycopg, coroutines on asyncpg, or on psycopg for a psycopg
+package.
 """
 
 from __future__ import annotations
@@ -75,7 +77,6 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import pgvalues
-import postgres
 from examples import golden_cases
 from pgvalues import Column, Table, enum_array_type, json_type, sqlalchemy_type, tables
 from postgres import SchemaRejectedError, aw, conninfo, database
@@ -102,9 +103,6 @@ PICK = st.integers(0, 15)
 # resources (memory), program limits (an array too large), object state,
 # operator intervention (timeouts), PL/pgSQL raise, feature not supported.
 REFUSALS = ("21", "22", "23", "25", "40", "53", "54", "55", "57", "P0", "0A")
-OUTCOMES = ("rows", "empty", "ran", "known", "inconclusive")
-# What comparing a call with sqlc's own SQL run directly found (see above).
-COMPARISONS = ("same", "unstable", "unrunnable")
 COMPARED = {":one", ":many", ":execrows"}
 # Failures the sweep must keep finding, and why they are not the generator's.
 KNOWN = Path(__file__).with_name("known-failures.tsv")
@@ -124,11 +122,8 @@ class Target:
     known: tuple[str, ...] = ()
     # Whether its functions are coroutines.
     asynchronous: bool = False
-
-    @property
-    def name(self) -> str:
-        """The package."""
-        return self.package
+    # Whether its functions take a psycopg connection (the psycopg backend).
+    raw: bool = False
 
 
 @dataclass
@@ -136,23 +131,16 @@ class Report:
     """What sweeping one package found."""
 
     target: Target
+    # Why it failed, or could not run at all (a schema PostgreSQL rejects:
+    # perhaps not the generator's fault, but nothing proven).
     failure: str = ""
-    # Why the package could not run at all, such as a schema PostgreSQL
-    # rejects: perhaps not the generator's fault, but nothing proven.
-    skipped: str = ""
     calls: dict[str, Counter[str]] = field(default_factory=dict)
-    # The query each function implements: its file's stem, and its name.
-    queries: dict[str, tuple[str, str]] = field(default_factory=dict)
     # The functions whose query returns rows, so an empty result checks nothing.
     returning: set[str] = field(default_factory=set)
-    # Rows inserted, seeded (accepted) and read back through a model.
-    tables: Counter[str] = field(default_factory=Counter)
     # How often each of the target's known failures happened.
     known: Counter[str] = field(default_factory=Counter)
-    # Why each function's last inconclusive call was.
-    why: dict[str, str] = field(default_factory=dict)
-    # How comparing calls with sqlc's own SQL went, by `COMPARISONS`.
-    compared: Counter[str] = field(default_factory=Counter)
+    # The calls that returned what sqlc's own SQL, run directly, did.
+    same: int = 0
 
     @property
     def exercised(self) -> list[str]:
@@ -176,27 +164,30 @@ def targets(golden: Path, generated: Path) -> list[Target]:
             case.request, case.options
         ):
             continue
-        asynchronous = bool(case.options["async"])
-        found.append(Target(case.name, case.request, case.schema_sql, (), asynchronous))
+        asynchronous, raw = bool(case.options["async"]), case.backend == "psycopg"
+        found.append(
+            Target(case.name, case.request, case.schema_sql, (), asynchronous, raw)
+        )
     profiles = json.loads((ROOT / "tests/sqlc/endtoend/profiles.json").read_text())
-    # Each package to sweep, a request it came from, and whether it is async.
-    modes: dict[str, tuple[Path, bool]] = {}
+    # Each package to sweep, a request it came from, and its options.
+    modes: dict[str, tuple[Path, Json]] = {}
     for (name, profile), package in corpus_packages(generated).items():
         path = ROOT / "tests/sqlc/endtoend" / name
         if is_swept(path, profiles[profile]):
-            modes.setdefault(package, (path, bool(profiles[profile]["async"])))
-    for package, (path, asynchronous) in modes.items():
+            modes.setdefault(package, (path, profiles[profile]))
+    for package, (path, options) in modes.items():
         known = tuple(text for case, text in known_failures() if case in path.parents)
-        found.append(Target(package, path, schema_of(path), known, asynchronous))
+        asynchronous, raw = bool(options["async"]), options["backend"] == "psycopg"
+        found.append(Target(package, path, schema_of(path), known, asynchronous, raw))
     return found
 
 
 def is_swept(request: Path, options: Json) -> bool:
     """Whether the sweep runs what ``request`` generates with ``options``:
-    PostgreSQL, on SQLAlchemy.
+    PostgreSQL, on SQLAlchemy or psycopg.
     """
     engine = json.loads(request.read_text())["settings"]["engine"]
-    return engine == "postgresql" and options["backend"] == "sqlalchemy"
+    return engine == "postgresql" and options["backend"] in {"sqlalchemy", "psycopg"}
 
 
 def corpus_packages(generated: Path) -> dict[tuple[str, str], str]:
@@ -258,53 +249,24 @@ def summarize(reports: list[Report]) -> tuple[bool, list[str]]:
     a new image or extension could make it reject all of them.
     """
     for r in reports:
-        if r.failure or r.skipped:
-            print(f"  FAILED {r.target.name}\n    {r.failure or r.skipped}")
+        if r.failure:
+            print(f"  FAILED {r.target.package}\n    {r.failure}")
     happened = {k for r in reports for k in r.known}
     stale = [(case, text) for case, text in known_failures() if text not in happened]
     for case, text in stale:
         where = case.relative_to(ROOT)
         print(f"  known failure no longer happens; remove it: {where}: {text}")
-    never = [
-        (f"{r.target.name}.{n}", r.why.get(n, "no call returned rows"))
-        for r in reports
-        for n in r.calls
-        if n not in r.exercised
-    ]
-    for name, why in never:
-        print(f"  warning: never exercised: {name}\n    {why}")
-
-    calls = sum((c for r in reports for c in r.calls.values()), Counter[str]())
-    tables = sum((r.tables for r in reports), Counter[str]())
     functions = sum(len(r.calls) for r in reports)
-    share = 1 - len(never) / functions if functions else 0.0
+    exercised = sum(len(r.exercised) for r in reports)
+    share = exercised / functions if functions else 0.0
     failed = sum(1 for r in reports if r.failure)
-    skipped = sum(1 for r in reports if r.skipped)
-    outcomes = ", ".join(f"{calls[o]} {o}" for o in OUTCOMES)
-    compared = sum((r.compared for r in reports), Counter[str]())
-    comparisons = ", ".join(f"{compared[c]} {c}" for c in COMPARISONS)
-    exercised = functions - len(never)
+    same = sum(r.same for r in reports)
     totals = [
-        f"{len(reports)} APIs: {failed} failed, {skipped} skipped, {len(stale)} stale",
+        f"{len(reports)} APIs: {failed} failed, {len(stale)} known failures stale",
         f"{exercised}/{functions} functions exercised ({share:.0%}, floor {FLOOR:.0%})",
-        f"calls: {outcomes}",
-        f"against sqlc's SQL run directly: {comparisons}",
-        f"rows: {tables['seeded']}/{tables['inserted']} seeded, {tables['read']} read back",
+        f"{same} calls returned what sqlc's SQL run directly did",
     ]
-    vacuous = not compared["same"]
-    return bool(failed or skipped or stale or vacuous) or share < FLOOR, totals
-
-
-def main() -> int:
-    """``autoprop.py GOLDEN GENERATED``: sweep the golden cases laid out under
-    ``GOLDEN`` and the corpus outputs in ``GENERATED``; 1 if that fails.
-    """
-    golden, generated = (Path(arg).resolve() for arg in sys.argv[1:])
-    with postgres.server() as server:
-        reports = sweep(server, targets(golden, generated), [golden, generated])
-    fails, totals = summarize(reports)
-    print(*totals, sep="\n")
-    return int(fails)
+    return bool(failed or stale or not same) or share < FLOOR, totals
 
 
 def _importable(roots: list[Path]) -> None:
@@ -319,9 +281,9 @@ def run(server: sqlalchemy.URL, target: Target) -> Report:
         package = importlib.import_module(target.package)
         request: Json = json.loads(target.request.read_text())
         with database(server, target.schema.read_text()) as url:
-            Sweep(package, request, url, report, target.asynchronous).run()
+            Sweep(package, request, url, report, target).run()
     except SchemaRejectedError as error:
-        report.skipped = str(error)
+        report.failure = f"schema: {error}"
     except Exception as error:  # noqa: BLE001 -- a failure is a finding to report
         report.failure = describe(error)
     return report
@@ -377,21 +339,29 @@ class Call:
     async def run(
         self,
         conn: Any,  # noqa: ANN401
+        callee: Any,  # noqa: ANN401
         data: st.DataObject,
+        *,
         pool: Pool,
         url: str,
         enums: list[Labels] | None,
-    ) -> tuple[str, str, str]:
-        """Call once with drawn arguments; return the outcome, why a call was
-        inconclusive, and how it compared with sqlc's SQL run directly, which
-        it is when ``enums`` (the catalog's, for reading them) are given.
+    ) -> tuple[str, bool]:
+        """Call once with drawn arguments, on ``callee``, the connection the
+        function takes, in ``conn``'s transaction; return the outcome, and
+        whether it returned what sqlc's SQL run directly did, which it is when
+        ``enums`` (the catalog's, for reading them) are given.
         """
         fields = st.fixed_dictionaries({a.name: a.values(pool) for a in self.arguments})
         if self.record:
             rows = data.draw(st.lists(fields, max_size=3), label=self.name)
             kwargs: dict[str, object] = {"rows": [self.record(**r) for r in rows]}
         else:
-            kwargs = data.draw(fields, label=self.name)
+            rows = [data.draw(fields, label=self.name)]
+            kwargs = rows[0]
+        # A value drawn for sqlc's type that the annotation does not take (an
+        # override's type, a driver's own class) proves nothing.
+        if any(failure(r[a.name], a.hint) for r in rows for a in self.arguments):
+            return "inconclusive", False
         cmd = self.query["cmd"]
         expected = (
             self.direct(conn, kwargs, enums)
@@ -401,33 +371,32 @@ class Call:
         nested = await aw(conn.begin_nested())
         try:
             function = checked(self.function, set())
-            result = await aw(function(conn, **kwargs))
-        except sqlalchemy.exc.NoResultFound:
-            # A `:one` without a row raises, as Go's `ErrNoRows` (§6).
-            await aw(nested.rollback())
-            if cmd not in {":one", ":batchone"}:
-                raise
-            return "empty", "", self.compare(expected, [])
+            result = await aw(function(callee, **kwargs))
         except Exception as error:
             await aw(nested.rollback())
+            # A `:one` without a row raises, as Go's `ErrNoRows` (§6).
+            if is_error(error, sqlalchemy.exc.NoResultFound, "NoRowError"):
+                if cmd not in {":one", ":batchone"}:
+                    raise
+                return "empty", self.compare(expected, [])
             if refused(error) or rejected(error, url, self.query["text"]):
-                return "inconclusive", " ".join(str(error).split())[:160], ""
+                return "inconclusive", False
             raise
         await aw(nested.commit())
         pool.harvest(result)
         return self.outcome(result, expected)
 
-    def outcome(self, result: object, expected: object) -> tuple[str, str, str]:
+    def outcome(self, result: object, expected: object) -> tuple[str, bool]:
         """What a call that returned ``result`` did, and how it compared."""
         cmd = self.query["cmd"]
         if cmd in {":exec", ":copyfrom", ":batchexec"}:
-            return "ran", "", ""
+            return "ran", False
         # A batch returns each row's result: rows if any of them has one.
         if cmd in {":batchone", ":batchmany"}:
             items = typing.cast("list[object]", result)
             if cmd == ":batchmany":
                 items = [i for r in items for i in typing.cast("list[object]", r)]
-            return ("rows" if items else "empty"), "", ""
+            return ("rows" if items else "empty"), False
         if isinstance(result, sqlalchemy.CursorResult):
             result = result.rowcount
         match cmd:
@@ -437,14 +406,10 @@ class Call:
                 got = sorted(repr(flat(r)) for r in typing.cast("list[object]", result))
             case _:
                 got = result
-        compared = self.compare(expected, got)
         # A `:one` returned its row (else it raised), even if a NULL or `[]`.
         none = {":many": [], ":execrows": 0, ":execresult": 0}
-        return (
-            ("empty" if cmd in none and result == none[cmd] else "rows"),
-            "",
-            compared,
-        )
+        empty = cmd in none and result == none[cmd]
+        return ("empty" if empty else "rows"), self.compare(expected, got)
 
     def direct(
         self,
@@ -489,19 +454,19 @@ class Call:
                 nested.rollback()
         return runs[0] if runs[0] == runs[1] else "unstable"
 
-    def compare(self, expected: object, got: object) -> str:
-        """How ``got`` compares with ``expected`` from :meth:`direct`; a
-        difference fails the package.
+    def compare(self, expected: object, got: object) -> bool:
+        """Whether ``got`` was compared with ``expected`` from :meth:`direct`;
+        a difference fails the package.
         """
-        if expected is None or expected in COMPARISONS:
-            return str(expected or "")
+        if expected is None or expected in ("unstable", "unrunnable"):
+            return False
         if got != expected:
             message = (
                 f"{self.name}: returned {got!r}, "
                 f"but sqlc's SQL run directly returned {expected!r}"
             )
             raise AssertionError(message)
-        return "same"
+        return True
 
 
 def driver(conn: sqlalchemy.Connection) -> psycopg.Connection[Any]:
@@ -709,20 +674,26 @@ def refused(error: Exception) -> bool:
     a syntax error in a value (``to_tsquery('a:')``), which unlike one in the
     statement points nowhere into it.
     """
-    if isinstance(error, (sqlalchemy.exc.MultipleResultsFound, OverflowError)):
+    if isinstance(error, OverflowError) or is_error(
+        error, sqlalchemy.exc.MultipleResultsFound, "MultipleRowsError"
+    ):
         return True
     if isinstance(error, (sqlalchemy.exc.IntegrityError, sqlalchemy.exc.DataError)):
         return True
-    if not isinstance(error, sqlalchemy.exc.DBAPIError):
+    orig = database_error(error)
+    if orig is None:
         return False
+    # psycopg refuses some data itself, before PostgreSQL could (a NUL in text).
+    if isinstance(orig, psycopg.DataError) and sqlstate(orig) is None:
+        return True
     # psycopg's diagnostics, or the asyncpg error SQLAlchemy's adapter wraps.
-    diag = getattr(error.orig, "diag", None)
-    cause = getattr(error.orig, "__cause__", None)
+    diag = getattr(orig, "diag", None)
+    cause = getattr(orig, "__cause__", None)
     context = getattr(diag, "context", None) or getattr(cause, "context", None)
     position = getattr(diag, "statement_position", None) or getattr(
         cause, "position", None
     )
-    state = sqlstate(error) or ""
+    state = sqlstate(orig) or ""
     return (
         state[:2] in REFUSALS
         or "function" in (context or "")
@@ -730,9 +701,27 @@ def refused(error: Exception) -> bool:
     )
 
 
-def sqlstate(error: sqlalchemy.exc.DBAPIError) -> str | None:
-    """The SQLSTATE behind an error, from psycopg or asyncpg."""
-    found = getattr(error.orig, "sqlstate", None) or getattr(error.orig, "pgcode", None)
+def is_error(error: Exception, sqlalchemy_error: type[Exception], package: str) -> bool:
+    """Whether ``error`` is SQLAlchemy's error, or the generated package's of
+    that name (a class of each package's own ``__init__``).
+    """
+    return isinstance(error, sqlalchemy_error) or (
+        type(error).__name__ == package and isinstance(error, LookupError)
+    )
+
+
+def database_error(error: Exception) -> BaseException | None:
+    """The driver's error behind ``error``: SQLAlchemy's wraps it, a psycopg
+    package raises it; ``None`` if it is no database error.
+    """
+    if isinstance(error, sqlalchemy.exc.DBAPIError):
+        return error.orig
+    return error if isinstance(error, psycopg.Error) else None
+
+
+def sqlstate(error: BaseException) -> str | None:
+    """The SQLSTATE of a driver's error, from psycopg or asyncpg."""
+    found = getattr(error, "sqlstate", None) or getattr(error, "pgcode", None)
     return str(found) if found else None
 
 
@@ -740,9 +729,8 @@ def rejected(error: Exception, url: str, sql: str) -> bool:
     """Whether a syntax or access error is PostgreSQL rejecting sqlc's SQL as
     written, whatever the arguments: it cannot even plan it.
     """
-    if not isinstance(error, sqlalchemy.exc.DBAPIError):
-        return False
-    if (sqlstate(error) or "")[:2] != "42":
+    orig = database_error(error)
+    if orig is None or (sqlstate(orig) or "")[:2] != "42":
         return False
     with psycopg.connect(url, autocommit=True) as conn:
         try:
@@ -761,9 +749,10 @@ class Sweep:
         request: Json,
         url: sqlalchemy.URL,
         report: Report,
-        asynchronous: bool,  # noqa: FBT001
+        target: Target,
     ) -> None:
         self.report = report
+        self.asynchronous, self.raw = target.asynchronous, target.raw
         self.conninfo = conninfo(url)
         stems = {path.stem for path in Path(package.__path__[0]).glob("*.py")}
         modules = {
@@ -801,26 +790,35 @@ class Sweep:
             message = f"no module for {', '.join(sorted(missing))}"
             raise AssertionError(message)
         report.calls = {call.name: Counter() for call in self.calls}
-        report.queries = {
-            call.name: (Path(call.query["filename"]).stem, call.query["name"])
-            for call in self.calls
-        }
         report.returning = {
             call.name for call in self.calls if call.query["cmd"] in {":one", ":many"}
         }
+        # A psycopg package's coroutines take psycopg's own async connection.
+        asyncpg = self.asynchronous and not self.raw
         self.url = url.set(
-            drivername="postgresql+asyncpg" if asynchronous else "postgresql+psycopg"
+            drivername="postgresql+asyncpg" if asyncpg else "postgresql+psycopg"
         )
 
     def run(self) -> None:
         """Run the examples on one connection, each in its own transaction."""
         loop = asyncio.new_event_loop()
+        # SQLAlchemy would register psycopg's `hstore` loader on the very
+        # connection a psycopg package reads from.
+        native = {"use_native_hstore": False} if self.raw else {}
         engine: Any = (
-            create_async_engine(self.url)
-            if self.url.drivername.endswith("asyncpg")
-            else sqlalchemy.create_engine(self.url)
+            create_async_engine(self.url, **native)
+            if self.asynchronous
+            else sqlalchemy.create_engine(self.url, **native)
         )
         conn = loop.run_until_complete(aw(engine.connect()))
+        callee = self.callee = conn
+        if self.raw:
+            fairy = (
+                loop.run_until_complete(conn.get_raw_connection())
+                if self.asynchronous
+                else conn.connection
+            )
+            callee = self.callee = fairy.driver_connection
 
         @settings(
             max_examples=EXAMPLES,
@@ -832,7 +830,7 @@ class Sweep:
         )
         @given(st.data())
         def examples(data: st.DataObject) -> None:
-            loop.run_until_complete(self.example(conn, data))
+            loop.run_until_complete(self.example(conn, callee, data))
 
         try:
             examples()
@@ -841,8 +839,13 @@ class Sweep:
             loop.run_until_complete(aw(engine.dispose()))
             loop.close()
 
-    async def example(self, conn: Any, data: st.DataObject) -> None:  # noqa: ANN401
-        """Seed every table, call every function, roll back."""
+    async def example(
+        self,
+        conn: Any,  # noqa: ANN401
+        callee: Any,  # noqa: ANN401
+        data: st.DataObject,
+    ) -> None:
+        """Seed every table, call every function on ``callee``, roll back."""
         transaction = await aw(conn.begin())
         try:
             pool = Pool({t.model: t.name for t in self.tables if t.model})
@@ -851,20 +854,17 @@ class Sweep:
                     await self.seed(conn, data, table, pool)
             for call in self.calls:
                 # Only functions' calls are compared (see above).
-                enums = None if self.url.drivername.endswith("asyncpg") else self.enums
+                enums = None if self.asynchronous else self.enums
                 try:
-                    outcome, why, compared = await call.run(
-                        conn, data, pool, self.conninfo, enums
+                    outcome, same = await call.run(
+                        conn, callee, data, pool=pool, url=self.conninfo, enums=enums
                     )
                 except AssertionError as error:
                     if not self.expected(error):
                         raise
-                    outcome, why, compared = "known", "", ""
+                    outcome, same = "known", False
                 self.report.calls[call.name][outcome] += 1
-                if compared:
-                    self.report.compared[compared] += 1
-                if why:
-                    self.report.why[call.name] = why
+                self.report.same += same
         finally:
             await aw(transaction.rollback())
 
@@ -876,8 +876,8 @@ class Sweep:
         pool: Pool,
     ) -> None:
         """Insert one row, read it back through its model, and pool its values."""
-        statement, params = insert(table, draw_row(data, table, pool))
-        self.report.tables["inserted"] += 1
+        raw = self.raw
+        statement, params = insert(table, draw_row(data, table, pool), ctid=raw)
         nested = await aw(conn.begin_nested())
         try:
             row = (await aw(conn.execute(statement, params))).one()
@@ -887,7 +887,13 @@ class Sweep:
                 raise
             return
         await aw(nested.commit())
-        self.report.tables["seeded"] += 1
+        if raw:
+            # A psycopg package reads what psycopg itself returns.
+            cursor = psycopg.AsyncRawCursor if self.asynchronous else psycopg.RawCursor
+            cur = cursor(self.callee)
+            select = f"SELECT * FROM {table.sql} WHERE ctid = $1::tid"  # noqa: S608
+            await aw(cur.execute(select, [row[-1]]))
+            row = await aw(cur.fetchone())
         names = [c.name for c in table.columns]
         pool.rows[table.sql].append(dict(zip(names, row, strict=True)))
         if table.model is None:
@@ -899,7 +905,6 @@ class Sweep:
                 raise
             return
         pool.harvest(record)
-        self.report.tables["read"] += 1
 
     def expected(self, error: AssertionError) -> bool:
         """Count ``error``, a value outside its annotation, if it is one of the
@@ -969,16 +974,18 @@ def _seeds(column: Column) -> st.SearchStrategy[object]:
 
 
 def insert(
-    table: Table, values: dict[str, object]
+    table: Table, values: dict[str, object], *, ctid: bool = False
 ) -> tuple[sqlalchemy.TextualSelect, dict[str, object]]:
     """``INSERT ... RETURNING *``, typed where a driver needs it (§6), and its
-    parameters, bound as ``p0``, ``p1``, ... whatever the column names.
+    parameters, bound as ``p0``, ``p1``, ... whatever the column names; with
+    ``ctid``, the row's ``ctid`` after it, to read it again by.
     """
     types = {c.name: c.pg for c in table.columns}
     names = ", ".join('"{}"'.format(name.replace('"', '""')) for name in values)
     binds = ", ".join(f":p{i}" for i in range(len(values)))
     body = f"({names}) VALUES ({binds})" if values else "DEFAULT VALUES"
-    statement = sqlalchemy.text(f"INSERT INTO {table.sql} {body} RETURNING *")
+    returning = "*, ctid::text" if ctid else "*"
+    statement = sqlalchemy.text(f"INSERT INTO {table.sql} {body} RETURNING {returning}")
     typed = [
         sqlalchemy.bindparam(f"p{i}", type_=json_type(types[name]))
         for i, name in enumerate(values)
@@ -990,14 +997,9 @@ def insert(
     ]
     if typed:
         statement = statement.bindparams(*typed)
-    returning = statement.columns(
-        *(
-            sqlalchemy.column(c.name, enum_array_type(c.pg) or sqlalchemy_type(c.pg))
-            for c in table.columns
-        )
-    )
-    return returning, {f"p{i}": value for i, value in enumerate(values.values())}
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    columns = [
+        sqlalchemy.column(c.name, enum_array_type(c.pg) or sqlalchemy_type(c.pg))
+        for c in table.columns
+    ]
+    typed = statement.columns(*columns, *[sqlalchemy.column("ctid")] * ctid)
+    return typed, {f"p{i}": value for i, value in enumerate(values.values())}

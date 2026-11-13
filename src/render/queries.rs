@@ -90,15 +90,15 @@ fn function(query: &Query, backend: Backend, asynchronous: bool) -> ast::Stmt {
     let (returns, body) = backend.body(query, asynchronous);
 
     let def = if asynchronous { "async def" } else { "def" };
-    let body = body.replace('\n', "\n    ");
     let mut function = python::stmt(&format!(
-        "{def} {}({parameters}) -> {returns}:\n    {body}",
+        "{def} {}({parameters}) -> {returns}: ...",
         query.function
     ));
-    if let (ast::Stmt::FunctionDef(definition), Some(docstring)) =
-        (&mut function, docstring(&query.comment))
-    {
-        definition.body.insert(0, docstring);
-    }
+    let ast::Stmt::FunctionDef(definition) = &mut function else {
+        unreachable!("a def is a function")
+    };
+    definition.body = (docstring(&query.comment).into_iter())
+        .chain(python::stmts(&body))
+        .collect();
     function
 }

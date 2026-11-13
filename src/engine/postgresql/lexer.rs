@@ -5,7 +5,7 @@
 
 use anyhow::{Result, bail};
 
-use crate::engine::{Engine, Sql, cut};
+use crate::engine::{Bind, Engine, Sql, cut};
 
 #[cfg(test)]
 #[path = "lexer_spec.rs"]
@@ -14,7 +14,7 @@ mod spec;
 /// `text` cut at its placeholders `$N`, as [`cut`] names them. A named
 /// parameter sqlc did not rewrite, as it does not in a statement it does not
 /// analyse, is an error.
-pub fn sql(text: &str, params: &[(i32, &str)]) -> Result<Sql> {
+pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
     let chars: Vec<char> = text.chars().collect();
     let tokens = tokens(&chars);
     if let Some(param) = unrewritten(&chars, &tokens) {

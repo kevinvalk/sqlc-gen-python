@@ -1,7 +1,7 @@
 //! Specification for writing a statement as SQLAlchemy's `text()` takes it.
 
 use super::*;
-use crate::engine::Engine;
+use crate::engine::{Engine, binds};
 
 /// `sql`, whose parameters `$1`, `$2`, `$3` are named `id`, `ids`, `name`, cut
 /// by PostgreSQL's lexer, then checked and written for `text()`.
@@ -10,7 +10,7 @@ fn written(sql: &str) -> Result<String> {
         .filter(|n| sql.contains(&format!("${n}")))
         .map(|n| (n, ["id", "ids", "name"][n as usize - 1]))
         .collect();
-    let sql = Engine::PostgreSql.sql(sql, &params)?;
+    let sql = Engine::PostgreSql.sql(sql, &binds(&params))?;
     check(&sql)?;
     Ok(text(&sql))
 }
@@ -75,8 +75,9 @@ fn a_slice_takes_the_place_of_the_parentheses_sqlc_wrote_around_it() {
     let sql = |before: &str, after: &str| {
         Sql(vec![
             Piece::Text(format!("SELECT 1 WHERE id IN {before}")),
-            Piece::Param {
-                placeholder: "/*SLICE:ids*/?".into(),
+            Piece::Slice {
+                marker: "/*SLICE:ids*/".into(),
+                placeholder: "?".into(),
                 name: "ids".into(),
             },
             Piece::Text(format!("{after} AND x::int = 1")),

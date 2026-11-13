@@ -1,11 +1,11 @@
 //! A DB-API driver (PEP 249), which takes parameters by position: psycopg's
-//! raw cursors and `sqlite3`, which take sqlc's SQL as written, placeholders
-//! and all, and PyMySQL and asyncmy, which take `%s` for each.
+//! raw cursors, which take sqlc's SQL as written, `$N` and all; and `sqlite3`
+//! and PyMySQL, which take one placeholder per value, in the text's order.
 
 use anyhow::{Result, bail};
 use ruff_python_ast as ast;
 
-use super::class;
+use super::{block, class};
 
 use crate::api::models::{Enum, Field};
 use crate::api::queries::{Command, CopyInto, Query, Shape};
@@ -16,20 +16,23 @@ use crate::python::{self, Scope};
 #[path = "dbapi_spec.rs"]
 mod spec;
 
-/// How a driver is written, for blocking functions and then coroutines.
+/// How a driver is written: its blocking API, its coroutines' if it has
+/// them, and what it does with a statement.
 pub struct Driver {
-    /// The annotation of the connection.
-    pub connection: [&'static str; 2],
-    /// The cursor a statement is executed on, from `conn`.
-    pub cursor: [&'static str; 2],
-    /// What `:execresult` returns: the cursor the statement ran on.
-    pub cursor_type: [&'static str; 2],
-    /// The placeholder the driver takes, if not sqlc's own: then every other
-    /// `%` is doubled, as the driver formats the statement with `%`.
+    pub sync: Api,
+    pub asynchronous: Option<Api>,
+    /// The placeholder the driver takes for every value, in the text's
+    /// order, if not sqlc's own numbered one.
     pub placeholder: Option<&'static str>,
+    /// Whether the driver formats a statement with parameters with `%`, so
+    /// that every other `%` is doubled.
+    pub formats: bool,
     /// Whether `execute` returns the rows it affected, which is then the
     /// count: the cursor's `rowcount` is not typed as one.
     pub execute_counts: bool,
+    /// Whether a count must be read in a pipeline of its own: psycopg counts
+    /// a statement in a pipeline only once the pipeline syncs.
+    pub pipelines: bool,
     /// A subquery of no rows, for a `sqlc.slice` of none: `x IN (...)` is
     /// then false, and `x NOT IN (...)` true, as of an empty list.
     pub no_rows: &'static str,
@@ -42,38 +45,80 @@ pub struct Driver {
     pub copies: bool,
 }
 
+/// One of a driver's APIs, blocking or coroutines.
+pub struct Api {
+    /// The annotation of the connection.
+    pub connection: &'static str,
+    /// The cursor a statement runs on, from `conn`, as `with` enters it,
+    /// which closes it after; and as `:execresult` returns it, open, and its
+    /// type. Either is then set up with `setup`, if any.
+    pub closing: &'static str,
+    pub cursor: &'static str,
+    pub cursor_type: &'static str,
+    pub setup: Option<&'static str>,
+}
+
 impl Driver {
-    /// A placeholder of `sql` as the statement constant writes it.
-    fn placeholder(&self, placeholder: &str) -> String {
-        match self.placeholder {
-            None => placeholder.into(),
-            // A slice keeps its marker, which the function replaces.
-            Some(own) => match placeholder.rfind("*/") {
-                Some(end) => format!("{}{own}", &placeholder[..end + 2]),
-                None => own.into(),
-            },
+    /// The API of blocking functions, or of coroutines.
+    pub fn api(&self, asynchronous: bool) -> &Api {
+        match asynchronous {
+            false => &self.sync,
+            true => self
+                .asynchronous
+                .as_ref()
+                .expect("checked by Backend::async_problem"),
         }
+    }
+
+    /// Each value a statement of `query` binds, in order, by its parameter's
+    /// name: one per placeholder in the text's order for a driver that takes
+    /// its own, or one per `$N`, by `N`.
+    fn values<'q>(&self, query: &'q Query) -> Vec<&'q str> {
+        let mut names: Vec<(i32, &str)> = Vec::new();
+        for (at, piece) in query.sql.0.iter().enumerate() {
+            match piece {
+                Piece::Text(_) => {}
+                Piece::Param { placeholder, name }
+                | Piece::Slice {
+                    placeholder, name, ..
+                } => {
+                    let number = match self.placeholder {
+                        Some(_) => at as i32,
+                        None => placeholder.trim_start_matches('$').parse().unwrap_or(0),
+                    };
+                    if !names.iter().any(|&(n, _)| n == number) {
+                        names.push((number, name));
+                    }
+                }
+            }
+        }
+        names.sort_by_key(|&(number, _)| number);
+        names.into_iter().map(|(_, name)| name).collect()
     }
 }
 
 /// sqlc's statement, as the driver takes it: as written, or with its
-/// placeholders and each `%` written as the driver formats them. Without
-/// parameters, a driver formats nothing, so nothing is rewritten.
+/// placeholders the driver's, and each `%` doubled if it formats with `%`.
+/// Without parameters, a driver formats nothing, so `%` stays as written.
 pub fn statement(driver: &Driver, query: &Query) -> ast::Expr {
     if driver.copies
         && let Some(into) = &query.copy_into
     {
         return python::string(&copy(into));
     }
-    let text = match (driver.placeholder, query.params.is_empty()) {
-        (Some(_), false) => (query.sql.0.iter())
-            .map(|piece| match piece {
-                Piece::Text(text) => text.replace('%', "%%"),
-                Piece::Param { placeholder, .. } => driver.placeholder(placeholder),
-            })
-            .collect(),
-        _ => query.sql.text(),
+    let Some(own) = driver.placeholder else {
+        return python::string(&query.sql.text());
     };
+    let formats = driver.formats && !query.params.is_empty();
+    let text: String = (query.sql.0.iter())
+        .map(|piece| match piece {
+            Piece::Text(text) if formats => text.replace('%', "%%"),
+            Piece::Text(text) => text.clone(),
+            // A slice keeps its marker, which the function replaces.
+            Piece::Param { .. } => own.into(),
+            Piece::Slice { marker, .. } => format!("{marker}{own}"),
+        })
+        .collect();
     python::string(&text)
 }
 
@@ -90,19 +135,20 @@ fn copy(into: &CopyInto) -> String {
 }
 
 /// What a query's function returns, and its body: one execution of its
-/// statement on a cursor of its own, the result shaped by its command
-/// (`docs/python-output.md` §6, "Functions").
+/// statement on a cursor of its own, closed after, the result shaped by its
+/// command (`docs/python-output.md` §6, "Functions").
 pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (String, String) {
-    let at = usize::from(asynchronous);
+    let api = driver.api(asynchronous);
     let wait = if asynchronous { "await " } else { "" };
-    // The value of each placeholder, read from `of(name)`, as a tuple: a
-    // slice's items each a value of its own.
-    let tuple = |names: &[String], of: &dyn Fn(&str) -> String| {
+    let with = if asynchronous { "async with" } else { "with" };
+    // The values as a tuple, each read from `of(name)`: a slice's items each
+    // a value of its own.
+    let tuple = |names: &[&str], of: &dyn Fn(&str) -> String| {
         let values: Vec<String> = (names.iter())
-            .map(|name| match query.slices.contains(name) {
+            .map(|&name| match query.sql.is_slice(name) {
                 true => format!("*{}", of(name)),
                 false => {
-                    let param = query.params.iter().find(|p| p.name == *name);
+                    let param = query.params.iter().find(|p| p.name == name);
                     param.map_or_else(|| of(name), |param| (driver.bind)(param, &of(name)))
                 }
             })
@@ -112,125 +158,187 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (String, Stri
             values => format!("({})", values.join(", ")),
         }
     };
+    let names = driver.values(query);
     // The statement, each slice's placeholder made one per item.
     let mut statement = query.constant.clone();
+    let mut sliced: Vec<&str> = Vec::new();
     for piece in &query.sql.0 {
-        if let Piece::Param { placeholder, name } = piece
-            && query.slices.contains(name)
+        if let Piece::Slice { marker, name, .. } = piece
+            && !sliced.contains(&name.as_str())
         {
+            sliced.push(name);
             let own = driver.placeholder.unwrap_or("?");
             statement += &format!(
-                ".replace({:?}, \", \".join([{own:?}] * len({name})) or {:?})",
-                driver.placeholder(placeholder),
-                driver.no_rows
+                ".replace({}, \", \".join([{}] * len({name})) or {})",
+                python::literal(&format!("{marker}{own}")),
+                python::literal(own),
+                python::literal(driver.no_rows),
             );
         }
     }
-    let args = match query.binds.is_empty() {
+    let args = match names.is_empty() {
         true => String::new(),
-        false => format!(", {}", tuple(&query.binds, &|name| name.to_string())),
+        false => format!(", {}", tuple(&names, &|name| name.to_string())),
     };
-    let cursor = format!("cur = {}", driver.cursor[at]);
     let execute = format!("{wait}cur.execute({statement}{args})");
-    // The cursor, the statement run on it, then `then`.
-    let run = |then: &str| format!("{cursor}\n{execute}\n{then}");
-    // Each row of the parameters, as its tuple.
-    let rows = || {
-        let names: Vec<String> = query.params.iter().map(|p| p.name.clone()).collect();
-        tuple(&names, &|name| format!("r.{name}"))
+    let rows = || tuple(&names, &|name| format!("r.{name}"));
+    // The body on a cursor of its own, closed after.
+    let on_cursor = |lines: Vec<String>| {
+        let setup = api.setup.map(String::from);
+        block(
+            &format!("{with} {} as cur:", api.closing),
+            setup.into_iter().chain(lines).collect(),
+        )
     };
 
-    let (returns, body) = match (&query.command, &query.rows) {
-        (Command::CopyFrom, _) if driver.copies && query.copy_into.is_some() => {
-            let with = if asynchronous { "async with" } else { "with" };
-            let body = format!(
-                "{cursor}\n{with} cur.copy({}) as copy:\n    for r in rows:\n        {wait}copy.write_row({})",
-                query.constant,
-                rows()
+    let (returns, lines) = match (&query.command, &query.rows) {
+        (Command::Exec, Some(_)) if driver.copies && query.copy_into.is_some() => {
+            let names: Vec<&str> = query.params.iter().map(|p| p.name.as_str()).collect();
+            let row = tuple(&names, &|name| format!("r.{name}"));
+            // One `with` for both (ruff's SIM117); only psycopg copies, with
+            // no setup.
+            let header = format!(
+                "{with} {} as cur, cur.copy({}) as copy:",
+                api.closing, query.constant
             );
-            ("None".into(), body)
+            let write = block(
+                "for r in rows:",
+                vec![format!("{wait}copy.write_row({row})")],
+            );
+            ("None".into(), block(&header, write))
         }
-        (Command::CopyFrom | Command::Exec, Some(_)) => {
-            let body = format!(
-                "{cursor}\n{wait}cur.executemany({}, [{} for r in rows])",
+        (Command::Exec, Some(_)) => {
+            let many = format!(
+                "{wait}cur.executemany({}, [{} for r in rows])",
                 query.constant,
                 rows()
             );
-            ("None".into(), body)
+            ("None".into(), on_cursor(vec![many]))
         }
         // A batch: every row's statement sent at once (psycopg pipelines
         // `executemany`), then each one's result read in turn.
         (Command::One(_) | Command::Many(_), Some(_)) => {
-            let (returns, read) = read(driver, query, "result", wait);
             let each = if asynchronous { "async for" } else { "for" };
-            let body = format!(
-                "{cursor}\n{wait}cur.executemany({}, [{} for r in rows], returning=True)\n{}",
+            let each = format!("{each} result in cur.results()");
+            let (returns, read) = read(driver, query, "result", wait, &|value| {
+                format!("values.append({value})")
+            });
+            let mut lines = vec![format!(
+                "{wait}cur.executemany({}, [{} for r in rows], returning=True)",
                 query.constant,
-                rows(),
-                super::per_row(&read, &format!("{each} result in cur.results()"), &returns),
-            );
-            (format!("list[{returns}]"), body)
+                rows()
+            )];
+            match many(driver, query, "result", wait) {
+                Some((_, item)) => lines.push(format!("return [{item} {each}]")),
+                None => {
+                    lines.push(format!("values: list[{returns}] = []"));
+                    lines.extend(block(&format!("{each}:"), read));
+                    lines.push("return values".into());
+                }
+            }
+            (format!("list[{returns}]"), on_cursor(lines))
         }
-        (Command::Exec, None) => ("None".into(), run("")),
+        (Command::Exec, None) => ("None".into(), on_cursor(vec![execute])),
         (Command::ExecRows, _) if driver.execute_counts => {
-            ("int".into(), format!("{cursor}\nreturn {execute}"))
+            ("int".into(), on_cursor(vec![format!("return {execute}")]))
         }
-        (Command::ExecRows, _) => ("int".into(), run("return cur.rowcount")),
-        (Command::ExecLastId, _) => ("int".into(), run("return cur.lastrowid")),
-        (Command::ExecResult, _) => (driver.cursor_type[at].into(), run("return cur")),
-        (Command::CopyFrom, None) => unreachable!("a :copyfrom takes rows"),
+        (Command::ExecRows, _) => {
+            let mut lines = counted(driver, &execute, with);
+            lines.push("return cur.rowcount".into());
+            ("int".into(), on_cursor(lines))
+        }
+        (Command::ExecLastId, _) => (
+            "int".into(),
+            on_cursor(vec![execute, "return cur.lastrowid".into()]),
+        ),
+        // The cursor is the result, so it stays open.
+        (Command::ExecResult, _) => {
+            let mut lines = vec![format!("cur = {}", api.cursor)];
+            lines.extend(api.setup.map(String::from));
+            lines.extend(counted(driver, &execute, with));
+            lines.push("return cur".into());
+            (api.cursor_type.into(), lines)
+        }
         (Command::One(_) | Command::Many(_), None) => {
-            let (returns, read) = read(driver, query, "cur", wait);
-            (returns, run(&read))
+            let (returns, read) = read(driver, query, "cur", wait, &|value| {
+                format!("return {value}")
+            });
+            (
+                returns,
+                on_cursor(std::iter::once(execute).chain(read).collect()),
+            )
         }
     };
-    (returns, body.trim_end().to_string())
+    (returns, lines.join("\n"))
 }
 
-/// What a `:one` or `:many` returns, and the code returning it from the
-/// result `cur` holds.
-fn read(driver: &Driver, query: &Query, cur: &str, wait: &str) -> (String, String) {
-    match &query.command {
-        Command::One(shape) => {
-            let (returns, ret) = match shape {
-                Shape::Scalar(ty) if !ty.converts() => {
-                    let annotation = ty.annotation(Scope::Queries);
-                    // A row's value is `Any`: the annotated local states the
-                    // type a bare `return` would leak.
-                    let ret = format!("value: {annotation} = row[0]\n        return value");
-                    (annotation, ret)
-                }
-                Shape::Scalar(ty) => (
-                    ty.annotation(Scope::Queries),
-                    format!(
-                        "return {}",
-                        ty.read("row[0]", Scope::Queries, driver.text_arrays)
-                    ),
-                ),
-                shape => (
-                    class(shape),
-                    format!("return {}.from_row(row)", class(shape)),
-                ),
-            };
-            let read = format!(
-                "match {wait}{cur}.fetchmany(2):\n    case [row]:\n        {ret}\n    \
-                 case []:\n        raise NoRowError\n    case _:\n        raise MultipleRowsError"
-            );
-            (returns, read)
-        }
-        Command::Many(shape) => {
-            let (item, each) = match shape {
-                Shape::Scalar(ty) => (
-                    ty.annotation(Scope::Queries),
-                    ty.read("row[0]", Scope::Queries, driver.text_arrays),
-                ),
-                shape => (class(shape), format!("{}.from_row(row)", class(shape))),
-            };
-            let read = format!("return [{each} for row in {wait}{cur}.fetchall()]");
-            (format!("list[{item}]"), read)
-        }
-        _ => unreachable!("only a :one or a :many reads rows"),
+/// `execute`, run in a pipeline of its own if the driver counts a statement
+/// of a pipeline only once it syncs.
+fn counted(driver: &Driver, execute: &str, with: &str) -> Vec<String> {
+    match driver.pipelines {
+        true => block(&format!("{with} conn.pipeline():"), vec![execute.into()]),
+        false => vec![execute.into()],
     }
+}
+
+/// A `:many`'s result, as one expression, from the result `cur` holds: what
+/// it returns, and the expression.
+fn many(driver: &Driver, query: &Query, cur: &str, wait: &str) -> Option<(String, String)> {
+    let Command::Many(shape) = &query.command else {
+        return None;
+    };
+    let (item, each) = match shape {
+        Shape::Scalar(ty) => (
+            ty.annotation(Scope::Queries),
+            ty.read("row[0]", Scope::Queries, driver.text_arrays),
+        ),
+        shape => (class(shape), format!("{}.from_row(row)", class(shape))),
+    };
+    Some((
+        format!("list[{item}]"),
+        format!("[{each} for row in {wait}{cur}.fetchall()]"),
+    ))
+}
+
+/// What a `:one` or `:many` returns, and the lines that read it from the
+/// result `cur` holds and hand it to `emit` (`return x`, `values.append(x)`).
+fn read(
+    driver: &Driver,
+    query: &Query,
+    cur: &str,
+    wait: &str,
+    emit: &dyn Fn(&str) -> String,
+) -> (String, Vec<String>) {
+    if let Some((returns, value)) = many(driver, query, cur, wait) {
+        return (returns, vec![emit(&value)]);
+    }
+    let Command::One(shape) = &query.command else {
+        unreachable!("only a :one or a :many reads rows")
+    };
+    let (returns, found) = match shape {
+        // A row's value is `Any`: the annotated local states the type the
+        // value would leak.
+        Shape::Scalar(ty) if !ty.converts() => {
+            let annotation = ty.annotation(Scope::Queries);
+            let found = vec![format!("value: {annotation} = row[0]"), emit("value")];
+            (annotation, found)
+        }
+        Shape::Scalar(ty) => {
+            let value = ty.read("row[0]", Scope::Queries, driver.text_arrays);
+            (ty.annotation(Scope::Queries), vec![emit(&value)])
+        }
+        shape => (
+            class(shape),
+            vec![emit(&format!("{}.from_row(row)", class(shape)))],
+        ),
+    };
+    let cases = [
+        block("case [row]:", found),
+        block("case []:", vec!["raise NoRowError".into()]),
+        block("case _:", vec!["raise MultipleRowsError".into()]),
+    ];
+    let lines = block(&format!("match {wait}{cur}.fetchmany(2):"), cases.concat());
+    (returns, lines)
 }
 
 /// An error if `sql_enum` has a label PostgreSQL quotes in an array's text,

@@ -21,15 +21,15 @@ def add_device(
     location: str | None,
     budget: Decimal,
 ) -> models.Machine:
-    cur = psycopg.RawCursor(conn, row_factory=tuple_row)
-    cur.execute(_ADD_DEVICE, (address, location, budget))
-    match cur.fetchmany(2):
-        case [row]:
-            return models.Machine.from_row(row)
-        case []:
-            raise NoRowError
-        case _:
-            raise MultipleRowsError
+    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+        cur.execute(_ADD_DEVICE, (address, location, budget))
+        match cur.fetchmany(2):
+            case [row]:
+                return models.Machine.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
 
 
 _LIST_DEVICES_UNDER: Final = "SELECT id, ip, location, budget FROM devices WHERE location <@ $1::ltree ORDER BY id"
@@ -38,6 +38,6 @@ _LIST_DEVICES_UNDER: Final = "SELECT id, ip, location, budget FROM devices WHERE
 def list_devices_under(
     conn: psycopg.Connection[Any], *, location: str
 ) -> list[models.Machine]:
-    cur = psycopg.RawCursor(conn, row_factory=tuple_row)
-    cur.execute(_LIST_DEVICES_UNDER, (location,))
-    return [models.Machine.from_row(row) for row in cur.fetchall()]
+    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+        cur.execute(_LIST_DEVICES_UNDER, (location,))
+        return [models.Machine.from_row(row) for row in cur.fetchall()]

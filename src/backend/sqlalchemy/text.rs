@@ -34,21 +34,15 @@ pub fn text(sql: &Sql) -> String {
                 text += &part.replace(':', r"\:");
                 slice = false;
             }
-            Piece::Param { name, placeholder } => {
-                slice = is_slice(placeholder);
-                if slice {
-                    text.pop();
-                }
+            Piece::Param { name, .. } => text += &format!(":{name}"),
+            Piece::Slice { name, .. } => {
+                slice = true;
+                text.pop();
                 text += &format!(":{name}");
             }
         }
     }
     text
-}
-
-/// Whether a placeholder is a `sqlc.slice`'s.
-fn is_slice(placeholder: &str) -> bool {
-    placeholder.starts_with("/*SLICE:")
 }
 
 /// An error if `text()` would not bind a placeholder of `sql` as that
@@ -58,26 +52,32 @@ fn is_slice(placeholder: &str) -> bool {
 pub fn check(sql: &Sql) -> Result<()> {
     // A piece's first and last character, a placeholder's as sqlc wrote it.
     let ends = |piece: &Piece| match piece {
-        Piece::Text(text)
-        | Piece::Param {
-            placeholder: text, ..
-        } => (text.chars().next(), text.chars().last()),
+        Piece::Text(text) => (text.chars().next(), text.chars().last()),
+        Piece::Param { placeholder, .. } => {
+            (placeholder.chars().next(), placeholder.chars().last())
+        }
+        Piece::Slice {
+            marker,
+            placeholder,
+            ..
+        } => (marker.chars().next(), placeholder.chars().last()),
     };
     for (i, piece) in sql.0.iter().enumerate() {
-        let Piece::Param { placeholder, .. } = piece else {
-            continue;
-        };
-        if is_slice(placeholder) {
-            let before = i.checked_sub(1).and_then(|j| ends(&sql.0[j]).1);
-            let after = sql.0.get(i + 1).and_then(|next| ends(next).0);
-            if (before, after) != (Some('('), Some(')')) {
-                bail!(
-                    "SQLAlchemy expands a sqlc.slice into parentheses of its own, so it must be \
+        let placeholder = match piece {
+            Piece::Text(_) => continue,
+            Piece::Param { placeholder, .. } => placeholder,
+            Piece::Slice { .. } => {
+                let before = i.checked_sub(1).and_then(|j| ends(&sql.0[j]).1);
+                let after = sql.0.get(i + 1).and_then(|next| ends(next).0);
+                if (before, after) != (Some('('), Some(')')) {
+                    bail!(
+                        "SQLAlchemy expands a sqlc.slice into parentheses of its own, so it must be \
                      written directly inside them: IN (sqlc.slice(name))"
-                );
+                    );
+                }
+                continue;
             }
-            continue;
-        }
+        };
         let before = (i.checked_sub(1).and_then(|j| ends(&sql.0[j]).1))
             .filter(|&c| matches!(c, ':' | '\\') || is_word(c))
             .map(|c| ("after", c));

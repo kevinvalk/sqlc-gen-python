@@ -203,12 +203,15 @@ pub fn expr(source: &str) -> ast::Expr {
 ///
 /// Same caveat as [`expr`].
 pub fn stmt(source: &str) -> ast::Stmt {
+    stmts(source).pop().expect("a statement")
+}
+
+/// Parses statements, such as a function's body. Same caveat as [`expr`].
+pub fn stmts(source: &str) -> ThinVec<ast::Stmt> {
     parse_module(source)
-        .unwrap_or_else(|error| panic!("generated statement `{source}`: {error}"))
+        .unwrap_or_else(|error| panic!("generated statements `{source}`: {error}"))
         .into_syntax()
         .body
-        .pop()
-        .expect("a statement")
 }
 
 // -- Syntax ------------------------------------------------------------------
@@ -237,6 +240,18 @@ pub fn is_public_name(name: &str) -> bool {
     name.is_ascii()
         && ruff_python_stdlib::identifiers::is_identifier(name)
         && !name.starts_with('_')
+}
+
+/// A name a generated class can take: a public CapWords name (ruff N801),
+/// which hides no builtin of any supported Python (`Warning`,
+/// `ExceptionGroup`) and is no keyword (`None`).
+pub fn is_class_name(name: &str) -> bool {
+    is_public_name(name)
+        && name.starts_with(|c: char| c.is_ascii_uppercase())
+        && !name.contains('_')
+        && !ruff_python_stdlib::keyword::is_keyword(name)
+        && !(10..=14)
+            .any(|minor| ruff_python_stdlib::builtins::is_python_builtin(name, minor, false))
 }
 
 /// A name a module or package can be imported by: a public name in lowercase
@@ -287,6 +302,11 @@ pub fn string(value: &str) -> ast::Expr {
         })),
     })
     .into()
+}
+
+/// `value` as a Python string literal, for source written as text.
+pub fn literal(value: &str) -> String {
+    Generator::new(&Indentation::default(), LineEnding::Lf).expr(&string(value))
 }
 
 /// A docstring: first in a class or function body, or directly under the
@@ -474,17 +494,18 @@ impl Type {
     }
 }
 
-/// The modules an override's `annotation` reads names from, to import: of
-/// each dotted name, all but its last part (`numpy.typing.NDArray` reads
-/// `numpy.typing`). Any other name must be a builtin or one generated code
-/// imports, and the annotation no more than names, subscripts, `|` and `None`.
-pub fn modules_of(annotation: &str) -> anyhow::Result<Vec<String>> {
+/// An override's `annotation`, as ruff writes it, and the modules it reads
+/// names from, to import: of each dotted name, all but its last part
+/// (`app.types.Embedding` reads `app.types`). A bare name must be a builtin
+/// or one of the [`TYPES`] generated code imports, and the annotation no more
+/// than names, subscripts, `|` and `None`.
+pub fn annotation(source: &str) -> anyhow::Result<(String, Vec<String>)> {
     fn walk(expr: &ast::Expr, modules: &mut Vec<String>) -> anyhow::Result<()> {
         match expr {
             ast::Expr::Name(name) => {
                 let id = name.id.as_str();
                 if !ruff_python_stdlib::builtins::is_python_builtin(id, 10, false)
-                    && !is_imported(id)
+                    && !TYPES.contains(&id)
                 {
                     anyhow::bail!("`{id}` is neither a builtin nor a dotted name to import");
                 }
@@ -499,14 +520,27 @@ pub fn modules_of(annotation: &str) -> anyhow::Result<Vec<String>> {
                 let ast::Expr::Name(root) = value else {
                     anyhow::bail!("`{}` is no dotted name", python_source(expr));
                 };
-                if !is_imported(&root.id) {
-                    parts.push(root.id.as_str());
-                    parts.reverse();
-                    parts.pop();
-                    let module = parts.join(".");
-                    if !modules.contains(&module) {
-                        modules.push(module);
+                parts.push(root.id.as_str());
+                parts.reverse();
+                parts.pop();
+                let module = parts.join(".");
+                match module.as_str() {
+                    // `datetime`, as generated code imports it.
+                    "dt" => {}
+                    _ if is_imported(&root.id) => {
+                        anyhow::bail!("`{}` is a name generated code binds", root.id)
                     }
+                    _ if (CONVENTIONS.iter()).any(|aliased| {
+                        module == *aliased || module.starts_with(&format!("{aliased}."))
+                    }) =>
+                    {
+                        anyhow::bail!(
+                            "ruff's import conventions (ICN001) alias `{module}`, which generated \
+                             code imports bare; name the type through a module of your own"
+                        )
+                    }
+                    _ if !modules.contains(&module) => modules.push(module),
+                    _ => {}
                 }
             }
             ast::Expr::Subscript(subscript) => {
@@ -527,14 +561,46 @@ pub fn modules_of(annotation: &str) -> anyhow::Result<Vec<String>> {
         }
         Ok(())
     }
-    let expr = parse_expression(annotation)
+    let expr = parse_expression(source)
         .map_err(|error| anyhow::anyhow!("not a Python expression: {error}"))?
         .into_syntax()
         .body;
     let mut modules = Vec::new();
     walk(&expr, &mut modules)?;
-    Ok(modules)
+    Ok((python_source(&expr), modules))
 }
+
+/// The names generated code imports that an override may use bare.
+const TYPES: &[&str] = &[
+    "Decimal",
+    "UUID",
+    "IPv4Address",
+    "IPv4Interface",
+    "IPv4Network",
+    "IPv6Address",
+    "IPv6Interface",
+    "IPv6Network",
+];
+
+/// The modules ruff's import conventions (ICN001) alias by default, and
+/// `datetime`, which generated code imports as `dt`.
+const CONVENTIONS: &[&str] = &[
+    "altair",
+    "datetime",
+    "holoviews",
+    "matplotlib",
+    "networkx",
+    "numpy",
+    "pandas",
+    "panel",
+    "plotly.express",
+    "polars",
+    "pyarrow",
+    "seaborn",
+    "tensorflow",
+    "tkinter",
+    "xml.etree.ElementTree",
+];
 
 /// The source of an expression, for an error.
 fn python_source(expr: &ast::Expr) -> String {
@@ -553,6 +619,7 @@ fn python_source(expr: &ast::Expr) -> String {
 /// `datetime` or `date` cannot hide it, and `dt.datetime` does not stutter.
 const VOCABULARY: [&[Import]; 3] = [
     &[
+        Import::Module("contextlib"),
         Import::Module("dataclasses"),
         Import::Module("datetime"),
         Import::Module("enum"),
@@ -630,7 +697,9 @@ fn imports(body: &[ast::Stmt], modules: &[String]) -> String {
     struct Reads(BTreeSet<String>);
     impl<'a> Visitor<'a> for Reads {
         fn visit_expr(&mut self, expr: &'a ast::Expr) {
-            if let ast::Expr::Name(name) = expr {
+            if let ast::Expr::Name(name) = expr
+                && name.ctx.is_load()
+            {
                 self.0.insert(name.id.to_string());
             }
             walk_expr(self, expr);

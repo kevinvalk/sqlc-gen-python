@@ -1,12 +1,13 @@
 -- A small bookkeeping ledger on SQLite: amounts are integer cents, as SQLite
--- has no exact decimal type.
+-- has no exact decimal type, and dates and JSON are TEXT, as SQLite stores a
+-- DATE or JSON value that looks like a number as one.
 CREATE TABLE accounts (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
   -- Archived accounts take no new entries.
   archived BOOLEAN NOT NULL DEFAULT FALSE,
-  opened_on DATE NOT NULL,
-  settings JSON
+  opened_on TEXT NOT NULL,
+  settings TEXT
 );
 
 CREATE TABLE entries (
@@ -16,5 +17,5 @@ CREATE TABLE entries (
   rate REAL,
   memo TEXT,
   receipt BLOB,
-  booked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  booked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

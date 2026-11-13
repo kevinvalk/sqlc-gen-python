@@ -136,7 +136,7 @@ impl Backend {
     pub fn connection(self, asynchronous: bool) -> &'static str {
         match self.driver() {
             None => sqlalchemy::connection(asynchronous),
-            Some(driver) => driver.connection[usize::from(asynchronous)],
+            Some(driver) => driver.api(asynchronous).connection,
         }
     }
 
@@ -149,30 +149,29 @@ impl Backend {
     }
 }
 
-/// `body`, a command's, run once per item of `each` (`for r in rows`) and
-/// returning each result: a list comprehension if it is one `return x`, else
-/// a loop that appends each `return x` to `values`, of `returns`.
-fn per_row(body: &str, each: &str, returns: &str) -> String {
-    if let Some(value) = body.strip_prefix("return ")
-        && !body.contains('\n')
-    {
-        return format!("return [{value} {each}]");
-    }
-    let appending: Vec<String> = (body.lines())
-        .map(|line| {
-            let code = line.trim_start();
-            match code.strip_prefix("return ") {
-                Some(value) => {
-                    format!("{}values.append({value})", &line[..line.len() - code.len()])
-                }
-                None => line.to_string(),
-            }
-        })
-        .collect();
-    format!(
-        "values: list[{returns}] = []\n{each}:\n    {}\nreturn values",
-        appending.join("\n").replace('\n', "\n    ")
-    )
+/// PostgreSQL's range types, each with the type of its bounds and
+/// SQLAlchemy's class for it, which turns each driver's range into
+/// SQLAlchemy's `Range`; psycopg returns its own `Range`.
+const RANGES: &[(&str, &str, &str)] = &[
+    ("int4range", "int", "postgresql.INT4RANGE"),
+    ("int8range", "int", "postgresql.INT8RANGE"),
+    ("numrange", "Decimal", "postgresql.NUMRANGE"),
+    ("daterange", "dt.date", "postgresql.DATERANGE"),
+    ("tsrange", "dt.datetime", "postgresql.TSRANGE"),
+    ("tstzrange", "dt.datetime", "postgresql.TSTZRANGE"),
+];
+
+/// The range type `name`'s bounds' type and SQLAlchemy class, if it is one.
+fn range(name: &str) -> Option<(&'static str, &'static str)> {
+    let (_, bound, class) = RANGES.iter().find(|(range, ..)| *range == name)?;
+    Some((bound, class))
+}
+
+/// `header`, then `body` indented under it.
+fn block(header: &str, body: Vec<String>) -> Vec<String> {
+    std::iter::once(header.to_string())
+        .chain(body.into_iter().map(|line| format!("    {line}")))
+        .collect()
 }
 
 /// The class a row of `shape` becomes, as a query module writes it.

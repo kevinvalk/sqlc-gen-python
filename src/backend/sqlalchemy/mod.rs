@@ -7,7 +7,7 @@ pub mod text;
 use anyhow::{Result, bail};
 use ruff_python_ast as ast;
 
-use super::class;
+use super::{block, class};
 use crate::api::models::Field;
 use crate::api::queries::{Command, Query, Shape};
 use crate::engine::Engine;
@@ -51,7 +51,7 @@ pub fn statement(query: &Query) -> ast::Expr {
     let binds: Vec<ast::Expr> = (query.params.iter())
         .filter_map(|param| {
             let how = match (&param.ty.element, param.ty.element.json()) {
-                _ if query.slices.contains(&param.name) => "expanding=True".to_string(),
+                _ if query.sql.is_slice(&param.name) => "expanding=True".to_string(),
                 (_, Some(Json::Json)) => "type_=postgresql.JSON(none_as_null=True)".into(),
                 (_, Some(Json::Jsonb)) => "type_=postgresql.JSONB(none_as_null=True)".into(),
                 (
@@ -83,18 +83,6 @@ pub fn statement(query: &Query) -> ast::Expr {
     python::call(python::attribute(statement, "columns"), columns)
 }
 
-/// SQLAlchemy's range classes, by the range's PostgreSQL type: its SQL type,
-/// which turns each driver's range into SQLAlchemy's `Range`, and the type of
-/// its bounds.
-const RANGES: &[(&str, &str, &str)] = &[
-    ("int4range", "postgresql.INT4RANGE", "int"),
-    ("int8range", "postgresql.INT8RANGE", "int"),
-    ("numrange", "postgresql.NUMRANGE", "Decimal"),
-    ("daterange", "postgresql.DATERANGE", "dt.date"),
-    ("tsrange", "postgresql.TSRANGE", "dt.datetime"),
-    ("tstzrange", "postgresql.TSTZRANGE", "dt.datetime"),
-];
-
 /// The Python type of a column of `data_type` that SQLAlchemy decides,
 /// whatever the driver: a range, as SQLAlchemy's `Range`; an `hstore`, as a
 /// `dict`.
@@ -108,7 +96,7 @@ pub fn scalar_type(data_type: &str) -> Option<Type> {
             sql_type: Some("postgresql.HSTORE"),
         });
     }
-    let (_, sql_type, bound) = RANGES.iter().find(|(range, ..)| *range == name)?;
+    let (bound, sql_type) = super::range(name)?;
     Some(Type::Library {
         annotation: format!("postgresql.Range[{bound}]"),
         sql_type: Some(sql_type),
@@ -143,7 +131,8 @@ pub fn connection(asynchronous: bool) -> &'static str {
 }
 
 /// What a query's function returns, and its body: one execution of its
-/// statement, the result shaped by its command (§6, "Functions").
+/// statement, the result shaped by its command (§6, "Functions"). A batch
+/// executes once per row, collecting each result.
 pub fn body(query: &Query, asynchronous: bool) -> (String, String) {
     // Each parameter as `each` writes it, comma-separated.
     let each = |write: fn(&Field) -> String| {
@@ -154,7 +143,7 @@ pub fn body(query: &Query, asynchronous: bool) -> (String, String) {
     // A batch binds each row's values, `r.p`; at once, as `params`, if it
     // returns nothing.
     let values = match (&query.rows, &query.command, query.params.is_empty()) {
-        (Some(_), Command::CopyFrom | Command::Exec, _) => ", params".to_string(),
+        (Some(_), Command::Exec, _) => ", params".to_string(),
         (Some(_), _, _) => format!(", {{{}}}", each(|p| format!("\"{0}\": r.{0}", p.name))),
         (None, _, true) => String::new(),
         (None, _, false) => format!(", {{{}}}", each(|p| format!("\"{0}\": {0}", p.name))),
@@ -168,77 +157,74 @@ pub fn body(query: &Query, asynchronous: bool) -> (String, String) {
             (true, _) => format!("(await {call}){then}"),
         }
     };
-
-    let (returns, body) = match &query.command {
-        Command::ExecRows => ("int".into(), format!("return {}", execute(".rowcount"))),
-        Command::ExecLastId => ("int".into(), format!("return {}", execute(".lastrowid"))),
-        Command::ExecResult => (
-            "sqlalchemy.CursorResult[Any]".into(),
-            format!("return {}", execute("")),
-        ),
-        Command::CopyFrom | Command::Exec if query.rows.is_some() => (
-            "None".into(),
-            format!(
-                "params = [{{{}}} for r in rows]\nif params:\n    {}",
-                each(|p| format!("\"{0}\": r.{0}", p.name)),
-                execute("")
-            ),
-        ),
-        Command::Exec => ("None".into(), execute("")),
-        Command::CopyFrom => unreachable!("a :copyfrom takes rows"),
+    // What a row's execution returns: its type, the lines that compute it,
+    // and the value.
+    let (returns, lines, value): (String, Vec<String>, String) = match &query.command {
+        Command::Exec if query.rows.is_some() => {
+            let params = format!(
+                "params = [{{{}}} for r in rows]",
+                each(|p| format!("\"{0}\": r.{0}", p.name))
+            );
+            let lines = [vec![params], block("if params:", vec![execute("")])].concat();
+            return ("None".into(), lines.join("\n"));
+        }
+        Command::Exec => return ("None".into(), execute("")),
+        Command::ExecRows => ("int".into(), vec![], execute(".rowcount")),
+        Command::ExecLastId => ("int".into(), vec![], execute(".lastrowid")),
+        Command::ExecResult => ("sqlalchemy.CursorResult[Any]".into(), vec![], execute("")),
         Command::One(Shape::Scalar(ty)) => {
-            let value = execute(".scalar_one()");
-            (
-                ty.annotation(Scope::Queries),
-                // `scalar_one()` is `Any`: the annotated local states the type
-                // a bare `return` would leak.
-                match ty.converts() {
-                    false => format!(
-                        "value: {} = {value}\nreturn value",
-                        ty.annotation(Scope::Queries)
-                    ),
-                    true => format!(
-                        "value = {value}\nreturn {}",
-                        ty.read("value", Scope::Queries, false)
-                    ),
-                },
-            )
+            let annotation = ty.annotation(Scope::Queries);
+            // `scalar_one()` is `Any`: the annotated local states the type the
+            // value would leak, unless it is converted.
+            let local = match ty.converts() {
+                false => format!("value: {annotation}"),
+                true => "value".into(),
+            };
+            let line = format!("{local} = {}", execute(".scalar_one()"));
+            let value = ty.read("value", Scope::Queries, false);
+            (annotation, vec![line], value)
         }
         Command::Many(Shape::Scalar(ty)) => {
             let values = execute(".scalars()");
+            let value = match ty.converts() {
+                false => format!("list({values})"),
+                true => format!(
+                    "[{} for value in {values}]",
+                    ty.read("value", Scope::Queries, false)
+                ),
+            };
             (
                 format!("list[{}]", ty.annotation(Scope::Queries)),
-                match ty.converts() {
-                    false => format!("return list({values})"),
-                    true => format!(
-                        "return [{} for value in {values}]",
-                        ty.read("value", Scope::Queries, false)
-                    ),
-                },
+                vec![],
+                value,
             )
         }
         Command::One(shape) => {
             let class = class(shape);
-            (
-                class.to_string(),
-                format!("return {class}.from_row({})", execute(".one()")),
-            )
+            let value = format!("{class}.from_row({})", execute(".one()"));
+            (class, vec![], value)
         }
         Command::Many(shape) => {
             let class = class(shape);
-            (
-                format!("list[{class}]"),
-                format!("return [{class}.from_row(row) for row in {}]", execute("")),
-            )
+            let value = format!("[{class}.from_row(row) for row in {}]", execute(""));
+            (format!("list[{class}]"), vec![], value)
         }
     };
-
-    match (&query.rows, &query.command) {
-        // A batch: the body once per row, each result collected.
-        (Some(_), Command::One(_) | Command::Many(_)) => (
+    let (returns, body) = match (&query.rows, lines.is_empty()) {
+        (None, _) => (returns, [lines, vec![format!("return {value}")]].concat()),
+        (Some(_), true) => (
             format!("list[{returns}]"),
-            super::per_row(&body, "for r in rows", &returns),
+            vec![format!("return [{value} for r in rows]")],
         ),
-        _ => (returns, body),
-    }
+        (Some(_), false) => {
+            let each = [lines, vec![format!("values.append({value})")]].concat();
+            let body = [
+                vec![format!("values: list[{returns}] = []")],
+                block("for r in rows:", each),
+                vec!["return values".into()],
+            ];
+            (format!("list[{returns}]"), body.concat())
+        }
+    };
+    (returns, body.join("\n"))
 }

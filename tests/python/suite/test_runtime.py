@@ -8,10 +8,11 @@ function was never called.
 """
 
 import asyncio
+import contextlib
 import datetime as dt
 import importlib
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -20,10 +21,11 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 import sqlalchemy
+from examples import GoldenCase
 from postgres import aw, conninfo
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from conftest import Case, cases, functions, queries
+from conftest import cases, functions, queries
 
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 # Characters that SQLAlchemy, a driver or a careless generator could misread.
@@ -45,7 +47,7 @@ RUNS = [
 
 @pytest.mark.parametrize(("case", "driver"), RUNS)
 def test_every_function_against_postgres(
-    case: Case, driver: str, database: sqlalchemy.URL
+    case: GoldenCase, driver: str, database: sqlalchemy.URL
 ) -> None:
     called: set[str] = set()
     run = {
@@ -59,7 +61,9 @@ def test_every_function_against_postgres(
     assert called == public, f"never called: {sorted(public - called)}"
 
 
-async def _sqlalchemy_sync(case: Case, url: sqlalchemy.URL, called: set[str]) -> None:
+async def _sqlalchemy_sync(
+    case: GoldenCase, url: sqlalchemy.URL, called: set[str]
+) -> None:
     engine = sqlalchemy.create_engine(url)
     try:
         with engine.connect() as conn:
@@ -71,7 +75,9 @@ async def _sqlalchemy_sync(case: Case, url: sqlalchemy.URL, called: set[str]) ->
         engine.dispose()
 
 
-async def _sqlalchemy_async(case: Case, url: sqlalchemy.URL, called: set[str]) -> None:
+async def _sqlalchemy_async(
+    case: GoldenCase, url: sqlalchemy.URL, called: set[str]
+) -> None:
     engine = create_async_engine(url)
     try:
         async with engine.connect() as conn:
@@ -83,19 +89,23 @@ async def _sqlalchemy_async(case: Case, url: sqlalchemy.URL, called: set[str]) -
         await engine.dispose()
 
 
-async def _psycopg_sync(case: Case, url: sqlalchemy.URL, called: set[str]) -> None:
+async def _psycopg_sync(
+    case: GoldenCase, url: sqlalchemy.URL, called: set[str]
+) -> None:
     with psycopg.connect(conninfo(url)) as conn:
         await scenario(_api(case, conn, called), _psycopg_sql(conn))
         conn.rollback()
 
 
-async def _psycopg_async(case: Case, url: sqlalchemy.URL, called: set[str]) -> None:
+async def _psycopg_async(
+    case: GoldenCase, url: sqlalchemy.URL, called: set[str]
+) -> None:
     async with await psycopg.AsyncConnection.connect(conninfo(url)) as conn:
         await scenario(_api(case, conn, called), _psycopg_sql(conn))
         await conn.rollback()
 
 
-def _api(case: Case, conn: object, called: set[str]) -> Any:  # noqa: ANN401
+def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
     """The case's API on ``conn``, with the errors a ``:one`` raises."""
     api = queries(case, conn, called)
     package = importlib.import_module(case.name)
@@ -104,7 +114,23 @@ def _api(case: Case, conn: object, called: set[str]) -> Any:  # noqa: ANN401
         api.MultipleRows = sqlalchemy.exc.MultipleResultsFound
     else:
         api.NoRow, api.MultipleRows = package.NoRowError, package.MultipleRowsError
+    api.pipeline = lambda: _pipeline(conn)
     return api
+
+
+@contextlib.asynccontextmanager
+async def _pipeline(conn: object) -> AsyncIterator[None]:
+    """A pipeline of the caller's, on psycopg: a count read in it must be the
+    statement's, though psycopg counts one only once the pipeline syncs.
+    """
+    if isinstance(conn, psycopg.AsyncConnection):
+        async with conn.pipeline():
+            yield
+    elif isinstance(conn, psycopg.Connection):
+        with conn.pipeline():
+            yield
+    else:
+        yield
 
 
 def _sqlalchemy_sql(conn: Any) -> Callable[..., Awaitable[Any]]:  # noqa: ANN401
@@ -188,11 +214,14 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     assert await api.customers.get_customer(id=ada.id) == ada
     await no_row(api, api.customers.get_customer(id=uuid4()))
 
-    assert (
-        await api.customers.update_customer_email(email="ada@example.com", id=ada.id)
-        == 1
-    )
-    assert await api.customers.update_customer_email(email=None, id=uuid4()) == 0
+    async with api.pipeline():
+        assert (
+            await api.customers.update_customer_email(
+                email="ada@example.com", id=ada.id
+            )
+            == 1
+        )
+        assert await api.customers.update_customer_email(email=None, id=uuid4()) == 0
     ada = await api.customers.get_customer(id=ada.id)
     assert ada.email == "ada@example.com"
 
@@ -427,8 +456,9 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     assert await api.invoices.mark_invoice_paid(paid_at=now, id=first.id) is None
     paid = await api.invoices.get_invoice(id=first.id)
     assert (paid.status, paid.paid_at) == (m.InvoiceStatus.PAID, now)
-    assert (await api.invoices.void_invoice(id=first.id)).rowcount == 0
-    assert (await api.invoices.void_invoice(id=second.id)).rowcount == 1
+    async with api.pipeline():
+        assert (await api.invoices.void_invoice(id=first.id)).rowcount == 0
+        assert (await api.invoices.void_invoice(id=second.id)).rowcount == 1
 
     # Media: binary content and a table whose model name is singularised.
     content = bytes(range(256))

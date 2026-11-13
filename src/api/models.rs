@@ -4,13 +4,15 @@
 //! so [`crate::render`] only has to decide how things look. [`super::queries`]
 //! resolves the queries the same way, against these classes.
 
-use std::collections::{BTreeMap, HashMap};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::LazyLock;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, anyhow, bail};
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use ruff_python_stdlib::keyword::is_keyword;
 
+use super::Problems;
 use super::inflection::singular;
 use crate::backend::Backend;
 use crate::config::{Config, ModelConfig, Override};
@@ -73,23 +75,30 @@ pub struct FieldType {
 }
 
 /// The enums and models of the catalog `resolver` reads: the classes of the
-/// models module.
-pub fn resolve(resolver: &Resolver, config: &ModelConfig) -> Result<(Vec<Enum>, Vec<Model>)> {
+/// models module. A table with a problem is a model without the fields that
+/// have one, so that the queries of it are still checked.
+pub fn resolve(
+    resolver: &Resolver,
+    config: &ModelConfig,
+    problems: &mut Problems,
+) -> (Vec<Enum>, Vec<Model>) {
     let mut enums = Vec::new();
     let mut models = Vec::new();
     for schema in resolver.catalog.user_schemas() {
         for sql_enum in &schema.enums {
+            let what = format!("enum \"{}\"", sql_enum.name);
             enums.push(Enum {
                 name: resolver.class_name(schema, &sql_enum.name),
                 comment: sql_enum.comment.clone(),
-                members: (members(&sql_enum.vals))
-                    .with_context(|| format!("enum \"{}\"", sql_enum.name))?,
+                members: problems
+                    .take(&what, members(&sql_enum.vals))
+                    .unwrap_or_default(),
             });
         }
         for table in &schema.tables {
             let relation = table.rel.clone().unwrap_or_default();
-            let fields = (resolver.fields(&table.columns))
-                .with_context(|| format!("table \"{}\"", relation.name))?;
+            let what = format!("table \"{}\"", relation.name);
+            let fields = resolver.fields(&table.columns, &what, problems);
             models.push(Model {
                 name: resolver.model_name(schema, &relation.name, config),
                 comment: table.comment.clone(),
@@ -114,21 +123,26 @@ pub fn resolve(resolver: &Resolver, config: &ModelConfig) -> Result<(Vec<Enum>, 
         .chain(models.iter().map(|m| m.name.as_str()))
         .collect();
     classes.sort_unstable();
-    if let Some(name) = classes.iter().find(|name| !python::is_public_name(name)) {
-        bail!("`{name}` is not a usable Python class name; rename the table or type");
+    for name in classes.iter().filter(|name| !python::is_class_name(name)) {
+        problems.note(anyhow!(
+            "`{name}` is not a usable Python class name, one in CapWords that hides no builtin; \
+             rename the table or type"
+        ));
     }
     // A class called `Decimal` would replace the import every `Decimal`
     // annotation means.
-    if let Some(name) = classes.iter().find(|name| python::is_imported(name)) {
-        bail!("`{name}` is a name generated code imports; rename the table or type");
+    for name in classes.iter().filter(|name| python::is_imported(name)) {
+        problems.note(anyhow!(
+            "`{name}` is a name generated code imports; rename the table or type"
+        ));
     }
-    if let Some(pair) = classes.windows(2).find(|pair| pair[0] == pair[1]) {
-        bail!(
+    for pair in classes.windows(2).filter(|pair| pair[0] == pair[1]) {
+        problems.note(anyhow!(
             "more than one table or type would be the Python class `{}`; rename one",
             pair[0]
-        );
+        ));
     }
-    Ok((enums, models))
+    (enums, models)
 }
 
 impl FieldType {
@@ -183,6 +197,9 @@ pub struct Resolver<'a> {
     /// Whether sqlc analysed the queries on a database.
     database: bool,
     backend: Backend,
+    /// The rename keys and overrides (by index) something matched: any
+    /// other is a typo, which would silently do nothing.
+    used: RefCell<(BTreeSet<&'a str>, BTreeSet<usize>)>,
 }
 
 impl<'a> Resolver<'a> {
@@ -197,26 +214,48 @@ impl<'a> Resolver<'a> {
             rename: &config.rename,
             database: config.database_analysis,
             backend: config.backend,
+            used: RefCell::default(),
         })
+    }
+
+    /// An error for a rename key or an override that matched nothing.
+    pub fn check_used(&self) -> Result<()> {
+        let (keys, overrides) = &*self.used.borrow();
+        if let Some(key) = self.rename.keys().find(|key| !keys.contains(key.as_str())) {
+            bail!("rename: \"{key}\" names no table, type, column or parameter of the queries");
+        }
+        if let Some(i) = (0..self.overrides.len()).find(|i| !overrides.contains(i)) {
+            bail!("overrides[{i}]: matches no column or parameter of the queries");
+        }
+        Ok(())
+    }
+
+    /// The rename of `key`, if any, noted as used.
+    fn rename(&self, key: &str) -> Option<&'a str> {
+        let (key, renamed) = self.rename.get_key_value(key)?;
+        self.used.borrow_mut().0.insert(key);
+        Some(renamed)
     }
 
     /// The name SQL name `sql` is spelt with in Python: its `rename`, or
     /// itself.
     pub fn spelling<'s>(&'s self, sql: &'s str) -> &'s str {
-        self.rename.get(sql).map_or(sql, String::as_str)
+        self.rename(sql).unwrap_or(sql)
+    }
+
+    /// The class `name`, declared in `schema`, is renamed to, if any: by
+    /// `schema.name`, or bare in the default schema.
+    fn renamed_class(&self, schema: &plugin::Schema, name: &str) -> Option<&'a str> {
+        (self.rename(&format!("{}.{name}", schema.name)))
+            .or_else(|| (schema.name == self.catalog.default_schema).then(|| self.rename(name))?)
     }
 
     /// The class name for something declared in `schema`, unless renamed.
     /// Objects in the default schema keep their bare name; everything else is
     /// qualified, so `analytics.event` becomes `AnalyticsEvent`.
     fn class_name(&self, schema: &plugin::Schema, name: &str) -> String {
-        let qualified = format!("{}.{name}", schema.name);
-        if let Some(renamed) = (self.rename.get(&qualified)).or_else(|| {
-            (schema.name == self.catalog.default_schema)
-                .then(|| self.rename.get(name))
-                .flatten()
-        }) {
-            return renamed.clone();
+        if let Some(renamed) = self.renamed_class(schema, name) {
+            return renamed.into();
         }
         match schema.name == self.catalog.default_schema {
             true => name.to_upper_camel_case(),
@@ -227,11 +266,16 @@ impl<'a> Resolver<'a> {
     /// The override of `column`, of type `data_type`, if any: one naming
     /// the column itself first, then one naming its type.
     fn overridden(&self, column: &plugin::Column, data_type: &str) -> Option<&'a Override> {
+        // A type as an override names it: bare for PostgreSQL's own or the
+        // default schema's.
+        let default = format!("{}.", self.catalog.default_schema);
         let plain = |name: &str| {
             let name = name.to_ascii_lowercase();
-            name.strip_prefix("pg_catalog.")
-                .map(String::from)
-                .unwrap_or(name)
+            (name
+                .strip_prefix("pg_catalog.")
+                .or_else(|| name.strip_prefix(&default)))
+            .map(String::from)
+            .unwrap_or(name)
         };
         let of = |rule: &&Override| {
             let table = column.table.as_ref()?;
@@ -244,24 +288,26 @@ impl<'a> Resolver<'a> {
                 schema => schema,
             };
             let named = rule.column.as_deref()?;
-            (named == format!("{}.{name}", table.name)
+            // A bare `table.column` is the default schema's.
+            ((named == format!("{}.{name}", table.name) && *schema == self.catalog.default_schema)
                 || named == format!("{schema}.{}.{name}", table.name))
             .then_some(())
         };
-        (self.overrides.iter().find(|rule| of(rule).is_some())).or_else(|| {
-            (self.overrides.iter()).find(|rule| {
+        let i = (self.overrides.iter().position(|rule| of(&rule).is_some())).or_else(|| {
+            (self.overrides.iter()).position(|rule| {
                 rule.db_type
                     .as_deref()
                     .is_some_and(|ty| plain(ty) == plain(data_type))
             })
-        })
+        })?;
+        self.used.borrow_mut().1.insert(i);
+        Some(&self.overrides[i])
     }
 
     /// The class name for a table, singularised unless the user opted out.
     fn model_name(&self, schema: &plugin::Schema, table: &str, config: &ModelConfig) -> String {
-        let renamed = [format!("{}.{table}", schema.name), table.to_string()];
-        if renamed.iter().any(|name| self.rename.contains_key(name)) {
-            return self.class_name(schema, table);
+        if let Some(renamed) = self.renamed_class(schema, table) {
+            return renamed.into();
         }
         match config.is_inflection_excluded(table) {
             true => self.class_name(schema, table),
@@ -269,14 +315,19 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    /// A table's columns, as fields in column order.
-    fn fields(&self, columns: &[plugin::Column]) -> Result<Vec<Field>> {
+    /// A table's columns, as fields in column order, each one's problem
+    /// noted under `what` instead.
+    fn fields(
+        &self,
+        columns: &[plugin::Column],
+        what: &str,
+        problems: &mut Problems,
+    ) -> Vec<Field> {
         let spellings: Vec<&str> = columns.iter().map(|c| self.spelling(&c.name)).collect();
-        (names(&spellings, Repeats::Forbidden)?
-            .into_iter()
-            .zip(columns))
-        .map(|(name, column)| self.field(name, column))
-        .collect()
+        let names = problems.take(what, names(&spellings, Repeats::Forbidden));
+        (names.unwrap_or_default().into_iter().zip(columns))
+            .filter_map(|(name, column)| problems.take(what, self.field(name, column)))
+            .collect()
     }
 
     /// `column` as the field `name`. A column sqlc left unnamed is described
@@ -288,7 +339,8 @@ impl<'a> Resolver<'a> {
         };
         // sqlc reports every cast NOT NULL, so one of a nullable value lies.
         let cast = format!(
-            "{} if it can be NULL, since sqlc reports every cast NOT NULL",
+            "{}, or {} if it can be NULL, as sqlc reports every cast NOT NULL",
+            self.engine.cast("<expr>"),
             self.engine.cast("coalesce(<expr>, <default>)")
         );
         // sqlc reports `coalesce(x, ...)` as the column `x`, but NOT NULL: the
@@ -298,7 +350,17 @@ impl<'a> Resolver<'a> {
             && !self.database
             && self.source(column).is_some_and(|source| !source.not_null)
         {
-            bail!("column \"{described}\" has a type sqlc could not infer; add a cast, as {cast}")
+            bail!(
+                "column \"{described}\" has a type sqlc could not infer; add a cast, as {}",
+                self.engine.cast("coalesce(<expr>, <default>)")
+            )
+        }
+        if self.engine.is_untyped_expression(column) {
+            bail!(
+                "column \"{described}\" is an expression sqlc typed by its form, not its operands; \
+                 add a cast, as {}",
+                self.engine.cast("<expr>")
+            )
         }
         Ok(Field {
             ty: self.field_type(column, &format!("column \"{described}\""), &cast)?,
@@ -327,47 +389,56 @@ impl<'a> Resolver<'a> {
     /// [`Engine::is_guess`]'s to tell (`docs/python-output.md` §5, rule 2).
     pub fn field_type(&self, column: &plugin::Column, what: &str, cast: &str) -> Result<FieldType> {
         let data_type = column.data_type();
-        if let Some(rule) = self.overridden(column, &data_type) {
-            let json = match self.engine.scalar_type(column) {
-                Some(Type::Json(json)) => Some(json),
-                _ => None,
-            };
-            return Ok(FieldType {
-                element: Type::Custom {
-                    annotation: rule.python_type.clone(),
-                    json,
-                },
-                array_dims: column.array_dims as usize,
-                optional: !column.not_null,
-            });
-        }
-        // On a database, PostgreSQL resolved a function call's type too.
-        if (column.is_func_call && !self.database)
-            || self.engine.is_guess(&data_type, self.database)
-        {
-            bail!("{what} has a type sqlc could not infer; add a cast, as {cast}")
-        }
-        let Some(element) = (self.engine.scalar_type(column))
-            .or_else(|| self.backend.scalar_type(self.engine, &data_type))
-            .or_else(|| self.declared_type(&data_type))
-        else {
-            // sqlc sends a domain's name, never its base type.
-            let domain =
-                match self.engine == Engine::PostgreSql && !data_type.starts_with("pg_catalog.") {
-                    false => "",
-                    true => {
-                        "; for a domain, declare the column with its base type and a CHECK \
-                          constraint"
-                    }
-                };
-            bail!("{what} has type \"{data_type}\", which has no verified Python mapping{domain}")
-        };
-        if let Some(sql_enum) = self.declared_enum(&data_type)
-            && let Some(problem) = self.engine.enum_problem(column, &sql_enum.vals)
-        {
-            bail!("{what} {problem}")
-        }
+        let sql_enum = self.declared_enum(&data_type);
         let array_dims = column.array_dims as usize;
+        // An override replaces the element's type, and its array is still
+        // the array the driver returns.
+        let element = match self.overridden(column, &data_type) {
+            Some(_) if sql_enum.is_some() && array_dims > 0 => {
+                bail!(
+                    "{what} is an array of enum \"{data_type}\", whose elements a driver may return as the array's text; an override cannot replace them"
+                )
+            }
+            Some(rule) => Type::Custom {
+                annotation: rule.python_type.clone(),
+                json: match self.engine.scalar_type(column) {
+                    Some(Type::Json(json)) => Some(json),
+                    _ => None,
+                },
+            },
+            None => {
+                // On a database, PostgreSQL resolved a function call's type too.
+                if column.is_func_call && !self.database {
+                    bail!(
+                        "{what} is a function's result, which sqlc types by the function's first \
+                         overload whatever its arguments (sum() of a numeric column as bigint); \
+                         add a cast, as {cast}{}",
+                        self.engine.analyses()
+                    )
+                }
+                if self.engine.is_guess(&data_type, self.database) {
+                    bail!("{what} has a type sqlc could not infer; add a cast, as {cast}")
+                }
+                let Some(element) = (self.engine.scalar_type(column))
+                    .or_else(|| self.backend.scalar_type(self.engine, &data_type))
+                    .or_else(|| self.declared_type(&data_type))
+                else {
+                    let hint = self.engine.unmapped(&data_type);
+                    let default = format!("{}.", self.catalog.default_schema);
+                    let named = data_type.strip_prefix(&default).unwrap_or(&data_type);
+                    bail!(
+                        "{what} has type \"{data_type}\", which has no verified Python mapping; \
+                         name its Python type with an override (db_type \"{named}\"){hint}"
+                    )
+                };
+                if let Some(sql_enum) = sql_enum
+                    && let Some(problem) = self.engine.enum_problem(column, &sql_enum.vals)
+                {
+                    bail!("{what} {problem}")
+                }
+                element
+            }
+        };
         if column.is_array && array_dims == 0 {
             bail!("{what} is an array, but sqlc reported no array depth for it")
         }
@@ -423,14 +494,17 @@ const RESERVED: &[&str] = &[
     "classmethod",
     "conn",
     "cur",
+    "dict",
     "float",
     "from_row",
     "int",
+    "len",
     "list",
     "object",
     "row",
     "rows",
     "str",
+    "tuple",
     "value",
 ];
 

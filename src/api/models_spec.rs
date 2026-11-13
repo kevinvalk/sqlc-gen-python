@@ -325,7 +325,7 @@ fn a_type_nothing_declares_is_an_error_naming_the_column() {
 
     assert_eq!(
         format!("{error:#}"),
-        r#"table "odd": column "value" has type "amount", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint"#
+        r#"table "odd": column "value" has type "amount", which has no verified Python mapping; name its Python type with an override (db_type "amount"), or, for a domain, declare the column with its base type and a CHECK constraint"#
     );
 }
 
@@ -720,4 +720,153 @@ fn a_rename_names_a_class_or_a_field() {
         .map(|f| f.name.as_str())
         .collect();
     assert_eq!(names, ["id", "spotify_link"]);
+}
+
+#[test]
+fn an_override_is_written_as_ruff_writes_it() {
+    // A comment would otherwise swallow the ` | None` written after it.
+    let config = options(r#""overrides": [{"db_type": "vector", "python_type": "app.T  # note"}]"#);
+    assert_eq!(config.overrides[0].python_type, "app.T");
+    let nullable = plugin::Column {
+        not_null: false,
+        ..column("v", "vector")
+    };
+    let schemas = public(vec![table("items", vec![nullable])]);
+    let api = resolve_options(schemas, &config).unwrap();
+    assert_eq!(annotations(&api), [("v".into(), "app.T | None".into())]);
+}
+
+#[test]
+fn an_override_names_only_types_generated_code_can_import_as_written() {
+    let error = |python_type: &str| {
+        let request = plugin::GenerateRequest {
+            plugin_options: format!(
+                r#"{{"backend": "sqlalchemy", "async": false, "overrides": [{{"db_type": "x", "python_type": "{python_type}"}}]}}"#
+            )
+            .into_bytes(),
+            ..plugin::GenerateRequest::default()
+        };
+        Config::from_request(&request)
+            .err()
+            .map(|e| format!("{e:#}"))
+    };
+    for (bad, problem) in [
+        ("numpy.typing.NDArray[numpy.float64]", "ICN001"),
+        ("pandas.Series", "ICN001"),
+        ("datetime.date", "ICN001"),
+        ("models.Account", "generated code binds"),
+        ("sqlalchemy.Text", "generated code binds"),
+        ("dt.date.max", "generated code binds"),
+        ("Any", "neither a builtin"),
+        ("Sequence[int]", "neither a builtin"),
+    ] {
+        let error = error(bad).unwrap_or_default();
+        assert!(error.contains(problem), "{bad}: {error}");
+    }
+    for good in [
+        "dt.date",
+        "Decimal",
+        "UUID",
+        "list[app.T] | None",
+        "IPv4Network",
+    ] {
+        assert_eq!(error(good), None, "{good}");
+    }
+}
+
+#[test]
+fn an_override_or_rename_that_matches_nothing_is_an_error() {
+    let schemas = || public(vec![table("items", vec![column("id", "pg_catalog.int8")])]);
+    for (json, problem) in [
+        (
+            r#""overrides": [{"db_type": "vectr", "python_type": "str"}]"#,
+            "overrides[0]",
+        ),
+        (
+            r#""overrides": [{"column": "item.id", "python_type": "str"}]"#,
+            "overrides[0]",
+        ),
+        (r#""rename": {"itms": "Thing"}"#, "rename: \"itms\""),
+    ] {
+        let error = format!(
+            "{:#}",
+            resolve_options(schemas(), &options(json)).unwrap_err()
+        );
+        assert!(error.contains(problem), "{json}: {error}");
+    }
+}
+
+#[test]
+fn a_bare_table_column_override_is_the_default_schemas() {
+    let v = plugin::Column {
+        table: Some(plugin::Identifier {
+            schema: "other".into(),
+            name: "items".into(),
+            ..plugin::Identifier::default()
+        }),
+        ..column("v", "vector")
+    };
+    let schemas = vec![sql_schema("other", vec![table("items", vec![v])], vec![])];
+    let bare = options(r#""overrides": [{"column": "items.v", "python_type": "str"}]"#);
+    assert!(resolve_options(schemas.clone(), &bare).is_err());
+    let qualified = options(r#""overrides": [{"column": "other.items.v", "python_type": "str"}]"#);
+    assert!(resolve_options(schemas, &qualified).is_ok());
+}
+
+#[test]
+fn an_override_replaces_no_array_of_enums() {
+    let mut moods = column("moods", "mood");
+    moods.array_dims = 1;
+    moods.is_array = true;
+    let schemas = vec![sql_schema(
+        "public",
+        vec![table("people", vec![moods])],
+        vec![plugin::Enum {
+            name: "mood".into(),
+            vals: vec!["happy".into()],
+            ..Default::default()
+        }],
+    )];
+    let config = options(r#""overrides": [{"db_type": "mood", "python_type": "str"}]"#);
+    let error = format!("{:#}", resolve_options(schemas, &config).unwrap_err());
+    assert!(error.contains("an override cannot replace them"), "{error}");
+}
+
+#[test]
+fn a_class_is_capwords_and_hides_no_builtin() {
+    let error = |schemas: Vec<plugin::Schema>, json: &str| {
+        format!(
+            "{:#}",
+            resolve_options(schemas, &options(json)).unwrap_err()
+        )
+    };
+    let warnings = || {
+        public(vec![table(
+            "warnings",
+            vec![column("id", "pg_catalog.int8")],
+        )])
+    };
+    assert!(error(warnings(), r#""rename": {}"#).contains("`Warning` is not a usable"));
+    let renamed = error(warnings(), r#""rename": {"warnings": "warning_row"}"#);
+    assert!(
+        renamed.contains("`warning_row` is not a usable"),
+        "{renamed}"
+    );
+}
+
+#[test]
+fn no_field_takes_the_name_of_a_module_an_override_imports() {
+    let schemas = public(vec![table("items", vec![column("app", "vector")])]);
+    let config = options(r#""overrides": [{"db_type": "vector", "python_type": "app.T"}]"#);
+    let error = format!("{:#}", resolve_options(schemas, &config).unwrap_err());
+    assert!(error.contains("`app` would hide the module"), "{error}");
+}
+
+#[test]
+fn a_bare_db_type_override_names_the_default_schemas_type_too() {
+    // sqlc reports an extension's type created in `public` as `public.vector`.
+    let schemas = public(vec![table("items", vec![column("v", "public.vector")])]);
+    let config = options(r#""overrides": [{"db_type": "vector", "python_type": "str"}]"#);
+    let api = resolve_options(schemas, &config).unwrap();
+    assert_eq!(annotations(&api), [("v".into(), "str".into())]);
 }

@@ -13,10 +13,9 @@ correct against a live database.
 import importlib
 import inspect
 import os
+import pkgutil
 import sys
 from collections.abc import Iterator
-from dataclasses import dataclass
-from functools import cached_property
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -24,12 +23,10 @@ from typing import Any
 import postgres
 import pytest
 import sqlalchemy
-from examples import EXAMPLES, GoldenCase, golden_case, golden_cases
+from examples import GoldenCase, golden_cases
 
 ROOT = Path(__file__).resolve().parents[3]
 CASES = Path(os.environ["SQLC_CASES"]) if "SQLC_CASES" in os.environ else None
-# Each example's schema is `SCHEMAS / <example> / "schema.sql"`.
-SCHEMAS = EXAMPLES
 
 # Each case is a package named for it: in `CASES`, or beside its example's SQL.
 for path in [CASES] if CASES else sorted({c.dir.parent for c in golden_cases()}):
@@ -37,67 +34,39 @@ for path in [CASES] if CASES else sorted({c.dir.parent for c in golden_cases()})
 sys.dont_write_bytecode = True  # keep the golden cases free of __pycache__
 
 
-@dataclass(frozen=True)
-class Case:
-    """One golden case directory."""
-
-    dir: Path
-
-    @cached_property
-    def golden(self) -> GoldenCase:
-        return golden_case(self.dir.name)
-
-    @property
-    def name(self) -> str:
-        return self.dir.name
-
-    @property
-    def schema(self) -> str:
-        """The example the case is of."""
-        return self.golden.example
-
-    @property
-    def backend(self) -> str:
-        backend: str = self.golden.options["backend"]
-        return backend
-
-    @property
-    def is_async(self) -> bool:
-        return bool(self.golden.options["async"])
-
-    def module(self, stem: str) -> ModuleType:
-        return importlib.import_module(f"{self.name}.{stem}")
-
-    def query_modules(self) -> list[str]:
-        """The module of each query file."""
-        stems = {path.stem for path in self.dir.glob("*.py")}
-        return sorted(stems - {"__init__", "models"})
-
-    def functions(self, stem: str) -> dict[str, Any]:
-        """The public functions of query file ``stem``: coroutines in an async
-        case.
-        """
-        module = self.module(stem)
-        return {
-            name: fn
-            for name, fn in inspect.getmembers(module, inspect.isfunction)
-            if fn.__module__ == module.__name__ and not name.startswith("_")
-        }
-
-
-def cases(schema: str = "invoicing") -> list[Case]:
-    """The cases of ``schema``: the suite is written for the invoicing and
-    ledger fixtures. The other golden cases beside them are for the static
-    gate and the runtime sweep.
+def cases(example: str = "invoicing") -> list[GoldenCase]:
+    """The cases of ``example``: the suite is written for the invoicing,
+    ledger, billing and custom fixtures. The other golden cases beside them
+    are for the static gate and the runtime sweep.
     """
-    return [
-        Case(CASES / golden.name if CASES else golden.dir)
-        for golden in golden_cases()
-        if golden.example == schema
-    ]
+    return [case for case in golden_cases() if case.example == example]
 
 
-def queries(case: Case, conn: object, called: set[str]) -> Any:  # noqa: ANN401
+def module(case: GoldenCase, stem: str) -> ModuleType:
+    """The case's module ``stem``."""
+    return importlib.import_module(f"{case.name}.{stem}")
+
+
+def query_modules(case: GoldenCase) -> list[str]:
+    """The module of each query file."""
+    package = importlib.import_module(case.name)
+    stems = {info.name for info in pkgutil.iter_modules(package.__path__)}
+    return sorted(stems - {"models"})
+
+
+def public_functions(case: GoldenCase, stem: str) -> dict[str, Any]:
+    """The public functions of query file ``stem``: coroutines in an async
+    case.
+    """
+    found = module(case, stem)
+    return {
+        name: fn
+        for name, fn in inspect.getmembers(found, inspect.isfunction)
+        if fn.__module__ == found.__name__ and not name.startswith("_")
+    }
+
+
+def queries(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
     """The case's API on ``conn``: ``await api.<module>.<function>(...)`` runs
     a sync or an async case alike, each function checked by `deep.checked`, which records it in
     ``called``. Every module's names are there too (``api.<module>.<Row>``),
@@ -115,19 +84,18 @@ def queries(case: Case, conn: object, called: set[str]) -> Any:  # noqa: ANN401
         return call
 
     modules = {}
-    for stem in case.query_modules():
-        functions = case.functions(stem)
-        bound = {name: bind(fn) for name, fn in functions.items()}
-        modules[stem] = SimpleNamespace(**{**vars(case.module(stem)), **bound})
-    return SimpleNamespace(models=case.module("models"), **modules)
+    for stem in query_modules(case):
+        bound = {name: bind(fn) for name, fn in public_functions(case, stem).items()}
+        modules[stem] = SimpleNamespace(**{**vars(module(case, stem)), **bound})
+    return SimpleNamespace(models=module(case, "models"), **modules)
 
 
-def functions(case: Case) -> set[str]:
+def functions(case: GoldenCase) -> set[str]:
     """Every public function of the case's API, as `deep.checked` names it."""
     return {
         f"{fn.__module__}.{fn.__qualname__}"
-        for stem in case.query_modules()
-        for fn in case.functions(stem).values()
+        for stem in query_modules(case)
+        for fn in public_functions(case, stem).values()
     }
 
 
@@ -153,7 +121,6 @@ def pytest_sessionfinish(session: pytest.Session) -> None:
 @pytest.fixture(scope="session")
 def database(server: sqlalchemy.URL) -> Iterator[sqlalchemy.URL]:
     """A database holding the invoicing schema, dropped afterwards."""
-    with postgres.database(
-        server, (SCHEMAS / "invoicing/schema.sql").read_text()
-    ) as url:
+    schema = next(c for c in golden_cases() if c.example == "invoicing").schema_sql
+    with postgres.database(server, schema.read_text()) as url:
         yield url

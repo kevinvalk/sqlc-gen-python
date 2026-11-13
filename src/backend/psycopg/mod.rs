@@ -1,23 +1,30 @@
 //! psycopg 3, on PostgreSQL: each statement runs on a raw cursor, which takes
 //! PostgreSQL's own `$N` placeholders (`docs/python-output.md` §6).
 
-use super::dbapi::Driver;
+use super::dbapi::{Api, Driver};
 use crate::api::models::Field;
 use crate::python::{Json, Type};
 
 /// A raw cursor of tuples, whatever the connection's row factory.
 pub const DRIVER: Driver = Driver {
-    connection: ["psycopg.Connection[Any]", "psycopg.AsyncConnection[Any]"],
-    cursor: [
-        "psycopg.RawCursor(conn, row_factory=tuple_row)",
-        "psycopg.AsyncRawCursor(conn, row_factory=tuple_row)",
-    ],
-    cursor_type: [
-        "psycopg.RawCursor[tuple[Any, ...]]",
-        "psycopg.AsyncRawCursor[tuple[Any, ...]]",
-    ],
+    sync: Api {
+        connection: "psycopg.Connection[Any]",
+        closing: "psycopg.RawCursor(conn, row_factory=tuple_row)",
+        cursor: "psycopg.RawCursor(conn, row_factory=tuple_row)",
+        cursor_type: "psycopg.RawCursor[tuple[Any, ...]]",
+        setup: None,
+    },
+    asynchronous: Some(Api {
+        connection: "psycopg.AsyncConnection[Any]",
+        closing: "psycopg.AsyncRawCursor(conn, row_factory=tuple_row)",
+        cursor: "psycopg.AsyncRawCursor(conn, row_factory=tuple_row)",
+        cursor_type: "psycopg.AsyncRawCursor[tuple[Any, ...]]",
+        setup: None,
+    }),
     placeholder: None,
+    formats: false,
     execute_counts: false,
+    pipelines: true,
     // PostgreSQL has no `sqlc.slice`.
     no_rows: "",
     bind,
@@ -26,17 +33,8 @@ pub const DRIVER: Driver = Driver {
     copies: true,
 };
 
-/// psycopg's range classes, by the range's PostgreSQL type, with the type of
-/// its bounds; and the types whose value psycopg returns as its text, where
-/// asyncpg returns an object of its own (`tests/python/typemap.py`).
-const RANGES: &[(&str, &str)] = &[
-    ("int4range", "int"),
-    ("int8range", "int"),
-    ("numrange", "Decimal"),
-    ("daterange", "dt.date"),
-    ("tsrange", "dt.datetime"),
-    ("tstzrange", "dt.datetime"),
-];
+/// The types whose value psycopg returns as its text, where asyncpg returns
+/// an object of its own (`tests/python/typemap.py`).
 const TEXT: &[&str] = &[
     "hstore", "bit", "varbit", "point", "line", "lseg", "box", "path", "polygon", "circle", "cid",
     "xid", "xid8", "tid", "pg_lsn",
@@ -46,7 +44,7 @@ const TEXT: &[&str] = &[
 /// alone decides.
 pub fn scalar_type(data_type: &str) -> Option<Type> {
     let name = data_type.strip_prefix("pg_catalog.").unwrap_or(data_type);
-    if let Some((_, bound)) = RANGES.iter().find(|(range, _)| *range == name) {
+    if let Some((bound, _)) = super::range(name) {
         return Some(Type::Library {
             annotation: format!("Range[{bound}]"),
             sql_type: None,

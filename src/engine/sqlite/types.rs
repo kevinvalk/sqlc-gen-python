@@ -13,44 +13,22 @@ use crate::python::Type;
 #[path = "types_spec.rs"]
 mod spec;
 
-/// The Python type of a column declared `data_type`, as sqlc spells it, or
-/// `None`.
+/// The Python type of a column declared `data_type`, as sqlc spells it: the
+/// class of SQLite's affinity for it, by SQLite's own rules, or `None` for
+/// NUMERIC affinity (`DECIMAL`, `DATE`, `JSON`), which stores `'2024'` as an
+/// integer and `'12.50'` as a real, whatever the column was meant to hold.
 ///
-/// Not mapped: `NUMERIC` and `DECIMAL`, whose affinity stores `12.50` as the
-/// float `12.5`, and any type of no affinity sqlc's Go codegen knows.
+/// A `BOOL` or `BOOLEAN` is NUMERIC too, but generated code binds a `bool`,
+/// which `sqlite3` stores as the integer `0` or `1`.
 pub fn scalar_type(data_type: &str) -> Option<Type> {
-    let name = data_type.to_ascii_lowercase();
-    let strings = [
-        "character",
-        "varchar",
-        "varyingcharacter",
-        "nchar",
-        "nativecharacter",
-        "nvarchar",
-        "text",
-        "clob",
-    ];
+    let name = data_type.to_ascii_uppercase();
+    let has = |part: &str| name.contains(part);
     Some(match name.as_str() {
-        "int" | "integer" | "tinyint" | "smallint" | "mediumint" | "bigint" | "unsignedbigint"
-        | "int2" | "int8" => Type::INT,
-        "real" | "double" | "doubleprecision" | "float" => Type::FLOAT,
-        "blob" => Type::BYTES,
-        // Stored as the integer `0` or `1`.
-        "bool" | "boolean" => Type::BOOL_FROM_INT,
-        // SQLite has no date or JSON type: the text written is read back.
-        "date" | "datetime" | "timestamp" | "json" | "jsonb" => Type::STR,
-        name if strings.iter().any(|prefix| name.starts_with(prefix)) => Type::STR,
+        _ if has("INT") => Type::INT,
+        _ if has("CHAR") || has("CLOB") || has("TEXT") => Type::STR,
+        _ if has("BLOB") => Type::BYTES,
+        _ if has("REAL") || has("FLOA") || has("DOUB") => Type::FLOAT,
+        "BOOL" | "BOOLEAN" => Type::BOOL_FROM_INT,
         _ => return None,
     })
-}
-
-/// SQLite has no arrays.
-pub fn array_problem(_data_type: &str) -> Option<&'static str> {
-    Some("SQLite does not have")
-}
-
-/// Whether `data_type` is sqlc's guess rather than a type it read: `any` for
-/// an expression it could not type, or nothing.
-pub fn is_guess(data_type: &str, _database: bool) -> bool {
-    ["", "any"].contains(&data_type.to_ascii_lowercase().as_str())
 }

@@ -4,7 +4,7 @@
 
 use anyhow::{Result, bail};
 
-use crate::engine::{Engine, Sql, cut};
+use crate::engine::{Bind, Engine, Sql, cut};
 
 #[cfg(test)]
 #[path = "lexer_spec.rs"]
@@ -15,7 +15,7 @@ mod spec;
 /// one past the largest number before it. A named parameter (`:name`,
 /// `@name`, `$name`) is an error: sqlc rewrites each one it reads, and a
 /// driver binds positions.
-pub fn sql(text: &str, params: &[(i32, &str)]) -> Result<Sql> {
+pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
     let chars: Vec<char> = text.chars().collect();
     let mut placeholders = Vec::new();
     let mut largest = 0;

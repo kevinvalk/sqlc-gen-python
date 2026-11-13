@@ -38,9 +38,36 @@ pub enum Piece {
     /// Text, as sqlc wrote it.
     Text(String),
     /// A placeholder as sqlc wrote it (`$1`, `?`, `?2`), of the parameter
-    /// Python names `name`. A `sqlc.slice` is `/*SLICE:name*/?`, whose `?`
-    /// stands for as many as the list has items.
+    /// Python names `name`.
     Param { placeholder: String, name: String },
+    /// A `sqlc.slice`'s placeholder, after the marker sqlc writes before it
+    /// (`/*SLICE:ids*/`): it stands for one placeholder per item of the list.
+    Slice {
+        marker: String,
+        placeholder: String,
+        name: String,
+    },
+}
+
+/// A parameter sqlc reported, as [`Engine::sql`] binds it: its number, its
+/// Python name, and, for a `sqlc.slice`, sqlc's name of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bind<'a> {
+    pub number: i32,
+    pub name: &'a str,
+    pub slice: Option<&'a str>,
+}
+
+/// Plain parameters, numbered and named, as a spec writes them.
+#[cfg(test)]
+pub fn binds<'a>(params: &[(i32, &'a str)]) -> Vec<Bind<'a>> {
+    (params.iter())
+        .map(|&(number, name)| Bind {
+            number,
+            name,
+            slice: None,
+        })
+        .collect()
 }
 
 impl Sql {
@@ -51,9 +78,20 @@ impl Sql {
                 Piece::Text(text)
                 | Piece::Param {
                     placeholder: text, ..
-                } => text.as_str(),
+                } => text.clone(),
+                Piece::Slice {
+                    marker,
+                    placeholder,
+                    ..
+                } => format!("{marker}{placeholder}"),
             })
             .collect()
+    }
+
+    /// Whether the parameter Python names `name` is a `sqlc.slice`.
+    pub fn is_slice(&self, name: &str) -> bool {
+        (self.0.iter())
+            .any(|piece| matches!(piece, Piece::Slice { name: slice, .. } if slice == name))
     }
 }
 
@@ -126,12 +164,49 @@ impl Engine {
     }
 
     /// Whether `data_type` is sqlc's guess rather than a type it read, if the
-    /// queries were analysed on a `database` or else statically.
+    /// queries were analysed on a `database` or else statically: on MySQL and
+    /// SQLite, `any` for an expression it could not type, or nothing.
     pub fn is_guess(self, data_type: &str, database: bool) -> bool {
         match self {
             Self::PostgreSql => postgresql::is_guess(data_type, database),
-            Self::Sqlite => sqlite::is_guess(data_type, database),
-            Self::MySql => mysql::is_guess(data_type, database),
+            Self::Sqlite | Self::MySql => ["", "any"].contains(&data_type),
+        }
+    }
+
+    /// Whether a result `column` is an expression sqlc typed by its form, not
+    /// its operands: on MySQL and SQLite, arithmetic of any operands is `int`
+    /// (`price * 1.1` too), and MySQL's `1.0`, a `DECIMAL`, is `float`. A
+    /// cast is spelt as declared (`INTEGER`, `SIGNED`, `REAL`, `DOUBLE`).
+    pub fn is_untyped_expression(self, column: &plugin::Column) -> bool {
+        self != Self::PostgreSql
+            && column.table.is_none()
+            && ["int", "float"].contains(&column.data_type().as_str())
+    }
+
+    /// What to do about a column of `data_type` that has no Python type, for
+    /// an error to suggest, if anything.
+    pub fn unmapped(self, data_type: &str) -> &'static str {
+        match self {
+            // sqlc sends a domain's name, never its base type.
+            Self::PostgreSql if !data_type.starts_with("pg_catalog.") => {
+                ", or, for a domain, declare the column with its base type and a CHECK constraint"
+            }
+            Self::Sqlite => {
+                "; but SQLite stores a value of its NUMERIC affinity as whichever of an integer, \
+                 a real and text it looks like, so better declare it INTEGER, REAL, TEXT or BLOB"
+            }
+            _ => "",
+        }
+    }
+
+    /// How else to have sqlc type a function's result, for an error to
+    /// suggest, if there is a way.
+    pub fn analyses(self) -> &'static str {
+        match self {
+            Self::PostgreSql => {
+                "; or have sqlc analyse the queries on a database (database_analysis)"
+            }
+            Self::Sqlite | Self::MySql => "",
         }
     }
 
@@ -139,14 +214,14 @@ impl Engine {
     pub fn array_problem(self, data_type: &str) -> Option<&'static str> {
         match self {
             Self::PostgreSql => postgresql::array_problem(data_type),
-            Self::Sqlite => sqlite::array_problem(data_type),
-            Self::MySql => mysql::array_problem(data_type),
+            Self::Sqlite => Some("SQLite does not have"),
+            Self::MySql => Some("MySQL does not have"),
         }
     }
 
     /// sqlc's `text`, cut at its placeholders, each named as `params` name
     /// it; they must be exactly the parameters sqlc reported.
-    pub fn sql(self, text: &str, params: &[(i32, &str)]) -> Result<Sql> {
+    pub fn sql(self, text: &str, params: &[Bind]) -> Result<Sql> {
         match self {
             Self::PostgreSql => postgresql::sql(text, params),
             Self::Sqlite => sqlite::sql(text, params),
@@ -158,8 +233,8 @@ impl Engine {
     pub fn merges(self, sql: &str) -> bool {
         match self {
             Self::PostgreSql => postgresql::merges(sql),
-            Self::Sqlite => sqlite::merges(sql),
-            Self::MySql => mysql::merges(sql),
+            // Neither has `MERGE`.
+            Self::Sqlite | Self::MySql => false,
         }
     }
 
@@ -175,7 +250,8 @@ impl Engine {
 
 /// `chars` cut at its `placeholders`, each its range and the number of the
 /// parameter it binds, which `params` names: they must be exactly the
-/// parameters sqlc reported. Errors name a placeholder as `engine` does.
+/// parameters sqlc reported. A slice's placeholder must follow its marker.
+/// Errors name a placeholder as `engine` does.
 ///
 /// Either mismatch is an error: had a lexer taken a placeholder for text, the
 /// driver would bind its own placeholder there, which is silently another
@@ -183,16 +259,17 @@ impl Engine {
 fn cut(
     chars: &[char],
     placeholders: impl Iterator<Item = (Range<usize>, i32)>,
-    params: &[(i32, &str)],
+    params: &[Bind],
     engine: Engine,
 ) -> Result<Sql> {
     let placeholders: Vec<(Range<usize>, i32)> = placeholders.collect();
-    if let Some((number, name)) =
-        (params.iter()).find(|(number, _)| !placeholders.iter().any(|(_, found)| found == number))
+    if let Some(bind) =
+        (params.iter()).find(|bind| !placeholders.iter().any(|(_, found)| *found == bind.number))
     {
         bail!(
-            "sqlc reported parameter {} (\"{name}\"), but the SQL has no placeholder for it outside strings and comments",
-            engine.placeholder(*number)
+            "sqlc reported parameter {} (\"{}\"), but the SQL has no placeholder for it outside strings and comments",
+            engine.placeholder(bind.number),
+            bind.name
         );
     }
     let text = |range: Range<usize>| chars[range].iter().collect::<String>();
@@ -200,29 +277,31 @@ fn cut(
     let mut from = 0;
     for (range, number) in placeholders {
         let placeholder = text(range.clone());
-        let Some(&(_, name)) = params.iter().find(|(n, _)| *n == number) else {
+        let Some(bind) = params.iter().find(|bind| bind.number == number) else {
             bail!("the SQL uses {placeholder}, which sqlc reported no parameter for");
         };
-        // A `sqlc.slice` is its marker comment and its placeholder.
-        let before = text(from..range.start);
-        let marker = (before.rfind("/*SLICE:")).filter(|&at| {
-            before[at..].ends_with("*/") && !before[at + 2..before.len() - 2].contains("*/")
-        });
-        let (before, placeholder) = match marker {
-            Some(at) => (
-                before[..at].to_string(),
-                before[at..].to_string() + &placeholder,
-            ),
-            None => (before, placeholder),
+        let mut before = text(from..range.start);
+        from = range.end;
+        let name = bind.name.to_string();
+        let piece = match bind.slice {
+            None => Piece::Param { placeholder, name },
+            Some(slice) => {
+                let marker = format!("/*SLICE:{slice}*/");
+                let Some(kept) = before.strip_suffix(&marker) else {
+                    bail!("sqlc.slice({slice}) has no marker {marker} before its placeholder");
+                };
+                before = kept.to_string();
+                Piece::Slice {
+                    marker,
+                    placeholder,
+                    name,
+                }
+            }
         };
         if !before.is_empty() {
             pieces.push(Piece::Text(before));
         }
-        from = range.end;
-        pieces.push(Piece::Param {
-            placeholder,
-            name: name.into(),
-        });
+        pieces.push(piece);
     }
     if from < chars.len() {
         pieces.push(Piece::Text(text(from..chars.len())));

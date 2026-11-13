@@ -10,15 +10,14 @@ from __future__ import annotations
 
 import os
 import secrets
-import shutil
-import subprocess
-import sys
 import time
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import pymysql
 import sqlalchemy
+
+from containers import container
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -41,38 +40,12 @@ def server() -> Iterator[sqlalchemy.URL]:
     if given := os.environ.get(ENV):
         yield sqlalchemy.make_url(given).set(drivername="mysql+pymysql", database=None)
         return
-    docker = shutil.which("docker")
-    if (
-        docker is None
-        or subprocess.run([docker, "info"], capture_output=True, check=False).returncode
-    ):
-        sys.exit(f"a MySQL server is needed: start docker, or set {ENV}")
-
-    name = f"sqlcdx-mysql-{secrets.token_hex(4)}"
-    subprocess.run(
-        [
-            docker,
-            "run",
-            "--detach",
-            "--rm",
-            "--publish=127.0.0.1::3306",
-            f"--name={name}",
-            f"--env=MYSQL_ROOT_PASSWORD={PASSWORD}",
-            IMAGE,
-            "--skip-log-bin",
-            "--innodb-flush-log-at-trx-commit=0",
-        ],
-        check=True,
-        capture_output=True,
-    )
-    try:
-        published = subprocess.run(
-            [docker, "port", name, "3306/tcp"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-        port = int(published.splitlines()[0].rsplit(":", 1)[1])
+    args = [
+        f"--env=MYSQL_ROOT_PASSWORD={PASSWORD}",
+        IMAGE,
+        *["--skip-log-bin", "--innodb-flush-log-at-trx-commit=0"],
+    ]
+    with container("MySQL", ENV, 3306, args) as port:
         url = sqlalchemy.URL.create(
             "mysql+pymysql",
             username="root",
@@ -82,12 +55,6 @@ def server() -> Iterator[sqlalchemy.URL]:
         )
         wait_for(url)
         yield url
-    finally:
-        subprocess.run(
-            [docker, "rm", "--force", "--volumes", name],
-            capture_output=True,
-            check=False,
-        )
 
 
 def connect(url: sqlalchemy.URL) -> pymysql.Connection[pymysql.cursors.Cursor]:

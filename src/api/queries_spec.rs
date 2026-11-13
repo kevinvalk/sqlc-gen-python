@@ -58,6 +58,15 @@ fn try_resolve_all(queries: Vec<plugin::Query>) -> Result<Vec<Module>> {
 
 /// `queries`, resolved on `engine` against the `authors` catalog.
 fn try_resolve_on(engine: &str, queries: Vec<plugin::Query>) -> Result<Vec<Module>> {
+    try_resolve_with(engine, queries, &Config::of(Backend::SqlAlchemy))
+}
+
+/// The same, as `config` asks.
+fn try_resolve_with(
+    engine: &str,
+    queries: Vec<plugin::Query>,
+    config: &Config,
+) -> Result<Vec<Module>> {
     let request = plugin::GenerateRequest {
         settings: Some(plugin::Settings {
             engine: engine.into(),
@@ -91,7 +100,7 @@ fn try_resolve_on(engine: &str, queries: Vec<plugin::Query>) -> Result<Vec<Modul
         queries,
         ..Default::default()
     };
-    crate::api::resolve(&request, &Config::of(Backend::SqlAlchemy)).map(|api| api.modules)
+    crate::api::resolve(&request, config).map(|api| api.modules)
 }
 
 fn try_resolve(query: plugin::Query) -> Result<Query> {
@@ -173,6 +182,42 @@ fn a_query_file_whose_stem_is_no_lowercase_module_name_is_an_error() {
 }
 
 #[test]
+fn a_hyphen_in_a_query_files_name_is_an_underscore_unless_two_files_meet() {
+    let file = |filename: &str| plugin::Query {
+        filename: filename.into(),
+        ..query(":exec", "SELECT 1")
+    };
+    let modules = try_resolve_all(vec![file("ws-requests.sql")]).unwrap();
+    assert_eq!(modules[0].name, "ws_requests");
+    let error = format!(
+        "{:#}",
+        try_resolve_all(vec![file("a-b.sql"), file("a_b.sql")]).unwrap_err()
+    );
+    assert!(
+        error.contains(r#"both become the module "a_b.py""#),
+        "{error}"
+    );
+}
+
+#[test]
+fn every_problem_is_reported_at_once() {
+    let guessed = |name: &str| plugin::Query {
+        name: name.into(),
+        columns: vec![column("v", "int", true)],
+        ..query(":one", "SELECT 1")
+    };
+    let error = format!(
+        "{:#}",
+        try_resolve_all(vec![guessed("A"), guessed("B")]).unwrap_err()
+    );
+    assert!(error.starts_with("2 problems:"), "{error}");
+    assert!(
+        error.contains(r#"query "A""#) && error.contains(r#"query "B""#),
+        "{error}"
+    );
+}
+
+#[test]
 fn queries_that_spell_one_function_are_an_error() {
     let named = |name: &str| plugin::Query {
         name: name.into(),
@@ -229,7 +274,6 @@ fn a_query_is_a_snake_case_function_a_private_constant_and_perhaps_a_class() {
         ("get_author", "_GET_AUTHOR", None)
     );
     let copy = resolve(self::query(":copyfrom", "SELECT 1"));
-    assert_eq!(copy.command, Command::CopyFrom);
     assert_eq!(copy.rows.as_deref(), Some("GetAuthorParams"));
     let Command::One(Shape::Row(class, _)) = returning(
         ":one",
@@ -340,14 +384,18 @@ fn a_type_sqlc_only_guessed_is_an_error_that_asks_for_a_cast() {
     let through_subquery = column("s", "bigint", true);
     for column in [expression, call, through_cte, through_subquery] {
         let name = column.name.clone();
+        let call = column.is_func_call;
         let error = error(plugin::Query {
             columns: vec![column],
             ..query(":one", "SELECT 1")
         });
+        let problem = match call {
+            true => "is a function's result, which sqlc types by the function's first overload",
+            false => "has a type sqlc could not infer",
+        };
         assert!(
-            error.contains(&format!(
-                r#"column "{name}" has a type sqlc could not infer; add a cast, as coalesce("#
-            )),
+            error.contains(&format!(r#"column "{name}" {problem}"#))
+                && error.contains("add a cast, as <expr>::<type>, or coalesce("),
             "{error}"
         );
     }
@@ -420,7 +468,7 @@ fn placeholders_become_the_parameters_python_names() {
     let placeholders: Vec<&str> = (query.sql.0.iter())
         .filter_map(|piece| match piece {
             Piece::Param { name, .. } => Some(name.as_str()),
-            Piece::Text(_) => None,
+            _ => None,
         })
         .collect();
     assert_eq!(placeholders, ["from_", "column_2", "from_"]);
@@ -590,8 +638,9 @@ fn the_commands_that_return_no_rows_ignore_any_columns() {
     assert_eq!(returning(":exec", vec![]), Command::Exec);
     assert_eq!(returning(":execrows", vec![]), Command::ExecRows);
     assert_eq!(returning(":execresult", vec![]), Command::ExecResult);
+    // A `:copyfrom` is an `:exec` of each row.
     let copy = resolve(self::query(":copyfrom", "SELECT 1"));
-    assert_eq!(copy.command, Command::CopyFrom);
+    assert_eq!(copy.command, Command::Exec);
     assert_eq!(copy.rows.as_deref(), Some("GetAuthorParams"));
 }
 
@@ -766,7 +815,13 @@ fn a_name_the_user_chose_is_one_parameter_wherever_mysql_binds_it() {
     .unwrap();
     let names: Vec<&str> = resolved.params.iter().map(|p| p.name.as_str()).collect();
     assert_eq!(names, ["q"]);
-    assert_eq!(resolved.binds, ["q", "q"]);
+    let bound: Vec<&str> = (resolved.sql.0.iter())
+        .filter_map(|piece| match piece {
+            Piece::Param { name, .. } => Some(name.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(bound, ["q", "q"]);
     // Either use admitting NULL makes it optional.
     assert!(resolved.params[0].ty.optional);
     // Two uses of two types cannot be one parameter.
@@ -801,15 +856,16 @@ fn a_slice_is_a_list_of_its_type_bound_one_placeholder_per_item() {
         },
     )
     .unwrap();
-    assert_eq!(resolved.slices, ["ids"]);
+    assert!(resolved.sql.is_slice("ids"));
     assert_eq!(
         resolved.params[0]
             .ty
             .annotation(crate::python::Scope::Queries),
         "list[int]"
     );
-    assert!(resolved.sql.0.contains(&Piece::Param {
-        placeholder: "/*SLICE:ids*/?".into(),
+    assert!(resolved.sql.0.contains(&Piece::Slice {
+        marker: "/*SLICE:ids*/".into(),
+        placeholder: "?".into(),
         name: "ids".into(),
     }));
     let error = on(
@@ -860,4 +916,72 @@ fn a_batch_is_its_command_per_row_of_its_params() {
         assert_eq!(resolved.command, one.command, "{batch}");
         assert_eq!(resolved.rows.as_deref(), Some("GetAuthorParams"));
     }
+}
+
+#[test]
+fn a_rename_that_makes_two_chosen_parameters_one_name_is_an_error() {
+    let mut config = Config::of(Backend::SqlAlchemy);
+    config.rename = [("b".to_string(), "a".to_string())].into();
+    let error = try_resolve_with(
+        "mysql",
+        vec![plugin::Query {
+            params: vec![named(1, "a", "text", true), named(2, "b", "text", true)],
+            ..query(":exec", "SELECT 1 WHERE x = ? AND y = ?")
+        }],
+        &config,
+    )
+    .unwrap_err();
+    assert!(
+        format!("{error:#}").contains("both become the Python name \"a\""),
+        "{error:#}"
+    );
+}
+
+#[test]
+fn a_slice_of_a_nullable_column_is_a_list_never_none() {
+    let slice = param(
+        1,
+        plugin::Column {
+            is_sqlc_slice: true,
+            ..column("ids", "integer", false)
+        },
+    );
+    let resolved = on(
+        "sqlite",
+        plugin::Query {
+            params: vec![slice],
+            ..query(":exec", "SELECT 1 WHERE id IN (/*SLICE:ids*/?)")
+        },
+    )
+    .unwrap();
+    let ty = &resolved.params[0].ty;
+    assert_eq!(ty.annotation(crate::python::Scope::Queries), "list[int]");
+}
+
+#[test]
+fn arithmetic_on_mysql_and_sqlite_asks_for_a_cast() {
+    // sqlc types `a + b` as `int`, and MySQL's `1.0` as `float`, of no table,
+    // whatever the operands; a cast it spells as declared.
+    for (engine, data_type) in [("mysql", "int"), ("mysql", "float"), ("sqlite", "int")] {
+        let error = on(
+            engine,
+            plugin::Query {
+                columns: vec![column("total", data_type, true)],
+                ..query(":one", "SELECT a + b AS total FROM t")
+            },
+        )
+        .unwrap_err();
+        assert!(
+            format!("{error:#}").contains("typed by its form"),
+            "{engine} {data_type}: {error:#}"
+        );
+    }
+    let cast = on(
+        "sqlite",
+        plugin::Query {
+            columns: vec![column("total", "INTEGER", true)],
+            ..query(":one", "SELECT CAST(a + b AS INTEGER) AS total FROM t")
+        },
+    );
+    assert!(cast.is_ok());
 }

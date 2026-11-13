@@ -9,16 +9,23 @@
 //! mysql-connector's prepared cursors read a negative `TIME` as positive (and
 //! its C extension an unsigned `BIGINT`'s largest value as `-1`).
 
-use super::dbapi::Driver;
+use super::dbapi::{Api, Driver};
 
 pub const DRIVER: Driver = Driver {
-    // Generic only in its stubs, over a cursor class defaulting to the
-    // plain one.
-    connection: ["pymysql.Connection", ""],
-    cursor: ["conn.cursor(pymysql.cursors.Cursor)", ""],
-    cursor_type: ["pymysql.cursors.Cursor", ""],
+    sync: Api {
+        // Generic only in its stubs, over a cursor class defaulting to the
+        // plain one.
+        connection: "pymysql.Connection",
+        closing: "conn.cursor(pymysql.cursors.Cursor)",
+        cursor: "conn.cursor(pymysql.cursors.Cursor)",
+        cursor_type: "pymysql.cursors.Cursor",
+        setup: None,
+    },
+    asynchronous: None,
     placeholder: Some("%s"),
+    formats: true,
     execute_counts: true,
+    pipelines: false,
     no_rows: "SELECT NULL FROM DUAL WHERE FALSE",
     bind: |_, value| value.into(),
     text_arrays: false,

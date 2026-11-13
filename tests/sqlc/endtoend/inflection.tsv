@@ -67,6 +67,7 @@ data	datum
 debug	debug
 demo	demo
 descriptions	description
+devices	device
 dict	dict
 dt_character	dt_character
 dt_character_not_null	dt_character_not_null
@@ -83,6 +84,7 @@ dt_types	dt_type
 dt_types_not_null	dt_types_not_null
 e	e
 employees	employee
+entries	entry
 event	event
 events	event
 exclusions	exclusion
@@ -170,6 +172,7 @@ scalars	scalar
 second_table	second_table
 second_view	second_view
 series	series
+shapes	shape
 sheep	sheep
 slack_feedback	slack_feedback
 solar_commcard_mapping	solar_commcard_mapping

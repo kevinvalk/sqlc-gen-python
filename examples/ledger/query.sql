@@ -35,6 +35,12 @@ FROM entries WHERE account_id = ?;
 -- name: ListEntries :many
 SELECT * FROM entries WHERE account_id = ? ORDER BY id;
 
+-- name: ListEntryIds :many
+-- The entries of the account among the ids: a slice, then a numbered parameter.
+SELECT id FROM entries
+WHERE id IN (sqlc.slice(ids)) AND account_id = sqlc.arg(account_id)
+ORDER BY id;
+
 -- name: ListMemos :many
 -- Entries with a memo matching the pattern, in the account or every account.
 SELECT memo FROM entries

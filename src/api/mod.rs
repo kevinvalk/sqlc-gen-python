@@ -58,18 +58,76 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
     {
         bail!("async: {problem}");
     }
-    let (enums, models) = models::resolve(&resolver, &config.models)?;
-    let modules = queries::modules(&request.queries, &resolver, &models, config.backend)?;
+    let mut problems = Problems::default();
+    let (enums, models) = models::resolve(&resolver, &config.models, &mut problems);
+    let modules = queries::modules(
+        &request.queries,
+        &resolver,
+        &models,
+        config.backend,
+        &mut problems,
+    );
+    problems.check()?;
+    resolver.check_used()?;
     let api = Api {
         enums,
         models,
         modules,
     };
+    // A field reads its annotation in its class's namespace, and a function
+    // takes the module's: neither may take the name of a module an override
+    // imports.
+    let roots: Vec<String> = (config.modules().iter())
+        .map(|module| module.split('.').next().unwrap_or_default().to_string())
+        .collect();
+    let queries = api.modules.iter().flat_map(|module| &module.queries);
+    let names = (api.models.iter().flat_map(|model| &model.fields))
+        .chain(queries.clone().flat_map(|query| &query.columns))
+        .chain(
+            queries
+                .clone()
+                .filter(|query| query.rows.is_some())
+                .flat_map(|query| &query.params),
+        )
+        .map(|field| &field.name)
+        .chain(queries.map(|query| &query.function));
+    if let Some(name) = names.into_iter().find(|name| roots.contains(name)) {
+        bail!("`{name}` would hide the module an override imports; rename it");
+    }
     for sql_enum in (api.enums.iter()).filter(|e| api.array_enums().contains(e.name.as_str())) {
         (config.backend.check_array_enum(sql_enum))
             .with_context(|| format!("enum class `{}`", sql_enum.name))?;
     }
     Ok(api)
+}
+
+/// Every problem of the schema and queries, so that one run reports them all:
+/// sqlc shows a plugin's message only once it fails, and a problem at a time
+/// would take a run each.
+#[derive(Default)]
+pub struct Problems(Vec<String>);
+
+impl Problems {
+    /// `result`'s value, or `None` with its error noted under `what`.
+    pub fn take<T>(&mut self, what: &str, result: Result<T>) -> Option<T> {
+        result
+            .map_err(|error| self.0.push(format!("{what}: {error:#}")))
+            .ok()
+    }
+
+    /// Notes `error`.
+    pub fn note(&mut self, error: anyhow::Error) {
+        self.0.push(format!("{error:#}"));
+    }
+
+    /// An error naming every problem, if there is one.
+    pub fn check(self) -> Result<()> {
+        match self.0.as_slice() {
+            [] => Ok(()),
+            [one] => bail!("{one}"),
+            all => bail!("{} problems:\n{}", all.len(), all.join("\n")),
+        }
+    }
 }
 
 impl Api {
