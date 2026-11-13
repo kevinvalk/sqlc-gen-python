@@ -6,7 +6,7 @@
 # PR. `minimal` leaves out rust-src: where it is installed (rust-analyzer adds
 # it), its path ends up in the plugin's panic messages.
 [toolchain]
-channel = "1.99.1"
+channel = "1.100.0"
 profile = "minimal"
 components = ["clippy", "rustfmt"]
 targets = ["wasm32-wasip1"]
