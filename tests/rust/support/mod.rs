@@ -603,17 +603,19 @@ fn queries_follow_sqlc(
     let conn = &sqlc_gen_python::python::python_source(&backend.connection(asynchronous));
     for ((query, (constant, sql)), function) in queries.into_iter().zip(statements).zip(functions) {
         let parameters = parameters(body, function);
-        if function_follows_sqlc(query, function, &parameters, conn, asynchronous, problems) {
+        let takes = Takes::of(query, &config);
+        let signature = (conn.as_str(), asynchronous, takes);
+        if function_follows_sqlc(query, function, &parameters, signature, problems) {
             runs_its_statement(
                 query,
                 function,
                 constant,
                 &parameters,
                 engine,
-                asynchronous,
+                (asynchronous, takes),
                 problems,
             );
-            result_follows_sqlc(request, query, function, body, models, backend, problems);
+            result_follows_sqlc(request, query, function, body, models, &config, problems);
             sql_round_trips(query, &sql, &parameters, backend, engine, problems);
         }
     }
@@ -630,11 +632,10 @@ fn function_follows_sqlc(
     query: &plugin::Query,
     function: &StmtFunctionDef,
     parameters: &[(&str, &Expr)],
-    conn: &str,
-    asynchronous: bool,
+    signature: (&str, bool, Takes),
     problems: &mut Vec<String>,
 ) -> bool {
-    signature_is_safe(query, function, conn, asynchronous, problems);
+    signature_is_safe(query, function, signature, problems);
     let uses = uses(query);
     let firsts: Vec<&plugin::Parameter> = (query.params.iter().zip(&uses).enumerate())
         .filter(|(i, (_, first))| i == *first)
@@ -709,6 +710,39 @@ fn takes_rows(query: &plugin::Query) -> bool {
     query.cmd == ":copyfrom" || query.cmd.starts_with(":batch")
 }
 
+/// How a query's function takes its parameters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Takes {
+    /// Each as a keyword.
+    Keywords,
+    /// `rows` of them.
+    Rows,
+    /// One record of them, `params`: more than the options' `max_params`.
+    Record,
+}
+
+impl Takes {
+    fn of(query: &plugin::Query, config: &Config) -> Self {
+        let uses = uses(query);
+        let distinct = (0..uses.len()).filter(|&i| uses[i] == i).count();
+        match (takes_rows(query), config.max_params) {
+            (true, _) => Self::Rows,
+            (false, Some(max)) if distinct > max => Self::Record,
+            _ => Self::Keywords,
+        }
+    }
+
+    /// Where a parameter's value is read: itself, a row's field, the
+    /// record's.
+    fn value(self, name: &str) -> String {
+        match self {
+            Self::Keywords => name.to_string(),
+            Self::Rows => format!("r.{name}"),
+            Self::Record => format!("params.{name}"),
+        }
+    }
+}
+
 /// The module a query file is: its stem, each `-` a `_`.
 fn stem(filename: &str) -> String {
     (Path::new(filename).file_stem())
@@ -725,25 +759,23 @@ fn stem(filename: &str) -> String {
 fn signature_is_safe(
     query: &plugin::Query,
     function: &StmtFunctionDef,
-    conn: &str,
-    asynchronous: bool,
+    (conn, asynchronous, takes): (&str, bool, Takes),
     problems: &mut Vec<String>,
 ) {
     let parameters = &function.parameters;
     let positional: Vec<&str> = (parameters.posonlyargs.iter().chain(&parameters.args))
         .map(|p| p.name().as_str())
         .collect();
-    let copyfrom = takes_rows(query);
-    let expected: &[&str] = if copyfrom {
-        &["conn", "rows"]
-    } else {
-        &["conn"]
+    let expected: &[&str] = match takes {
+        Takes::Keywords => &["conn"],
+        Takes::Rows => &["conn", "rows"],
+        Takes::Record => &["conn", "params"],
     };
     if positional != expected
         || !parameters.posonlyargs.is_empty()
         || parameters.vararg.is_some()
         || parameters.kwarg.is_some()
-        || (copyfrom && !parameters.kwonlyargs.is_empty())
+        || (takes != Takes::Keywords && !parameters.kwonlyargs.is_empty())
     {
         problems.push(format!(
             "{}: takes {positional:?} positionally, not {expected:?} and the rest keyword-only",
@@ -784,7 +816,7 @@ fn runs_its_statement(
     constant: &str,
     parameters: &[(&str, &Expr)],
     engine: Engine,
-    asynchronous: bool,
+    (asynchronous, takes): (bool, Takes),
     problems: &mut Vec<String>,
 ) {
     #[derive(Default)]
@@ -868,11 +900,8 @@ fn runs_its_statement(
         ));
     }
 
-    let copyfrom = takes_rows(query);
-    let value = |name: &str| match copyfrom {
-        true => format!("r.{name}"),
-        false => name.to_string(),
-    };
+    let copyfrom = takes == Takes::Rows;
+    let value = |name: &str| takes.value(name);
     // Each parameter as it is bound: by name, or by position, a slice's
     // items each in a place of its own. psycopg binds `$N` by `N`; PyMySQL's
     // and `sqlite3`'s own placeholders bind in the text's order.
@@ -1277,9 +1306,12 @@ fn result_follows_sqlc(
     function: &StmtFunctionDef,
     body: &[Stmt],
     models: &[Stmt],
-    backend: Backend,
+    config: &Config,
     problems: &mut Vec<String>,
 ) {
+    // A `:one` that cannot lack a row raises should it, whatever the options.
+    let single = Engine::of(request).is_ok_and(|engine| engine.single_row(&query.text));
+    let (backend, raises) = (config.backend, config.raise_on_none || single);
     let Some(returns) = function.returns.as_deref() else {
         return problems.push(format!("{}: no return annotation", query.name));
     };
@@ -1306,8 +1338,9 @@ fn result_follows_sqlc(
     };
     let item = match (cmd.as_str(), returns) {
         (":one", _) => {
-            let reads: &[&str] = match backend {
-                Backend::SqlAlchemy => &["one", "scalar_one"],
+            let reads: &[&str] = match (backend, raises) {
+                (Backend::SqlAlchemy, true) => &["one", "scalar_one"],
+                (Backend::SqlAlchemy, false) => &["one_or_none", "scalar_one_or_none"],
                 _ => &["fetchmany"],
             };
             if !calls_method(&function.body, reads) {
@@ -1316,7 +1349,17 @@ fn result_follows_sqlc(
                     query.name
                 ));
             }
-            returns
+            // Without a row, `None`: a record is `X | None`.
+            match strip_optional(returns) {
+                record
+                    if !raises
+                        && record != returns
+                        && self::record(record, body, models).is_some() =>
+                {
+                    record
+                }
+                _ => returns,
+            }
         }
         (":many", Expr::Subscript(list)) if is_name(&list.value, "list") => &*list.slice,
         (":many", _) => {
@@ -1385,7 +1428,17 @@ fn result_follows_sqlc(
                 }
             }
         }
+        // A bare `:one` result is `None` without a row, unless it raises.
         None => match &query.columns[..] {
+            [column] if cmd == ":one" && !raises => {
+                let optional = Shape::from(&plugin::Column {
+                    not_null: false,
+                    ..column.clone()
+                });
+                if Shape::of(item) != optional {
+                    problems.push(disagrees("the bare result"));
+                }
+            }
             [_] if Shape::of(item) == shape(0) => {}
             _ => problems.push(disagrees("the bare result")),
         },
@@ -1478,24 +1531,25 @@ fn text_of(expr: &Expr) -> Option<String> {
 /// annotations: its keyword-only parameters, or the fields of the `Params`
 /// class its `rows` are made of.
 fn parameters<'a>(body: &'a [Stmt], function: &'a StmtFunctionDef) -> Vec<(&'a str, &'a Expr)> {
-    if function
-        .parameters
-        .args
-        .iter()
-        .any(|p| p.name().as_str() == "rows")
-    {
-        return params_class(body, function).map(fields).unwrap_or_default();
+    if let Some(class) = params_class(body, function) {
+        return fields(class);
     }
     (function.parameters.kwonlyargs.iter())
         .filter_map(|p| Some((p.name().as_str(), p.annotation()?)))
         .collect()
 }
 
-/// The `Params` class of the module whose `rows` a `:copyfrom` function takes.
+/// The `Params` class of the module a function takes `rows` of, or one
+/// record of as `params`.
 fn params_class<'a>(body: &'a [Stmt], function: &StmtFunctionDef) -> Option<&'a StmtClassDef> {
-    let rows = (function.parameters.args.iter()).find(|p| p.name().as_str() == "rows")?;
-    let iterable = rows.parameter.annotation.as_deref()?.as_subscript_expr()?;
-    let class = iterable.slice.as_name_expr()?;
+    let class = (function.parameters.args.iter()).find_map(|p| {
+        let annotation = p.parameter.annotation.as_deref()?;
+        match p.name().as_str() {
+            "rows" => annotation.as_subscript_expr()?.slice.as_name_expr(),
+            "params" => annotation.as_name_expr(),
+            _ => None,
+        }
+    })?;
     (body.iter().filter_map(Stmt::as_class_def_stmt)).find(|c| c.name.as_str() == class.id.as_str())
 }
 

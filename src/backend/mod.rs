@@ -118,10 +118,15 @@ impl Backend {
         self.driver().is_some_and(|driver| driver.text_arrays)
     }
 
-    /// Whether a `:one` raises the package's own `NoRowError` and
-    /// `MultipleRowsError`: a driver has no equivalent.
-    pub fn defines_errors(self) -> bool {
-        self.driver().is_some()
+    /// The errors a `:one` raises that the package defines itself, as a
+    /// driver has none: `MultipleRowsError`, and `NoRowError` if any raises
+    /// it.
+    pub fn errors(self, raises: bool) -> &'static [&'static str] {
+        match (self.driver(), raises) {
+            (None, _) => &[],
+            (Some(_), false) => &["MultipleRowsError"],
+            (Some(_), true) => &["MultipleRowsError", "NoRowError"],
+        }
     }
 
     /// The value of a query's statement constant.

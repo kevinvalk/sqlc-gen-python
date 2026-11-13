@@ -31,10 +31,12 @@ pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File
     };
     // The generated package owns `out`, so it is a regular package: relative
     // imports resolve, and mypy and ruff (INP001) need no configuration.
-    let init = match config.backend.defines_errors() {
-        true => errors(),
-        false => Vec::new(),
-    };
+    // `NoRowError`, if `:one`s raise it, or one that cannot lack a row
+    // would should it.
+    let raises = config.raise_on_none
+        || (api.modules.iter().flat_map(|module| &module.queries))
+            .any(|query| query.raises && query.reads_one());
+    let init = errors(config.backend.errors(raises));
     let mut files = vec![
         file("__init__.py".into(), &init),
         file(
@@ -73,9 +75,9 @@ fn header(sqlc_version: &str, config: &Config) -> String {
     )
 }
 
-/// The errors a `:one` raises without exactly one row, where the backend's
-/// library has none (§6, "Functions", rule 3).
-fn errors() -> Vec<ast::Stmt> {
+/// The errors of `names`, which a `:one` raises without exactly one row,
+/// where the backend's library has none (§6, "Functions", rule 3).
+fn errors(names: &[&str]) -> Vec<ast::Stmt> {
     [
         ("NoRowError", "A `:one` query returned no row."),
         (
@@ -83,6 +85,8 @@ fn errors() -> Vec<ast::Stmt> {
             "A `:one` query returned more than one row.",
         ),
     ]
+    .into_iter()
+    .filter(|(name, _)| names.contains(name))
     .map(|(name, doc)| {
         python::class(
             name,
@@ -91,7 +95,7 @@ fn errors() -> Vec<ast::Stmt> {
             [python::docstring(doc)],
         )
     })
-    .into()
+    .collect()
 }
 
 /// The models module: the classes every query module shares

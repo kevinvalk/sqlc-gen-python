@@ -2,6 +2,7 @@
 # versions:
 #   sqlc-gen-python v0.1.0
 #   sqlc v1.31.1
+import dataclasses
 import datetime as dt
 from decimal import Decimal
 from typing import Any, Final
@@ -17,18 +18,28 @@ VALUES ($1, $2, $3, $4, $5)
 RETURNING id, invoice_id, method, amount, "from", received_at"""
 
 
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class RecordPaymentParams:
+    invoice_id: UUID
+    method: models.BillingPaymentMethod
+    amount: Decimal
+    from_: str | None
+    received_at: dt.datetime
+
+
 async def record_payment(
-    conn: psycopg.AsyncConnection[Any],
-    *,
-    invoice_id: UUID,
-    method: models.BillingPaymentMethod,
-    amount: Decimal,
-    from_: str | None,
-    received_at: dt.datetime,
+    conn: psycopg.AsyncConnection[Any], params: RecordPaymentParams
 ) -> models.BillingPayment:
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(
-            _RECORD_PAYMENT, (invoice_id, method, amount, from_, received_at)
+            _RECORD_PAYMENT,
+            (
+                params.invoice_id,
+                params.method,
+                params.amount,
+                params.from_,
+                params.received_at,
+            ),
         )
         match await cur.fetchmany(2):
             case [row]:
@@ -59,7 +70,7 @@ _LIST_INVOICE_PAYMENT_METHODS: Final = """SELECT ARRAY(
 
 async def list_invoice_payment_methods(
     conn: psycopg.AsyncConnection[Any], *, invoice_id: UUID
-) -> list[models.BillingPaymentMethod]:
+) -> list[models.BillingPaymentMethod] | None:
     """An unnamed column: PostgreSQL names it `array`, and sqlc nothing."""
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_INVOICE_PAYMENT_METHODS, (invoice_id,))
@@ -67,7 +78,7 @@ async def list_invoice_payment_methods(
             case [row]:
                 return models.BillingPaymentMethod.from_array(row[0])
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 

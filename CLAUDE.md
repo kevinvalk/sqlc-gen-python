@@ -45,9 +45,9 @@ and renders it with ruff's formatter. Read `docs/development.md` for the archite
 - Python 3.10 minimum: `X | None`, `list[T]`, keyword-only dataclass fields,
   PascalCase classes, snake_case functions, UPPER_SNAKE constants and enum
   members, ruff-isort-clean import blocks.
-- `:many` returns a `list`; `:one` returns its row and raises without one,
-  as sqlc's Go returns `ErrNoRows` (SQLAlchemy's `NoResultFound`, or the
-  package's own `NoRowError` on a driver), and on a second row too.
+- `:many` returns a `list`; `:one` returns its row, or `None` without one
+  (`raise_on_none` raises instead: SQLAlchemy's `NoResultFound`, or the
+  package's own `NoRowError` on a driver), and raises on a second row.
 - Class names follow sqlc's own inflection (`media` -> `Medium`).
 - Types follow driver reality; enums are coerced into the enum class.
 - `cargo test` stays hermetic: no Python, Docker or network. Python tooling lives

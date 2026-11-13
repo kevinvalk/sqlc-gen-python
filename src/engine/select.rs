@@ -79,6 +79,101 @@ pub fn items(tokens: &[String], columns: usize) -> Option<Vec<Item>> {
     Some(items.into_iter().map(item).collect())
 }
 
+/// Whether the statement returns exactly one row, whatever the data: an
+/// `INSERT` of one row of `VALUES` (or `DEFAULT VALUES`) `RETURNING` it, not
+/// `ON CONFLICT DO NOTHING`; or a `SELECT` whose every item is an aggregate
+/// (`count`, `sum`, ... and `EXISTS`), or a `coalesce` or `CAST` of one,
+/// without a top-level `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET`, `FETCH`,
+/// window or set operation.
+pub fn single_row(tokens: &[String]) -> bool {
+    const AGGREGATES: &[&str] = &[
+        "count",
+        "sum",
+        "avg",
+        "min",
+        "max",
+        "total",
+        "every",
+        "bool_and",
+        "bool_or",
+        "string_agg",
+        "array_agg",
+        "json_agg",
+        "jsonb_agg",
+        "group_concat",
+        "exists",
+    ];
+    const WRAPPERS: &[&str] = &["coalesce", "ifnull", "cast"];
+    let is = |token: &str, words: &[&str]| words.iter().any(|w| token.eq_ignore_ascii_case(w));
+    let mut depth = 0usize;
+    let mut top = Vec::new();
+    for token in tokens {
+        if token == ")" {
+            depth = depth.saturating_sub(1);
+        }
+        top.push((depth, token.as_str()));
+        if token == "(" {
+            depth += 1;
+        }
+    }
+    let at_top = |words: &[&str]| top.iter().any(|&(d, t)| d == 0 && is(t, words));
+    if top.first().is_some_and(|&(_, t)| is(t, &["insert"])) {
+        let Some(values) = top.iter().position(|&(d, t)| d == 0 && is(t, &["values"])) else {
+            return false;
+        };
+        let after = &top[values + 1..];
+        let end = (after
+            .iter()
+            .position(|&(d, t)| d == 0 && is(t, &["returning", "on"])))
+        .unwrap_or(after.len());
+        let defaults = values > 0 && is(top[values - 1].1, &["default"]);
+        let rows = after[..end]
+            .iter()
+            .filter(|&&(d, t)| d == 0 && t == "(")
+            .count();
+        return at_top(&["returning"])
+            && !at_top(&["select", "nothing"])
+            && (rows == 1 || (defaults && rows == 0));
+    }
+    const ROWS: &[&str] = &[
+        "group",
+        "having",
+        "limit",
+        "offset",
+        "fetch",
+        "over",
+        "window",
+        "union",
+        "intersect",
+        "except",
+        "returning",
+        "insert",
+        "update",
+        "delete",
+    ];
+    let Some(select) = top.iter().position(|&(d, t)| d == 0 && is(t, &["select"])) else {
+        return false;
+    };
+    if at_top(ROWS) {
+        return false;
+    }
+    let end = (top[select + 1..]
+        .iter()
+        .position(|&(d, t)| d == 0 && is(t, &["from", "where", ";"])))
+    .map_or(top.len(), |at| select + 1 + at);
+    let list = &top[select + 1..end];
+    // Each item: an aggregate's call, or a wrapper's around one.
+    list.split(|&(d, t)| d == 0 && t == ",")
+        .all(|item| match item {
+            [(_, name), (_, "("), ..] if is(name, AGGREGATES) => true,
+            [(_, name), (_, "("), (_, inner), (_, "("), ..] => {
+                is(name, WRAPPERS) && is(inner, AGGREGATES)
+            }
+            _ => false,
+        })
+        && !list.is_empty()
+}
+
 /// The tables the statement's own outer joins may leave without a row, by
 /// the name each is joined as, lowercase: each one after a `LEFT JOIN`. A
 /// `RIGHT` or `FULL` join may leave any of them without one: `None`.

@@ -80,10 +80,9 @@ _GET_CUSTOMER: Final = sqlalchemy.text(
 )
 
 
-async def get_customer(conn: AsyncConnection, *, id: UUID) -> models.Customer:
-    return models.Customer.from_row(
-        (await conn.execute(_GET_CUSTOMER, {"id": id})).one()
-    )
+async def get_customer(conn: AsyncConnection, *, id: UUID) -> models.Customer | None:
+    row = (await conn.execute(_GET_CUSTOMER, {"id": id})).one_or_none()
+    return None if row is None else models.Customer.from_row(row)
 
 
 _GET_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
@@ -103,11 +102,12 @@ _GET_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
 )
 
 
-async def get_customer_by_name(conn: AsyncConnection, *, name: str) -> models.Customer:
+async def get_customer_by_name(
+    conn: AsyncConnection, *, name: str
+) -> models.Customer | None:
     """Names are not unique: more than one match is an error, never a guess."""
-    return models.Customer.from_row(
-        (await conn.execute(_GET_CUSTOMER_BY_NAME, {"name": name})).one()
-    )
+    row = (await conn.execute(_GET_CUSTOMER_BY_NAME, {"name": name})).one_or_none()
+    return None if row is None else models.Customer.from_row(row)
 
 
 _GET_CUSTOMER_ID_BY_EMAIL: Final = sqlalchemy.text(
@@ -115,10 +115,12 @@ _GET_CUSTOMER_ID_BY_EMAIL: Final = sqlalchemy.text(
 )
 
 
-async def get_customer_id_by_email(conn: AsyncConnection, *, email: str | None) -> UUID:
-    value: UUID = (
+async def get_customer_id_by_email(
+    conn: AsyncConnection, *, email: str | None
+) -> UUID | None:
+    value: UUID | None = (
         await conn.execute(_GET_CUSTOMER_ID_BY_EMAIL, {"email": email})
-    ).scalar_one()
+    ).scalar_one_or_none()
     return value
 
 
@@ -134,10 +136,10 @@ _GET_ACCEPTED_METHODS: Final = sqlalchemy.text(
 
 async def get_accepted_methods(
     conn: AsyncConnection, *, id: UUID
-) -> list[models.BillingPaymentMethod]:
+) -> list[models.BillingPaymentMethod] | None:
     """PostgreSQL names this column `coalesce`, and sqlc `accepted_methods`."""
-    value = (await conn.execute(_GET_ACCEPTED_METHODS, {"id": id})).scalar_one()
-    return [models.BillingPaymentMethod(v) for v in value]
+    value = (await conn.execute(_GET_ACCEPTED_METHODS, {"id": id})).scalar_one_or_none()
+    return None if value is None else [models.BillingPaymentMethod(v) for v in value]
 
 
 _COMPARE_ACCEPTED_METHODS: Final = sqlalchemy.text("""SELECT a.accepted_methods, b.accepted_methods
@@ -169,15 +171,14 @@ class CompareAcceptedMethodsRow:
 
 async def compare_accepted_methods(
     conn: AsyncConnection, *, first: UUID, second: UUID
-) -> CompareAcceptedMethodsRow:
+) -> CompareAcceptedMethodsRow | None:
     """Two columns of one name, as when merging two customers."""
-    return CompareAcceptedMethodsRow.from_row(
-        (
-            await conn.execute(
-                _COMPARE_ACCEPTED_METHODS, {"first": first, "second": second}
-            )
-        ).one()
-    )
+    row = (
+        await conn.execute(
+            _COMPARE_ACCEPTED_METHODS, {"first": first, "second": second}
+        )
+    ).one_or_none()
+    return None if row is None else CompareAcceptedMethodsRow.from_row(row)
 
 
 _UPDATE_CUSTOMER_EMAIL: Final = sqlalchemy.text(

@@ -7,7 +7,7 @@ use ruff_python_ast as ast;
 
 use super::class;
 
-use crate::api::models::{Enum, Field};
+use crate::api::models::{Enum, Field, FieldType};
 use crate::api::queries::{Command, CopyInto, Query, Shape};
 use crate::engine::Piece;
 use crate::python::{self, Scope, py_expr, py_stmt, py_stmts};
@@ -155,7 +155,11 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (ast::Expr, V
             .collect();
         python::tuple(values)
     };
-    let own = |name: &str| python::name(name);
+    // A parameter's value: itself, or its field of the one record.
+    let own = |name: &str| match query.bundle {
+        Some(_) => py_expr!("params.$name", name = name),
+        None => python::name(name),
+    };
     let of_row = |name: &str| py_expr!("r.$name", name = name);
     let names = driver.values(query);
     // The statement, each slice's placeholder made one per item.
@@ -172,7 +176,7 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (ast::Expr, V
                 statement = statement,
                 marker = python::string(&format!("{marker}{placeholder}")),
                 placeholder = python::string(placeholder),
-                items = name,
+                items = own(name),
                 none = python::string(driver.no_rows),
             );
         }
@@ -369,25 +373,43 @@ fn read(
     let Command::One(shape) = &query.command else {
         unreachable!("only a :one or a :many reads rows")
     };
+    // Without a row, `None`, or `NoRowError`.
+    let (missing, optional) = match query.raises {
+        false => (vec![emit(python::expr("None"))], true),
+        true => (py_stmts!("raise NoRowError"), false),
+    };
     let (returns, found) = match shape {
         // A row's value is `Any`: the annotated local states the type the
         // value would leak.
         Shape::Scalar(ty) if !ty.converts() => {
             let annotation = ty.annotation(Scope::Queries);
+            let returns = FieldType {
+                optional: ty.optional || optional,
+                ..ty.clone()
+            }
+            .annotation(Scope::Queries);
             let mut found = py_stmts!(
                 "value: $annotation = row[0]",
                 annotation = annotation.clone(),
             );
             found.push(emit(python::name("value")));
-            (annotation, found)
+            (returns, found)
         }
         Shape::Scalar(ty) => {
             let value = ty.read(py_expr!("row[0]"), Scope::Queries, driver.text_arrays);
-            (ty.annotation(Scope::Queries), vec![emit(value)])
+            let returns = FieldType {
+                optional: ty.optional || optional,
+                ..ty.clone()
+            };
+            (returns.annotation(Scope::Queries), vec![emit(value)])
         }
         shape => {
             let value = py_expr!("$class.from_row(row)", class = class(shape));
-            (class(shape), vec![emit(value)])
+            let returns = match optional {
+                true => py_expr!("$class | None", class = class(shape)),
+                false => class(shape),
+            };
+            (returns, vec![emit(value)])
         }
     };
     let matched = py_stmts!(
@@ -397,7 +419,7 @@ fn read(
                 case [row]:
                     $found
                 case []:
-                    raise NoRowError
+                    $missing
                 case _:
                     raise MultipleRowsError
             ",
@@ -405,6 +427,7 @@ fn read(
         ),
         cur = cur,
         found = found,
+        missing = missing,
     );
     (returns, matched)
 }

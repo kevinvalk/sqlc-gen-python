@@ -46,10 +46,9 @@ _GET_CUSTOMER: Final = sqlalchemy.text(
 )
 
 
-async def get_customer(conn: AsyncConnection, *, id: int) -> models.Customer:
-    return models.Customer.from_row(
-        (await conn.execute(_GET_CUSTOMER, {"id": id})).one()
-    )
+async def get_customer(conn: AsyncConnection, *, id: int) -> models.Customer | None:
+    row = (await conn.execute(_GET_CUSTOMER, {"id": id})).one_or_none()
+    return None if row is None else models.Customer.from_row(row)
 
 
 _FIND_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
@@ -57,11 +56,12 @@ _FIND_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
 )
 
 
-async def find_customer_by_name(conn: AsyncConnection, *, name: str) -> models.Customer:
+async def find_customer_by_name(
+    conn: AsyncConnection, *, name: str
+) -> models.Customer | None:
     """Names are not unique: more than one match is an error, never a guess."""
-    return models.Customer.from_row(
-        (await conn.execute(_FIND_CUSTOMER_BY_NAME, {"name": name})).one()
-    )
+    row = (await conn.execute(_FIND_CUSTOMER_BY_NAME, {"name": name})).one_or_none()
+    return None if row is None else models.Customer.from_row(row)
 
 
 _SEARCH_CUSTOMERS: Final = sqlalchemy.text("""SELECT id, name FROM customers
@@ -137,8 +137,9 @@ _GET_INVOICE: Final = sqlalchemy.text(
 )
 
 
-async def get_invoice(conn: AsyncConnection, *, id: int) -> models.Invoice:
-    return models.Invoice.from_row((await conn.execute(_GET_INVOICE, {"id": id})).one())
+async def get_invoice(conn: AsyncConnection, *, id: int) -> models.Invoice | None:
+    row = (await conn.execute(_GET_INVOICE, {"id": id})).one_or_none()
+    return None if row is None else models.Invoice.from_row(row)
 
 
 _GET_INVOICE_STATUS: Final = sqlalchemy.text(
@@ -148,9 +149,9 @@ _GET_INVOICE_STATUS: Final = sqlalchemy.text(
 
 async def get_invoice_status(
     conn: AsyncConnection, *, id: int
-) -> models.InvoicesStatus:
-    value = (await conn.execute(_GET_INVOICE_STATUS, {"id": id})).scalar_one()
-    return models.InvoicesStatus(value)
+) -> models.InvoicesStatus | None:
+    value = (await conn.execute(_GET_INVOICE_STATUS, {"id": id})).scalar_one_or_none()
+    return None if value is None else models.InvoicesStatus(value)
 
 
 _GET_INVOICE_WITH_CUSTOMER: Final = sqlalchemy.text("""SELECT invoices.id, invoices.customer_id, invoices.number, invoices.status, invoices.total, invoices.issued_on, invoices.notes, invoices.attachment, invoices.pay_within, invoices.created_at, customers.id, customers.name, customers.email, customers.vip, customers.preferred_method, customers.metadata, customers.created_at
@@ -173,10 +174,9 @@ class GetInvoiceWithCustomerRow:
 
 async def get_invoice_with_customer(
     conn: AsyncConnection, *, id: int
-) -> GetInvoiceWithCustomerRow:
-    return GetInvoiceWithCustomerRow.from_row(
-        (await conn.execute(_GET_INVOICE_WITH_CUSTOMER, {"id": id})).one()
-    )
+) -> GetInvoiceWithCustomerRow | None:
+    row = (await conn.execute(_GET_INVOICE_WITH_CUSTOMER, {"id": id})).one_or_none()
+    return None if row is None else GetInvoiceWithCustomerRow.from_row(row)
 
 
 _LIST_INVOICES_BY_STATUS: Final = sqlalchemy.text("""SELECT id, customer_id, number, status, total, issued_on, notes, attachment, pay_within, created_at FROM invoices

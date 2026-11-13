@@ -14,7 +14,7 @@ use ruff_python_stdlib::builtins::is_python_builtin;
 
 use super::Problems;
 use super::models::{self, Field, FieldType, Model, Repeats, Resolver};
-use crate::backend::Backend;
+use crate::config::Config;
 use crate::engine::select::Item;
 use crate::engine::{Bind, Engine, Sql};
 use crate::plugin;
@@ -53,16 +53,29 @@ pub struct Query {
     /// command once per row: a `:copyfrom`, or a batch (`:batchexec` is an
     /// `:exec` per row, `:batchone` a `:one`, `:batchmany` a `:many`).
     pub rows: Option<String>,
+    /// The `<Query>Params` class the function takes its parameters as, if it
+    /// takes more than the options' `max_params`.
+    pub bundle: Option<String>,
+    /// Whether a `:one` raises without a row, rather than return `None`: as
+    /// the options say, but a statement that always returns one (`SELECT
+    /// count(*) ...`) has none to lack, so it is its row's type.
+    pub raises: bool,
 }
 
 impl Query {
+    /// Whether the query reads at most one row each run: a `:one`, or a
+    /// `:batchone`.
+    pub fn reads_one(&self) -> bool {
+        matches!(self.command, Command::One(_))
+    }
+
     /// The classes the query defines: its `Params`, then its `Row`.
     pub fn classes(&self) -> impl Iterator<Item = &str> {
         let row = match &self.command {
             Command::One(Shape::Row(class, _)) | Command::Many(Shape::Row(class, _)) => Some(class),
             _ => None,
         };
-        self.rows.iter().chain(row).map(String::as_str)
+        (self.rows.iter().chain(&self.bundle).chain(row)).map(String::as_str)
     }
 }
 
@@ -120,7 +133,7 @@ pub fn modules(
     queries: &[plugin::Query],
     resolver: &Resolver,
     models: &[Model],
-    backend: Backend,
+    config: &Config,
     problems: &mut Problems,
 ) -> Vec<Module> {
     let mut modules: Vec<Module> = Vec::new();
@@ -142,7 +155,7 @@ pub fn modules(
             }
         };
         let what = format!("{file}: query \"{}\"", query.name);
-        let resolved = problems.take(&what, resolve(query, resolver, models, backend));
+        let resolved = problems.take(&what, resolve(query, resolver, models, config));
         let (Some(name), Some(resolved)) = (name, resolved) else {
             continue;
         };
@@ -195,7 +208,7 @@ fn resolve(
     query: &plugin::Query,
     resolver: &Resolver,
     models: &[Model],
-    backend: Backend,
+    config: &Config,
 ) -> Result<Query> {
     let cmd = query.cmd.as_str();
     let class = query.name.to_upper_camel_case();
@@ -212,7 +225,8 @@ fn resolve(
         Some("many") => (":many", true),
         _ => (cmd, cmd == ":copyfrom"),
     };
-    let rows = batch.then(|| format!("{class}Params"));
+    let params_class = format!("{class}Params");
+    let rows = batch.then(|| params_class.clone());
     let (command, columns) = match cmd {
         ":exec" => (Command::Exec, Vec::new()),
         ":execrows" => (Command::ExecRows, Vec::new()),
@@ -278,6 +292,9 @@ fn resolve(
         true => function + "_",
         false => function,
     };
+    // More parameters than the options take as keywords: one record of them.
+    let bundle =
+        (!batch && config.max_params.is_some_and(|max| params.len() > max)).then_some(params_class);
     let resolved = Query {
         constant: format!("_{}", function.to_uppercase()),
         function,
@@ -289,10 +306,12 @@ fn resolve(
         params,
         copy_into: copy_into(query),
         columns,
+        raises: config.raise_on_none || resolver.engine.single_row(&query.text),
+        bundle,
         command,
         rows,
     };
-    backend.check(resolver.engine, &resolved)?;
+    config.backend.check(resolver.engine, &resolved)?;
     Ok(resolved)
 }
 

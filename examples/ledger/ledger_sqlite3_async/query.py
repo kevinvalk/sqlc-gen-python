@@ -34,7 +34,7 @@ _GET_ACCOUNT: Final = (
 )
 
 
-async def get_account(conn: aiosqlite.Connection, *, id: int) -> models.Account:
+async def get_account(conn: aiosqlite.Connection, *, id: int) -> models.Account | None:
     async with conn.cursor() as cur:
         cur.row_factory = None
         await cur.execute(_GET_ACCOUNT, (id,))
@@ -42,7 +42,7 @@ async def get_account(conn: aiosqlite.Connection, *, id: int) -> models.Account:
             case [row]:
                 return models.Account.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -54,7 +54,7 @@ _GET_ACCOUNT_BY_NAME: Final = (
 
 async def get_account_by_name(
     conn: aiosqlite.Connection, *, name: str
-) -> models.Account:
+) -> models.Account | None:
     async with conn.cursor() as cur:
         cur.row_factory = None
         await cur.execute(_GET_ACCOUNT_BY_NAME, (name,))
@@ -62,7 +62,7 @@ async def get_account_by_name(
             case [row]:
                 return models.Account.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -82,7 +82,7 @@ async def archive_account(conn: aiosqlite.Connection, *, id: int) -> int:
 _IS_ARCHIVED: Final = "SELECT archived FROM accounts WHERE id = ?"
 
 
-async def is_archived(conn: aiosqlite.Connection, *, id: int) -> bool:
+async def is_archived(conn: aiosqlite.Connection, *, id: int) -> bool | None:
     async with conn.cursor() as cur:
         cur.row_factory = None
         await cur.execute(_IS_ARCHIVED, (id,))
@@ -90,7 +90,7 @@ async def is_archived(conn: aiosqlite.Connection, *, id: int) -> bool:
             case [row]:
                 return bool(row[0])
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -166,7 +166,7 @@ _BALANCE: Final = """SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS b
 FROM entries WHERE account_id = ?"""
 
 
-async def balance(conn: aiosqlite.Connection, *, account_id: int) -> int:
+async def balance(conn: aiosqlite.Connection, *, account_id: int) -> int | None:
     async with conn.cursor() as cur:
         cur.row_factory = None
         await cur.execute(_BALANCE, (account_id,))
@@ -175,7 +175,7 @@ async def balance(conn: aiosqlite.Connection, *, account_id: int) -> int:
                 value: int = row[0]
                 return value
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -300,7 +300,9 @@ class GetLastAmountRow:
         return cls(name=row[0], last_amount_cents=row[1])
 
 
-async def get_last_amount(conn: aiosqlite.Connection, *, id: int) -> GetLastAmountRow:
+async def get_last_amount(
+    conn: aiosqlite.Connection, *, id: int
+) -> GetLastAmountRow | None:
     """The account's last entry's amount: a subquery, so None without entries."""
     async with conn.cursor() as cur:
         cur.row_factory = None
@@ -309,7 +311,7 @@ async def get_last_amount(conn: aiosqlite.Connection, *, id: int) -> GetLastAmou
             case [row]:
                 return GetLastAmountRow.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 

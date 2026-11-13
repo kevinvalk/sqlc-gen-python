@@ -52,8 +52,9 @@ _GET_INVOICE: Final = sqlalchemy.text(
 )
 
 
-async def get_invoice(conn: AsyncConnection, *, id: UUID) -> models.Invoice:
-    return models.Invoice.from_row((await conn.execute(_GET_INVOICE, {"id": id})).one())
+async def get_invoice(conn: AsyncConnection, *, id: UUID) -> models.Invoice | None:
+    row = (await conn.execute(_GET_INVOICE, {"id": id})).one_or_none()
+    return None if row is None else models.Invoice.from_row(row)
 
 
 _GET_INVOICE_STATUS: Final = sqlalchemy.text(
@@ -63,9 +64,9 @@ _GET_INVOICE_STATUS: Final = sqlalchemy.text(
 
 async def get_invoice_status(
     conn: AsyncConnection, *, id: UUID
-) -> models.InvoiceStatus:
-    value = (await conn.execute(_GET_INVOICE_STATUS, {"id": id})).scalar_one()
-    return models.InvoiceStatus(value)
+) -> models.InvoiceStatus | None:
+    value = (await conn.execute(_GET_INVOICE_STATUS, {"id": id})).scalar_one_or_none()
+    return None if value is None else models.InvoiceStatus(value)
 
 
 _GET_INVOICE_DUE_DATE: Final = sqlalchemy.text(
@@ -76,7 +77,7 @@ _GET_INVOICE_DUE_DATE: Final = sqlalchemy.text(
 async def get_invoice_due_date(conn: AsyncConnection, *, id: UUID) -> dt.date | None:
     value: dt.date | None = (
         await conn.execute(_GET_INVOICE_DUE_DATE, {"id": id})
-    ).scalar_one()
+    ).scalar_one_or_none()
     return value
 
 
@@ -122,10 +123,9 @@ class GetInvoiceWithCustomerRow:
 
 async def get_invoice_with_customer(
     conn: AsyncConnection, *, id: UUID
-) -> GetInvoiceWithCustomerRow:
-    return GetInvoiceWithCustomerRow.from_row(
-        (await conn.execute(_GET_INVOICE_WITH_CUSTOMER, {"id": id})).one()
-    )
+) -> GetInvoiceWithCustomerRow | None:
+    row = (await conn.execute(_GET_INVOICE_WITH_CUSTOMER, {"id": id})).one_or_none()
+    return None if row is None else GetInvoiceWithCustomerRow.from_row(row)
 
 
 _LIST_INVOICES_BY_IDS: Final = sqlalchemy.text(
@@ -257,14 +257,15 @@ class GetInvoiceTotalsRow:
         )
 
 
-async def get_invoice_totals(conn: AsyncConnection, *, id: UUID) -> GetInvoiceTotalsRow:
+async def get_invoice_totals(
+    conn: AsyncConnection, *, id: UUID
+) -> GetInvoiceTotalsRow | None:
     """Totals are computed in SQL, so rounding matches the database exactly.
     Every aggregate is cast, since sqlc only guesses the type of a function call,
     and coalesced where it can be NULL, since sqlc reports every cast NOT NULL.
     """
-    return GetInvoiceTotalsRow.from_row(
-        (await conn.execute(_GET_INVOICE_TOTALS, {"id": id})).one()
-    )
+    row = (await conn.execute(_GET_INVOICE_TOTALS, {"id": id})).one_or_none()
+    return None if row is None else GetInvoiceTotalsRow.from_row(row)
 
 
 _LIST_OVERDUE_INVOICES: Final = sqlalchemy.text("""SELECT invoices.id, invoices.number, invoices.due_on, customers.name AS customer_name, customers.email
@@ -446,14 +447,13 @@ class GetInvoicesBatchParams:
 
 async def get_invoices_batch(
     conn: AsyncConnection, rows: Iterable[GetInvoicesBatchParams]
-) -> list[models.Invoice]:
+) -> list[models.Invoice | None]:
     """Several invoices at once: each id must exist."""
-    return [
-        models.Invoice.from_row(
-            (await conn.execute(_GET_INVOICES_BATCH, {"id": r.id})).one()
-        )
-        for r in rows
-    ]
+    values: list[models.Invoice | None] = []
+    for r in rows:
+        row = (await conn.execute(_GET_INVOICES_BATCH, {"id": r.id})).one_or_none()
+        values.append(None if row is None else models.Invoice.from_row(row))
+    return values
 
 
 _LIST_INVOICE_NUMBERS_BATCH: Final = sqlalchemy.text(

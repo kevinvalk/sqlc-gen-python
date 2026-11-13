@@ -10,7 +10,6 @@ function must be called.
 
 import asyncio
 import datetime as dt
-import importlib
 import json
 from collections.abc import Iterator
 from decimal import Decimal
@@ -23,7 +22,7 @@ from examples import GoldenCase
 from postgres import aw
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from conftest import cases, functions, queries
+from conftest import cases, functions, no_row, queries
 
 SCHEMA = cases("billing")[0].schema_sql.read_text()
 # Characters PyMySQL's `%` formatting, SQLAlchemy's `:name` binds or a careless
@@ -111,14 +110,7 @@ async def _sqlalchemy_async(
 
 
 def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
-    api = queries(case, conn, called)
-    if case.backend == "sqlalchemy":
-        api.NoRow = sqlalchemy.exc.NoResultFound
-        api.MultipleRows = sqlalchemy.exc.MultipleResultsFound
-    else:
-        package = importlib.import_module(case.name)
-        api.NoRow, api.MultipleRows = package.NoRowError, package.MultipleRowsError
-    return api
+    return queries(case, conn, called)
 
 
 async def scenario(api: Any) -> None:  # noqa: ANN401, PLR0915
@@ -140,8 +132,7 @@ async def scenario(api: Any) -> None:  # noqa: ANN401, PLR0915
     assert customer.metadata is not None
     assert json.loads(customer.metadata) == json.loads(metadata)
     assert customer.created_at.tzinfo is None
-    with pytest.raises(api.NoRow):
-        await q.get_customer(id=acme + 1000)
+    await no_row(api, q.get_customer(id=acme + 1000))
 
     bare = await q.create_customer(
         name="x:test",
@@ -164,8 +155,7 @@ async def scenario(api: Any) -> None:  # noqa: ANN401, PLR0915
     )
     with pytest.raises(api.MultipleRows):
         await q.find_customer_by_name(name=AWKWARD)
-    with pytest.raises(api.NoRow):
-        await q.find_customer_by_name(name="nobody")
+    await no_row(api, q.find_customer_by_name(name="nobody"))
 
     # One parameter, used twice; the literal `%:test%` excludes `x:test`.
     found = await q.search_customers(pattern="%example.com")
@@ -203,8 +193,7 @@ async def scenario(api: Any) -> None:  # noqa: ANN401, PLR0915
     assert invoice.total == Decimal("0.00")
     assert str(invoice.total) == "0.00"
     assert await q.get_invoice_status(id=invoice_id) is m.InvoicesStatus.DRAFT
-    with pytest.raises(api.NoRow):
-        await q.get_invoice(id=invoice_id + 1000)
+    await no_row(api, q.get_invoice(id=invoice_id + 1000))
     joined = await q.get_invoice_with_customer(id=invoice_id)
     assert (joined.invoice, joined.customer) == (invoice, customer)
 

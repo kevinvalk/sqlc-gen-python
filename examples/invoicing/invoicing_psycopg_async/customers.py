@@ -18,26 +18,29 @@ VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, created_at"""
 
 
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CreateCustomerParams:
+    name: str
+    email: str | None
+    tags: list[str]
+    preferred_method: models.BillingPaymentMethod | None
+    accepted_methods: list[models.BillingPaymentMethod]
+    metadata: object | None
+
+
 async def create_customer(
-    conn: psycopg.AsyncConnection[Any],
-    *,
-    name: str,
-    email: str | None,
-    tags: list[str],
-    preferred_method: models.BillingPaymentMethod | None,
-    accepted_methods: list[models.BillingPaymentMethod],
-    metadata: object | None,
+    conn: psycopg.AsyncConnection[Any], params: CreateCustomerParams
 ) -> models.Customer:
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(
             _CREATE_CUSTOMER,
             (
-                name,
-                email,
-                tags,
-                preferred_method,
-                accepted_methods,
-                None if metadata is None else Jsonb(metadata),
+                params.name,
+                params.email,
+                params.tags,
+                params.preferred_method,
+                params.accepted_methods,
+                None if params.metadata is None else Jsonb(params.metadata),
             ),
         )
         match await cur.fetchmany(2):
@@ -54,14 +57,14 @@ _GET_CUSTOMER: Final = "SELECT id, name, email, tags, preferred_method, accepted
 
 async def get_customer(
     conn: psycopg.AsyncConnection[Any], *, id: UUID
-) -> models.Customer:
+) -> models.Customer | None:
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(_GET_CUSTOMER, (id,))
         match await cur.fetchmany(2):
             case [row]:
                 return models.Customer.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -71,7 +74,7 @@ _GET_CUSTOMER_BY_NAME: Final = "SELECT id, name, email, tags, preferred_method, 
 
 async def get_customer_by_name(
     conn: psycopg.AsyncConnection[Any], *, name: str
-) -> models.Customer:
+) -> models.Customer | None:
     """Names are not unique: more than one match is an error, never a guess."""
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(_GET_CUSTOMER_BY_NAME, (name,))
@@ -79,7 +82,7 @@ async def get_customer_by_name(
             case [row]:
                 return models.Customer.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -89,7 +92,7 @@ _GET_CUSTOMER_ID_BY_EMAIL: Final = "SELECT id FROM customers WHERE email = $1"
 
 async def get_customer_id_by_email(
     conn: psycopg.AsyncConnection[Any], *, email: str | None
-) -> UUID:
+) -> UUID | None:
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(_GET_CUSTOMER_ID_BY_EMAIL, (email,))
         match await cur.fetchmany(2):
@@ -97,7 +100,7 @@ async def get_customer_id_by_email(
                 value: UUID = row[0]
                 return value
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -109,7 +112,7 @@ _GET_ACCEPTED_METHODS: Final = (
 
 async def get_accepted_methods(
     conn: psycopg.AsyncConnection[Any], *, id: UUID
-) -> list[models.BillingPaymentMethod]:
+) -> list[models.BillingPaymentMethod] | None:
     """PostgreSQL names this column `coalesce`, and sqlc `accepted_methods`."""
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(_GET_ACCEPTED_METHODS, (id,))
@@ -117,7 +120,7 @@ async def get_accepted_methods(
             case [row]:
                 return models.BillingPaymentMethod.from_array(row[0])
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -142,7 +145,7 @@ class CompareAcceptedMethodsRow:
 
 async def compare_accepted_methods(
     conn: psycopg.AsyncConnection[Any], *, first: UUID, second: UUID
-) -> CompareAcceptedMethodsRow:
+) -> CompareAcceptedMethodsRow | None:
     """Two columns of one name, as when merging two customers."""
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(_COMPARE_ACCEPTED_METHODS, (first, second))
@@ -150,7 +153,7 @@ async def compare_accepted_methods(
             case [row]:
                 return CompareAcceptedMethodsRow.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 

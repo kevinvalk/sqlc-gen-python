@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::LazyLock;
 
 use anyhow::{Result, anyhow, bail};
-use heck::{ToSnakeCase, ToUpperCamelCase};
+use heck::{ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase};
 use ruff_python_stdlib::keyword::is_keyword;
 
 use super::Problems;
@@ -568,9 +568,9 @@ pub fn names(spellings: &[&str], repeats: Repeats) -> Result<Vec<String>> {
     distinct(spellings, names)
 }
 
-/// An enum's members, in order: each label as sqlc's Go codegen spells it
-/// (`EnumReplace`: `-`, `/`, `:` and `_` become `_`, anything else that is
-/// not an ASCII letter or digit is dropped), upper-cased.
+/// An enum's members, in order: each label's words in UPPER_SNAKE_CASE,
+/// split as snake_case splits them (`in shock`, `in-shock` and `inShock` are
+/// `IN_SHOCK`), with anything not an ASCII letter, digit or `_` dropped.
 ///
 /// A name that is not public is an error: one that is empty or starts with a
 /// digit is not an identifier, and one starting with `_` is reserved
@@ -580,12 +580,8 @@ pub fn names(spellings: &[&str], repeats: Repeats) -> Result<Vec<String>> {
 pub fn members(labels: &[String]) -> Result<Vec<Member>> {
     let names = (labels.iter())
         .map(|label| {
-            let name = (label.chars())
-                .filter_map(|c| match c {
-                    '-' | '/' | ':' | '_' => Some('_'),
-                    c if c.is_ascii_alphanumeric() => Some(c.to_ascii_uppercase()),
-                    _ => None,
-                })
+            let name = (label.to_shouty_snake_case().chars())
+                .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
                 .collect();
             usable(label, name)
         })

@@ -15,18 +15,18 @@ _GET_AUTHOR: Final = sqlalchemy.text("""SELECT author_id, name FROM authors
 WHERE author_id = :author_id""")
 
 
-def get_author(conn: sqlalchemy.Connection, *, author_id: int) -> models.Author:
-    return models.Author.from_row(
-        conn.execute(_GET_AUTHOR, {"author_id": author_id}).one()
-    )
+def get_author(conn: sqlalchemy.Connection, *, author_id: int) -> models.Author | None:
+    row = conn.execute(_GET_AUTHOR, {"author_id": author_id}).one_or_none()
+    return None if row is None else models.Author.from_row(row)
 
 
 _GET_BOOK: Final = sqlalchemy.text("""SELECT book_id, author_id, isbn, book_type, title, year, available, tags FROM books
 WHERE book_id = :book_id""")
 
 
-def get_book(conn: sqlalchemy.Connection, *, book_id: int) -> models.Book:
-    return models.Book.from_row(conn.execute(_GET_BOOK, {"book_id": book_id}).one())
+def get_book(conn: sqlalchemy.Connection, *, book_id: int) -> models.Book | None:
+    row = conn.execute(_GET_BOOK, {"book_id": book_id}).one_or_none()
+    return None if row is None else models.Book.from_row(row)
 
 
 _DELETE_BOOK: Final = sqlalchemy.text("""DELETE FROM books

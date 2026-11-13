@@ -15,16 +15,19 @@ sql:
         options:
           backend: psycopg
           async: false
+          raise_on_none: true
       - out: invoicing_psycopg_async
         plugin: python
         options:
           backend: psycopg
           async: true
+          max_params: 3
       - out: invoicing_sqlalchemy
         plugin: python
         options:
           backend: sqlalchemy
           async: false
+          raise_on_none: true
       - out: invoicing_sqlalchemy_async
         plugin: python
         options:

@@ -68,12 +68,12 @@ _LIST_INVOICE_PAYMENT_METHODS: Final = sqlalchemy.text("""SELECT ARRAY(
 
 async def list_invoice_payment_methods(
     conn: AsyncConnection, *, invoice_id: UUID
-) -> list[models.BillingPaymentMethod]:
+) -> list[models.BillingPaymentMethod] | None:
     """An unnamed column: PostgreSQL names it `array`, and sqlc nothing."""
     value = (
         await conn.execute(_LIST_INVOICE_PAYMENT_METHODS, {"invoice_id": invoice_id})
-    ).scalar_one()
-    return [models.BillingPaymentMethod(v) for v in value]
+    ).scalar_one_or_none()
+    return None if value is None else [models.BillingPaymentMethod(v) for v in value]
 
 
 _LIST_INVOICE_BALANCES: Final = sqlalchemy.text(

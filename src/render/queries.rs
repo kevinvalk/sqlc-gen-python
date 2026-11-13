@@ -6,7 +6,6 @@ use ruff_python_ast as ast;
 use super::{Attribute, docstring, record};
 use crate::api::models::Field;
 use crate::api::queries::{Command, Module, Query, RowField, Shape};
-use crate::backend::Backend;
 use crate::config::Config;
 use crate::python::{self, Scope, py_expr, py_stmt};
 
@@ -15,7 +14,8 @@ use crate::python::{self, Scope, py_expr, py_stmt};
 pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
     (module.queries.iter())
         .flat_map(|query| {
-            let params = (query.rows.as_ref()).map(|class| params_class(class, &query.params));
+            let params = (query.rows.as_ref().or(query.bundle.as_ref()))
+                .map(|class| params_class(class, &query.params));
             let row = match &query.command {
                 Command::One(Shape::Row(class, fields))
                 | Command::Many(Shape::Row(class, fields)) => {
@@ -24,7 +24,7 @@ pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
                 _ => None,
             };
             let statement = python::constant(&query.constant, config.backend.statement(query));
-            let function = function(query, config.backend, config.asynchronous);
+            let function = function(query, config);
             std::iter::once(statement)
                 .chain(params)
                 .chain(row)
@@ -99,14 +99,26 @@ fn params_class(class: &str, params: &[Field]) -> ast::Stmt {
 }
 
 /// The function that runs a query (§6, "Functions"): the connection, then
-/// each parameter keyword-only, or the rows it runs for; one execution; the
-/// result shaped by `cmd`.
-fn function(query: &Query, backend: Backend, asynchronous: bool) -> ast::Stmt {
-    let conn = backend.connection(asynchronous);
-    let (returns, body) = backend.body(query, asynchronous);
+/// each parameter keyword-only, or all of them as one record, or the rows it
+/// runs for; one execution; the result shaped by `cmd`.
+fn function(query: &Query, config: &Config) -> ast::Stmt {
+    let asynchronous = config.asynchronous;
+    let conn = config.backend.connection(asynchronous);
+    let (returns, body) = config.backend.body(query, asynchronous);
     let body: Vec<ast::Stmt> = docstring(&query.comment).into_iter().chain(body).collect();
-    let mut function = match &query.rows {
-        Some(class) => py_stmt!(
+    let mut function = match (&query.rows, &query.bundle) {
+        (None, Some(class)) => py_stmt!(
+            "
+            def $name(conn: $conn, params: $class) -> $returns:
+                $body
+            ",
+            name = &query.function,
+            conn = conn,
+            class = class,
+            returns = returns,
+            body = body,
+        ),
+        (Some(class), _) => py_stmt!(
             "
             def $name(conn: $conn, rows: Iterable[$class]) -> $returns:
                 $body
@@ -117,7 +129,7 @@ fn function(query: &Query, backend: Backend, asynchronous: bool) -> ast::Stmt {
             returns = returns,
             body = body,
         ),
-        None => py_stmt!(
+        (None, None) => py_stmt!(
             "
             def $name(conn: $conn, *, $params) -> $returns:
                 $body

@@ -527,19 +527,34 @@ fn columns_that_spell_alike_are_an_error_not_a_silent_rename() {
 }
 
 #[test]
-fn an_enum_member_is_spelt_as_sqlc_spells_a_go_constant_then_upper_cased() {
-    // `EnumReplace`: `-`, `/`, `:` and `_` become `_`, the rest is dropped.
+fn an_enum_member_is_its_labels_words_in_upper_snake_case() {
     assert_eq!(
-        try_member_names(&["direct-debit", "a/b:c", "inProgress", "x.y", "v1"]).unwrap(),
-        ["DIRECT_DEBIT", "A_B_C", "INPROGRESS", "XY", "V1"]
+        try_member_names(&[
+            "direct-debit",
+            "a/b:c",
+            "inProgress",
+            "in shock",
+            "x.y",
+            "v1"
+        ])
+        .unwrap(),
+        [
+            "DIRECT_DEBIT",
+            "A_B_C",
+            "IN_PROGRESS",
+            "IN_SHOCK",
+            "X_Y",
+            "V1"
+        ]
     );
+    // A separator at either end separates nothing.
+    assert_eq!(try_member_names(&["_x_", "-a"]).unwrap(), ["X", "A"]);
 }
 
 #[test]
 fn an_enum_label_with_no_usable_spelling_is_an_error_naming_it() {
-    // Nothing left; not an identifier; or a name `enum` would reserve
-    // (`_x_`) or mangle (`__x`), or pyright and ruff call private (`_A`).
-    for label in ["=", "", "1st", "_x_", "__x", "-a"] {
+    // Nothing left, or not an identifier.
+    for label in ["=", "", "1st", "é x"] {
         let error = error_of(try_member_names(&["open", label]));
         assert!(
             error.contains(&format!("\"{label}\" does not become")),

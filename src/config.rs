@@ -64,6 +64,18 @@ pub struct Config {
     /// function calls are PostgreSQL's, not its guesses. PostgreSQL only.
     #[serde(default)]
     pub database_analysis: bool,
+
+    /// Whether a `:one` raises without a row (SQLAlchemy's `NoResultFound`,
+    /// or the package's own `NoRowError`) rather than return `None`. A
+    /// second row raises either way: a lookup that is not unique is a bug,
+    /// not an absence.
+    #[serde(default)]
+    pub raise_on_none: bool,
+
+    /// The most parameters a query's function takes as keywords: one with
+    /// more takes them as one `<Query>Params` record. No limit by default.
+    #[serde(default)]
+    pub max_params: Option<usize>,
 }
 
 /// The Python type of every column of a database type, or of one column.
@@ -91,6 +103,8 @@ impl Config {
             overrides: Vec::new(),
             rename: BTreeMap::new(),
             database_analysis: false,
+            raise_on_none: false,
+            max_params: None,
         }
     }
 }

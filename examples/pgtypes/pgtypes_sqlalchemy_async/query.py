@@ -57,8 +57,9 @@ _GET_SCALARS: Final = sqlalchemy.text(
 )
 
 
-async def get_scalars(conn: AsyncConnection, *, id: int) -> models.Scalar:
-    return models.Scalar.from_row((await conn.execute(_GET_SCALARS, {"id": id})).one())
+async def get_scalars(conn: AsyncConnection, *, id: int) -> models.Scalar | None:
+    row = (await conn.execute(_GET_SCALARS, {"id": id})).one_or_none()
+    return None if row is None else models.Scalar.from_row(row)
 
 
 _LIST_EVENTS: Final = sqlalchemy.text("SELECT id, kind FROM analytics.events")

@@ -19,19 +19,30 @@ VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, customer_id, number, status, currency, issued_on, due_on, notes, created_at, paid_at"""
 
 
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CreateInvoiceParams:
+    customer_id: UUID
+    number: str
+    currency: str
+    issued_on: dt.date | None
+    due_on: dt.date | None
+    notes: str | None
+
+
 async def create_invoice(
-    conn: psycopg.AsyncConnection[Any],
-    *,
-    customer_id: UUID,
-    number: str,
-    currency: str,
-    issued_on: dt.date | None,
-    due_on: dt.date | None,
-    notes: str | None,
+    conn: psycopg.AsyncConnection[Any], params: CreateInvoiceParams
 ) -> models.Invoice:
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(
-            _CREATE_INVOICE, (customer_id, number, currency, issued_on, due_on, notes)
+            _CREATE_INVOICE,
+            (
+                params.customer_id,
+                params.number,
+                params.currency,
+                params.issued_on,
+                params.due_on,
+                params.notes,
+            ),
         )
         match await cur.fetchmany(2):
             case [row]:
@@ -47,14 +58,14 @@ _GET_INVOICE: Final = "SELECT id, customer_id, number, status, currency, issued_
 
 async def get_invoice(
     conn: psycopg.AsyncConnection[Any], *, id: UUID
-) -> models.Invoice:
+) -> models.Invoice | None:
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(_GET_INVOICE, (id,))
         match await cur.fetchmany(2):
             case [row]:
                 return models.Invoice.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -64,14 +75,14 @@ _GET_INVOICE_STATUS: Final = "SELECT status FROM invoices WHERE id = $1"
 
 async def get_invoice_status(
     conn: psycopg.AsyncConnection[Any], *, id: UUID
-) -> models.InvoiceStatus:
+) -> models.InvoiceStatus | None:
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(_GET_INVOICE_STATUS, (id,))
         match await cur.fetchmany(2):
             case [row]:
                 return models.InvoiceStatus(row[0])
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -89,7 +100,7 @@ async def get_invoice_due_date(
                 value: dt.date | None = row[0]
                 return value
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -114,14 +125,14 @@ class GetInvoiceWithCustomerRow:
 
 async def get_invoice_with_customer(
     conn: psycopg.AsyncConnection[Any], *, id: UUID
-) -> GetInvoiceWithCustomerRow:
+) -> GetInvoiceWithCustomerRow | None:
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(_GET_INVOICE_WITH_CUSTOMER, (id,))
         match await cur.fetchmany(2):
             case [row]:
                 return GetInvoiceWithCustomerRow.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -242,7 +253,7 @@ class GetInvoiceTotalsRow:
 
 async def get_invoice_totals(
     conn: psycopg.AsyncConnection[Any], *, id: UUID
-) -> GetInvoiceTotalsRow:
+) -> GetInvoiceTotalsRow | None:
     """Totals are computed in SQL, so rounding matches the database exactly.
     Every aggregate is cast, since sqlc only guesses the type of a function call,
     and coalesced where it can be NULL, since sqlc reports every cast NOT NULL.
@@ -253,7 +264,7 @@ async def get_invoice_totals(
             case [row]:
                 return GetInvoiceTotalsRow.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -444,19 +455,19 @@ class GetInvoicesBatchParams:
 
 async def get_invoices_batch(
     conn: psycopg.AsyncConnection[Any], rows: Iterable[GetInvoicesBatchParams]
-) -> list[models.Invoice]:
+) -> list[models.Invoice | None]:
     """Several invoices at once: each id must exist."""
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.executemany(
             _GET_INVOICES_BATCH, [(r.id,) for r in rows], returning=True
         )
-        values: list[models.Invoice] = []
+        values: list[models.Invoice | None] = []
         async for result in cur.results():
             match await result.fetchmany(2):
                 case [row]:
                     values.append(models.Invoice.from_row(row))
                 case []:
-                    raise NoRowError
+                    values.append(None)
                 case _:
                     raise MultipleRowsError
         return values

@@ -101,7 +101,7 @@ Every rule cites the source of truth it rests on, using the ranking in
 |---|---|---|---|
 | model class | sqlc inflection: singular, PascalCase, schema prefix outside the default schema | `media` → `Medium`, `billing.payments` → `BillingPayment` | [4]: `src/inflection.rs` ports sqlc's `internal/inflection`, quirks included (`leaves` → `Leafe`), and is held to `tests/sqlc/endtoend/inflection.tsv`, captured from sqlc's own code |
 | enum class | PascalCase, schema prefix outside the default schema, never singularised | `billing.payment_method` → `BillingPaymentMethod` | [4] |
-| enum member | Go's `EnumReplace` (`-`, `/`, `:` and `_` become `_`; other characters that are not ASCII letters or digits are dropped), then upper-cased. | `direct-debit` → `DIRECT_DEBIT` | [4], PEP 8 |
+| enum member | The label's words in UPPER_SNAKE_CASE, split as snake_case splits them; characters that are not ASCII letters, digits or `_` dropped. | `direct-debit`, `in shock`, `inShock` → `DIRECT_DEBIT`, `IN_SHOCK`, `IN_SHOCK` | PEP 8 |
 | function | snake_case of the query name | `GetInvoiceWithCustomer` → `get_invoice_with_customer` | PEP 8 |
 | SQL constant | `_` + UPPER_SNAKE of the query name | `_GET_INVOICE_WITH_CUSTOMER` | [D]: private, like Go's unexported constants |
 | result class | `<Query>Row` | `GetInvoiceTotalsRow` | [4] |
@@ -546,8 +546,11 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    - every SQL parameter follows it keyword-only, in sqlc's parameter order,
      with no defaults;
    - with no parameters there is no `*`;
-   - parameters are never grouped into a class (only `:copyfrom` rows are a
-     `<Query>Params`, rule 7), and there is no parameter limit.
+   - with `max_params: N`, a query of more than `N` parameters takes them as
+     one record instead, `def <name>(conn: <connection>, params:
+     <Query>Params)`: a frozen, keyword-only dataclass of them, as the rows
+     of a `:copyfrom` or a batch are (rules 7 and 8). Without it, there is no
+     limit.
 
    *[D]: keyword-only parameters cannot be silently swapped. A forgotten
    nullable parameter is a type error, never a NULL written to an invoice.*
@@ -589,7 +592,7 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
 
    | cmd | Returns | SQLAlchemy | a driver |
    |---|---|---|---|
-   | `:one` | `X` | `X.from_row(….one())` | `match cur.fetchmany(2):` with `case [row]: return X.from_row(row)`, `case []: raise NoRowError`, `case _: raise MultipleRowsError` |
+   | `:one` | `X \| None`, or `X` with `raise_on_none` | `….one_or_none()` (`….one()`), `None` or `X.from_row(row)` | `match cur.fetchmany(2):` with `case [row]: return X.from_row(row)`, `case []: return None` (`raise NoRowError`), `case _: raise MultipleRowsError` |
    | `:many` | `list[X]` | `[X.from_row(row) for row in …]` | `[X.from_row(row) for row in cur.fetchall()]` |
    | `:exec` | `None` | `….execute(…)` | `cur.execute(…)` |
    | `:execrows` | `int` | `….rowcount` | `cur.rowcount`; on PyMySQL, what `cur.execute(…)` returns, the same count; on psycopg, the execute in a `conn.pipeline()` block of its own, as psycopg counts a statement in a pipeline only once it syncs (so does `:execresult`) |
@@ -597,18 +600,29 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    | `:execresult` | the result | `sqlalchemy.CursorResult[Any]` | the cursor: `psycopg.RawCursor[tuple[Any, ...]]` (`AsyncRawCursor`), `sqlite3.Cursor` (`aiosqlite.Cursor`), `pymysql.cursors.Cursor` |
    | `:copyfrom` | `None` | rule 7 | rule 7 |
 
-   - `:one` raises without exactly one row, as sqlc's Go returns
-     `ErrNoRows`, so a created invoice is an `Invoice`, never an
-     `Invoice | None`; a lookup where absence is normal catches it. On
-     SQLAlchemy that is `one()` (or `scalar_one()`): no row raises
-     `sqlalchemy.exc.NoResultFound`, a second `MultipleResultsFound`. A
-     driver has no such errors, so the package defines them in
-     `__init__.py`, as `class NoRowError(LookupError)` and
-     `class MultipleRowsError(LookupError)`. Go silently takes the first of
-     several rows; this divergence is deliberate: a lookup that is not unique
-     must not pick an invoice. Reading with `.first()` or `.scalar()` instead
-     is a type error, since either may be `None` (planted bugs ":one takes
-     the first row" and ":one takes the first value").
+   - `:one` returns `None` without a row, so a lookup reads as one:
+     `X | None`, which the type checkers make the caller handle. With
+     `raise_on_none` it raises instead, as sqlc's Go returns `ErrNoRows`, and
+     returns `X`: what code that only reads rows it knows exist would rather
+     have. A second row raises either way: Go silently takes the first, but a
+     lookup that is not unique is a bug, never an absence. On SQLAlchemy that
+     is `one_or_none()` (`one()`), or `scalar_one_or_none()`
+     (`scalar_one()`): no row raises `sqlalchemy.exc.NoResultFound`, a second
+     `MultipleResultsFound`. A driver has no such errors, so the package
+     defines them in `__init__.py`: `class MultipleRowsError(LookupError)`,
+     and with `raise_on_none`, `class NoRowError(LookupError)`. Reading with
+     `.first()` or `.scalar()` instead would take the first of several rows
+     (planted bugs ":one takes the first row" and ":one takes the first
+     value"). A single nullable column's `None` is then its NULL or no row
+     alike: `raise_on_none` tells them apart.
+   - A `:one` whose statement always returns exactly one row is its row's
+     type, never `None`: an `INSERT` of one row of `VALUES` (or `DEFAULT
+     VALUES`) `RETURNING` it, unless `ON CONFLICT DO NOTHING`; and a `SELECT`
+     of aggregates alone (`count`, `sum`, `EXISTS`, ... or a `coalesce` or
+     `CAST` of one), without a top-level `GROUP BY`, `HAVING`, `LIMIT`,
+     `OFFSET`, window or set operation. So creating a row returns it, `SELECT
+     count(*) ...` is `int` and `SELECT EXISTS(...)` is `bool`; each reads as
+     with `raise_on_none`, so the package defines `NoRowError` for it.
    - `:many` is always eager. *[D]: a lazy generator would let an
      `UPDATE … RETURNING` never run. Planted bug ":many returns a lazy
      generator".*
@@ -681,6 +695,8 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
 | `overrides` | `[]` | Python types the type map does not decide: `{db_type: <type>, python_type: <annotation>}` for every column of a type as sqlc reports it (`pg_catalog.` optional), or `{column: <table.column>, python_type: ...}` (the default schema's; `schema.table.column` for another) for one, which wins. The annotation may use builtins, `Decimal`, `UUID`, `dt.<name>` and the `ipaddress` classes of §2, and dotted names, whose module is imported (`app.types.Embedding` imports `app.types`), but not of a module ruff's import conventions alias (`numpy`, `pandas`, `datetime`, ...), nor of a name generated code binds; it is written as ruff writes it. `| None` and lists are added as the column says; an array of enums cannot be overridden. No field or function may take the name of a module an override imports. The value is passed as the driver returns and takes it, except that a JSON column's still binds as JSON. An override that matches nothing MUST be an error. *[4]: sqlc-gen-go's `overrides`, which sqlc does not send to a plugin.* |
 | `rename` | `{}` | Python names for SQL names: a table's or enum's (`schema.name`, or `name` in the default schema) becomes the class named, a column's or parameter's the field or parameter. A class MUST be CapWords and hide no builtin; a key that names nothing MUST be an error. *[4]: sqlc-gen-go's `rename`.* |
 | `database_analysis` | `false` | sqlc analysed the queries on a database (§5, rule 2). PostgreSQL only. |
+| `raise_on_none` | `false` | A `:one` raises without a row, rather than return `None` (§6, "Functions", rule 3). |
+| `max_params` | none | The most parameters a function takes as keywords: a query of more takes them as one `params: <Query>Params` record (§6, "Functions", rule 1). |
 
 Unknown keys MUST be an error. *[1]: stderr is not shown on success.* Each
 option that existed before is removed for a reason:

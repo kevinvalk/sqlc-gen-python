@@ -12,8 +12,9 @@ _GET_AUTHOR: Final = sqlalchemy.text("""SELECT id, name, bio FROM authors
 WHERE id = :id LIMIT 1""")
 
 
-def get_author(conn: sqlalchemy.Connection, *, id: int) -> models.Authors:
-    return models.Authors.from_row(conn.execute(_GET_AUTHOR, {"id": id}).one())
+def get_author(conn: sqlalchemy.Connection, *, id: int) -> models.Authors | None:
+    row = conn.execute(_GET_AUTHOR, {"id": id}).one_or_none()
+    return None if row is None else models.Authors.from_row(row)
 
 
 _LIST_AUTHORS: Final = sqlalchemy.text("""SELECT id, name, bio FROM authors

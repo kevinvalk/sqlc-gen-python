@@ -245,6 +245,12 @@ impl Engine {
         select::items(&self.words(text), columns)
     }
 
+    /// Whether `text` returns exactly one row, whatever the data
+    /// ([`select::single_row`]).
+    pub fn single_row(self, text: &str) -> bool {
+        select::single_row(&self.words(text))
+    }
+
     /// The tables `text`'s outer joins may leave without a row, lowercase;
     /// `None` for any ([`select::outer_joined`]).
     pub fn outer_joined(self, text: &str) -> Option<Vec<String>> {

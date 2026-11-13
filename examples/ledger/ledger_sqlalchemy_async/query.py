@@ -33,8 +33,9 @@ _GET_ACCOUNT: Final = sqlalchemy.text(
 )
 
 
-async def get_account(conn: AsyncConnection, *, id: int) -> models.Account:
-    return models.Account.from_row((await conn.execute(_GET_ACCOUNT, {"id": id})).one())
+async def get_account(conn: AsyncConnection, *, id: int) -> models.Account | None:
+    row = (await conn.execute(_GET_ACCOUNT, {"id": id})).one_or_none()
+    return None if row is None else models.Account.from_row(row)
 
 
 _GET_ACCOUNT_BY_NAME: Final = sqlalchemy.text(
@@ -42,10 +43,11 @@ _GET_ACCOUNT_BY_NAME: Final = sqlalchemy.text(
 )
 
 
-async def get_account_by_name(conn: AsyncConnection, *, name: str) -> models.Account:
-    return models.Account.from_row(
-        (await conn.execute(_GET_ACCOUNT_BY_NAME, {"name": name})).one()
-    )
+async def get_account_by_name(
+    conn: AsyncConnection, *, name: str
+) -> models.Account | None:
+    row = (await conn.execute(_GET_ACCOUNT_BY_NAME, {"name": name})).one_or_none()
+    return None if row is None else models.Account.from_row(row)
 
 
 _ARCHIVE_ACCOUNT: Final = sqlalchemy.text(
@@ -60,9 +62,9 @@ async def archive_account(conn: AsyncConnection, *, id: int) -> int:
 _IS_ARCHIVED: Final = sqlalchemy.text("SELECT archived FROM accounts WHERE id = :id")
 
 
-async def is_archived(conn: AsyncConnection, *, id: int) -> bool:
-    value = (await conn.execute(_IS_ARCHIVED, {"id": id})).scalar_one()
-    return bool(value)
+async def is_archived(conn: AsyncConnection, *, id: int) -> bool | None:
+    value = (await conn.execute(_IS_ARCHIVED, {"id": id})).scalar_one_or_none()
+    return None if value is None else bool(value)
 
 
 _LIST_ACCOUNTS: Final = sqlalchemy.text(
@@ -133,8 +135,10 @@ _BALANCE: Final = sqlalchemy.text("""SELECT CAST(coalesce(sum(amount_cents), 0) 
 FROM entries WHERE account_id = :account_id""")
 
 
-async def balance(conn: AsyncConnection, *, account_id: int) -> int:
-    value: int = (await conn.execute(_BALANCE, {"account_id": account_id})).scalar_one()
+async def balance(conn: AsyncConnection, *, account_id: int) -> int | None:
+    value: int | None = (
+        await conn.execute(_BALANCE, {"account_id": account_id})
+    ).scalar_one_or_none()
     return value
 
 
@@ -255,11 +259,10 @@ class GetLastAmountRow:
         return cls(name=row[0], last_amount_cents=row[1])
 
 
-async def get_last_amount(conn: AsyncConnection, *, id: int) -> GetLastAmountRow:
+async def get_last_amount(conn: AsyncConnection, *, id: int) -> GetLastAmountRow | None:
     """The account's last entry's amount: a subquery, so None without entries."""
-    return GetLastAmountRow.from_row(
-        (await conn.execute(_GET_LAST_AMOUNT, {"id": id})).one()
-    )
+    row = (await conn.execute(_GET_LAST_AMOUNT, {"id": id})).one_or_none()
+    return None if row is None else GetLastAmountRow.from_row(row)
 
 
 _DELETE_ENTRIES: Final = sqlalchemy.text(

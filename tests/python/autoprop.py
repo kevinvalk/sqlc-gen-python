@@ -15,8 +15,8 @@ in its transaction. Each example, in a transaction it rolls back:
    reusing values seen earlier so that lookups find rows. Every argument and
    result is checked against its annotation (``deep.checked``).
 
-A call returned ``rows``, came back ``empty`` (for a ``:one``, raised
-``NoResultFound``, or the package's ``NoRowError``), ``ran`` (``:exec`` and
+A call returned ``rows``, came back ``empty`` (for a ``:one``, returned
+``None``, or raised ``NoResultFound`` or the package's ``NoRowError``), ``ran`` (``:exec`` and
 ``:copyfrom`` return nothing), or was ``inconclusive``: the database refused
 the drawn data (an integrity, data or cardinality error, a timeout), or it
 rejects the SQL itself. Anything else fails the package: a value that does not
@@ -333,8 +333,10 @@ class Call:
     function: Callable[..., Any]
     query: Json
     arguments: list[Argument]
-    # The record a `:copyfrom` or batch function takes an iterable of.
+    # The record a `:copyfrom` or batch function takes an iterable of, or
+    # one of, as `params`: more parameters than the options' `max_params`.
     record: Any = None
+    bundled: bool = False
 
     async def run(
         self,
@@ -352,9 +354,12 @@ class Call:
         ``enums`` (the catalog's, for reading them) are given.
         """
         fields = st.fixed_dictionaries({a.name: a.values(pool) for a in self.arguments})
-        if self.record:
+        if self.bundled:
+            rows = [data.draw(fields, label=self.name)]
+            kwargs: dict[str, object] = {"params": self.record(**rows[0])}
+        elif self.record:
             rows = data.draw(st.lists(fields, max_size=3), label=self.name)
-            kwargs: dict[str, object] = {"rows": [self.record(**r) for r in rows]}
+            kwargs = {"rows": [self.record(**r) for r in rows]}
         else:
             rows = [data.draw(fields, label=self.name)]
             kwargs = rows[0]
@@ -364,7 +369,7 @@ class Call:
             return "inconclusive", False
         cmd = self.query["cmd"]
         expected = (
-            self.direct(conn, kwargs, enums)
+            self.direct(conn, rows[0] if self.bundled else kwargs, enums)
             if enums is not None and cmd in COMPARED
             else None
         )
@@ -400,14 +405,18 @@ class Call:
         if isinstance(result, sqlalchemy.CursorResult):
             result = result.rowcount
         match cmd:
+            # `None` is no row, or a row of one NULL: whichever the direct
+            # run found, so a value where there is none still differs.
+            case ":one" if result is None and expected == []:
+                got: object = []
             case ":one":
-                got: object = [repr(flat(result))]
+                got = [repr(flat(result))]
             case ":many":
                 got = sorted(repr(flat(r)) for r in typing.cast("list[object]", result))
             case _:
                 got = result
-        # A `:one` returned its row (else it raised), even if a NULL or `[]`.
-        none = {":many": [], ":execrows": 0, ":execresult": 0}
+        # A `:one` returned its row, or `None` without one (else it raised).
+        none = {":one": None, ":many": [], ":execrows": 0, ":execresult": 0}
         empty = cmd in none and result == none[cmd]
         return ("empty" if empty else "rows"), self.compare(expected, got)
 
@@ -567,11 +576,15 @@ def calls(
     for function, query in zip(functions, queries, strict=True):
         hints = typing.get_type_hints(function)
         parameters = list(inspect.signature(function).parameters)[1:]
-        record = None
-        # A `:copyfrom` or a batch takes `rows` of its parameters.
+        record, bundled = None, parameters == ["params"]
+        # A `:copyfrom` or a batch takes `rows` of its parameters; a query of
+        # more than `max_params`, one record of them.
         if query["cmd"] == ":copyfrom" or query["cmd"].startswith(":batch"):
             (rows,) = parameters
             (record,) = typing.get_args(hints[rows])
+        elif bundled:
+            record = hints["params"]
+        if record is not None:
             hints = typing.get_type_hints(record)
             parameters = [f.name for f in dataclasses.fields(record)]
         params = query.get("params", [])
@@ -583,7 +596,7 @@ def calls(
             for name, param in zip(parameters, params, strict=True)
         ]
         name = f"{module.__name__.split('.')[-1]}.{function.__name__}"
-        found.append(Call(name, function, query, arguments, record))
+        found.append(Call(name, function, query, arguments, record, bundled))
     return sorted(found, key=_writes_first)
 
 

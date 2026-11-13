@@ -22,9 +22,13 @@ fn each_backend_runs_its_engines() {
 
 #[test]
 fn only_a_driver_without_its_own_defines_the_errors_of_a_one() {
-    assert!(!Backend::SqlAlchemy.defines_errors());
-    assert!(Backend::Psycopg.defines_errors());
-    assert!(Backend::Sqlite3.defines_errors());
+    assert!(Backend::SqlAlchemy.errors(true).is_empty());
+    assert_eq!(
+        Backend::Psycopg.errors(true),
+        ["MultipleRowsError", "NoRowError"]
+    );
+    // No `:one` raises without a row: only a second row raises.
+    assert_eq!(Backend::Sqlite3.errors(false), ["MultipleRowsError"]);
 }
 
 #[test]

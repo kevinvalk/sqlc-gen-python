@@ -233,6 +233,16 @@ MUTANTS = {
         '{"email": email}).scalar_one()',
         '{"email": email}).scalar()',
     ),
+    # Without `raise_on_none`, `.first()` type-checks as `one_or_none()`
+    # does, and takes the first of several rows.
+    ":one or none takes the first row": Mutant(
+        RUNTIME,
+        "DID NOT RAISE",
+        "customers.py",
+        '{"name": name})).one_or_none()',
+        '{"name": name})).first()',
+        "invoicing_sqlalchemy_async",
+    ),
     "JSON None written as JSON null": Mutant(
         RUNTIME,
         "SELECT metadata IS NULL FROM customers",

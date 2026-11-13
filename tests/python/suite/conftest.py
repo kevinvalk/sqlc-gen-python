@@ -15,7 +15,8 @@ import inspect
 import os
 import pkgutil
 import sys
-from collections.abc import Iterator
+import typing
+from collections.abc import Awaitable, Iterator
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -75,9 +76,17 @@ def queries(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: A
     from deep import checked  # noqa: PLC0415 -- the suite's own module
 
     def bind(function: Any) -> Any:  # noqa: ANN401
+        # A function of more parameters than `max_params` takes one record
+        # of them: the scenario's keywords make it.
+        parameter = inspect.signature(function).parameters.get("params")
+        record = None
+        if parameter is not None and parameter.kind is parameter.POSITIONAL_OR_KEYWORD:
+            record = typing.get_type_hints(function)["params"]
         function = checked(function, called)
 
         async def call(*args: object, **kwargs: object) -> object:
+            if record is not None:
+                args, kwargs = (record(**kwargs),), {}
             result = function(conn, *args, **kwargs)
             return await result if inspect.isawaitable(result) else result
 
@@ -87,7 +96,26 @@ def queries(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: A
     for stem in query_modules(case):
         bound = {name: bind(fn) for name, fn in public_functions(case, stem).items()}
         modules[stem] = SimpleNamespace(**{**vars(module(case, stem)), **bound})
-    return SimpleNamespace(models=module(case, "models"), **modules)
+    api = SimpleNamespace(models=module(case, "models"), **modules)
+    # What a `:one` raises: SQLAlchemy's errors, or the package's own.
+    api.raises = case.options.get("raise_on_none") is True
+    if case.backend == "sqlalchemy":
+        api.NoRow = sqlalchemy.exc.NoResultFound
+        api.MultipleRows = sqlalchemy.exc.MultipleResultsFound
+    else:
+        package = importlib.import_module(case.name)
+        api.NoRow = getattr(package, "NoRowError", None)
+        api.MultipleRows = package.MultipleRowsError
+    return api
+
+
+async def no_row(api: Any, call: Awaitable[object]) -> None:  # noqa: ANN401
+    """A `:one` without a row: `None`, or with `raise_on_none`, the error."""
+    if api.raises:
+        with pytest.raises(api.NoRow):
+            await call
+    else:
+        assert await call is None
 
 
 def functions(case: GoldenCase) -> set[str]:

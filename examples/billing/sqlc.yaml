@@ -20,6 +20,7 @@ sql:
         options:
           backend: sqlalchemy
           async: false
+          raise_on_none: true
       - out: billing_sqlalchemy_async
         plugin: python
         options:

@@ -35,6 +35,8 @@ fn query(command: Command, params: Vec<Field>) -> Query {
         sql: Sql(pieces),
         copy_into: None,
         rows: None,
+        raises: true,
+        bundle: None,
         params,
         columns: Vec::new(),
         command,
@@ -75,7 +77,7 @@ fn a_driver_binds_each_parameter_by_position_json_wrapped_on_psycopg() {
 }
 
 #[test]
-fn a_one_raises_without_exactly_one_row_on_a_driver() {
+fn a_one_raises_without_exactly_one_row_on_a_driver_if_asked() {
     let one = Command::One(crate::api::queries::Shape::Scalar(field("n", Type::INT).ty));
     let (returns, body) = Backend::Sqlite3.body(&query(one, Vec::new()), false);
     let body = python::stmts_source(&body);
@@ -172,6 +174,22 @@ fn a_slice_is_one_placeholder_per_item_and_a_subquery_of_none_when_empty() {
         body.contains(
             r#"cur.execute(_GET.replace("/*SLICE:ids*/%s", ", ".join(["%s"] * len(ids)) or "SELECT NULL FROM DUAL WHERE FALSE"), (*ids,))"#
         ),
+        "{body}"
+    );
+}
+
+#[test]
+fn a_one_returns_none_without_a_row_and_raises_on_a_second_by_default() {
+    let one = Command::One(crate::api::queries::Shape::Scalar(field("n", Type::INT).ty));
+    let query = Query {
+        raises: false,
+        ..query(one, Vec::new())
+    };
+    let (returns, body) = Backend::Sqlite3.body(&query, false);
+    let body = python::stmts_source(&body);
+    assert_eq!(python::python_source(&returns), "int | None");
+    assert!(
+        body.contains("case []:\n            return None\n        case _:\n            raise MultipleRowsError"),
         "{body}"
     );
 }

@@ -60,13 +60,7 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
     }
     let mut problems = Problems::default();
     let (enums, models) = models::resolve(&resolver, &config.models, &mut problems);
-    let modules = queries::modules(
-        &request.queries,
-        &resolver,
-        &models,
-        config.backend,
-        &mut problems,
-    );
+    let modules = queries::modules(&request.queries, &resolver, &models, config, &mut problems);
     problems.check()?;
     resolver.check_used()?;
     let api = Api {

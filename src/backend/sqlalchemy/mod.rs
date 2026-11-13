@@ -8,7 +8,7 @@ use anyhow::{Result, bail};
 use ruff_python_ast as ast;
 
 use super::class;
-use crate::api::models::Field;
+use crate::api::models::{Field, FieldType};
 use crate::api::queries::{Command, Query, Shape};
 use crate::engine::Engine;
 use crate::python::{self, Json, Scope, Type, py_expr, py_stmt, py_stmts};
@@ -147,7 +147,11 @@ pub fn body(query: &Query, asynchronous: bool) -> (ast::Expr, Vec<ast::Stmt>) {
             .collect();
         python::dict(items)
     };
-    let own = |name: &str| python::name(name);
+    // A parameter's value: itself, or its field of the one record.
+    let own = |name: &str| match query.bundle {
+        Some(_) => py_expr!("params.$name", name = name),
+        None => python::name(name),
+    };
     let of_row = |name: &str| py_expr!("r.$name", name = name);
     // A batch binds each row's values, `r.p`; at once, as `params`, if it
     // returns nothing.
@@ -195,10 +199,21 @@ pub fn body(query: &Query, asynchronous: bool) -> (ast::Expr, Vec<ast::Stmt>) {
             executed,
         ),
         Command::One(Shape::Scalar(ty)) => {
+            // Without a row, `None`: the value then may be one.
+            let (ty, method) = match query.raises {
+                true => (ty.clone(), "scalar_one"),
+                false => (
+                    FieldType {
+                        optional: true,
+                        ..ty.clone()
+                    },
+                    "scalar_one_or_none",
+                ),
+            };
             let annotation = ty.annotation(Scope::Queries);
-            let one = py_expr!("$r.scalar_one()", r = executed);
-            // `scalar_one()` is `Any`: the annotated local states the type the
-            // value would leak, unless it is converted.
+            let one = py_expr!("$r.$method()", r = executed, method = method);
+            // The row's value is `Any`: the annotated local states the type
+            // the value would leak, unless it is converted.
             let line = match ty.converts() {
                 false => py_stmt!(
                     "value: $annotation = $one",
@@ -223,14 +238,28 @@ pub fn body(query: &Query, asynchronous: bool) -> (ast::Expr, Vec<ast::Stmt>) {
             let returns = py_expr!("list[$item]", item = ty.annotation(Scope::Queries));
             (returns, vec![], value)
         }
-        Command::One(shape) => {
-            let value = py_expr!(
-                "$class.from_row($r.one())",
-                class = class(shape),
-                r = executed
-            );
-            (class(shape), vec![], value)
-        }
+        Command::One(shape) => match query.raises {
+            true => {
+                let value = py_expr!(
+                    "$class.from_row($r.one())",
+                    class = class(shape),
+                    r = executed
+                );
+                (class(shape), vec![], value)
+            }
+            false => {
+                let row = py_stmt!("row = $r.one_or_none()", r = executed);
+                let value = py_expr!(
+                    "None if row is None else $class.from_row(row)",
+                    class = class(shape),
+                );
+                (
+                    py_expr!("$class | None", class = class(shape)),
+                    vec![row],
+                    value,
+                )
+            }
+        },
         Command::Many(shape) => {
             let value = py_expr!(
                 "[$class.from_row(row) for row in $r]",

@@ -32,14 +32,14 @@ def create_customer(
 _GET_CUSTOMER: Final = "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE id = %s"
 
 
-def get_customer(conn: pymysql.Connection, *, id: int) -> models.Customer:
+def get_customer(conn: pymysql.Connection, *, id: int) -> models.Customer | None:
     with conn.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_GET_CUSTOMER, (id,))
         match cur.fetchmany(2):
             case [row]:
                 return models.Customer.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -47,7 +47,9 @@ def get_customer(conn: pymysql.Connection, *, id: int) -> models.Customer:
 _FIND_CUSTOMER_BY_NAME: Final = "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE name = %s"
 
 
-def find_customer_by_name(conn: pymysql.Connection, *, name: str) -> models.Customer:
+def find_customer_by_name(
+    conn: pymysql.Connection, *, name: str
+) -> models.Customer | None:
     """Names are not unique: more than one match is an error, never a guess."""
     with conn.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_FIND_CUSTOMER_BY_NAME, (name,))
@@ -55,7 +57,7 @@ def find_customer_by_name(conn: pymysql.Connection, *, name: str) -> models.Cust
             case [row]:
                 return models.Customer.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -126,14 +128,14 @@ def create_invoice(
 _GET_INVOICE: Final = "SELECT id, customer_id, number, status, total, issued_on, notes, attachment, pay_within, created_at FROM invoices WHERE id = %s"
 
 
-def get_invoice(conn: pymysql.Connection, *, id: int) -> models.Invoice:
+def get_invoice(conn: pymysql.Connection, *, id: int) -> models.Invoice | None:
     with conn.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_GET_INVOICE, (id,))
         match cur.fetchmany(2):
             case [row]:
                 return models.Invoice.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -141,14 +143,16 @@ def get_invoice(conn: pymysql.Connection, *, id: int) -> models.Invoice:
 _GET_INVOICE_STATUS: Final = "SELECT status FROM invoices WHERE id = %s"
 
 
-def get_invoice_status(conn: pymysql.Connection, *, id: int) -> models.InvoicesStatus:
+def get_invoice_status(
+    conn: pymysql.Connection, *, id: int
+) -> models.InvoicesStatus | None:
     with conn.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_GET_INVOICE_STATUS, (id,))
         match cur.fetchmany(2):
             case [row]:
                 return models.InvoicesStatus(row[0])
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 
@@ -173,14 +177,14 @@ class GetInvoiceWithCustomerRow:
 
 def get_invoice_with_customer(
     conn: pymysql.Connection, *, id: int
-) -> GetInvoiceWithCustomerRow:
+) -> GetInvoiceWithCustomerRow | None:
     with conn.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_GET_INVOICE_WITH_CUSTOMER, (id,))
         match cur.fetchmany(2):
             case [row]:
                 return GetInvoiceWithCustomerRow.from_row(row)
             case []:
-                raise NoRowError
+                return None
             case _:
                 raise MultipleRowsError
 

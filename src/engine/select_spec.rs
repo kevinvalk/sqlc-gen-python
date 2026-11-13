@@ -116,3 +116,37 @@ fn a_scalar_subquery_has_no_row_unless_it_counts_ungrouped() {
         vec![Item::Other]
     );
 }
+
+#[test]
+fn a_statement_of_aggregates_alone_returns_exactly_one_row() {
+    let single = |sql: &str| {
+        let tokens: Vec<String> = sql.split_whitespace().map(String::from).collect();
+        single_row(&tokens)
+    };
+    for sql in [
+        "SELECT count ( * ) FROM t WHERE a = $1",
+        "SELECT EXISTS ( SELECT 1 FROM t ) AS found",
+        "SELECT coalesce ( sum ( x ) , 0 ) :: numeric , max ( y ) FROM t",
+        "SELECT count ( * ) FILTER ( WHERE a ) FROM t",
+        "INSERT INTO t ( a ) VALUES ( $1 ) RETURNING *",
+        "INSERT INTO t ( a ) VALUES ( $1 ) ON CONFLICT ( a ) DO UPDATE SET a = 1 RETURNING id",
+        "INSERT INTO t DEFAULT VALUES RETURNING id",
+    ] {
+        assert!(single(sql), "{sql}");
+    }
+    for sql in [
+        "SELECT count ( * ) FROM t GROUP BY a",
+        "SELECT count ( * ) FROM t HAVING count ( * ) > 1",
+        "SELECT count ( * ) FROM t LIMIT 0",
+        "SELECT count ( * ) OVER ( ) FROM t",
+        "SELECT a , count ( * ) FROM t",
+        "SELECT 1",
+        "UPDATE t SET a = 1 RETURNING ( SELECT count ( * ) FROM t )",
+        "INSERT INTO t ( a ) VALUES ( $1 ) ON CONFLICT DO NOTHING RETURNING id",
+        "INSERT INTO t ( a ) SELECT a FROM u RETURNING id",
+        "INSERT INTO t ( a ) VALUES ( 1 ) , ( 2 ) RETURNING id",
+        "INSERT INTO t ( a ) VALUES ( $1 )",
+    ] {
+        assert!(!single(sql), "{sql}");
+    }
+}

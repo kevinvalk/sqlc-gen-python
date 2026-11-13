@@ -25,6 +25,7 @@ sql:
         options:
           backend: sqlite3
           async: false
+          raise_on_none: true
       - out: ledger_sqlite3_async
         plugin: python
         options:

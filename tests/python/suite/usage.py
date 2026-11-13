@@ -60,7 +60,12 @@ def sync_api(conn: sqlalchemy.Connection, some: UUID) -> None:
 
 
 async def async_api(conn: AsyncConnection, some: UUID) -> None:
-    assert_type(await invoices_async.get_invoice(conn, id=some), models_async.Invoice)
+    # Without `raise_on_none`, a `:one` is `None` without a row.
+    invoice = await invoices_async.get_invoice(conn, id=some)
+    assert_type(invoice, models_async.Invoice | None)
+    if invoice is not None:
+        assert_type(invoice.number, str)
+    invoice.number  # type: ignore[union-attr]  # noqa: B018
     assert_type(await invoices_async.count_invoices(conn, customer_id=some), int)
 
 

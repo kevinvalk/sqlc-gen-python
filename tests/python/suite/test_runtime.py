@@ -10,7 +10,6 @@ function was never called.
 import asyncio
 import contextlib
 import datetime as dt
-import importlib
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from decimal import Decimal
@@ -25,7 +24,7 @@ from examples import GoldenCase
 from postgres import aw, conninfo
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from conftest import cases, functions, queries
+from conftest import cases, functions, no_row, queries
 
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 # Characters that SQLAlchemy, a driver or a careless generator could misread.
@@ -108,12 +107,6 @@ async def _psycopg_async(
 def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
     """The case's API on ``conn``, with the errors a ``:one`` raises."""
     api = queries(case, conn, called)
-    package = importlib.import_module(case.name)
-    if case.backend == "sqlalchemy":
-        api.NoRow = sqlalchemy.exc.NoResultFound
-        api.MultipleRows = sqlalchemy.exc.MultipleResultsFound
-    else:
-        api.NoRow, api.MultipleRows = package.NoRowError, package.MultipleRowsError
     api.pipeline = lambda: _pipeline(conn)
     return api
 
@@ -153,12 +146,6 @@ def _psycopg_sql(conn: Any) -> Callable[..., Awaitable[Any]]:  # noqa: ANN401
         return row[0]
 
     return scalar
-
-
-async def no_row(api: Any, call: Awaitable[object]) -> None:  # noqa: ANN401
-    """A `:one` without a row raises, as sqlc's Go raises `ErrNoRows`."""
-    with pytest.raises(api.NoRow):
-        await call
 
 
 async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noqa: ANN401, PLR0915
@@ -310,12 +297,14 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         [batch_get(id=second.id), batch_get(id=first.id)]
     ) == [second, first]
     assert await api.invoices.get_invoices_batch([]) == []
-    await no_row(
-        api,
-        api.invoices.get_invoices_batch(
-            [batch_get(id=first.id), batch_get(id=uuid4())]
-        ),
+    # A row without its result is `None` in the list, or raises.
+    missing = api.invoices.get_invoices_batch(
+        [batch_get(id=first.id), batch_get(id=uuid4())]
     )
+    if api.raises:
+        await no_row(api, missing)
+    else:
+        assert await missing == [first, None]
     batch_numbers = api.invoices.ListInvoiceNumbersBatchParams
     assert await api.invoices.list_invoice_numbers_batch(
         [batch_numbers(customer_id=ada.id), batch_numbers(customer_id=uuid4())]

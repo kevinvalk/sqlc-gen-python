@@ -8,7 +8,6 @@ call is checked against its annotations, and every function must be called.
 
 import asyncio
 import dataclasses
-import importlib
 import sqlite3
 from typing import Any
 
@@ -18,7 +17,7 @@ import sqlalchemy
 from examples import GoldenCase
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from conftest import cases, functions, queries
+from conftest import cases, functions, no_row, queries
 
 SCHEMA = cases("ledger")[0].schema_sql.read_text()
 STATEMENTS = [s for s in SCHEMA.split(";") if s.strip()]
@@ -89,12 +88,7 @@ async def _sqlalchemy_async(case: GoldenCase, called: set[str]) -> None:
 
 
 def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
-    api = queries(case, conn, called)
-    if case.backend == "sqlalchemy":
-        api.NoRow = sqlalchemy.exc.NoResultFound
-    else:
-        api.NoRow = importlib.import_module(case.name).NoRowError
-    return api
+    return queries(case, conn, called)
 
 
 async def scenario(api: Any) -> None:  # noqa: ANN401
@@ -105,8 +99,7 @@ async def scenario(api: Any) -> None:  # noqa: ANN401
     assert (cash.name, cash.archived, cash.opened_on) == ("Cash", False, "2026-11-13")
     assert cash.settings == '{"a": 1}'
     assert await q.get_account(id=cash.id) == cash
-    with pytest.raises(api.NoRow):
-        await q.get_account(id=cash.id + 1)
+    await no_row(api, q.get_account(id=cash.id + 1))
     assert await q.get_account_by_name(name="Cash") == cash
 
     # A BOOLEAN is stored as 0 or 1, and read back as a bool.
