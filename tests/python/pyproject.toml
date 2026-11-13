@@ -23,7 +23,7 @@ dev = [
     "mypy==2.4.1",
     # PostgreSQL's own scanner, libpg_query, which sqlc parses with (through
     # pg_query_go) and scanner.py holds the SQL rewriting to.
-    "pglast==7.22",
+    "pglast==8.7",
     "psycopg[binary]==3.3.8",
     # The `nodejs` extra bundles node, so pyright never downloads it at runtime.
     "pyright[nodejs]==1.1.414",
