@@ -18,7 +18,8 @@ use crate::backend::Backend;
 use crate::config::{Config, ModelConfig, Override};
 use crate::engine::Engine;
 use crate::plugin;
-use crate::python::{self, Scope, Type};
+use crate::python::{self, Scope, Type, py_expr};
+use ruff_python_ast as ast;
 
 #[cfg(test)]
 #[path = "models_spec.rs"]
@@ -150,14 +151,19 @@ impl FieldType {
     ///
     /// `None` goes outermost because a nullable array column is a list that may
     /// be absent, not a list of independently absent elements.
-    pub fn annotation(&self, scope: Scope) -> String {
-        let list = (0..self.array_dims).fold(self.element.source(scope), |inner, _| {
-            format!("list[{inner}]")
-        });
+    pub fn annotation(&self, scope: Scope) -> ast::Expr {
+        let element = self.element.annotation(scope);
+        let list =
+            (0..self.array_dims).fold(element, |inner, _| py_expr!("list[$inner]", inner = inner));
         match self.optional {
-            true => format!("{list} | None"),
+            true => py_expr!("$list | None", list = list),
             false => list,
         }
+    }
+
+    /// The annotation, as written, for an error to show.
+    pub fn describe(&self, scope: Scope) -> String {
+        python::python_source(&self.annotation(scope))
     }
 
     /// Whether [`Self::read`] converts a value.
@@ -170,18 +176,30 @@ impl FieldType {
     /// that an enum's labels, which drivers return as `str`, become members,
     /// and a [`Type::Converted`] value its type. A driver that returns an
     /// array of enums as its text (`text_arrays`) has it parsed by the enum.
-    pub fn read(&self, value: &str, scope: Scope, text_arrays: bool) -> String {
+    pub fn read(&self, value: ast::Expr, scope: Scope, text_arrays: bool) -> ast::Expr {
         if !self.converts() {
-            return value.into();
+            return value;
         }
-        let class = self.element.source(scope);
+        let class = self.element.annotation(scope);
         let read = match (self.array_dims, text_arrays) {
-            (0, _) => format!("{class}({value})"),
-            (_, false) => format!("[{class}(v) for v in {value}]"),
-            (_, true) => format!("{class}.from_array({value})"),
+            (0, _) => py_expr!("$class($value)", class = class, value = value.clone()),
+            (_, false) => py_expr!(
+                "[$class(v) for v in $value]",
+                class = class,
+                value = value.clone()
+            ),
+            (_, true) => py_expr!(
+                "$class.from_array($value)",
+                class = class,
+                value = value.clone()
+            ),
         };
         match self.optional {
-            true => format!("None if {value} is None else {read}"),
+            true => py_expr!(
+                "None if $value is None else $read",
+                value = value,
+                read = read
+            ),
             false => read,
         }
     }

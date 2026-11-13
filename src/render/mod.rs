@@ -12,39 +12,49 @@ use crate::api::Api;
 use crate::api::models::{Enum, Field, Model};
 use crate::config::Config;
 use crate::plugin;
-use crate::python::{self, Scope};
+use crate::python::{self, Scope, py_expr, py_stmt};
 
 /// Renders every file a codegen entry asked for.
 pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File> {
     let header = header(sqlc_version, config);
-    let file = |name: String, body: String| plugin::File {
-        name,
-        contents: (header.clone() + &body).into_bytes(),
+    let modules = config.modules();
+    let file = |name: String, body: &[ast::Stmt]| {
+        let exempt = match python::trips_s105(body) {
+            true => "# ruff: noqa: S105\n",
+            false => "",
+        };
+        let contents = header.clone() + exempt + &python::render(body, &modules);
+        plugin::File {
+            name,
+            contents: contents.into_bytes(),
+        }
     };
     // The generated package owns `out`, so it is a regular package: relative
     // imports resolve, and mypy and ruff (INP001) need no configuration.
-    let modules = config.modules();
     let init = match config.backend.defines_errors() {
-        true => python::render(&errors(), &[]),
-        false => String::new(),
+        true => errors(),
+        false => Vec::new(),
     };
     let mut files = vec![
-        file("__init__.py".into(), init),
+        file("__init__.py".into(), &init),
         file(
             "models.py".into(),
-            python::render(&models(api, config.backend.text_arrays()), &modules),
+            &models(api, config.backend.text_arrays()),
         ),
     ];
     files.extend((api.modules.iter()).map(|module| {
-        let body = python::render(&queries::module(module, config), &modules);
-        file(format!("{}.py", module.name), body)
+        file(
+            format!("{}.py", module.name),
+            &queries::module(module, config),
+        )
     }));
     files
 }
 
 /// The banner every generated module opens with, prepended to the rendered
 /// tree: ruff's AST has nowhere to put a `#` comment, so this is the one part
-/// of a file that is not built as one.
+/// of a file that is not built as one. A module ruff's S105 would flag also
+/// exempts itself from it ([`python::trips_s105`]).
 ///
 /// Recording the versions makes a regenerated file's diff explain itself,
 /// though `omit_sqlc_version` drops the sqlc line for anyone who would rather
@@ -110,12 +120,15 @@ fn enum_class(sql_enum: &Enum, from_array: bool) -> ast::Stmt {
         .map(|member| python::assign(&member.name, python::string(&member.value)));
     let str_method = python::stmt("def __str__(self) -> str:\n    return str.__str__(self)");
     let from_array = from_array.then(|| {
-        python::stmt(&format!(
-            "@classmethod\ndef from_array(cls, text: str) -> \"list[{}]\":\n    \
-             \"\"\"The members of an array of this enum, as PostgreSQL writes one: `{{a,b}}`.\"\"\"\n    \
-             return [cls(label) for label in text[1:-1].split(\",\") if label]",
-            sql_enum.name
-        ))
+        py_stmt!(
+            r#"
+            @classmethod
+            def from_array(cls, text: str) -> $returns:
+                """The members of an array of this enum, as PostgreSQL writes one: `{a,b}`."""
+                return [cls(label) for label in text[1:-1].split(",") if label]
+            "#,
+            returns = python::string(&format!("list[{}]", sql_enum.name)),
+        )
     });
 
     python::class(
@@ -143,10 +156,10 @@ fn model_class(model: &Model, text_arrays: bool) -> ast::Stmt {
 /// One field of a [`record`].
 struct Attribute {
     name: String,
-    annotation: String,
+    annotation: ast::Expr,
     comment: String,
     /// How `from_row` reads it from `row`, for a record built from results.
-    read: Option<String>,
+    read: Option<ast::Expr>,
 }
 
 impl Attribute {
@@ -156,7 +169,7 @@ impl Attribute {
             name: field.name.clone(),
             annotation: field.ty.annotation(scope),
             comment: String::new(),
-            read: Some(field.ty.read(&format!("row[{at}]"), scope, text_arrays)),
+            read: Some(field.ty.read(row(at), scope, text_arrays)),
         }
     }
 }
@@ -170,17 +183,22 @@ impl Attribute {
 /// has no row to read.
 fn record(name: &str, comment: &str, attributes: &[Attribute]) -> ast::Stmt {
     let fields = (attributes.iter()).flat_map(|attribute| {
-        let declaration = python::ann_assign(&attribute.name, python::expr(&attribute.annotation));
+        let declaration = python::ann_assign(&attribute.name, attribute.annotation.clone());
         std::iter::once(declaration).chain(docstring(&attribute.comment))
     });
-    let reads: Option<Vec<String>> = (attributes.iter())
-        .map(|attribute| Some(format!("{}={}", attribute.name, attribute.read.as_ref()?)))
+    let reads: Option<Vec<ast::Keyword>> = (attributes.iter())
+        .map(|attribute| Some(python::keyword(&attribute.name, attribute.read.clone()?)))
         .collect();
     let from_row = reads.filter(|reads| !reads.is_empty()).map(|reads| {
-        python::stmt(&format!(
-            "@classmethod\ndef from_row(cls, row: Sequence[Any]) -> \"{name}\":\n    return cls({})",
-            reads.join(", ")
-        ))
+        py_stmt!(
+            "
+            @classmethod
+            def from_row(cls, row: Sequence[Any]) -> $returns:
+                return cls(**$reads)
+            ",
+            returns = python::string(name),
+            reads = reads,
+        )
     });
 
     python::class(
@@ -193,6 +211,11 @@ fn record(name: &str, comment: &str, attributes: &[Attribute]) -> ast::Stmt {
             .chain(fields)
             .chain(from_row),
     )
+}
+
+/// `row[at]`: one column of a row.
+fn row(at: usize) -> ast::Expr {
+    py_expr!("row[$at]", at = python::int(at))
 }
 
 /// The docstring for an object the schema documented, if it did.

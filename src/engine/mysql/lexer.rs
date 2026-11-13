@@ -42,6 +42,13 @@ fn continues_identifier(c: char) -> bool {
 /// quoted identifier, `` `...` ``, are one token: a quote doubled inside
 /// continues one, and so does a quote after a backslash in a string. A word or
 /// a number is read whole.
+/// The text of each token of `sql`, as [`tokens`] scans it.
+pub fn words(sql: &[char]) -> Vec<String> {
+    (tokens(sql).into_iter())
+        .map(|(start, end)| sql[start..end].iter().collect())
+        .collect()
+}
+
 fn tokens(sql: &[char]) -> Vec<(usize, usize)> {
     // Just past the quote that closes the one at `i`.
     let quoted = |i: usize, close: char, escapes: bool| {

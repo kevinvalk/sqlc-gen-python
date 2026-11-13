@@ -145,7 +145,7 @@ fn a_docstring_escapes_a_tab_that_would_follow_its_own_indentation() {
 
 /// How a module holding `x = f(<value>)` renders.
 fn rendered_string(value: &str) -> String {
-    let call = call(expr("f"), [string(value)]);
+    let call = py_expr!("f($value)", value = string(value));
     render(&[assign("X", call)], &[])
 }
 
@@ -300,4 +300,19 @@ fn a_public_name_is_an_ascii_identifier_that_is_neither_a_keyword_nor_private() 
 #[should_panic(expected = "generated invalid Python")]
 fn rendering_a_tree_that_is_not_python_is_a_bug_not_an_error() {
     render(&[assign("class", string("y"))], &[]);
+}
+
+#[test]
+fn a_string_assigned_to_a_name_ruff_takes_for_a_secrets_trips_s105() {
+    let trips = |source: &str| trips_s105(&[stmt(source)]);
+    assert!(trips(r#"_GET_API_TOKEN: Final = "SELECT 1""#));
+    assert!(trips(
+        "class Role(str, enum.Enum):\n    PASSWORD = \"password\""
+    ));
+    assert!(trips(r#"_UPDATE_USER_PASSWD = "x""#));
+    assert!(!trips(r#"_GET_TOKENS: Final = "SELECT 1""#));
+    assert!(!trips(
+        r#"_GET_API_TOKEN: Final = sqlalchemy.text("SELECT 1")"#
+    ));
+    assert!(!trips(r#"_TOKEN = """#));
 }

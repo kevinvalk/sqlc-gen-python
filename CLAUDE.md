@@ -8,8 +8,8 @@ and renders it with ruff's formatter. Read `docs/development.md` for the archite
 
 - **Never commit** (no `git commit`, `merge`, `rebase`, `stash`, `tag`, `push`).
   The user commits. Leave work in the working tree.
-- **The generated Python must be correct, typed and idiomatic.** It is used for
-  an invoicing system. A wrong type (a float for money, an `int` that is really
+- **The generated Python must be correct, typed and idiomatic**, for any
+  project sqlc serves. A wrong type (a float for money, an `int` that is really
   `str | None`) is the worst kind of bug. Never paper over an unknown with `Any`
   silently; never weaken a check to make it pass.
 - **Elegance is a requirement, not a nicety.** Smallest design that is correct.

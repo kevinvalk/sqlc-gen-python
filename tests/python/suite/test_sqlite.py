@@ -139,6 +139,7 @@ async def scenario(api: Any) -> None:  # noqa: ANN401
         (-250, None, None, None),
     ]
     assert entries[1].id == second
+    assert (await q.get_last_amount(id=cash.id)).last_amount_cents == -250
     # A slice's items, then `?2`: each bound in its own place.
     ids = [e.id for e in entries]
     assert await q.list_entry_ids(ids=[*ids, 0], account_id=cash.id) == ids
@@ -153,5 +154,15 @@ async def scenario(api: Any) -> None:  # noqa: ANN401
     assert [(row.entry, row.account) for row in joined] == [
         (entry, archived) for entry in entries
     ]
+    # A LEFT JOIN's embed: the entries, then none at all.
+    outer = await q.list_accounts_with_entries()
+    assert [(row.account, row.entry) for row in outer] == [
+        (archived, entry) for entry in entries
+    ]
     assert (await q.delete_entries(account_id=cash.id)).rowcount == 2
     assert await q.balance(account_id=cash.id) == 0
+    outer = await q.list_accounts_with_entries()
+    assert [(row.account, row.entry) for row in outer] == [(archived, None)]
+    # A scalar subquery that finds no row is None, though sqlc says NOT NULL.
+    last = await q.get_last_amount(id=cash.id)
+    assert (last.name, last.last_amount_cents) == ("Cash", None)

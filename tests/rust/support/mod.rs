@@ -21,6 +21,7 @@ use ruff_text_size::{Ranged, TextRange};
 use sqlc_gen_python::api::models::{self, Repeats};
 use sqlc_gen_python::backend::Backend;
 use sqlc_gen_python::config::Config;
+use sqlc_gen_python::engine::select::Item;
 use sqlc_gen_python::engine::{Bind, Engine, Piece, Sql};
 use sqlc_gen_python::plugin;
 
@@ -303,18 +304,22 @@ fn module_problems(parsed: &Parsed<ModModule>, source: &str) -> Vec<String> {
 }
 
 /// Checks that the only comments are the lines the module opens with, the
-/// header (§1, rule 3). Any other comment says something to a tool: a
-/// `# type: ignore` silences both type checkers on its line, which the static
-/// gate, deaf only to `# noqa`, would then pass.
+/// header (§1, rule 3), and that the one of them that speaks to a tool is
+/// `# ruff: noqa: S105`. Any other would silence one: a `# type: ignore` both
+/// type checkers on its line, a `# noqa` ruff, which the static gate obeys.
 fn comments_are_the_header(parsed: &Parsed<ModModule>, source: &str, problems: &mut Vec<String>) {
     let mut code = false;
     for token in parsed.tokens().iter() {
+        let comment = &source[token.range()];
         match token.kind() {
             TokenKind::Comment if code => {
-                problems.push(format!(
-                    "`{}` is a comment after the header",
-                    &source[token.range()]
-                ));
+                problems.push(format!("`{comment}` is a comment after the header"));
+            }
+            TokenKind::Comment
+                if (comment.contains("noqa") || comment.contains("type:"))
+                    && comment != "# ruff: noqa: S105" =>
+            {
+                problems.push(format!("`{comment}` silences a tool"));
             }
             TokenKind::Comment | TokenKind::NonLogicalNewline | TokenKind::Newline => {}
             _ => code = true,
@@ -595,7 +600,7 @@ fn queries_follow_sqlc(
             queries.len()
         ));
     }
-    let conn = backend.connection(asynchronous);
+    let conn = &sqlc_gen_python::python::python_source(&backend.connection(asynchronous));
     for ((query, (constant, sql)), function) in queries.into_iter().zip(statements).zip(functions) {
         let parameters = parameters(body, function);
         if function_follows_sqlc(query, function, &parameters, conn, asynchronous, problems) {
@@ -1000,8 +1005,9 @@ fn positions(items: &[Expr]) -> Vec<(String, String)> {
 /// Checks that a record's `from_row` builds its fields, in order, each from
 /// its own place in the row: a column from `row[i]` (inside an enum's
 /// conversion, if any), and an embed of `width` columns from `row[a:b]`,
-/// starting where the field before it ended. `widths` gives each field's:
-/// `None` for a column.
+/// starting where the field before it ended, an outer join's perhaps `None`
+/// as told by one of those columns. `widths` gives each field's: `None` for
+/// a column.
 fn reads_in_order(class: &StmtClassDef, widths: &[Option<usize>], problems: &mut Vec<String>) {
     #[derive(Default)]
     struct Reads(BTreeSet<String>);
@@ -1046,7 +1052,13 @@ fn reads_in_order(class: &StmtClassDef, widths: &[Option<usize>], problems: &mut
         start += width.unwrap_or(1);
         let mut reads = Reads::default();
         reads.visit_expr(&keyword.value);
-        if reads.0 != BTreeSet::from([expected.clone()]) {
+        // An embed's own columns, each, may tell whether it has a row.
+        let own: BTreeSet<String> = match width {
+            None => BTreeSet::new(),
+            Some(width) => (start - width..start).map(|i| i.to_string()).collect(),
+        };
+        let extra: BTreeSet<&String> = reads.0.difference(&own).collect();
+        if !reads.0.contains(&expected) || extra != BTreeSet::from([&expected]) {
             problems.push(format!(
                 "class `{}`: `from_row` reads row[{}] into `{}`, not row[{expected}]",
                 class.name,
@@ -1271,6 +1283,20 @@ fn result_follows_sqlc(
     let Some(returns) = function.returns.as_deref() else {
         return problems.push(format!("{}: no return annotation", query.name));
     };
+    // A scalar subquery is NULL when it finds no row, though sqlc reports it
+    // NOT NULL, unless it counts.
+    let items = Engine::of(request)
+        .ok()
+        .and_then(|e| e.items(&query.text, query.columns.len()));
+    let shape = |i: usize| {
+        let column = &query.columns[i];
+        let subquery =
+            items.as_ref().map(|items| &items[i]) == Some(&Item::Subquery { row: false });
+        Shape::from(&plugin::Column {
+            not_null: column.not_null && !subquery,
+            ..column.clone()
+        })
+    };
     // A batch returns a list, its command's result per row.
     let (cmd, returns) = match (query.cmd.strip_prefix(":batch"), returns) {
         (Some(cmd @ ("one" | "many")), Expr::Subscript(list)) if is_name(&list.value, "list") => {
@@ -1339,24 +1365,28 @@ fn result_follows_sqlc(
             if !model {
                 // An embed is spelt as its model's class.
                 let spellings: Vec<&str> = (fields.iter().zip(&query.columns))
-                    .map(|((_, annotation), column)| match annotation {
-                        Expr::Attribute(model) if is_embed(column) => model.attr.as_str(),
-                        _ => column.name.as_str(),
-                    })
+                    .map(
+                        |((_, annotation), column)| match strip_optional(annotation) {
+                            Expr::Attribute(model) if is_embed(column) => model.attr.as_str(),
+                            _ => column.name.as_str(),
+                        },
+                    )
                     .collect();
                 let what = format!("{}: class `{}`", query.name, class.name);
                 named_after(&what, &fields, &spellings, Repeats::Numbered, problems);
                 let comments = query.columns.iter().map(|c| c.comment.as_str());
                 documented(&what, class, "", comments, problems);
             }
-            for ((name, annotation), column) in fields.into_iter().zip(&query.columns) {
-                if !is_embed(column) && Shape::of(annotation) != Shape::from(column) {
+            for (i, ((name, annotation), column)) in
+                fields.into_iter().zip(&query.columns).enumerate()
+            {
+                if !is_embed(column) && Shape::of(annotation) != shape(i) {
                     problems.push(disagrees(&format!("field `{name}`")));
                 }
             }
         }
         None => match &query.columns[..] {
-            [column] if Shape::of(item) == Shape::from(column) => {}
+            [_] if Shape::of(item) == shape(0) => {}
             _ => problems.push(disagrees("the bare result")),
         },
     }
@@ -1521,6 +1551,14 @@ fn docstring(stmt: Option<&Stmt>) -> String {
 
 fn words(text: &str) -> Vec<&str> {
     text.split_whitespace().collect()
+}
+
+/// `X` of an annotation `X | None`, or the annotation.
+fn strip_optional(annotation: &Expr) -> &Expr {
+    match annotation {
+        Expr::BinOp(union) if union.right.is_none_literal_expr() => &union.left,
+        annotation => annotation,
+    }
 }
 
 /// Whether a result column is `sqlc.embed(t)`.

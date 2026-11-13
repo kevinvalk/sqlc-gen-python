@@ -7,6 +7,7 @@
 
 mod mysql;
 mod postgresql;
+pub mod select;
 mod sqlite;
 
 #[cfg(test)]
@@ -235,6 +236,39 @@ impl Engine {
             Self::PostgreSql => postgresql::merges(sql),
             // Neither has `MERGE`.
             Self::Sqlite | Self::MySql => false,
+        }
+    }
+
+    /// What each of `columns` result columns of `text` is, by position,
+    /// where certain ([`select::items`]).
+    pub fn items(self, text: &str, columns: usize) -> Option<Vec<select::Item>> {
+        select::items(&self.words(text), columns)
+    }
+
+    /// The tables `text`'s outer joins may leave without a row, lowercase;
+    /// `None` for any ([`select::outer_joined`]).
+    pub fn outer_joined(self, text: &str) -> Option<Vec<String>> {
+        select::outer_joined(&self.words(text))
+    }
+
+    /// The text of each token of `text`'s code, comments left out.
+    fn words(self, text: &str) -> Vec<String> {
+        let chars: Vec<char> = text.chars().collect();
+        match self {
+            Self::PostgreSql => postgresql::words(&chars),
+            Self::Sqlite => sqlite::words(&chars),
+            Self::MySql => mysql::words(&chars),
+        }
+    }
+
+    /// The type of `count(...)`, whatever it counts, as sqlc names it on a
+    /// type it read: PostgreSQL's `bigint`, MySQL's `BIGINT`, SQLite's
+    /// integer.
+    pub fn count_type(self) -> &'static str {
+        match self {
+            Self::PostgreSql => "pg_catalog.int8",
+            Self::Sqlite => "integer",
+            Self::MySql => "bigint",
         }
     }
 

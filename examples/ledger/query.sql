@@ -52,5 +52,18 @@ SELECT sqlc.embed(entries), sqlc.embed(accounts)
 FROM entries JOIN accounts ON accounts.id = entries.account_id
 ORDER BY entries.id;
 
+-- name: ListAccountsWithEntries :many
+-- Each account with each of its entries: one without any once, its entry None.
+SELECT sqlc.embed(accounts), sqlc.embed(entries)
+FROM accounts LEFT JOIN entries ON entries.account_id = accounts.id
+ORDER BY accounts.id, entries.id;
+
+-- name: GetLastAmount :one
+-- The account's last entry's amount: a subquery, so None without entries.
+SELECT name, (
+  SELECT e.amount_cents FROM entries e WHERE e.account_id = accounts.id ORDER BY e.id DESC LIMIT 1
+) AS last_amount_cents
+FROM accounts WHERE accounts.id = ?;
+
 -- name: DeleteEntries :execresult
 DELETE FROM entries WHERE account_id = ?;

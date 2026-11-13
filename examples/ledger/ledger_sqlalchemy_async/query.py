@@ -211,6 +211,57 @@ async def list_entries_with_account(
     ]
 
 
+_LIST_ACCOUNTS_WITH_ENTRIES: Final = sqlalchemy.text("""SELECT accounts.id, accounts.name, accounts.archived, accounts.opened_on, accounts.settings, entries.id, entries.account_id, entries.amount_cents, entries.rate, entries.memo, entries.receipt, entries.booked_at
+FROM accounts LEFT JOIN entries ON entries.account_id = accounts.id
+ORDER BY accounts.id, entries.id""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListAccountsWithEntriesRow:
+    account: models.Account
+    entry: models.Entry | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListAccountsWithEntriesRow":
+        return cls(
+            account=models.Account.from_row(row[0:5]),
+            entry=None if row[5] is None else models.Entry.from_row(row[5:12]),
+        )
+
+
+async def list_accounts_with_entries(
+    conn: AsyncConnection,
+) -> list[ListAccountsWithEntriesRow]:
+    """Each account with each of its entries: one without any once, its entry None."""
+    return [
+        ListAccountsWithEntriesRow.from_row(row)
+        for row in await conn.execute(_LIST_ACCOUNTS_WITH_ENTRIES)
+    ]
+
+
+_GET_LAST_AMOUNT: Final = sqlalchemy.text("""SELECT name, (
+  SELECT e.amount_cents FROM entries e WHERE e.account_id = accounts.id ORDER BY e.id DESC LIMIT 1
+) AS last_amount_cents
+FROM accounts WHERE accounts.id = :id""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class GetLastAmountRow:
+    name: str
+    last_amount_cents: int | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "GetLastAmountRow":
+        return cls(name=row[0], last_amount_cents=row[1])
+
+
+async def get_last_amount(conn: AsyncConnection, *, id: int) -> GetLastAmountRow:
+    """The account's last entry's amount: a subquery, so None without entries."""
+    return GetLastAmountRow.from_row(
+        (await conn.execute(_GET_LAST_AMOUNT, {"id": id})).one()
+    )
+
+
 _DELETE_ENTRIES: Final = sqlalchemy.text(
     "DELETE FROM entries WHERE account_id = :account_id"
 )

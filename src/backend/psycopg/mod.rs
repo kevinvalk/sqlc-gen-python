@@ -3,7 +3,8 @@
 
 use super::dbapi::{Api, Driver};
 use crate::api::models::Field;
-use crate::python::{Json, Type};
+use crate::python::{Json, Type, py_expr};
+use ruff_python_ast as ast;
 
 /// A raw cursor of tuples, whatever the connection's row factory.
 pub const DRIVER: Driver = Driver {
@@ -56,11 +57,15 @@ pub fn scalar_type(data_type: &str) -> Option<Type> {
 /// `value`, wrapped in psycopg's JSON type for a JSON parameter, which psycopg
 /// cannot tell from any other `dict` or `list`. `None` stays SQL `NULL`,
 /// never the JSON `null`.
-fn bind(param: &Field, value: &str) -> String {
+fn bind(param: &Field, value: ast::Expr) -> ast::Expr {
     let json = match param.ty.element.json() {
         Some(Json::Json) => "Json",
         Some(Json::Jsonb) => "Jsonb",
-        None => return value.into(),
+        None => return value,
     };
-    format!("None if {value} is None else {json}({value})")
+    py_expr!(
+        "None if $value is None else $json($value)",
+        value = value,
+        json = json,
+    )
 }

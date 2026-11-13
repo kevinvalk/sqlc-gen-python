@@ -91,6 +91,11 @@ fn unrewritten(sql: &[char], tokens: &[Token]) -> Option<String> {
     })
 }
 
+/// The text of each token of `sql`, as [`tokens`] scans it.
+pub fn words(sql: &[char]) -> Vec<String> {
+    tokens(sql).iter().map(|token| token.text(sql)).collect()
+}
+
 /// A token of what PostgreSQL's lexer reads as code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Token {

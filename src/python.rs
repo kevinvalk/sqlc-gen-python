@@ -8,14 +8,16 @@
 //! cannot drift apart.
 //!
 //! Most of a generated file is fixed Python with data slotted into a few
-//! places. For the fixed parts there is nothing to build: [`expr`] and [`stmt`]
-//! hand the text to ruff's parser, so the source reads as the Python it
-//! produces. Only where schema data lands is a node constructed by hand, and
-//! only because a column name is not guaranteed to be a Python identifier.
+//! places. It is written as Python templates ([`py_expr!`], [`py_stmt!`],
+//! [`py_stmts!`], see [`quote`]) whose holes take the data as nodes, built by
+//! the constructors below: data never passes through the parser, so a column
+//! called `class`, or SQL holding `"`, is a name or a string and nothing else.
+//! [`expr`] and [`stmt`] parse a fragment this crate writes whole.
 //!
 //! [`render`] closes the loop: ruff unparses the tree, then ruff formats it.
 
 use std::collections::BTreeSet;
+use std::sync::LazyLock;
 
 use ruff_python_ast::visitor::{Visitor, walk_expr, walk_stmt};
 use ruff_python_ast::{self as ast, name::Name};
@@ -23,12 +25,46 @@ use ruff_python_codegen::{Generator, Indentation};
 use ruff_python_formatter::{PyFormatOptions, format_module_source};
 use ruff_python_parser::{parse_expression, parse_module};
 use ruff_source_file::LineEnding;
-use ruff_text_size::{TextRange, TextSize};
+use ruff_text_size::TextRange;
 use thin_vec::ThinVec;
 
 #[cfg(test)]
 #[path = "python_spec.rs"]
 mod spec;
+
+pub mod quote;
+pub use quote::Hole;
+
+/// An expression from a template ([`quote`]): `py_expr!("$a + 1", a = x)`.
+macro_rules! py_expr {
+    ($template:expr $(, $hole:ident = $value:expr)* $(,)?) => {
+        $crate::python::quote::expr(
+            $template,
+            vec![$((stringify!($hole), $crate::python::Hole::from($value))),*],
+        )
+    };
+}
+
+/// The one statement of a template ([`quote`]).
+macro_rules! py_stmt {
+    ($template:expr $(, $hole:ident = $value:expr)* $(,)?) => {{
+        let mut stmts = $crate::python::py_stmts!($template $(, $hole = $value)*);
+        assert_eq!(stmts.len(), 1, "template `{}` is one statement", $template);
+        stmts.remove(0)
+    }};
+}
+
+/// The statements of a template ([`quote`]).
+macro_rules! py_stmts {
+    ($template:expr $(, $hole:ident = $value:expr)* $(,)?) => {
+        $crate::python::quote::stmts(
+            $template,
+            vec![$((stringify!($hole), $crate::python::Hole::from($value))),*],
+        )
+    };
+}
+
+pub(crate) use {py_expr, py_stmt, py_stmts};
 
 // -- Rendering ---------------------------------------------------------------
 
@@ -54,6 +90,33 @@ pub fn render(body: &[ast::Stmt], modules: &[String]) -> String {
     format_module_source(&respell_strings(&unparsed), PyFormatOptions::default())
         .expect("respelt strings are valid Python")
         .into_code()
+}
+
+/// Whether ruff's S105, which takes a string assigned to a name like
+/// `PASSWORD` or `_GET_API_TOKEN` for a hardcoded secret, flags anything in
+/// `body`: what generated code assigns is SQL and enum labels, never a
+/// secret, so its module exempts itself from the rule, and only then.
+pub fn trips_s105(body: &[ast::Stmt]) -> bool {
+    // ruff's own pattern (`flake8_bandit::helpers`).
+    static SECRET: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"(^|_)(?i)(pas+wo?r?d|pass(phrase)?|pwd|token|secrete?)($|_)")
+            .expect("ruff's pattern")
+    });
+    body.iter().any(|stmt| {
+        let (targets, value): (Vec<&ast::Expr>, Option<&ast::Expr>) = match stmt {
+            ast::Stmt::Assign(assign) => (assign.targets.iter().collect(), Some(&assign.value)),
+            ast::Stmt::AnnAssign(assign) => (vec![&assign.target], assign.value.as_deref()),
+            ast::Stmt::ClassDef(class) => return trips_s105(&class.body),
+            _ => return false,
+        };
+        let string = value
+            .and_then(ast::Expr::as_string_literal_expr)
+            .is_some_and(|string| !string.value.to_str().is_empty());
+        string
+            && (targets.iter())
+                .filter_map(|target| target.as_name_expr())
+                .any(|name| SECRET.is_match(name.id.as_str()))
+    })
 }
 
 /// Spells every docstring, and every other string holding a line break, as
@@ -187,11 +250,20 @@ fn is_printable(c: char) -> bool {
 
 // -- Fragments ---------------------------------------------------------------
 
+/// A template written as a coroutine's (`async with`, `await`), as a
+/// coroutine's, or a blocking function's: the same without `async ` and
+/// `await `, which a template, holding no data, has nowhere else.
+pub fn coroutine(template: &str, asynchronous: bool) -> String {
+    match asynchronous {
+        true => template.into(),
+        false => template.replace("async ", "").replace("await ", ""),
+    }
+}
+
 /// Parses an expression, such as `dataclasses.dataclass()`.
 ///
-/// For fragments written in this crate only. Schema data goes through the
-/// constructors below: a column may be called `class`, which is a fine SQL
-/// identifier and a syntax error in Python.
+/// For fragments written in this crate only, or an override's annotation,
+/// already one ([`annotation`]). Schema data goes into a template's holes.
 pub fn expr(source: &str) -> ast::Expr {
     *parse_expression(source)
         .unwrap_or_else(|error| panic!("generated expression `{source}`: {error}"))
@@ -199,19 +271,16 @@ pub fn expr(source: &str) -> ast::Expr {
         .body
 }
 
-/// Parses a statement, such as `from typing import Optional`.
+/// Parses a statement, such as `cur.row_factory = None`.
 ///
 /// Same caveat as [`expr`].
 pub fn stmt(source: &str) -> ast::Stmt {
-    stmts(source).pop().expect("a statement")
-}
-
-/// Parses statements, such as a function's body. Same caveat as [`expr`].
-pub fn stmts(source: &str) -> ThinVec<ast::Stmt> {
-    parse_module(source)
-        .unwrap_or_else(|error| panic!("generated statements `{source}`: {error}"))
+    (parse_module(source))
+        .unwrap_or_else(|error| panic!("generated statement `{source}`: {error}"))
         .into_syntax()
         .body
+        .pop()
+        .expect("a statement")
 }
 
 // -- Syntax ------------------------------------------------------------------
@@ -261,7 +330,7 @@ pub fn is_module_name(name: &str) -> bool {
 }
 
 /// A bare name, such as `int` or `row`.
-fn name(id: &str) -> ast::Expr {
+pub fn name(id: &str) -> ast::Expr {
     node!(ast::ExprName {
         id: Name::new(id),
         ctx: ast::ExprContext::Load,
@@ -269,27 +338,70 @@ fn name(id: &str) -> ast::Expr {
     .into()
 }
 
-/// An attribute access, such as `models.Author`.
-pub fn attribute(value: ast::Expr, attr: &str) -> ast::Expr {
-    node!(ast::ExprAttribute {
+/// A keyword argument, such as `id=row[0]`.
+pub fn keyword(name: &str, value: ast::Expr) -> ast::Keyword {
+    node!(ast::Keyword {
+        arg: Some(identifier(name)),
+        value: value,
+    })
+}
+
+/// A parameter without a default, such as `id: int`.
+pub fn parameter(name: &str, annotation: ast::Expr) -> ast::ParameterWithDefault {
+    node!(ast::ParameterWithDefault {
+        parameter: node!(ast::Parameter {
+            name: identifier(name),
+            annotation: Some(Box::new(annotation)),
+        }),
+        default: None,
+    })
+}
+
+/// An integer literal, such as an index.
+pub fn int(value: usize) -> ast::Expr {
+    node!(ast::ExprNumberLiteral {
+        value: ast::Number::Int(ast::Int::from(value as u64)),
+    })
+    .into()
+}
+
+/// An expression statement, such as a call made for its effect.
+pub fn expression(value: ast::Expr) -> ast::Stmt {
+    node!(ast::StmtExpr {
         value: Box::new(value),
-        attr: identifier(attr),
+    })
+    .into()
+}
+
+/// A tuple, such as a statement's values: `(id,)`, `(a, b)`.
+pub fn tuple(items: Vec<ast::Expr>) -> ast::Expr {
+    node!(ast::ExprTuple {
+        elts: items,
+        ctx: ast::ExprContext::Load,
+        parenthesized: true,
+    })
+    .into()
+}
+
+/// `*value`: a list's items, each a value of its own.
+pub fn starred(value: ast::Expr) -> ast::Expr {
+    node!(ast::ExprStarred {
+        value: Box::new(value),
         ctx: ast::ExprContext::Load,
     })
     .into()
 }
 
-/// A call with positional arguments, such as `sqlalchemy.text("SELECT 1")`.
-pub fn call(func: ast::Expr, args: impl IntoIterator<Item = ast::Expr>) -> ast::Expr {
-    ast::ExprCall {
-        func: Box::new(func),
-        arguments: node!(ast::Arguments {
-            args: args.into_iter().collect(),
-            keywords: Default::default(),
-        }),
-        range_start: TextSize::default(),
-        node_index: ast::AtomicNodeIndex::default(),
-    }
+/// A dict, such as a statement's named values: `{"id": id}`.
+pub fn dict(items: Vec<(ast::Expr, ast::Expr)>) -> ast::Expr {
+    node!(ast::ExprDict {
+        items: (items.into_iter())
+            .map(|(key, value)| ast::DictItem {
+                key: Some(key),
+                value,
+            })
+            .collect(),
+    })
     .into()
 }
 
@@ -302,11 +414,6 @@ pub fn string(value: &str) -> ast::Expr {
         })),
     })
     .into()
-}
-
-/// `value` as a Python string literal, for source written as text.
-pub fn literal(value: &str) -> String {
-    Generator::new(&Indentation::default(), LineEnding::Lf).expr(&string(value))
 }
 
 /// A docstring: first in a class or function body, or directly under the
@@ -480,16 +587,18 @@ impl Type {
         }
     }
 
-    /// The source naming this type from within `scope`.
-    pub fn source(&self, scope: Scope) -> String {
+    /// The annotation naming this type from within `scope`: one this crate
+    /// writes, or an override's, which [`annotation`] made sure is one; and
+    /// an enum's class, by name.
+    pub fn annotation(&self, scope: Scope) -> ast::Expr {
         match (self, scope) {
-            (Self::Python(source) | Self::Converted(source), _) => (*source).into(),
-            (Self::Json(_), _) => "object".into(),
+            (Self::Python(source) | Self::Converted(source), _) => expr(source),
+            (Self::Json(_), _) => name("object"),
             (Self::Custom { annotation, .. } | Self::Library { annotation, .. }, _) => {
-                annotation.clone()
+                expr(annotation)
             }
-            (Self::Enum(class), Scope::Models) => class.clone(),
-            (Self::Enum(class), Scope::Queries) => format!("models.{class}"),
+            (Self::Enum(class), Scope::Models) => name(class),
+            (Self::Enum(class), Scope::Queries) => py_expr!("models.$class", class = class),
         }
     }
 }
@@ -602,8 +711,17 @@ const CONVENTIONS: &[&str] = &[
     "xml.etree.ElementTree",
 ];
 
+/// The source of statements, unformatted, as a spec compares them.
+#[cfg(test)]
+pub fn stmts_source(stmts: &[ast::Stmt]) -> String {
+    (stmts.iter())
+        .map(|stmt| Generator::new(&Indentation::default(), LineEnding::Lf).stmt(stmt))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// The source of an expression, for an error.
-fn python_source(expr: &ast::Expr) -> String {
+pub fn python_source(expr: &ast::Expr) -> String {
     Generator::new(&Indentation::default(), LineEnding::Lf).expr(expr)
 }
 

@@ -67,6 +67,13 @@ fn continues_identifier(c: char) -> bool {
 /// continuing one. A word or a number is read whole, and so is a placeholder
 /// or a variable: `?` and its digits, or `:`, `@` or `$` and an identifier's
 /// characters.
+/// The text of each token of `sql`, as [`tokens`] scans it.
+pub fn words(sql: &[char]) -> Vec<String> {
+    (tokens(sql).into_iter())
+        .map(|(start, end)| sql[start..end].iter().collect())
+        .collect()
+}
+
 fn tokens(sql: &[char]) -> Vec<(usize, usize)> {
     let run = |from: usize, continues: fn(char) -> bool| {
         from + sql[from..].iter().take_while(|&&c| continues(c)).count()

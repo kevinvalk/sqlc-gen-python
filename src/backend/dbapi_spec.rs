@@ -58,12 +58,14 @@ fn a_driver_is_given_sqlcs_statement_as_written() {
 fn a_driver_binds_each_parameter_by_position_json_wrapped_on_psycopg() {
     let params = vec![field("id", Type::INT), field("data", Type::JSONB)];
     let (_, body) = Backend::Psycopg.body(&query(Command::Exec, params.clone()), false);
+    let body = python::stmts_source(&body);
     assert_eq!(
         body,
         "with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:\n    \
          cur.execute(_GET, (id, None if data is None else Jsonb(data)))"
     );
     let (_, body) = Backend::Sqlite3.body(&query(Command::Exec, params[..1].to_vec()), true);
+    let body = python::stmts_source(&body);
     assert_eq!(
         body,
         "async with conn.cursor() as cur:\n    \
@@ -76,7 +78,8 @@ fn a_driver_binds_each_parameter_by_position_json_wrapped_on_psycopg() {
 fn a_one_raises_without_exactly_one_row_on_a_driver() {
     let one = Command::One(crate::api::queries::Shape::Scalar(field("n", Type::INT).ty));
     let (returns, body) = Backend::Sqlite3.body(&query(one, Vec::new()), false);
-    assert_eq!(returns, "int");
+    let body = python::stmts_source(&body);
+    assert_eq!(python::python_source(&returns), "int");
     assert_eq!(
         body,
         "with contextlib.closing(conn.cursor()) as cur:\n    \
@@ -164,6 +167,7 @@ fn a_slice_is_one_placeholder_per_item_and_a_subquery_of_none_when_empty() {
         name: "ids".into(),
     };
     let (_, body) = Backend::Pymysql.body(&query, false);
+    let body = python::stmts_source(&body);
     assert!(
         body.contains(
             r#"cur.execute(_GET.replace("/*SLICE:ids*/%s", ", ".join(["%s"] * len(ids)) or "SELECT NULL FROM DUAL WHERE FALSE"), (*ids,))"#

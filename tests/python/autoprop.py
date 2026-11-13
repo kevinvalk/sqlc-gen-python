@@ -701,6 +701,11 @@ def refused(error: Exception) -> bool:
     )
 
 
+def module_of(filename: str) -> str:
+    """The module a query file becomes: its stem, each `-` a `_` (§1)."""
+    return Path(filename).stem.replace("-", "_")
+
+
 def is_error(error: Exception, sqlalchemy_error: type[Exception], package: str) -> bool:
     """Whether ``error`` is SQLAlchemy's error, or the generated package's of
     that name (a class of each package's own ``__init__``).
@@ -762,7 +767,7 @@ class Sweep:
         models = modules.pop("models", None)
 
         def queries(stem: str) -> list[Json]:
-            return [q for q in request["queries"] if Path(q["filename"]).stem == stem]
+            return [q for q in request["queries"] if module_of(q["filename"]) == stem]
 
         oracle = sqlalchemy.create_engine(
             url.set(drivername="postgresql+psycopg"), isolation_level="AUTOCOMMIT"
@@ -784,9 +789,9 @@ class Sweep:
                 ]
         finally:
             oracle.dispose()
-        if missing := {Path(q["filename"]).name for q in request["queries"]} - {
-            f"{stem}.sql" for stem in modules
-        }:
+        if missing := {module_of(q["filename"]) for q in request["queries"]} - set(
+            modules
+        ):
             message = f"no module for {', '.join(sorted(missing))}"
             raise AssertionError(message)
         report.calls = {call.name: Counter() for call in self.calls}
@@ -881,7 +886,9 @@ class Sweep:
         nested = await aw(conn.begin_nested())
         try:
             row = (await aw(conn.execute(statement, params))).one()
-        except sqlalchemy.exc.DBAPIError as error:
+        except (sqlalchemy.exc.DBAPIError, OverflowError) as error:
+            # A value PostgreSQL holds and Python cannot (a date before year
+            # 1) is refused too.
             await aw(nested.rollback())
             if not refused(error):
                 raise

@@ -25,7 +25,7 @@ pub const DRIVER: Driver = Driver {
     execute_counts: false,
     pipelines: false,
     no_rows: "SELECT NULL WHERE 0",
-    bind: |_, value| value.into(),
+    bind: |_, value| value,
     text_arrays: false,
     copies: false,
 };

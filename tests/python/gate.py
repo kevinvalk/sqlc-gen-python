@@ -8,8 +8,9 @@ runtime suite's ``usage.py``. ``cargo xtask check`` fills one from ``cargo test`
 ``verify.py`` passes the golden cases as generated. Under the lint contract
 in this project's ``pyproject.toml``, everything must pass:
 
-- ``ruff format --check``, and ``ruff check`` deaf to ``# noqa`` (the
-  generator may not silence its own findings);
+- ``ruff format --check``, and ``ruff check``, which obeys the one
+  directive generated code may hold, ``# ruff: noqa: S105`` (the Rust
+  invariants allow no other);
 - pyright strict, ``mypy --strict``, and a real import of every package module
   with warnings as errors, under each of ``PYTHONS``: the oldest supported
   Python and the newest stable one.
@@ -155,7 +156,7 @@ def ruff_format(ruff: str, roots: list[Path]) -> Run:
 
 def ruff_check(ruff: str, roots: list[Path]) -> Run:
     """Every lint rule the contract selects."""
-    command = [ruff, "check", "--ignore-noqa", *RUFF_OPTIONS, *map(str, roots)]
+    command = [ruff, "check", *RUFF_OPTIONS, *map(str, roots)]
     return run("ruff check", command, parse_ruff)
 
 

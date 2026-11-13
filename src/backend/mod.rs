@@ -26,7 +26,7 @@ use serde::Deserialize;
 use crate::api::models::Enum;
 use crate::api::queries::{Query, Shape};
 use crate::engine::Engine;
-use crate::python::Type;
+use crate::python::{self, Type, py_expr};
 use dbapi::Driver;
 
 /// A library generated code runs its SQL through.
@@ -133,15 +133,15 @@ impl Backend {
     }
 
     /// The annotation of the connection a function takes.
-    pub fn connection(self, asynchronous: bool) -> &'static str {
-        match self.driver() {
+    pub fn connection(self, asynchronous: bool) -> ast::Expr {
+        python::expr(match self.driver() {
             None => sqlalchemy::connection(asynchronous),
             Some(driver) => driver.api(asynchronous).connection,
-        }
+        })
     }
 
     /// What a query's function returns, and its body.
-    pub fn body(self, query: &Query, asynchronous: bool) -> (String, String) {
+    pub fn body(self, query: &Query, asynchronous: bool) -> (ast::Expr, Vec<ast::Stmt>) {
         match self.driver() {
             None => sqlalchemy::body(query, asynchronous),
             Some(driver) => dbapi::body(driver, query, asynchronous),
@@ -167,18 +167,11 @@ fn range(name: &str) -> Option<(&'static str, &'static str)> {
     Some((bound, class))
 }
 
-/// `header`, then `body` indented under it.
-fn block(header: &str, body: Vec<String>) -> Vec<String> {
-    std::iter::once(header.to_string())
-        .chain(body.into_iter().map(|line| format!("    {line}")))
-        .collect()
-}
-
-/// The class a row of `shape` becomes, as a query module writes it.
-fn class(shape: &Shape) -> String {
+/// The class a row of `shape` becomes, as a query module names it.
+fn class(shape: &Shape) -> ast::Expr {
     match shape {
-        Shape::Model(model) => format!("models.{model}"),
-        Shape::Row(class, _) => class.clone(),
+        Shape::Model(model) => py_expr!("models.$model", model = model),
+        Shape::Row(class, _) => python::name(class),
         Shape::Scalar(_) => unreachable!("a scalar is returned bare"),
     }
 }

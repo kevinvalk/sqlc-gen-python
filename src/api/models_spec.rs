@@ -16,7 +16,7 @@ fn field(element: Type, array_dims: usize, optional: bool) -> FieldType {
 }
 
 fn annotation(ty: &FieldType) -> String {
-    ty.annotation(Scope::Models)
+    ty.describe(Scope::Models)
 }
 
 #[test]
@@ -42,8 +42,8 @@ fn a_nullable_column_is_optional() {
 #[test]
 fn a_generated_class_is_bare_in_the_models_module_and_qualified_outside_it() {
     let status = field(Type::Enum("Status".into()), 0, false);
-    assert_eq!(status.annotation(Scope::Models), "Status");
-    assert_eq!(status.annotation(Scope::Queries), "models.Status");
+    assert_eq!(status.describe(Scope::Models), "Status");
+    assert_eq!(status.describe(Scope::Queries), "models.Status");
 }
 
 #[test]
@@ -289,7 +289,8 @@ fn a_multi_dimensional_enum_array_is_an_error() {
 #[test]
 fn a_value_is_read_as_is_unless_it_holds_enum_labels() {
     // `docs/python-output.md` §4, rule 4: both drivers return labels as `str`.
-    let read = |ty: FieldType, scope| ty.read("row[3]", scope, false);
+    let row = || crate::python::expr("row[3]");
+    let read = |ty: FieldType, scope| crate::python::python_source(&ty.read(row(), scope, false));
     let status = || Type::Enum("Status".into());
     assert_eq!(read(field(Type::DECIMAL, 1, true), Scope::Models), "row[3]");
     assert_eq!(
@@ -310,7 +311,7 @@ fn a_value_is_read_as_is_unless_it_holds_enum_labels() {
     );
     // psycopg returns an array of enums as its text.
     assert_eq!(
-        field(status(), 1, false).read("row[3]", Scope::Queries, true),
+        crate::python::python_source(&field(status(), 1, false).read(row(), Scope::Queries, true)),
         "models.Status.from_array(row[3])"
     );
 }
@@ -618,12 +619,7 @@ fn options(json: &str) -> Config {
 /// The annotation of each field of the only model, by name.
 fn annotations(api: &Api) -> Vec<(String, String)> {
     (api.models[0].fields.iter())
-        .map(|f| {
-            (
-                f.name.clone(),
-                f.ty.annotation(crate::python::Scope::Models),
-            )
-        })
+        .map(|f| (f.name.clone(), f.ty.describe(crate::python::Scope::Models)))
         .collect()
 }
 

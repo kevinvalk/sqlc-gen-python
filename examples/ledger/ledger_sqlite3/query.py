@@ -250,6 +250,64 @@ def list_entries_with_account(
         return [ListEntriesWithAccountRow.from_row(row) for row in cur.fetchall()]
 
 
+_LIST_ACCOUNTS_WITH_ENTRIES: Final = """SELECT accounts.id, accounts.name, accounts.archived, accounts.opened_on, accounts.settings, entries.id, entries.account_id, entries.amount_cents, entries.rate, entries.memo, entries.receipt, entries.booked_at
+FROM accounts LEFT JOIN entries ON entries.account_id = accounts.id
+ORDER BY accounts.id, entries.id"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListAccountsWithEntriesRow:
+    account: models.Account
+    entry: models.Entry | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListAccountsWithEntriesRow":
+        return cls(
+            account=models.Account.from_row(row[0:5]),
+            entry=None if row[5] is None else models.Entry.from_row(row[5:12]),
+        )
+
+
+def list_accounts_with_entries(
+    conn: sqlite3.Connection,
+) -> list[ListAccountsWithEntriesRow]:
+    """Each account with each of its entries: one without any once, its entry None."""
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_ACCOUNTS_WITH_ENTRIES)
+        return [ListAccountsWithEntriesRow.from_row(row) for row in cur.fetchall()]
+
+
+_GET_LAST_AMOUNT: Final = """SELECT name, (
+  SELECT e.amount_cents FROM entries e WHERE e.account_id = accounts.id ORDER BY e.id DESC LIMIT 1
+) AS last_amount_cents
+FROM accounts WHERE accounts.id = ?"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class GetLastAmountRow:
+    name: str
+    last_amount_cents: int | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "GetLastAmountRow":
+        return cls(name=row[0], last_amount_cents=row[1])
+
+
+def get_last_amount(conn: sqlite3.Connection, *, id: int) -> GetLastAmountRow:
+    """The account's last entry's amount: a subquery, so None without entries."""
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_GET_LAST_AMOUNT, (id,))
+        match cur.fetchmany(2):
+            case [row]:
+                return GetLastAmountRow.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
+
+
 _DELETE_ENTRIES: Final = "DELETE FROM entries WHERE account_id = ?"
 
 

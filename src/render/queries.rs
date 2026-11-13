@@ -8,7 +8,7 @@ use crate::api::models::Field;
 use crate::api::queries::{Command, Module, Query, RowField, Shape};
 use crate::backend::Backend;
 use crate::config::Config;
-use crate::python::{self, Scope};
+use crate::python::{self, Scope, py_expr, py_stmt};
 
 /// The module of one query file (§6): for each query, its statement, its
 /// class if it has one, and its function, a coroutine if asked for.
@@ -45,13 +45,38 @@ fn row_class(class: &str, fields: &[RowField], text_arrays: bool) -> ast::Stmt {
                     offset += 1;
                     Attribute::column(field, start, Scope::Queries, text_arrays)
                 }
-                RowField::Embed { name, model, width } => {
+                RowField::Embed {
+                    name,
+                    model,
+                    width,
+                    missing,
+                } => {
                     offset += width;
+                    let (rows, end) = (python::int(start), python::int(offset));
+                    let model = py_expr!("models.$model", model = model);
+                    let read = py_expr!(
+                        "$model.from_row(row[$start:$end])",
+                        model = model.clone(),
+                        start = rows,
+                        end = end,
+                    );
+                    let (annotation, read) = match missing {
+                        None => (model, read),
+                        // An outer join left the table without a row.
+                        Some(at) => (
+                            py_expr!("$model | None", model = model),
+                            py_expr!(
+                                "None if row[$at] is None else $read",
+                                at = python::int(start + at),
+                                read = read,
+                            ),
+                        ),
+                    };
                     Attribute {
                         name: name.clone(),
-                        annotation: format!("models.{model}"),
+                        annotation,
                         comment: String::new(),
-                        read: Some(format!("models.{model}.from_row(row[{start}:{offset}])")),
+                        read: Some(read),
                     }
                 }
             }
@@ -74,31 +99,40 @@ fn params_class(class: &str, params: &[Field]) -> ast::Stmt {
 }
 
 /// The function that runs a query (§6, "Functions"): the connection, then
-/// each parameter keyword-only; one execution; the result shaped by `cmd`.
+/// each parameter keyword-only, or the rows it runs for; one execution; the
+/// result shaped by `cmd`.
 fn function(query: &Query, backend: Backend, asynchronous: bool) -> ast::Stmt {
-    let conn = format!("conn: {}", backend.connection(asynchronous));
-    let parameters = match (&query.rows, query.params.is_empty()) {
-        (Some(class), _) => format!("{conn}, rows: Iterable[{class}]"),
-        (None, true) => conn,
-        (None, false) => {
-            let params = (query.params.iter())
-                .map(|p| format!("{}: {}", p.name, p.ty.annotation(Scope::Queries)))
-                .collect::<Vec<_>>();
-            format!("{conn}, *, {}", params.join(", "))
-        }
-    };
+    let conn = backend.connection(asynchronous);
     let (returns, body) = backend.body(query, asynchronous);
-
-    let def = if asynchronous { "async def" } else { "def" };
-    let mut function = python::stmt(&format!(
-        "{def} {}({parameters}) -> {returns}: ...",
-        query.function
-    ));
-    let ast::Stmt::FunctionDef(definition) = &mut function else {
-        unreachable!("a def is a function")
+    let body: Vec<ast::Stmt> = docstring(&query.comment).into_iter().chain(body).collect();
+    let mut function = match &query.rows {
+        Some(class) => py_stmt!(
+            "
+            def $name(conn: $conn, rows: Iterable[$class]) -> $returns:
+                $body
+            ",
+            name = &query.function,
+            conn = conn,
+            class = class,
+            returns = returns,
+            body = body,
+        ),
+        None => py_stmt!(
+            "
+            def $name(conn: $conn, *, $params) -> $returns:
+                $body
+            ",
+            name = &query.function,
+            conn = conn,
+            params = (query.params.iter())
+                .map(|p| python::parameter(&p.name, p.ty.annotation(Scope::Queries)))
+                .collect::<Vec<_>>(),
+            returns = returns,
+            body = body,
+        ),
     };
-    definition.body = (docstring(&query.comment).into_iter())
-        .chain(python::stmts(&body))
-        .collect();
+    if let ast::Stmt::FunctionDef(definition) = &mut function {
+        definition.is_async = asynchronous;
+    }
     function
 }

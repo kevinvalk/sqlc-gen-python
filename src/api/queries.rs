@@ -15,6 +15,7 @@ use ruff_python_stdlib::builtins::is_python_builtin;
 use super::Problems;
 use super::models::{self, Field, FieldType, Model, Repeats, Resolver};
 use crate::backend::Backend;
+use crate::engine::select::Item;
 use crate::engine::{Bind, Engine, Sql};
 use crate::plugin;
 use crate::python::{self, Type};
@@ -103,10 +104,14 @@ pub enum Shape {
 pub enum RowField {
     Column(Field),
     /// `sqlc.embed(t)`: `t`'s model, built from the next `width` columns.
+    /// If an outer join may leave `t` without a row, `missing` is the
+    /// model's first NOT NULL column, NULL only then: the field is then
+    /// `None`.
     Embed {
         name: String,
         model: String,
         width: usize,
+        missing: Option<usize>,
     },
 }
 
@@ -214,7 +219,7 @@ fn resolve(
         ":execresult" => (Command::ExecResult, Vec::new()),
         ":copyfrom" => (Command::Exec, Vec::new()),
         ":one" | ":many" => {
-            let (fields, columns) = columns(&query.columns, resolver, models)?;
+            let (fields, columns) = columns(query, resolver, models)?;
             let shape = match fields.as_slice() {
                 [] => bail!(
                     "{cmd} has no result columns in sqlc's report; if the query returns rows, \
@@ -419,8 +424,8 @@ fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field
             if (&first.ty.element, first.ty.array_dims) != (&ty.element, ty.array_dims) {
                 bail!(
                     "{what} is used as {} and as {}; cast each use to one type",
-                    first.ty.annotation(crate::python::Scope::Queries),
-                    ty.annotation(crate::python::Scope::Queries)
+                    first.ty.describe(crate::python::Scope::Queries),
+                    ty.describe(crate::python::Scope::Queries)
                 );
             }
             first.ty.optional |= ty.optional;
@@ -443,10 +448,34 @@ fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field
 
 /// A result's fields, and its columns as the database returns them.
 fn columns(
-    columns: &[plugin::Column],
+    query: &plugin::Query,
     resolver: &Resolver,
     models: &[Model],
 ) -> Result<(Vec<RowField>, Vec<Field>)> {
+    // Where sqlc's report is not enough: a `count(...)`'s type is the
+    // engine's whatever it counts, which sqlc reports as a guess like any
+    // call's; and a scalar subquery is NULL when it finds no row, which sqlc
+    // reports NOT NULL.
+    let items = resolver.engine.items(&query.text, query.columns.len());
+    let columns: Vec<plugin::Column> = (query.columns.iter().enumerate())
+        .map(|(i, column)| match items.as_ref().map(|items| &items[i]) {
+            Some(Item::Call(name)) if name == "count" && column.is_func_call => plugin::Column {
+                is_func_call: false,
+                r#type: Some(plugin::Identifier {
+                    name: resolver.engine.count_type().into(),
+                    ..Default::default()
+                }),
+                ..column.clone()
+            },
+            Some(Item::Subquery { row: false }) => plugin::Column {
+                not_null: false,
+                ..column.clone()
+            },
+            _ => column.clone(),
+        })
+        .collect();
+    let columns = columns.as_slice();
+    let outer = resolver.engine.outer_joined(&query.text);
     let embeds: Vec<Option<&Model>> = (columns.iter())
         .map(|column| {
             let Some(table) = column.embed_table.as_ref().filter(|t| !t.name.is_empty()) else {
@@ -474,8 +503,32 @@ fn columns(
     {
         match embed {
             Some(model) => {
-                flat.extend(model.fields.iter().cloned());
+                let table = column.embed_table.as_ref().map_or("", |t| t.name.as_str());
+                let outer = (outer.as_ref()).is_none_or(|tables| {
+                    tables
+                        .iter()
+                        .any(|joined| joined.eq_ignore_ascii_case(table))
+                });
+                let missing = match outer {
+                    false => None,
+                    true => Some(
+                        (model.fields.iter().position(|field| !field.ty.optional)).with_context(
+                            || {
+                                format!(
+                                    "sqlc.embed({table}) of an outer join, of whose columns none \
+                                     is NOT NULL to tell a missing row by; select its columns \
+                                     instead"
+                                )
+                            },
+                        )?,
+                    ),
+                };
+                flat.extend(model.fields.iter().cloned().map(|mut field| {
+                    field.ty.optional |= outer;
+                    field
+                }));
                 fields.push(RowField::Embed {
+                    missing,
                     name,
                     model: model.name.clone(),
                     width: model.fields.len(),

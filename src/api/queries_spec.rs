@@ -759,11 +759,46 @@ fn an_embed_is_a_field_of_its_model_over_the_tables_columns() {
         RowField::Embed {
             name: "author".into(),
             model: "Author".into(),
-            width: 3
+            width: 3,
+            missing: None,
         }
     );
     let flat: Vec<&str> = query.columns.iter().map(|c| c.name.as_str()).collect();
     assert_eq!(flat, ["id", "name", "bio", "total"]);
+}
+
+#[test]
+fn an_embed_an_outer_join_may_leave_without_a_row_is_none_then() {
+    let embed = plugin::Column {
+        name: "authors".into(),
+        embed_table: Some(plugin::Identifier {
+            name: "authors".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let embedded = |sql: &str| {
+        let query = resolve(plugin::Query {
+            columns: vec![column("id", "int8", true), embed.clone()],
+            ..query(":one", sql)
+        });
+        let Command::One(Shape::Row(_, fields)) = query.command else {
+            panic!("not a row");
+        };
+        match &fields[1] {
+            RowField::Embed { missing, .. } => *missing,
+            RowField::Column(_) => panic!("not an embed"),
+        }
+    };
+    // `authors.id` is NOT NULL: NULL only where the join found no author.
+    let inner =
+        "SELECT b.id, authors.id, authors.name, authors.bio FROM books b JOIN authors ON true";
+    assert_eq!(embedded(inner), None);
+    let left =
+        "SELECT b.id, authors.id, authors.name, authors.bio FROM books b LEFT JOIN authors ON true";
+    assert_eq!(embedded(left), Some(0));
+    let right = "SELECT b.id, authors.id, authors.name, authors.bio FROM authors RIGHT JOIN books b ON true";
+    assert_eq!(embedded(right), Some(0));
 }
 
 #[test]
@@ -860,7 +895,7 @@ fn a_slice_is_a_list_of_its_type_bound_one_placeholder_per_item() {
     assert_eq!(
         resolved.params[0]
             .ty
-            .annotation(crate::python::Scope::Queries),
+            .describe(crate::python::Scope::Queries),
         "list[int]"
     );
     assert!(resolved.sql.0.contains(&Piece::Slice {
@@ -955,7 +990,7 @@ fn a_slice_of_a_nullable_column_is_a_list_never_none() {
     )
     .unwrap();
     let ty = &resolved.params[0].ty;
-    assert_eq!(ty.annotation(crate::python::Scope::Queries), "list[int]");
+    assert_eq!(ty.describe(crate::python::Scope::Queries), "list[int]");
 }
 
 #[test]
@@ -984,4 +1019,51 @@ fn arithmetic_on_mysql_and_sqlite_asks_for_a_cast() {
         },
     );
     assert!(cast.is_ok());
+}
+
+#[test]
+fn a_count_is_an_int_on_every_engine_and_any_other_call_asks_for_a_cast() {
+    for (engine, reported) in [
+        ("postgresql", "bigint"),
+        ("mysql", "bigint"),
+        ("sqlite", "integer"),
+    ] {
+        let call = |name: &str| plugin::Column {
+            is_func_call: true,
+            ..column(name, reported, true)
+        };
+        let counted = on(
+            engine,
+            plugin::Query {
+                columns: vec![call("count"), call("n")],
+                ..query(
+                    ":one",
+                    "SELECT COUNT(*), count(DISTINCT bio) AS n FROM authors",
+                )
+            },
+        )
+        .unwrap();
+        let Command::One(Shape::Row(_, fields)) = &counted.command else {
+            panic!("not a row: {:?}", counted.command);
+        };
+        let annotations: Vec<String> = (fields.iter())
+            .map(|field| match field {
+                RowField::Column(field) => field.ty.describe(crate::python::Scope::Queries),
+                RowField::Embed { .. } => "embed".into(),
+            })
+            .collect();
+        assert_eq!(annotations, ["int", "int"], "{engine}");
+        let summed = on(
+            engine,
+            plugin::Query {
+                columns: vec![call("sum")],
+                ..query(":one", "SELECT sum(id) FROM authors")
+            },
+        )
+        .unwrap_err();
+        assert!(
+            format!("{summed:#}").contains("is a function's result"),
+            "{engine}"
+        );
+    }
 }

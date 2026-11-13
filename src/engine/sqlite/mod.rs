@@ -4,5 +4,5 @@
 mod lexer;
 mod types;
 
-pub use lexer::{is_identifier, sql};
+pub use lexer::{is_identifier, sql, words};
 pub use types::scalar_type;

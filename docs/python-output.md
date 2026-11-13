@@ -62,6 +62,10 @@ Every rule cites the source of truth it rests on, using the ranking in
    The sqlc line MUST be left out when `omit_sqlc_version` is set, or when the
    request has no `sqlc_version`. There is no `# source:` line: ruff ERA001
    reads it as commented-out code, and the module name already says it. *[4], [5]*
+   A module that assigns a string to a name ruff's S105 takes for a secret's
+   (`_GET_API_TOKEN`, an enum's `PASSWORD`) MUST add `# ruff: noqa: S105` to
+   the header: what generated code assigns is SQL and enum labels, never a
+   secret. No other directive may silence a tool.
 4. Output MUST be exactly what ruff's formatter produces with default options,
    and imports MUST be sorted as ruff's isort (I001) sorts them. *[5]*
 
@@ -257,8 +261,12 @@ its edges.*
      overload it guesses, so `abs(numeric)` and `sum(numeric) OVER ()` arrive
      as `bigint`, `avg(numeric)` as `double precision`, `length(text)` as
      `double precision` and `date_trunc('month', timestamptz)` as `interval`.
-     That includes `count(*)`, whose guess is right, because nothing in the
-     request tells it apart: write `count(*)::bigint`;
+     A result column that is a bare `count(...)` in the statement's
+     top-level select list (with at most an alias) is the exception, on every
+     engine: its type is the engine's whatever it counts (`bigint`, MySQL's
+     `BIGINT`, SQLite's integer), so it is `int`. `sum`, `avg` and the rest
+     depend on their argument and the engine (`sum` of a `numeric` column is
+     `numeric`, MySQL's `SUM` of integers a `DECIMAL`): cast them;
    - a column or parameter whose type is spelled with SQL's standard name:
      `smallint`, `bigint`, `real`, `double precision`, `numeric`, `boolean`,
      `character`, `character varying`, `interval`, and `time` or `timestamp`
@@ -539,7 +547,7 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      with no defaults;
    - with no parameters there is no `*`;
    - parameters are never grouped into a class (only `:copyfrom` rows are a
-     `<Query>Params`, rule 6), and there is no parameter limit.
+     `<Query>Params`, rule 7), and there is no parameter limit.
 
    *[D]: keyword-only parameters cannot be silently swapped. A forgotten
    nullable parameter is a type error, never a NULL written to an invoice.*
@@ -587,7 +595,7 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    | `:execrows` | `int` | `….rowcount` | `cur.rowcount`; on PyMySQL, what `cur.execute(…)` returns, the same count; on psycopg, the execute in a `conn.pipeline()` block of its own, as psycopg counts a statement in a pipeline only once it syncs (so does `:execresult`) |
    | `:execlastid` | `int` | `….lastrowid` | `cur.lastrowid` (MySQL only) |
    | `:execresult` | the result | `sqlalchemy.CursorResult[Any]` | the cursor: `psycopg.RawCursor[tuple[Any, ...]]` (`AsyncRawCursor`), `sqlite3.Cursor` (`aiosqlite.Cursor`), `pymysql.cursors.Cursor` |
-   | `:copyfrom` | `None` | rule 6 | rule 6 |
+   | `:copyfrom` | `None` | rule 7 | rule 7 |
 
    - `:one` raises without exactly one row, as sqlc's Go returns
      `ErrNoRows`, so a created invoice is an `Invoice`, never an
@@ -608,7 +616,7 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      `MERGE INTO` are an error. *[3]: SQLAlchemy reads asyncpg's row count
      off the command tag, with an expression that knows no `MERGE n`, so it
      is `-1` there and the real count on psycopg; a count that is wrong on
-     one driver is worse than none (rule 6).*
+     one driver is worse than none (rule 7).*
 4. **What `X` is.**
    - **A single non-embed column** is returned bare: `T`, `list[T]`, through
      `.scalar_one()` or `.scalars()` on SQLAlchemy, or as `row[0]` on a driver,
@@ -622,7 +630,16 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
 5. **Embeds.** `sqlc.embed(t)` arrives as one column with `embed_table` and no
    type. *[2]* It MUST become a field typed as `t`'s model, built by
    `models.M.from_row(row[a:b])` over `t`'s columns in catalog order. *[4]*
-6. **`:copyfrom`.** The function MUST be
+   sqlc marks every embed nullable, joined or not. Where the statement's own
+   `LEFT JOIN` names `t`, or it has a `RIGHT` or `FULL` join, the field is
+   `models.M | None`: `None` when `t`'s first NOT NULL column is NULL, which
+   only a missing row makes it. An outer-joined `t` without a NOT NULL column
+   MUST be an error, as nothing then tells a missing row from a row of NULLs.
+6. **Scalar subqueries.** A result column that is a parenthesised `SELECT` in
+   the top-level select list is NULL when the subquery finds no row, though
+   sqlc reports it NOT NULL: it is optional, unless the subquery is a bare
+   `count(...)` without `GROUP BY`, which always has its one row.
+7. **`:copyfrom`.** The function MUST be
    `def f(conn, rows: Iterable[<Query>Params]) -> None`. On psycopg it is
    PostgreSQL's `COPY`: the statement constant is
    `COPY "<table>" ("<column>", ...) FROM STDIN` of the table and columns
@@ -635,7 +652,7 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      a count that is wrong on one driver is worse than none.
    - sqlc rejects `ON CONFLICT`, `RETURNING` and non-parameter values in
      `:copyfrom`. *[2], [3]*
-7. **Batches** (`:batchexec`, `:batchone`, `:batchmany`) run their command
+8. **Batches** (`:batchexec`, `:batchone`, `:batchmany`) run their command
    (`:exec`, `:one`, `:many`) once per row:
    `def f(conn, rows: Iterable[<Query>Params])`, returning `None`, `list[X]`
    or `list[list[X]]`, one result per row in order; a `:batchone` row without
@@ -644,9 +661,9 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    result read from `cur.results()`; on SQLAlchemy the command runs per row.
    A batch MUST be an error on MySQL and SQLite, as in sqlc, and without
    parameters. *[2], [4]: pgx's batches.*
-8. **`sqlc.narg`** is a nullable parameter: `T | None`, still required. A
+9. **`sqlc.narg`** is a nullable parameter: `T | None`, still required. A
    parameter used several times arrives once. *[2]*
-9. **`= ANY(@ids::type[])`** is how to pass a list. The parameter is
+10. **`= ANY(@ids::type[])`** is how to pass a list. The parameter is
    `list[T]`, and an empty list matches nothing (tested). Without the cast,
    sqlc types the parameter as the element (`WHERE mood = ANY($1)` takes a
    `models.Mood`), and PostgreSQL rejects the call.
@@ -737,21 +754,16 @@ unlisted.
 These are documented, not detected. Each follows from never re-inferring what
 sqlc reports *[2]*.
 
-- **Embeds on the nullable side of an outer join.** sqlc marks every embed
-  column nullable and cannot tell inner joins from outer ones. Like Go, the
-  embed is typed as the model, so an unmatched outer row would build a model
-  full of `None`. Do not embed the optional side of an outer join; select its
-  columns instead.
 - **Computed columns are NOT NULL to sqlc**, including every cast, even of
   a nullable value: `max(created)::timestamptz` on a nullable column is
   annotated `dt.datetime`, and an empty table returns `None`. Generation
   fails for the types sqlc guesses (§5, rule 2), but not for this. Coalesce
   anything that can be NULL: `coalesce(sum(x), 0)::numeric(12, 2)`, as the
   fixture's `GetInvoiceTotals` does.
-- **Subqueries on the nullable side** are NOT NULL to sqlc: a scalar
-  subquery (`(SELECT note FROM b WHERE b.a_id = a.id LIMIT 1) AS note`), a
-  subquery joined with `LEFT JOIN (SELECT ...) s`, and `LEFT JOIN LATERAL`
-  all annotate `note` as `str`, and return `None` where nothing matched.
+- **Subqueries on the nullable side** are NOT NULL to sqlc: a subquery
+  joined with `LEFT JOIN (SELECT ...) s`, `LEFT JOIN LATERAL`, and a scalar
+  subquery inside an expression (`coalesce((SELECT ...), x)` aside) all
+  annotate `note` as `str`, and return `None` where nothing matched.
   Join the table itself instead: in `LEFT JOIN b ON b.a_id = a.id`, `b.note`
   is `str | None`. Where a default will do, coalesce and cast the value
   instead.

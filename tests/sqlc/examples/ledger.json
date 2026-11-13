@@ -2179,6 +2179,166 @@
       "insert_into_table": null
     },
     {
+      "text": "SELECT accounts.id, accounts.name, accounts.archived, accounts.opened_on, accounts.settings, entries.id, entries.account_id, entries.amount_cents, entries.rate, entries.memo, entries.receipt, entries.booked_at\nFROM accounts LEFT JOIN entries ON entries.account_id = accounts.id\nORDER BY accounts.id, entries.id",
+      "name": "ListAccountsWithEntries",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "accounts",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": ""
+          },
+          "is_sqlc_slice": false,
+          "embed_table": {
+            "catalog": "",
+            "schema": "",
+            "name": "accounts"
+          },
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "entries",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": ""
+          },
+          "is_sqlc_slice": false,
+          "embed_table": {
+            "catalog": "",
+            "schema": "",
+            "name": "entries"
+          },
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [
+        " Each account with each of its entries: one without any once, its entry None."
+      ],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT name, (\n  SELECT e.amount_cents FROM entries e WHERE e.account_id = accounts.id ORDER BY e.id DESC LIMIT 1\n) AS last_amount_cents\nFROM accounts WHERE accounts.id = ?",
+      "name": "GetLastAmount",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "name",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "accounts"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "TEXT"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "name",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "last_amount_cents",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "entries"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "INTEGER"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "amount_cents",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "id",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "accounts"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "INTEGER"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "id",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [
+        " The account's last entry's amount: a subquery, so None without entries."
+      ],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
       "text": "DELETE FROM entries WHERE account_id = ?",
       "name": "DeleteEntries",
       "cmd": ":execresult",
