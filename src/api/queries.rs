@@ -46,21 +46,35 @@ pub struct Query {
     /// The parameters that are a `sqlc.slice`, a list bound as one
     /// placeholder per item.
     pub slices: Vec<String>,
+    /// A `:copyfrom`'s table, `schema` empty for the search path's, and its
+    /// columns, one per parameter: what `COPY` writes into.
+    pub copy_into: Option<CopyInto>,
     /// Every column of the result as the database returns it, embeds expanded.
     pub columns: Vec<Field>,
     pub command: Command,
+    /// The `<Query>Params` class whose rows the function takes, if it runs its
+    /// command once per row: a `:copyfrom`, or a batch (`:batchexec` is an
+    /// `:exec` per row, `:batchone` a `:one`, `:batchmany` a `:many`).
+    pub rows: Option<String>,
 }
 
 impl Query {
-    /// The class the query defines, if any.
-    pub fn class(&self) -> Option<&str> {
-        match &self.command {
-            Command::CopyFrom(class)
-            | Command::One(Shape::Row(class, _))
-            | Command::Many(Shape::Row(class, _)) => Some(class),
+    /// The classes the query defines: its `Params`, then its `Row`.
+    pub fn classes(&self) -> impl Iterator<Item = &str> {
+        let row = match &self.command {
+            Command::One(Shape::Row(class, _)) | Command::Many(Shape::Row(class, _)) => Some(class),
             _ => None,
-        }
+        };
+        self.rows.iter().chain(row).map(String::as_str)
     }
+}
+
+/// A table and the columns a `:copyfrom` inserts, as SQL names them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CopyInto {
+    pub schema: String,
+    pub table: String,
+    pub columns: Vec<String>,
 }
 
 /// What a query's function does with the statement it runs (`cmd`).
@@ -71,8 +85,8 @@ pub enum Command {
     ExecResult,
     /// Returns the id the `INSERT` generated.
     ExecLastId,
-    /// Executes once per row of the `<Query>Params` class named here.
-    CopyFrom(String),
+    /// Inserts the rows, at once.
+    CopyFrom,
     /// Returns the only row; none, or more than one, raises.
     One(Shape),
     /// Returns every row, as a list.
@@ -117,7 +131,7 @@ pub fn modules(
         let name = module_name(file)?;
         let resolved = resolve(query, resolver, models, backend)
             .with_context(|| format!("{file}: query \"{}\"", query.name))?;
-        for python in std::iter::once(resolved.function.as_str()).chain(resolved.class()) {
+        for python in std::iter::once(resolved.function.as_str()).chain(resolved.classes()) {
             if let Some(first) = defined.insert((name.clone(), python.to_owned()), &query.name) {
                 bail!(
                     "{file}: \"{first}\" and \"{}\" both become the Python name \"{python}\"",
@@ -161,11 +175,25 @@ fn resolve(
 ) -> Result<Query> {
     let cmd = query.cmd.as_str();
     let class = query.name.to_upper_camel_case();
+    // A batch runs a command once per row, on PostgreSQL alone, as pgx does.
+    let (cmd, batch) = match cmd.strip_prefix(":batch") {
+        Some(_) if resolver.engine != Engine::PostgreSql => {
+            bail!("{cmd} is PostgreSQL only, as sqlc's pgx; use :copyfrom or a :exec per row")
+        }
+        Some(_) if query.params.is_empty() => {
+            bail!("{cmd} has no parameters to run it per row with")
+        }
+        Some("exec") => (":exec", true),
+        Some("one") => (":one", true),
+        Some("many") => (":many", true),
+        _ => (cmd, cmd == ":copyfrom"),
+    };
+    let rows = batch.then(|| format!("{class}Params"));
     let (command, columns) = match cmd {
         ":exec" => (Command::Exec, Vec::new()),
         ":execrows" => (Command::ExecRows, Vec::new()),
         ":execresult" => (Command::ExecResult, Vec::new()),
-        ":copyfrom" => (Command::CopyFrom(class + "Params"), Vec::new()),
+        ":copyfrom" => (Command::CopyFrom, Vec::new()),
         ":one" | ":many" => {
             let (fields, columns) = columns(&query.columns, resolver, models)?;
             let shape = match fields.as_slice() {
@@ -191,9 +219,6 @@ fn resolve(
         ":execlastid" => bail!(
             ":execlastid is not supported on {}; use INSERT ... RETURNING with :one",
             resolver.engine.name()
-        ),
-        ":batchexec" | ":batchmany" | ":batchone" => bail!(
-            "{cmd} is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])"
         ),
         _ => bail!("{cmd} is not a command sqlc-gen-python knows"),
     };
@@ -238,11 +263,36 @@ fn resolve(
         params,
         binds,
         slices,
+        copy_into: copy_into(query),
         columns,
         command,
+        rows,
     };
     backend.check(resolver.engine, &resolved)?;
     Ok(resolved)
+}
+
+/// What a `:copyfrom` inserts into: the table sqlc reports, and each
+/// parameter's column of it.
+fn copy_into(query: &plugin::Query) -> Option<CopyInto> {
+    let table = query
+        .insert_into_table
+        .as_ref()
+        .filter(|_| query.cmd == ":copyfrom")?;
+    let columns = (query.params.iter())
+        .map(|param| {
+            let column = param.column.as_ref()?;
+            Some(match column.original_name.as_str() {
+                "" => column.name.clone(),
+                original => original.to_string(),
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(CopyInto {
+        schema: table.schema.clone(),
+        table: table.name.clone(),
+        columns,
+    })
 }
 
 /// A query's parameters, in sqlc's order, one per placeholder: a name the
@@ -299,7 +349,7 @@ fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field
     }
     let firsts: Vec<(usize, &str)> = (columns.iter().zip(&repeats).enumerate())
         .filter(|(_, (_, repeat))| repeat.is_none())
-        .map(|(i, (c, _))| (i, c.name.as_str()))
+        .map(|(i, (c, _))| (i, resolver.spelling(&c.name)))
         .collect();
     let spellings: Vec<&str> = firsts.iter().map(|&(_, spelling)| spelling).collect();
     let mut names: Vec<String> = vec![String::new(); columns.len()];
@@ -389,7 +439,9 @@ fn columns(
         })
         .collect::<Result<_>>()?;
     let spellings: Vec<&str> = (columns.iter().zip(&embeds))
-        .map(|(column, embed)| embed.map_or(column.name.as_str(), |model| model.name.as_str()))
+        .map(|(column, embed)| {
+            embed.map_or(resolver.spelling(&column.name), |model| model.name.as_str())
+        })
         .collect();
 
     let mut fields = Vec::new();

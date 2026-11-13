@@ -1,0 +1,22 @@
+version: "2"
+plugins:
+  - name: python
+    # This repository's plugin, as `cargo install --path .` builds it. Elsewhere,
+    # use a release's `wasm` url and sha256 (see the README).
+    process:
+      cmd: sqlc-gen-python
+sql:
+  - engine: postgresql
+    schema: schema.sql
+    queries: query.sql
+    codegen:
+      - out: pgtext_psycopg
+        plugin: python
+        options:
+          backend: psycopg
+          async: false
+      - out: pgtext_psycopg_async
+        plugin: python
+        options:
+          backend: psycopg
+          async: true

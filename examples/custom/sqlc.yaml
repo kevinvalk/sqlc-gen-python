@@ -1,0 +1,29 @@
+version: "2"
+plugins:
+  - name: python
+    # This repository's plugin, as `cargo install --path .` builds it. Elsewhere,
+    # use a release's `wasm` url and sha256 (see the README).
+    process:
+      cmd: sqlc-gen-python
+sql:
+  - engine: postgresql
+    schema: schema.sql
+    queries: query.sql
+    codegen:
+      - out: custom_psycopg
+        plugin: python
+        options:
+          backend: psycopg
+          async: false
+          overrides:
+            # Every column of a type: an extension's, and a domain's.
+            - db_type: ltree
+              python_type: str
+            - db_type: positive_amount
+              python_type: Decimal
+            # One column: this table only holds IPv4 addresses.
+            - column: devices.ip
+              python_type: ipaddress.IPv4Address
+          rename:
+            devices: Machine
+            ip: address

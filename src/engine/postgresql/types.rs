@@ -43,6 +43,11 @@ const TYPES: &[(&str, Type)] = &[
     ("macaddr8", Type::STR),
     ("xml", Type::STR),
     ("tsvector", Type::STR),
+    // Both drivers return the text of an extension's `ltree`, and a
+    // `regclass`'s name. (`hstore` is the backend's: SQLAlchemy registers
+    // psycopg's codec.)
+    ("ltree", Type::STR),
+    ("regclass", Type::STR),
     ("bytea", Type::BYTES),
     ("date", Type::DATE),
     ("time", Type::TIME),
@@ -64,6 +69,9 @@ const NO_ARRAYS: &[(&str, &str)] = &[
     // An extension's type has a different OID in every database, so psycopg
     // has no loader for an array of one.
     ("citext", "psycopg returns as text, not a list"),
+    ("hstore", "psycopg returns as text, not a list"),
+    ("ltree", "psycopg returns as text, not a list"),
+    ("regclass", "nobody has probed"),
     (
         "tsvector",
         "asyncpg decodes with a corrupt item when one is empty",
@@ -100,7 +108,14 @@ pub fn array_problem(data_type: &str) -> Option<&'static str> {
 /// `is_func_call` does not. A bare `int` (its report of any arithmetic
 /// expression), `any` and nothing are guesses too. `integer` is not: sqlc
 /// types LIMIT and OFFSET with it itself.
-pub fn is_guess(data_type: &str) -> bool {
+///
+/// On a database, PostgreSQL resolves every type, and writes it with SQL's
+/// standard name (`format_type`): only nothing and the pseudo-types are no
+/// type to annotate.
+pub fn is_guess(data_type: &str, database: bool) -> bool {
+    if database {
+        return ["", "any", "anyelement", "anyarray"].contains(&data_type);
+    }
     [
         "",
         "any",
@@ -125,13 +140,40 @@ pub fn is_guess(data_type: &str) -> bool {
 }
 
 /// PostgreSQL's own name for a type, from any spelling sqlc reports for one it
-/// read ([`is_guess`] is false): qualified or bare, a serial pseudo-type, or
-/// LIMIT's `integer`.
-fn typname(data_type: &str) -> &str {
-    match data_type.strip_prefix("pg_catalog.").unwrap_or(data_type) {
-        "smallserial" | "serial2" => "int2",
-        "integer" | "serial" | "serial4" => "int4",
-        "bigserial" | "serial8" => "int8",
-        name => name,
+/// read ([`is_guess`] is false): qualified or bare, a serial pseudo-type,
+/// LIMIT's `integer`, or, analysed on a database, SQL's standard name, its
+/// modifiers left out (`character varying(20)`).
+fn typname(data_type: &str) -> String {
+    let mut name = String::new();
+    let mut depth = 0;
+    for c in data_type
+        .strip_prefix("pg_catalog.")
+        .unwrap_or(data_type)
+        .chars()
+    {
+        match c {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            c if depth == 0 => name.push(c),
+            _ => {}
+        }
     }
+    let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
+    match name.as_str() {
+        "smallserial" | "serial2" | "smallint" => "int2",
+        "integer" | "serial" | "serial4" | "int" => "int4",
+        "bigserial" | "serial8" | "bigint" => "int8",
+        "real" => "float4",
+        "double precision" => "float8",
+        "boolean" => "bool",
+        "character varying" => "varchar",
+        "character" => "bpchar",
+        "timestamp with time zone" => "timestamptz",
+        "timestamp without time zone" => "timestamp",
+        "time with time zone" => "timetz",
+        "time without time zone" => "time",
+        "bit varying" => "varbit",
+        name => return name.to_string(),
+    }
+    .into()
 }

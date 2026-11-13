@@ -125,12 +125,13 @@ impl Engine {
         }
     }
 
-    /// Whether `data_type` is sqlc's guess rather than a type it read.
-    pub fn is_guess(self, data_type: &str) -> bool {
+    /// Whether `data_type` is sqlc's guess rather than a type it read, if the
+    /// queries were analysed on a `database` or else statically.
+    pub fn is_guess(self, data_type: &str, database: bool) -> bool {
         match self {
-            Self::PostgreSql => postgresql::is_guess(data_type),
-            Self::Sqlite => sqlite::is_guess(data_type),
-            Self::MySql => mysql::is_guess(data_type),
+            Self::PostgreSql => postgresql::is_guess(data_type, database),
+            Self::Sqlite => sqlite::is_guess(data_type, database),
+            Self::MySql => mysql::is_guess(data_type, database),
         }
     }
 

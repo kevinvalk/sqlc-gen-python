@@ -70,12 +70,14 @@ from psycopg import sql as pgsql
 from psycopg.types.enum import EnumInfo, register_enum
 from psycopg.types.json import Json as PgJson
 from psycopg.types.json import Jsonb
+from psycopg.types.range import Range as PgRange
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import pgvalues
 import postgres
 from examples import golden_cases
-from pgvalues import Column, Table, enum_array_type, json_type, tables
+from pgvalues import Column, Table, enum_array_type, json_type, sqlalchemy_type, tables
 from postgres import SchemaRejectedError, aw, conninfo, database
 from suite.deep import build, check, checked, failure, strip_none
 
@@ -369,7 +371,7 @@ class Call:
     function: Callable[..., Any]
     query: Json
     arguments: list[Argument]
-    # The record a `:copyfrom` function takes an iterable of.
+    # The record a `:copyfrom` or batch function takes an iterable of.
     record: Any = None
 
     async def run(
@@ -403,7 +405,7 @@ class Call:
         except sqlalchemy.exc.NoResultFound:
             # A `:one` without a row raises, as Go's `ErrNoRows` (§6).
             await aw(nested.rollback())
-            if cmd != ":one":
+            if cmd not in {":one", ":batchone"}:
                 raise
             return "empty", "", self.compare(expected, [])
         except Exception as error:
@@ -413,15 +415,26 @@ class Call:
             raise
         await aw(nested.commit())
         pool.harvest(result)
-        if cmd in {":exec", ":copyfrom"}:
+        return self.outcome(result, expected)
+
+    def outcome(self, result: object, expected: object) -> tuple[str, str, str]:
+        """What a call that returned ``result`` did, and how it compared."""
+        cmd = self.query["cmd"]
+        if cmd in {":exec", ":copyfrom", ":batchexec"}:
             return "ran", "", ""
+        # A batch returns each row's result: rows if any of them has one.
+        if cmd in {":batchone", ":batchmany"}:
+            items = typing.cast("list[object]", result)
+            if cmd == ":batchmany":
+                items = [i for r in items for i in typing.cast("list[object]", r)]
+            return ("rows" if items else "empty"), "", ""
         if isinstance(result, sqlalchemy.CursorResult):
             result = result.rowcount
         match cmd:
             case ":one":
                 got: object = [repr(flat(result))]
             case ":many":
-                got = sorted(repr(flat(r)) for r in result)
+                got = sorted(repr(flat(r)) for r in typing.cast("list[object]", result))
             case _:
                 got = result
         compared = self.compare(expected, got)
@@ -526,6 +539,12 @@ def plain(value: object) -> object:
         return value.value
     if isinstance(value, list):
         return [plain(v) for v in value]
+    # A range, SQLAlchemy's or psycopg's, as what makes it equal.
+    if isinstance(value, (postgresql.Range, PgRange)):
+        empty = value.isempty if isinstance(value, PgRange) else value.empty
+        if empty:
+            return ("range", "empty")
+        return ("range", value.lower, value.upper, value.bounds)
     return value
 
 
@@ -533,7 +552,10 @@ def flat(result: object) -> tuple[object, ...]:
     """A generated result as the row it was read from: a record's fields in
     order, an embedded model's spread in place, or a bare value.
     """
-    if not dataclasses.is_dataclass(result) or isinstance(result, type):
+    # SQLAlchemy's `Range` is a dataclass too, but one value.
+    if not dataclasses.is_dataclass(result) or isinstance(
+        result, (type, postgresql.Range)
+    ):
         return (plain(result),)
     return tuple(
         v for f in dataclasses.fields(result) for v in flat(getattr(result, f.name))
@@ -549,6 +571,10 @@ def bound(param: Json, value: object) -> object:
     kind = param["column"]["type"]["name"].removeprefix("pg_catalog.")
     if kind in {"json", "jsonb"}:
         return (Jsonb if kind == "jsonb" else PgJson)(value)
+    if isinstance(value, postgresql.Range):
+        if value.empty:
+            return PgRange(empty=True)
+        return PgRange(value.lower, value.upper, value.bounds)
     return plain(value)
 
 
@@ -577,7 +603,8 @@ def calls(
         hints = typing.get_type_hints(function)
         parameters = list(inspect.signature(function).parameters)[1:]
         record = None
-        if query["cmd"] == ":copyfrom":
+        # A `:copyfrom` or a batch takes `rows` of its parameters.
+        if query["cmd"] == ":copyfrom" or query["cmd"].startswith(":batch"):
             (rows,) = parameters
             (record,) = typing.get_args(hints[rows])
             hints = typing.get_type_hints(record)
@@ -956,11 +983,18 @@ def insert(
         sqlalchemy.bindparam(f"p{i}", type_=json_type(types[name]))
         for i, name in enumerate(values)
         if types[name].name in {"json", "jsonb"}
+    ] + [
+        sqlalchemy.bindparam(f"p{i}", type_=ranged)
+        for i, name in enumerate(values)
+        if (ranged := sqlalchemy_type(types[name])) is not None
     ]
     if typed:
         statement = statement.bindparams(*typed)
     returning = statement.columns(
-        *(sqlalchemy.column(c.name, enum_array_type(c.pg)) for c in table.columns)
+        *(
+            sqlalchemy.column(c.name, enum_array_type(c.pg) or sqlalchemy_type(c.pg))
+            for c in table.columns
+        )
     )
     return returning, {f"p{i}": value for i, value in enumerate(values.values())}
 

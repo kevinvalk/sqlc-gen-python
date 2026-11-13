@@ -26,3 +26,34 @@ fn only_a_driver_without_its_own_defines_the_errors_of_a_one() {
     assert!(Backend::Psycopg.defines_errors());
     assert!(Backend::Sqlite3.defines_errors());
 }
+
+#[test]
+fn a_type_the_drivers_disagree_on_is_the_backends_to_decide() {
+    use crate::python::Type;
+    let annotation = |backend: Backend, data_type: &str| {
+        (backend.scalar_type(Engine::PostgreSql, data_type))
+            .map(|ty| ty.source(crate::python::Scope::Queries))
+    };
+    // A range is each library's class, SQLAlchemy's whatever the driver.
+    assert_eq!(
+        annotation(Backend::Psycopg, "int4range").as_deref(),
+        Some("Range[int]")
+    );
+    assert_eq!(
+        annotation(Backend::SqlAlchemy, "pg_catalog.daterange").as_deref(),
+        Some("postgresql.Range[dt.date]")
+    );
+    // psycopg returns a point's text; asyncpg, under SQLAlchemy, an object.
+    assert_eq!(
+        Backend::Psycopg.scalar_type(Engine::PostgreSql, "point"),
+        Some(Type::STR)
+    );
+    assert_eq!(
+        Backend::SqlAlchemy.scalar_type(Engine::PostgreSql, "point"),
+        None
+    );
+    assert_eq!(
+        Backend::Sqlite3.scalar_type(Engine::Sqlite, "int4range"),
+        None
+    );
+}

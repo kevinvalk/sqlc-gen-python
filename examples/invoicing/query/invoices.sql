@@ -89,3 +89,13 @@ SELECT id, filename, uploaded_at FROM media WHERE invoice_id = $1 ORDER BY uploa
 
 -- name: ListInvoiceStatuses :many
 SELECT DISTINCT status FROM invoices ORDER BY status;
+
+-- name: GetInvoicesBatch :batchone
+-- Several invoices at once: each id must exist.
+SELECT * FROM invoices WHERE id = $1;
+
+-- name: ListInvoiceNumbersBatch :batchmany
+SELECT number FROM invoices WHERE customer_id = $1 ORDER BY number;
+
+-- name: VoidInvoicesBatch :batchexec
+UPDATE invoices SET status = 'void' WHERE id = $1 AND status = 'issued';

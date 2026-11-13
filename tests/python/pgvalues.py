@@ -7,9 +7,9 @@ user table, its columns and foreign keys, and the generated model that reads
 it. ``strategy`` is a Hypothesis strategy of Python values that PostgreSQL
 accepts for such a type and that bind through psycopg and asyncpg as the type
 map's annotation (docs/python-output.md §5). It draws ordinary values; the
-edges (NaN, infinity, extremes) are ``typemap.py``'s concern. ``json_type``
-and ``enum_array_type`` are how SQLAlchemy must bind or read a type, as the
-generated code does (§6).
+edges (NaN, infinity, extremes) are ``typemap.py``'s concern. ``json_type``,
+``enum_array_type`` and ``sqlalchemy_type`` are how SQLAlchemy must bind or read a
+type, as the generated code does (§6).
 """
 
 from __future__ import annotations
@@ -218,6 +218,25 @@ def json_type(pg: Pg) -> Any:  # noqa: ANN401
     return postgresql.ARRAY(base, dimensions=pg.dims) if pg.dims else base
 
 
+# SQLAlchemy's type of each range, which makes every driver's range its `Range`.
+RANGE_TYPES: dict[str, Any] = {
+    "int4range": postgresql.INT4RANGE,
+    "int8range": postgresql.INT8RANGE,
+    "numrange": postgresql.NUMRANGE,
+    "daterange": postgresql.DATERANGE,
+    "tsrange": postgresql.TSRANGE,
+    "tstzrange": postgresql.TSTZRANGE,
+}
+
+
+def sqlalchemy_type(pg: Pg) -> Any:  # noqa: ANN401
+    """How a range or an `hstore` must be bound and read, as the generated
+    code does (§6), so that every driver's value is SQLAlchemy's.
+    """
+    kind = {**RANGE_TYPES, "hstore": postgresql.HSTORE}.get(pg.name)
+    return kind() if kind is not None and not pg.dims else None
+
+
 def enum_array_type(pg: Pg) -> Any:  # noqa: ANN401
     """How an enum array result must be read for psycopg to make it a list (§6)."""
     if not (pg.labels and pg.dims):
@@ -334,6 +353,19 @@ def interfaces() -> SearchStrategy[ipaddress.IPv4Interface | ipaddress.IPv6Inter
     )
 
 
+def ranges(bounds: SearchStrategy[Any]) -> SearchStrategy[object]:
+    """SQLAlchemy ranges of ``bounds``: empty, or ordered, either end open."""
+    ends = st.none() | bounds
+    shapes = st.sampled_from(["[)", "[]", "()", "(]"])
+
+    def make(lower: Any, upper: Any, shape: str) -> object:  # noqa: ANN401
+        if lower is not None and upper is not None and lower > upper:
+            lower, upper = upper, lower
+        return postgresql.Range(lower, upper, bounds=shape)  # type: ignore[arg-type]
+
+    return st.just(postgresql.Range(empty=True)) | st.builds(make, ends, ends, shapes)
+
+
 TEXT = {"text", "varchar", "bpchar", "name", "citext"}
 SCALARS: dict[str, SearchStrategy[object]] = {
     "bool": st.booleans(),
@@ -369,5 +401,26 @@ SCALARS: dict[str, SearchStrategy[object]] = {
     "xml": st.sampled_from(["<a/>", "<b>ü &amp; ß</b>", "plain text", ""]),
     "tsvector": st.lists(st.from_regex(r"[a-z]{1,6}", fullmatch=True), max_size=4).map(
         " ".join
+    ),
+    "hstore": st.dictionaries(text(), st.none() | text(), max_size=3),
+    "ltree": st.from_regex(
+        r"[A-Za-z0-9_]{1,5}(\.[A-Za-z0-9_]{1,5}){0,3}", fullmatch=True
+    ),
+    "regclass": st.sampled_from(["pg_class", "pg_type", "pg_namespace"]),
+    "int4range": ranges(ints(31)),
+    "int8range": ranges(ints(63)),
+    "numrange": ranges(
+        st.decimals(allow_nan=False, allow_infinity=False, places=2).filter(
+            lambda d: abs(d) < 10**12
+        )
+    ),
+    "daterange": ranges(st.dates(dt.date(1900, 1, 1), dt.date(2200, 1, 1))),
+    "tsrange": ranges(st.datetimes(dt.datetime(1900, 1, 1), dt.datetime(2200, 1, 1))),  # noqa: DTZ001
+    "tstzrange": ranges(
+        st.datetimes(
+            dt.datetime(1900, 1, 1),  # noqa: DTZ001
+            dt.datetime(2200, 1, 1),  # noqa: DTZ001
+            timezones=offsets(),
+        )
     ),
 }

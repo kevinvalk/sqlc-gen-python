@@ -301,8 +301,9 @@ def wire_contract(sqlc: Path) -> None:
     )
     invoicing = wire.example("invoicing")
     backend = {"backend": "sqlalchemy", "async": False}
+    # A typo in an option is an error, never a silent no-op.
     wire.fails(
-        invoicing, backend | {"overrides": []}, "reading plugin options", "`overrides`"
+        invoicing, backend | {"overides": []}, "reading plugin options", "`overides`"
     )
     (wire.work / "query/unsupported.sql").write_text(
         "-- name: Touch :execlastid\nUPDATE customers SET name = name;\n"

@@ -15,8 +15,8 @@ use crate::python::{self, Scope};
 pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
     (module.queries.iter())
         .flat_map(|query| {
-            let class = match &query.command {
-                Command::CopyFrom(class) => Some(params_class(class, &query.params)),
+            let params = (query.rows.as_ref()).map(|class| params_class(class, &query.params));
+            let row = match &query.command {
                 Command::One(Shape::Row(class, fields))
                 | Command::Many(Shape::Row(class, fields)) => {
                     Some(row_class(class, fields, config.backend.text_arrays()))
@@ -25,7 +25,10 @@ pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
             };
             let statement = python::constant(&query.constant, config.backend.statement(query));
             let function = function(query, config.backend, config.asynchronous);
-            std::iter::once(statement).chain(class).chain([function])
+            std::iter::once(statement)
+                .chain(params)
+                .chain(row)
+                .chain([function])
         })
         .collect()
 }
@@ -57,7 +60,7 @@ fn row_class(class: &str, fields: &[RowField], text_arrays: bool) -> ast::Stmt {
     record(class, "", &attributes)
 }
 
-/// `<Query>Params`, one row of a `:copyfrom`.
+/// `<Query>Params`, one row of a `:copyfrom` or a batch.
 fn params_class(class: &str, params: &[Field]) -> ast::Stmt {
     let attributes: Vec<Attribute> = (params.iter())
         .map(|param| Attribute {
@@ -74,10 +77,10 @@ fn params_class(class: &str, params: &[Field]) -> ast::Stmt {
 /// each parameter keyword-only; one execution; the result shaped by `cmd`.
 fn function(query: &Query, backend: Backend, asynchronous: bool) -> ast::Stmt {
     let conn = format!("conn: {}", backend.connection(asynchronous));
-    let parameters = match (&query.command, query.params.is_empty()) {
-        (Command::CopyFrom(class), _) => format!("{conn}, rows: Iterable[{class}]"),
-        (_, true) => conn,
-        (_, false) => {
+    let parameters = match (&query.rows, query.params.is_empty()) {
+        (Some(class), _) => format!("{conn}, rows: Iterable[{class}]"),
+        (None, true) => conn,
+        (None, false) => {
             let params = (query.params.iter())
                 .map(|p| format!("{}: {}", p.name, p.ty.annotation(Scope::Queries)))
                 .collect::<Vec<_>>();

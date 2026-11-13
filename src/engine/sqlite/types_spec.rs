@@ -32,7 +32,7 @@ fn a_type_whose_values_sqlite_may_round_is_not_mapped() {
 #[test]
 fn any_and_nothing_are_guesses() {
     for guess in ["any", ""] {
-        assert!(is_guess(guess));
+        assert!(is_guess(guess, false));
     }
-    assert!(!is_guess("integer"));
+    assert!(!is_guess("integer", false));
 }

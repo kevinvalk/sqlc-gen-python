@@ -13,8 +13,7 @@ from psycopg.rows import tuple_row
 
 from . import models
 
-_CREATE_LINE_ITEMS: Final = """INSERT INTO line_items (invoice_id, position, description, quantity, unit_price, vat_rate)
-VALUES ($1, $2, $3, $4, $5, $6)"""
+_CREATE_LINE_ITEMS: Final = 'COPY "line_items" ("invoice_id", "position", "description", "quantity", "unit_price", "vat_rate") FROM STDIN'
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
@@ -31,20 +30,18 @@ def create_line_items(
     conn: psycopg.Connection[Any], rows: Iterable[CreateLineItemsParams]
 ) -> None:
     cur = psycopg.RawCursor(conn, row_factory=tuple_row)
-    cur.executemany(
-        _CREATE_LINE_ITEMS,
-        [
-            (
-                r.invoice_id,
-                r.position,
-                r.description,
-                r.quantity,
-                r.unit_price,
-                r.vat_rate,
+    with cur.copy(_CREATE_LINE_ITEMS) as copy:
+        for r in rows:
+            copy.write_row(
+                (
+                    r.invoice_id,
+                    r.position,
+                    r.description,
+                    r.quantity,
+                    r.unit_price,
+                    r.vat_rate,
+                )
             )
-            for r in rows
-        ],
-    )
 
 
 _LIST_LINE_ITEMS: Final = "SELECT id, invoice_id, position, description, quantity, unit_price, vat_rate FROM line_items WHERE invoice_id = $1 ORDER BY position"

@@ -4,6 +4,8 @@
 -- runtime proof (tests/py/typemap.py) reads back each of them.
 
 CREATE EXTENSION IF NOT EXISTS citext;
+CREATE EXTENSION IF NOT EXISTS hstore;
+CREATE EXTENSION IF NOT EXISTS ltree;
 
 CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
 
@@ -39,7 +41,16 @@ CREATE TABLE scalars (
     wall          timetz NOT NULL,
     naive         timestamp NOT NULL,
     plain_json    json NOT NULL,
-    network       cidr NOT NULL
+    network       cidr NOT NULL,
+    pairs         hstore NOT NULL,
+    tree          ltree NOT NULL,
+    relation      regclass NOT NULL,
+    span          int4range NOT NULL,
+    big_span      int8range NOT NULL,
+    amounts       numrange NOT NULL,
+    days          daterange NOT NULL,
+    times         tsrange NOT NULL,
+    moments       tstzrange NOT NULL
 );
 
 COMMENT ON TABLE scalars IS 'One column per PostgreSQL type worth mapping.';

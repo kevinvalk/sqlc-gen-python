@@ -26,6 +26,7 @@ use serde::Deserialize;
 use crate::api::models::Enum;
 use crate::api::queries::{Query, Shape};
 use crate::engine::Engine;
+use crate::python::Type;
 use dbapi::Driver;
 
 /// A library generated code runs its SQL through.
@@ -71,6 +72,16 @@ impl Backend {
                 "no async MySQL driver is both typed and right, so the pymysql backend has no \
                  coroutines; use the sqlalchemy backend, on mysql+asyncmy",
             ),
+        }
+    }
+
+    /// The Python type of a column of `data_type` that only the backend's
+    /// driver decides: a class of its own, or text where drivers disagree.
+    pub fn scalar_type(self, engine: Engine, data_type: &str) -> Option<Type> {
+        match (self, engine) {
+            (Self::SqlAlchemy, Engine::PostgreSql) => sqlalchemy::scalar_type(data_type),
+            (Self::Psycopg, _) => psycopg::scalar_type(data_type),
+            _ => None,
         }
     }
 
@@ -136,6 +147,32 @@ impl Backend {
             Some(driver) => dbapi::body(driver, query, asynchronous),
         }
     }
+}
+
+/// `body`, a command's, run once per item of `each` (`for r in rows`) and
+/// returning each result: a list comprehension if it is one `return x`, else
+/// a loop that appends each `return x` to `values`, of `returns`.
+fn per_row(body: &str, each: &str, returns: &str) -> String {
+    if let Some(value) = body.strip_prefix("return ")
+        && !body.contains('\n')
+    {
+        return format!("return [{value} {each}]");
+    }
+    let appending: Vec<String> = (body.lines())
+        .map(|line| {
+            let code = line.trim_start();
+            match code.strip_prefix("return ") {
+                Some(value) => {
+                    format!("{}values.append({value})", &line[..line.len() - code.len()])
+                }
+                None => line.to_string(),
+            }
+        })
+        .collect();
+    format!(
+        "values: list[{returns}] = []\n{each}:\n    {}\nreturn values",
+        appending.join("\n").replace('\n', "\n    ")
+    )
 }
 
 /// The class a row of `shape` becomes, as a query module writes it.

@@ -8,7 +8,7 @@ use ruff_python_ast as ast;
 use super::class;
 
 use crate::api::models::{Enum, Field};
-use crate::api::queries::{Command, Query, Shape};
+use crate::api::queries::{Command, CopyInto, Query, Shape};
 use crate::engine::Piece;
 use crate::python::{self, Scope};
 
@@ -37,6 +37,9 @@ pub struct Driver {
     pub bind: fn(&Field, &str) -> String,
     /// Whether an array of enums comes back as the array's text.
     pub text_arrays: bool,
+    /// Whether a `:copyfrom` runs PostgreSQL's `COPY`, through the cursor's
+    /// `copy()`, rather than one `INSERT` per row.
+    pub copies: bool,
 }
 
 impl Driver {
@@ -57,6 +60,11 @@ impl Driver {
 /// placeholders and each `%` written as the driver formats them. Without
 /// parameters, a driver formats nothing, so nothing is rewritten.
 pub fn statement(driver: &Driver, query: &Query) -> ast::Expr {
+    if driver.copies
+        && let Some(into) = &query.copy_into
+    {
+        return python::string(&copy(into));
+    }
     let text = match (driver.placeholder, query.params.is_empty()) {
         (Some(_), false) => (query.sql.0.iter())
             .map(|piece| match piece {
@@ -67,6 +75,18 @@ pub fn statement(driver: &Driver, query: &Query) -> ast::Expr {
         _ => query.sql.text(),
     };
     python::string(&text)
+}
+
+/// The `COPY` that writes rows into `into`'s table and columns, every name
+/// quoted: as sqlc reports it, it is the name PostgreSQL stores.
+fn copy(into: &CopyInto) -> String {
+    let quote = |name: &str| format!("\"{}\"", name.replace('"', "\"\""));
+    let table = match into.schema.as_str() {
+        "" => quote(&into.table),
+        schema => format!("{}.{}", quote(schema), quote(&into.table)),
+    };
+    let columns: Vec<String> = into.columns.iter().map(|c| quote(c)).collect();
+    format!("COPY {table} ({}) FROM STDIN", columns.join(", "))
 }
 
 /// What a query's function returns, and its body: one execution of its
@@ -110,28 +130,67 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (String, Stri
         true => String::new(),
         false => format!(", {}", tuple(&query.binds, &|name| name.to_string())),
     };
+    let cursor = format!("cur = {}", driver.cursor[at]);
     let execute = format!("{wait}cur.execute({statement}{args})");
     // The cursor, the statement run on it, then `then`.
-    let run = |then: String| format!("cur = {}\n{execute}\n{then}", driver.cursor[at]);
+    let run = |then: &str| format!("{cursor}\n{execute}\n{then}");
+    // Each row of the parameters, as its tuple.
+    let rows = || {
+        let names: Vec<String> = query.params.iter().map(|p| p.name.clone()).collect();
+        tuple(&names, &|name| format!("r.{name}"))
+    };
 
-    let (returns, body) = match &query.command {
-        Command::Exec => ("None".into(), run(String::new())),
-        Command::ExecRows if driver.execute_counts => (
-            "int".into(),
-            format!("cur = {}\nreturn {execute}", driver.cursor[at]),
-        ),
-        Command::ExecRows => ("int".into(), run("return cur.rowcount".into())),
-        Command::ExecLastId => ("int".into(), run("return cur.lastrowid".into())),
-        Command::ExecResult => (driver.cursor_type[at].into(), run("return cur".into())),
-        Command::CopyFrom(_) => {
-            let names: Vec<String> = query.params.iter().map(|p| p.name.clone()).collect();
-            let rows = tuple(&names, &|name| format!("r.{name}"));
+    let (returns, body) = match (&query.command, &query.rows) {
+        (Command::CopyFrom, _) if driver.copies && query.copy_into.is_some() => {
+            let with = if asynchronous { "async with" } else { "with" };
             let body = format!(
-                "cur = {}\n{wait}cur.executemany({}, [{rows} for r in rows])",
-                driver.cursor[at], query.constant
+                "{cursor}\n{with} cur.copy({}) as copy:\n    for r in rows:\n        {wait}copy.write_row({})",
+                query.constant,
+                rows()
             );
             ("None".into(), body)
         }
+        (Command::CopyFrom | Command::Exec, Some(_)) => {
+            let body = format!(
+                "{cursor}\n{wait}cur.executemany({}, [{} for r in rows])",
+                query.constant,
+                rows()
+            );
+            ("None".into(), body)
+        }
+        // A batch: every row's statement sent at once (psycopg pipelines
+        // `executemany`), then each one's result read in turn.
+        (Command::One(_) | Command::Many(_), Some(_)) => {
+            let (returns, read) = read(driver, query, "result", wait);
+            let each = if asynchronous { "async for" } else { "for" };
+            let body = format!(
+                "{cursor}\n{wait}cur.executemany({}, [{} for r in rows], returning=True)\n{}",
+                query.constant,
+                rows(),
+                super::per_row(&read, &format!("{each} result in cur.results()"), &returns),
+            );
+            (format!("list[{returns}]"), body)
+        }
+        (Command::Exec, None) => ("None".into(), run("")),
+        (Command::ExecRows, _) if driver.execute_counts => {
+            ("int".into(), format!("{cursor}\nreturn {execute}"))
+        }
+        (Command::ExecRows, _) => ("int".into(), run("return cur.rowcount")),
+        (Command::ExecLastId, _) => ("int".into(), run("return cur.lastrowid")),
+        (Command::ExecResult, _) => (driver.cursor_type[at].into(), run("return cur")),
+        (Command::CopyFrom, None) => unreachable!("a :copyfrom takes rows"),
+        (Command::One(_) | Command::Many(_), None) => {
+            let (returns, read) = read(driver, query, "cur", wait);
+            (returns, run(&read))
+        }
+    };
+    (returns, body.trim_end().to_string())
+}
+
+/// What a `:one` or `:many` returns, and the code returning it from the
+/// result `cur` holds.
+fn read(driver: &Driver, query: &Query, cur: &str, wait: &str) -> (String, String) {
+    match &query.command {
         Command::One(shape) => {
             let (returns, ret) = match shape {
                 Shape::Scalar(ty) if !ty.converts() => {
@@ -153,11 +212,11 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (String, Stri
                     format!("return {}.from_row(row)", class(shape)),
                 ),
             };
-            let body = run(format!(
-                "match {wait}cur.fetchmany(2):\n    case [row]:\n        {ret}\n    \
+            let read = format!(
+                "match {wait}{cur}.fetchmany(2):\n    case [row]:\n        {ret}\n    \
                  case []:\n        raise NoRowError\n    case _:\n        raise MultipleRowsError"
-            ));
-            (returns, body)
+            );
+            (returns, read)
         }
         Command::Many(shape) => {
             let (item, each) = match shape {
@@ -167,11 +226,11 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (String, Stri
                 ),
                 shape => (class(shape), format!("{}.from_row(row)", class(shape))),
             };
-            let body = run(format!("return [{each} for row in {wait}cur.fetchall()]"));
-            (format!("list[{item}]"), body)
+            let read = format!("return [{each} for row in {wait}{cur}.fetchall()]");
+            (format!("list[{item}]"), read)
         }
-    };
-    (returns, body.trim_end().to_string())
+        _ => unreachable!("only a :one or a :many reads rows"),
+    }
 }
 
 /// An error if `sql_enum` has a label PostgreSQL quotes in an array's text,

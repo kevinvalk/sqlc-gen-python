@@ -103,52 +103,52 @@ array_text_join/pgx/v4/request.json	sqlalchemy	ok	100dce60
 array_text_join/pgx/v4/request.json	sqlalchemy_async	ok	1dcdc51b
 array_text_join/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 array_text_join/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-batch/postgresql/pgx/v4/request.json	exact_names	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch/postgresql/pgx/v4/request.json	psycopg	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch/postgresql/pgx/v4/request.json	psycopg_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch/postgresql/pgx/v4/request.json	exact_names	ok	3917d720
+batch/postgresql/pgx/v4/request.json	psycopg	ok	73d95ac7
+batch/postgresql/pgx/v4/request.json	psycopg_async	ok	b01aff9d
 batch/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
-batch/postgresql/pgx/v4/request.json	sqlalchemy	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch/postgresql/pgx/v4/request.json	sqlalchemy_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch/postgresql/pgx/v4/request.json	sqlalchemy	ok	3917d720
+batch/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	5e2941b3
 batch/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 batch/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-batch/postgresql/pgx/v4/request.managed-db.json	exact_names	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch/postgresql/pgx/v4/request.managed-db.json	psycopg	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch/postgresql/pgx/v4/request.managed-db.json	psycopg_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	3917d720
+batch/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	73d95ac7
+batch/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	b01aff9d
 batch/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
-batch/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	ok	3917d720
+batch/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	ok	5e2941b3
 batch/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 batch/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-batch_imports/postgresql/pgx/v4/request.json	exact_names	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_imports/postgresql/pgx/v4/request.json	psycopg	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_imports/postgresql/pgx/v4/request.json	psycopg_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch_imports/postgresql/pgx/v4/request.json	exact_names	ok	84e4c5d4
+batch_imports/postgresql/pgx/v4/request.json	psycopg	ok	16b567ea
+batch_imports/postgresql/pgx/v4/request.json	psycopg_async	ok	10661904
 batch_imports/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
-batch_imports/postgresql/pgx/v4/request.json	sqlalchemy	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_imports/postgresql/pgx/v4/request.json	sqlalchemy_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch_imports/postgresql/pgx/v4/request.json	sqlalchemy	ok	84e4c5d4
+batch_imports/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	d9ade90f
 batch_imports/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 batch_imports/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-batch_imports/postgresql/pgx/v4/request.managed-db.json	exact_names	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_imports/postgresql/pgx/v4/request.managed-db.json	psycopg	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_imports/postgresql/pgx/v4/request.managed-db.json	psycopg_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch_imports/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	84e4c5d4
+batch_imports/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	16b567ea
+batch_imports/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	10661904
 batch_imports/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
-batch_imports/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_imports/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch_imports/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	ok	84e4c5d4
+batch_imports/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	ok	d9ade90f
 batch_imports/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 batch_imports/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-batch_parameter_limit/postgresql/pgx/request.json	exact_names	error:query.sql: query "CreateAuthors": :batchexec is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_parameter_limit/postgresql/pgx/request.json	psycopg	error:query.sql: query "CreateAuthors": :batchexec is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_parameter_limit/postgresql/pgx/request.json	psycopg_async	error:query.sql: query "CreateAuthors": :batchexec is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch_parameter_limit/postgresql/pgx/request.json	exact_names	ok	471cb5c7
+batch_parameter_limit/postgresql/pgx/request.json	psycopg	ok	377f3337
+batch_parameter_limit/postgresql/pgx/request.json	psycopg_async	ok	43844993
 batch_parameter_limit/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
-batch_parameter_limit/postgresql/pgx/request.json	sqlalchemy	error:query.sql: query "CreateAuthors": :batchexec is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_parameter_limit/postgresql/pgx/request.json	sqlalchemy_async	error:query.sql: query "CreateAuthors": :batchexec is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch_parameter_limit/postgresql/pgx/request.json	sqlalchemy	ok	793f4207
+batch_parameter_limit/postgresql/pgx/request.json	sqlalchemy_async	ok	9f0cfd74
 batch_parameter_limit/postgresql/pgx/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 batch_parameter_limit/postgresql/pgx/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-batch_parameter_type/postgresql/pgx/request.managed-db.json	exact_names	error:query.sql: query "InsertMappping": :batchexec is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_parameter_type/postgresql/pgx/request.managed-db.json	psycopg	error:query.sql: query "InsertMappping": :batchexec is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_parameter_type/postgresql/pgx/request.managed-db.json	psycopg_async	error:query.sql: query "InsertMappping": :batchexec is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch_parameter_type/postgresql/pgx/request.managed-db.json	exact_names	error:query.sql: query "InsertMappping": parameter $1 ("device_id") has a type sqlc could not infer; add a cast, as @device_id::<type>, or sqlc.narg('device_id')::<type> if it can be NULL	-
+batch_parameter_type/postgresql/pgx/request.managed-db.json	psycopg	error:query.sql: query "InsertMappping": parameter $1 ("device_id") has a type sqlc could not infer; add a cast, as @device_id::<type>, or sqlc.narg('device_id')::<type> if it can be NULL	-
+batch_parameter_type/postgresql/pgx/request.managed-db.json	psycopg_async	error:query.sql: query "InsertMappping": parameter $1 ("device_id") has a type sqlc could not infer; add a cast, as @device_id::<type>, or sqlc.narg('device_id')::<type> if it can be NULL	-
 batch_parameter_type/postgresql/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
-batch_parameter_type/postgresql/pgx/request.managed-db.json	sqlalchemy	error:query.sql: query "InsertMappping": :batchexec is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-batch_parameter_type/postgresql/pgx/request.managed-db.json	sqlalchemy_async	error:query.sql: query "InsertMappping": :batchexec is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+batch_parameter_type/postgresql/pgx/request.managed-db.json	sqlalchemy	error:query.sql: query "InsertMappping": parameter $1 ("device_id") has a type sqlc could not infer; add a cast, as @device_id::<type>, or sqlc.narg('device_id')::<type> if it can be NULL	-
+batch_parameter_type/postgresql/pgx/request.managed-db.json	sqlalchemy_async	error:query.sql: query "InsertMappping": parameter $1 ("device_id") has a type sqlc could not infer; add a cast, as @device_id::<type>, or sqlc.narg('device_id')::<type> if it can be NULL	-
 batch_parameter_type/postgresql/pgx/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 batch_parameter_type/postgresql/pgx/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 between_args/mysql/request.json	exact_names	ok	36918dbb
@@ -168,8 +168,8 @@ between_args/sqlite/request.json	sqlalchemy_async	ok	8bb351c2
 between_args/sqlite/request.json	sqlite3	ok	f4b676b1
 between_args/sqlite/request.json	sqlite3_async	ok	df98d521
 bit_string/pgx/v4/request.json	exact_names	error:table "test_table": column "v_bit_null" has type "pg_catalog.bit", which has no verified Python mapping	-
-bit_string/pgx/v4/request.json	psycopg	error:table "test_table": column "v_bit_null" has type "pg_catalog.bit", which has no verified Python mapping	-
-bit_string/pgx/v4/request.json	psycopg_async	error:table "test_table": column "v_bit_null" has type "pg_catalog.bit", which has no verified Python mapping	-
+bit_string/pgx/v4/request.json	psycopg	ok	4ca3b0f1
+bit_string/pgx/v4/request.json	psycopg_async	ok	00437eb0
 bit_string/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 bit_string/pgx/v4/request.json	sqlalchemy	error:table "test_table": column "v_bit_null" has type "pg_catalog.bit", which has no verified Python mapping	-
 bit_string/pgx/v4/request.json	sqlalchemy_async	error:table "test_table": column "v_bit_null" has type "pg_catalog.bit", which has no verified Python mapping	-
@@ -304,16 +304,16 @@ cast_param/sqlite/request.json	sqlalchemy_async	ok	21a4cdae
 cast_param/sqlite/request.json	sqlite3	ok	c9da34bf
 cast_param/sqlite/request.json	sqlite3_async	ok	3be195c2
 cid_oid_tid_xid/pgx/v4/request.json	exact_names	error:table "test_table": column "v_cid_null" has type "cid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-cid_oid_tid_xid/pgx/v4/request.json	psycopg	error:table "test_table": column "v_cid_null" has type "cid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-cid_oid_tid_xid/pgx/v4/request.json	psycopg_async	error:table "test_table": column "v_cid_null" has type "cid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+cid_oid_tid_xid/pgx/v4/request.json	psycopg	ok	8a905218
+cid_oid_tid_xid/pgx/v4/request.json	psycopg_async	ok	382e98bd
 cid_oid_tid_xid/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 cid_oid_tid_xid/pgx/v4/request.json	sqlalchemy	error:table "test_table": column "v_cid_null" has type "cid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
 cid_oid_tid_xid/pgx/v4/request.json	sqlalchemy_async	error:table "test_table": column "v_cid_null" has type "cid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
 cid_oid_tid_xid/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 cid_oid_tid_xid/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 cid_oid_tid_xid/pgx/v5/request.json	exact_names	error:table "test_table": column "v_cid_null" has type "cid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-cid_oid_tid_xid/pgx/v5/request.json	psycopg	error:table "test_table": column "v_cid_null" has type "cid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-cid_oid_tid_xid/pgx/v5/request.json	psycopg_async	error:table "test_table": column "v_cid_null" has type "cid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+cid_oid_tid_xid/pgx/v5/request.json	psycopg	ok	f14e4cd1
+cid_oid_tid_xid/pgx/v5/request.json	psycopg_async	ok	89407dfd
 cid_oid_tid_xid/pgx/v5/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 cid_oid_tid_xid/pgx/v5/request.json	sqlalchemy	error:table "test_table": column "v_cid_null" has type "cid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
 cid_oid_tid_xid/pgx/v5/request.json	sqlalchemy_async	error:table "test_table": column "v_cid_null" has type "cid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
@@ -544,32 +544,32 @@ copyfrom/mysql/request.json	sqlalchemy_async	ok	c9ffb36e
 copyfrom/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 copyfrom/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 copyfrom/postgresql/pgx/v4/request.json	exact_names	ok	d8393191
-copyfrom/postgresql/pgx/v4/request.json	psycopg	ok	b86ff1af
-copyfrom/postgresql/pgx/v4/request.json	psycopg_async	ok	427b4367
+copyfrom/postgresql/pgx/v4/request.json	psycopg	ok	2a47cb50
+copyfrom/postgresql/pgx/v4/request.json	psycopg_async	ok	5cbe1a7b
 copyfrom/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom/postgresql/pgx/v4/request.json	sqlalchemy	ok	d8393191
 copyfrom/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	2f226dea
 copyfrom/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 copyfrom/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	d8393191
-copyfrom/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	b86ff1af
-copyfrom/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	427b4367
+copyfrom/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	2a47cb50
+copyfrom/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	5cbe1a7b
 copyfrom/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	ok	d8393191
 copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	ok	2f226dea
 copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 copyfrom_imports/postgresql/pgx/v4/request.json	exact_names	ok	b47a6d2f
-copyfrom_imports/postgresql/pgx/v4/request.json	psycopg	ok	15a0cd82
-copyfrom_imports/postgresql/pgx/v4/request.json	psycopg_async	ok	80551cb1
+copyfrom_imports/postgresql/pgx/v4/request.json	psycopg	ok	b6ef3442
+copyfrom_imports/postgresql/pgx/v4/request.json	psycopg_async	ok	c75e1506
 copyfrom_imports/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom_imports/postgresql/pgx/v4/request.json	sqlalchemy	ok	b47a6d2f
 copyfrom_imports/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	3c8b9905
 copyfrom_imports/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom_imports/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	b47a6d2f
-copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	15a0cd82
-copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	80551cb1
+copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	b6ef3442
+copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	c75e1506
 copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	ok	b47a6d2f
 copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	ok	3c8b9905
@@ -584,24 +584,24 @@ copyfrom_multicolumn_parameter_limit/mysql/request.json	sqlalchemy_async	ok	7b8a
 copyfrom_multicolumn_parameter_limit/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 copyfrom_multicolumn_parameter_limit/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 copyfrom_named_params/postgresql/pgx/request.json	exact_names	ok	a0e453d5
-copyfrom_named_params/postgresql/pgx/request.json	psycopg	ok	424693e4
-copyfrom_named_params/postgresql/pgx/request.json	psycopg_async	ok	51c015a7
+copyfrom_named_params/postgresql/pgx/request.json	psycopg	ok	6aa9d6a1
+copyfrom_named_params/postgresql/pgx/request.json	psycopg_async	ok	64c76402
 copyfrom_named_params/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom_named_params/postgresql/pgx/request.json	sqlalchemy	ok	cd164357
 copyfrom_named_params/postgresql/pgx/request.json	sqlalchemy_async	ok	de35c84a
 copyfrom_named_params/postgresql/pgx/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom_named_params/postgresql/pgx/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	exact_names	ok	58185351
-copyfrom_singlecolumn/postgresql/pgx/v4/request.json	psycopg	ok	1fa4f381
-copyfrom_singlecolumn/postgresql/pgx/v4/request.json	psycopg_async	ok	ddba3c9d
+copyfrom_singlecolumn/postgresql/pgx/v4/request.json	psycopg	ok	5cd4d8d5
+copyfrom_singlecolumn/postgresql/pgx/v4/request.json	psycopg_async	ok	cd91fb31
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	sqlalchemy	ok	68a3f690
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	1ee7cea2
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	58185351
-copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	1fa4f381
-copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	ddba3c9d
+copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	5cd4d8d5
+copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	cd91fb31
 copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	ok	68a3f690
 copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	ok	1ee7cea2
@@ -919,20 +919,20 @@ datatype/mysql/request.json	sqlalchemy	ok	0339ca70
 datatype/mysql/request.json	sqlalchemy_async	ok	3e93ed45
 datatype/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 datatype/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
-datatype/pgx/v4/request.json	exact_names	error:table "dt_range": column "a" has type "int4range", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-datatype/pgx/v4/request.json	psycopg	error:table "dt_range": column "a" has type "int4range", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-datatype/pgx/v4/request.json	psycopg_async	error:table "dt_range": column "a" has type "int4range", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+datatype/pgx/v4/request.json	exact_names	error:query.sql: query "Test": column "column_1" has a type sqlc could not infer; add a cast, as coalesce(<expr>, <default>)::<type> if it can be NULL, since sqlc reports every cast NOT NULL	-
+datatype/pgx/v4/request.json	psycopg	error:query.sql: query "Test": column "column_1" has a type sqlc could not infer; add a cast, as coalesce(<expr>, <default>)::<type> if it can be NULL, since sqlc reports every cast NOT NULL	-
+datatype/pgx/v4/request.json	psycopg_async	error:query.sql: query "Test": column "column_1" has a type sqlc could not infer; add a cast, as coalesce(<expr>, <default>)::<type> if it can be NULL, since sqlc reports every cast NOT NULL	-
 datatype/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
-datatype/pgx/v4/request.json	sqlalchemy	error:table "dt_range": column "a" has type "int4range", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-datatype/pgx/v4/request.json	sqlalchemy_async	error:table "dt_range": column "a" has type "int4range", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+datatype/pgx/v4/request.json	sqlalchemy	error:query.sql: query "Test": column "column_1" has a type sqlc could not infer; add a cast, as coalesce(<expr>, <default>)::<type> if it can be NULL, since sqlc reports every cast NOT NULL	-
+datatype/pgx/v4/request.json	sqlalchemy_async	error:query.sql: query "Test": column "column_1" has a type sqlc could not infer; add a cast, as coalesce(<expr>, <default>)::<type> if it can be NULL, since sqlc reports every cast NOT NULL	-
 datatype/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 datatype/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-datatype/pgx/v4/request.managed-db.json	exact_names	error:table "dt_range": column "a" has type "int4range", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-datatype/pgx/v4/request.managed-db.json	psycopg	error:table "dt_range": column "a" has type "int4range", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-datatype/pgx/v4/request.managed-db.json	psycopg_async	error:table "dt_range": column "a" has type "int4range", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+datatype/pgx/v4/request.managed-db.json	exact_names	ok	d583af05
+datatype/pgx/v4/request.managed-db.json	psycopg	ok	ba978a7b
+datatype/pgx/v4/request.managed-db.json	psycopg_async	ok	455cc4fd
 datatype/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
-datatype/pgx/v4/request.managed-db.json	sqlalchemy	error:table "dt_range": column "a" has type "int4range", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-datatype/pgx/v4/request.managed-db.json	sqlalchemy_async	error:table "dt_range": column "a" has type "int4range", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+datatype/pgx/v4/request.managed-db.json	sqlalchemy	ok	3f23ec0b
+datatype/pgx/v4/request.managed-db.json	sqlalchemy_async	ok	e9f7fd1b
 datatype/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 datatype/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 datatype/sqlite/request.json	exact_names	error:table "dt_numeric": column "n" has type "NUMERIC", which has no verified Python mapping	-
@@ -1791,20 +1791,20 @@ emit_result_and_params_struct_pointers/mysql/request.json	sqlalchemy	ok	f2d483b3
 emit_result_and_params_struct_pointers/mysql/request.json	sqlalchemy_async	ok	8fcb58fd
 emit_result_and_params_struct_pointers/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 emit_result_and_params_struct_pointers/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
-emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	exact_names	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	psycopg	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	psycopg_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	exact_names	ok	60b6076c
+emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	psycopg	ok	b6e9442d
+emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	psycopg_async	ok	0aca74ba
 emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
-emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	sqlalchemy	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	sqlalchemy_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	sqlalchemy	ok	60b6076c
+emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	8429e618
 emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	exact_names	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	psycopg	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	psycopg_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	60b6076c
+emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	b6e9442d
+emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	0aca74ba
 emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
-emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	error:query.sql: query "InsertValues": :batchone is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	ok	60b6076c
+emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	ok	8429e618
 emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 emit_sql_as_comment/stdlib/request.json	exact_names	ok	8b1f4833
@@ -2144,8 +2144,8 @@ func_variadic/postgresql/stdlib/request.managed-db.json	sqlalchemy_async	ok	219d
 func_variadic/postgresql/stdlib/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 func_variadic/postgresql/stdlib/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 geometric/pgx/v4/request.json	exact_names	error:table "test_table": column "v_box_null" has type "box", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-geometric/pgx/v4/request.json	psycopg	error:table "test_table": column "v_box_null" has type "box", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-geometric/pgx/v4/request.json	psycopg_async	error:table "test_table": column "v_box_null" has type "box", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+geometric/pgx/v4/request.json	psycopg	ok	ff12c72e
+geometric/pgx/v4/request.json	psycopg_async	ok	8c48d917
 geometric/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 geometric/pgx/v4/request.json	sqlalchemy	error:table "test_table": column "v_box_null" has type "box", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
 geometric/pgx/v4/request.json	sqlalchemy_async	error:table "test_table": column "v_box_null" has type "box", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
@@ -2199,12 +2199,12 @@ having/postgresql/request.managed-db.json	sqlalchemy	ok	dc718399
 having/postgresql/request.managed-db.json	sqlalchemy_async	ok	78c05e58
 having/postgresql/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 having/postgresql/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-hstore/pgx/v4/request.json	exact_names	error:table "foo": column "bar" has type "hstore", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-hstore/pgx/v4/request.json	psycopg	error:table "foo": column "bar" has type "hstore", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-hstore/pgx/v4/request.json	psycopg_async	error:table "foo": column "bar" has type "hstore", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+hstore/pgx/v4/request.json	exact_names	ok	56a91c3e
+hstore/pgx/v4/request.json	psycopg	ok	1a44200b
+hstore/pgx/v4/request.json	psycopg_async	ok	1f12317f
 hstore/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
-hstore/pgx/v4/request.json	sqlalchemy	error:table "foo": column "bar" has type "hstore", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-hstore/pgx/v4/request.json	sqlalchemy_async	error:table "foo": column "bar" has type "hstore", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+hstore/pgx/v4/request.json	sqlalchemy	ok	56a91c3e
+hstore/pgx/v4/request.json	sqlalchemy_async	ok	b0c087dd
 hstore/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 hstore/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 identical_tables/mysql/request.json	exact_names	ok	4a6153f6
@@ -3151,36 +3151,36 @@ order_by_union/postgresql/request.json	sqlalchemy	ok	572846bd
 order_by_union/postgresql/request.json	sqlalchemy_async	ok	ad848290
 order_by_union/postgresql/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 order_by_union/postgresql/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-output_file_names/pgx/v4/request.json	exact_names	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v4/request.json	psycopg	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v4/request.json	psycopg_async	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+output_file_names/pgx/v4/request.json	exact_names	ok	7dea3d1d
+output_file_names/pgx/v4/request.json	psycopg	ok	9295b465
+output_file_names/pgx/v4/request.json	psycopg_async	ok	e1428d47
 output_file_names/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
-output_file_names/pgx/v4/request.json	sqlalchemy	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v4/request.json	sqlalchemy_async	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+output_file_names/pgx/v4/request.json	sqlalchemy	ok	7dea3d1d
+output_file_names/pgx/v4/request.json	sqlalchemy_async	ok	6c5a4e32
 output_file_names/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 output_file_names/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-output_file_names/pgx/v4/request.managed-db.json	exact_names	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v4/request.managed-db.json	psycopg	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v4/request.managed-db.json	psycopg_async	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+output_file_names/pgx/v4/request.managed-db.json	exact_names	error:query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer; add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL	-
+output_file_names/pgx/v4/request.managed-db.json	psycopg	error:query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer; add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL	-
+output_file_names/pgx/v4/request.managed-db.json	psycopg_async	error:query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer; add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL	-
 output_file_names/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
-output_file_names/pgx/v4/request.managed-db.json	sqlalchemy	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v4/request.managed-db.json	sqlalchemy_async	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+output_file_names/pgx/v4/request.managed-db.json	sqlalchemy	error:query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer; add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL	-
+output_file_names/pgx/v4/request.managed-db.json	sqlalchemy_async	error:query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer; add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL	-
 output_file_names/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 output_file_names/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-output_file_names/pgx/v5/request.json	exact_names	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v5/request.json	psycopg	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v5/request.json	psycopg_async	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+output_file_names/pgx/v5/request.json	exact_names	ok	fe998560
+output_file_names/pgx/v5/request.json	psycopg	ok	9295b465
+output_file_names/pgx/v5/request.json	psycopg_async	ok	e1428d47
 output_file_names/pgx/v5/request.json	pymysql	error:the pymysql backend does not run postgresql	-
-output_file_names/pgx/v5/request.json	sqlalchemy	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v5/request.json	sqlalchemy_async	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+output_file_names/pgx/v5/request.json	sqlalchemy	ok	fe998560
+output_file_names/pgx/v5/request.json	sqlalchemy_async	ok	7413ed99
 output_file_names/pgx/v5/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 output_file_names/pgx/v5/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-output_file_names/pgx/v5/request.managed-db.json	exact_names	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v5/request.managed-db.json	psycopg	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v5/request.managed-db.json	psycopg_async	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+output_file_names/pgx/v5/request.managed-db.json	exact_names	error:query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer; add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL	-
+output_file_names/pgx/v5/request.managed-db.json	psycopg	error:query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer; add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL	-
+output_file_names/pgx/v5/request.managed-db.json	psycopg_async	error:query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer; add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL	-
 output_file_names/pgx/v5/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
-output_file_names/pgx/v5/request.managed-db.json	sqlalchemy	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
-output_file_names/pgx/v5/request.managed-db.json	sqlalchemy_async	error:query.sql: query "UsersB": :batchmany is pgx-only; use :copyfrom for bulk inserts, or :exec with = ANY(@ids::type[])	-
+output_file_names/pgx/v5/request.managed-db.json	sqlalchemy	error:query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer; add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL	-
+output_file_names/pgx/v5/request.managed-db.json	sqlalchemy_async	error:query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer; add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL	-
 output_file_names/pgx/v5/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 output_file_names/pgx/v5/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 output_file_names/stdlib/request.json	exact_names	ok	e87c1356
@@ -3543,12 +3543,12 @@ pg_dump/request.json	sqlalchemy	ok	7228bb1c
 pg_dump/request.json	sqlalchemy_async	ok	a52a00ee
 pg_dump/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 pg_dump/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-pg_ext_ltree/postgresql/pgx/v4/request.json	exact_names	error:table "foo": column "qualified_name" has type "ltree", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-pg_ext_ltree/postgresql/pgx/v4/request.json	psycopg	error:table "foo": column "qualified_name" has type "ltree", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-pg_ext_ltree/postgresql/pgx/v4/request.json	psycopg_async	error:table "foo": column "qualified_name" has type "ltree", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+pg_ext_ltree/postgresql/pgx/v4/request.json	exact_names	error:table "foo": column "name_query" has type "lquery", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+pg_ext_ltree/postgresql/pgx/v4/request.json	psycopg	error:table "foo": column "name_query" has type "lquery", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+pg_ext_ltree/postgresql/pgx/v4/request.json	psycopg_async	error:table "foo": column "name_query" has type "lquery", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
 pg_ext_ltree/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
-pg_ext_ltree/postgresql/pgx/v4/request.json	sqlalchemy	error:table "foo": column "qualified_name" has type "ltree", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-pg_ext_ltree/postgresql/pgx/v4/request.json	sqlalchemy_async	error:table "foo": column "qualified_name" has type "ltree", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+pg_ext_ltree/postgresql/pgx/v4/request.json	sqlalchemy	error:table "foo": column "name_query" has type "lquery", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+pg_ext_ltree/postgresql/pgx/v4/request.json	sqlalchemy_async	error:table "foo": column "name_query" has type "lquery", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
 pg_ext_ltree/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 pg_ext_ltree/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 pg_extensions/postgresql/pgx/v4/request.json	exact_names	error:pg_trgm.sql: query "WordSimilarity": column "word_similarity" has a type sqlc could not infer; add a cast, as coalesce(<expr>, <default>)::<type> if it can be NULL, since sqlc reports every cast NOT NULL	-
@@ -3703,12 +3703,12 @@ quoted_tablename/sqlite/request.json	sqlalchemy	ok	8fb08eb5
 quoted_tablename/sqlite/request.json	sqlalchemy_async	ok	2fec3e25
 quoted_tablename/sqlite/request.json	sqlite3	ok	acbc90c3
 quoted_tablename/sqlite/request.json	sqlite3_async	ok	30eb12b4
-ranges/pgx/v5/request.json	exact_names	error:table "test_table": column "v_daterange_null" has type "daterange", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-ranges/pgx/v5/request.json	psycopg	error:table "test_table": column "v_daterange_null" has type "daterange", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-ranges/pgx/v5/request.json	psycopg_async	error:table "test_table": column "v_daterange_null" has type "daterange", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+ranges/pgx/v5/request.json	exact_names	error:table "test_table": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+ranges/pgx/v5/request.json	psycopg	error:table "test_table": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+ranges/pgx/v5/request.json	psycopg_async	error:table "test_table": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
 ranges/pgx/v5/request.json	pymysql	error:the pymysql backend does not run postgresql	-
-ranges/pgx/v5/request.json	sqlalchemy	error:table "test_table": column "v_daterange_null" has type "daterange", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-ranges/pgx/v5/request.json	sqlalchemy_async	error:table "test_table": column "v_daterange_null" has type "daterange", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+ranges/pgx/v5/request.json	sqlalchemy	error:table "test_table": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+ranges/pgx/v5/request.json	sqlalchemy_async	error:table "test_table": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
 ranges/pgx/v5/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 ranges/pgx/v5/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 refreshmatview/postgresql/pgx/v4/request.json	exact_names	error:table "myview": column "column_1" has a type sqlc could not infer; add a cast, as coalesce(<expr>, <default>)::<type> if it can be NULL, since sqlc reports every cast NOT NULL	-
@@ -4112,8 +4112,8 @@ select_subquery_no_alias/sqlite/request.json	sqlalchemy_async	ok	eaca6273
 select_subquery_no_alias/sqlite/request.json	sqlite3	ok	dd7bf5af
 select_subquery_no_alias/sqlite/request.json	sqlite3_async	ok	35c5b7be
 select_system/pgx/request.managed-db.json	exact_names	error:query.sql: query "GetSystemColumns": column "xmin" has type "xid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-select_system/pgx/request.managed-db.json	psycopg	error:query.sql: query "GetSystemColumns": column "xmin" has type "xid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
-select_system/pgx/request.managed-db.json	psycopg_async	error:query.sql: query "GetSystemColumns": column "xmin" has type "xid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
+select_system/pgx/request.managed-db.json	psycopg	ok	87d0fb65
+select_system/pgx/request.managed-db.json	psycopg_async	ok	5385a4c4
 select_system/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 select_system/pgx/request.managed-db.json	sqlalchemy	error:query.sql: query "GetSystemColumns": column "xmin" has type "xid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-
 select_system/pgx/request.managed-db.json	sqlalchemy_async	error:query.sql: query "GetSystemColumns": column "xmin" has type "xid", which has no verified Python mapping; for a domain, declare the column with its base type and a CHECK constraint	-

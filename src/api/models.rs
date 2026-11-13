@@ -4,7 +4,7 @@
 //! so [`crate::render`] only has to decide how things look. [`super::queries`]
 //! resolves the queries the same way, against these classes.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::LazyLock;
 
 use anyhow::{Context, Result, bail};
@@ -12,7 +12,8 @@ use heck::{ToSnakeCase, ToUpperCamelCase};
 use ruff_python_stdlib::keyword::is_keyword;
 
 use super::inflection::singular;
-use crate::config::ModelConfig;
+use crate::backend::Backend;
+use crate::config::{Config, ModelConfig, Override};
 use crate::engine::Engine;
 use crate::plugin;
 use crate::python::{self, Scope, Type};
@@ -172,34 +173,96 @@ impl FieldType {
     }
 }
 
-/// Reads types and names out of one catalog, by its engine's type map.
+/// Reads types and names out of one catalog, by its engine's type map and
+/// the user's overrides and renames.
 pub struct Resolver<'a> {
     pub engine: Engine,
     pub catalog: &'a plugin::Catalog,
+    overrides: &'a [Override],
+    rename: &'a BTreeMap<String, String>,
+    /// Whether sqlc analysed the queries on a database.
+    database: bool,
+    backend: Backend,
 }
 
 impl<'a> Resolver<'a> {
-    /// The resolver of the catalog in `request`, for its engine.
-    pub fn new(request: &'a plugin::GenerateRequest) -> Result<Self> {
+    /// The resolver of the catalog in `request`, for its engine, as `config`
+    /// overrides and renames.
+    pub fn new(request: &'a plugin::GenerateRequest, config: &'a Config) -> Result<Self> {
         static EMPTY: LazyLock<plugin::Catalog> = LazyLock::new(plugin::Catalog::default);
         Ok(Self {
             engine: Engine::of(request)?,
             catalog: request.catalog.as_ref().unwrap_or(&EMPTY),
+            overrides: &config.overrides,
+            rename: &config.rename,
+            database: config.database_analysis,
+            backend: config.backend,
         })
     }
 
-    /// The class name for something declared in `schema`. Objects in the
-    /// default schema keep their bare name; everything else is qualified, so
-    /// `analytics.event` becomes `AnalyticsEvent`.
+    /// The name SQL name `sql` is spelt with in Python: its `rename`, or
+    /// itself.
+    pub fn spelling<'s>(&'s self, sql: &'s str) -> &'s str {
+        self.rename.get(sql).map_or(sql, String::as_str)
+    }
+
+    /// The class name for something declared in `schema`, unless renamed.
+    /// Objects in the default schema keep their bare name; everything else is
+    /// qualified, so `analytics.event` becomes `AnalyticsEvent`.
     fn class_name(&self, schema: &plugin::Schema, name: &str) -> String {
+        let qualified = format!("{}.{name}", schema.name);
+        if let Some(renamed) = (self.rename.get(&qualified)).or_else(|| {
+            (schema.name == self.catalog.default_schema)
+                .then(|| self.rename.get(name))
+                .flatten()
+        }) {
+            return renamed.clone();
+        }
         match schema.name == self.catalog.default_schema {
             true => name.to_upper_camel_case(),
             false => format!("{}_{name}", schema.name).to_upper_camel_case(),
         }
     }
 
+    /// The override of `column`, of type `data_type`, if any: one naming
+    /// the column itself first, then one naming its type.
+    fn overridden(&self, column: &plugin::Column, data_type: &str) -> Option<&'a Override> {
+        let plain = |name: &str| {
+            let name = name.to_ascii_lowercase();
+            name.strip_prefix("pg_catalog.")
+                .map(String::from)
+                .unwrap_or(name)
+        };
+        let of = |rule: &&Override| {
+            let table = column.table.as_ref()?;
+            let name = match column.original_name.as_str() {
+                "" => &column.name,
+                original => original,
+            };
+            let schema = match table.schema.as_str() {
+                "" => &self.catalog.default_schema,
+                schema => schema,
+            };
+            let named = rule.column.as_deref()?;
+            (named == format!("{}.{name}", table.name)
+                || named == format!("{schema}.{}.{name}", table.name))
+            .then_some(())
+        };
+        (self.overrides.iter().find(|rule| of(rule).is_some())).or_else(|| {
+            (self.overrides.iter()).find(|rule| {
+                rule.db_type
+                    .as_deref()
+                    .is_some_and(|ty| plain(ty) == plain(data_type))
+            })
+        })
+    }
+
     /// The class name for a table, singularised unless the user opted out.
     fn model_name(&self, schema: &plugin::Schema, table: &str, config: &ModelConfig) -> String {
+        let renamed = [format!("{}.{table}", schema.name), table.to_string()];
+        if renamed.iter().any(|name| self.rename.contains_key(name)) {
+            return self.class_name(schema, table);
+        }
         match config.is_inflection_excluded(table) {
             true => self.class_name(schema, table),
             false => self.class_name(schema, &singular(table)),
@@ -208,7 +271,7 @@ impl<'a> Resolver<'a> {
 
     /// A table's columns, as fields in column order.
     fn fields(&self, columns: &[plugin::Column]) -> Result<Vec<Field>> {
-        let spellings: Vec<&str> = columns.iter().map(|c| c.name.as_str()).collect();
+        let spellings: Vec<&str> = columns.iter().map(|c| self.spelling(&c.name)).collect();
         (names(&spellings, Repeats::Forbidden)?
             .into_iter()
             .zip(columns))
@@ -231,7 +294,10 @@ impl<'a> Resolver<'a> {
         // sqlc reports `coalesce(x, ...)` as the column `x`, but NOT NULL: the
         // type is the first argument's, whatever PostgreSQL resolves
         // (`coalesce(qty, 1.5)` is numeric), so it is no type to trust either.
-        if column.not_null && self.source(column).is_some_and(|source| !source.not_null) {
+        if column.not_null
+            && !self.database
+            && self.source(column).is_some_and(|source| !source.not_null)
+        {
             bail!("column \"{described}\" has a type sqlc could not infer; add a cast, as {cast}")
         }
         Ok(Field {
@@ -261,12 +327,28 @@ impl<'a> Resolver<'a> {
     /// [`Engine::is_guess`]'s to tell (`docs/python-output.md` §5, rule 2).
     pub fn field_type(&self, column: &plugin::Column, what: &str, cast: &str) -> Result<FieldType> {
         let data_type = column.data_type();
-        if column.is_func_call || self.engine.is_guess(&data_type) {
+        if let Some(rule) = self.overridden(column, &data_type) {
+            let json = match self.engine.scalar_type(column) {
+                Some(Type::Json(json)) => Some(json),
+                _ => None,
+            };
+            return Ok(FieldType {
+                element: Type::Custom {
+                    annotation: rule.python_type.clone(),
+                    json,
+                },
+                array_dims: column.array_dims as usize,
+                optional: !column.not_null,
+            });
+        }
+        // On a database, PostgreSQL resolved a function call's type too.
+        if (column.is_func_call && !self.database)
+            || self.engine.is_guess(&data_type, self.database)
+        {
             bail!("{what} has a type sqlc could not infer; add a cast, as {cast}")
         }
-        let Some(element) = self
-            .engine
-            .scalar_type(column)
+        let Some(element) = (self.engine.scalar_type(column))
+            .or_else(|| self.backend.scalar_type(self.engine, &data_type))
             .or_else(|| self.declared_type(&data_type))
         else {
             // sqlc sends a domain's name, never its base type.
@@ -293,6 +375,9 @@ impl<'a> Resolver<'a> {
             && let Some(problem) = self.engine.array_problem(&data_type)
         {
             bail!("{what} is an array of \"{data_type}\", which {problem}")
+        }
+        if matches!(element, Type::Library { .. }) && array_dims > 0 {
+            bail!("{what} is an array of \"{data_type}\", which has no verified Python mapping")
         }
         if matches!(element, Type::Enum(_)) && array_dims > 1 {
             bail!(

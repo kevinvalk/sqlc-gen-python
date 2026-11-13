@@ -71,6 +71,7 @@ LEGEND = {
     "error": "unsupported: generation fails, with the numbered message below",
     "FAILING": "the runtime sweep fails a package using it",
     "-": "not in the corpus",
+    "option": "a plugin option, not a property of a query (see below)",
 }
 
 Json = dict[str, Any]
@@ -270,7 +271,7 @@ def document(
         for feature, _ in FEATURES
     ]
     unsent("rename", "overrides")
-    rows.append("| `overrides`, `rename` |" + " error |" * len(COLUMNS))
+    rows.append("| `overrides`, `rename` |" + " option |" * len(COLUMNS))
     source = (CORPUS / "SOURCE.toml").read_text()
     sqlc = re.search(r'^sqlc = "(.+)"$', source, re.MULTILINE)
     lines = [
@@ -300,9 +301,11 @@ def document(
         ),
         "",
         (
-            "`overrides` and `rename` are sqlc-gen-go configuration: sqlc does not"
-            " send them to a plugin (`protos/sqlc.proto`), and as plugin options"
-            " they are unknown keys, an error (`cargo xtask capture --check` runs it)."
+            "`overrides` and `rename` are plugin options of this plugin"
+            " (docs/python-output.md §7), which the corpus does not set: sqlc"
+            " does not send its sqlc-gen-go `overrides` and `rename` to a plugin"
+            " (`protos/sqlc.proto`), so a config must name them under `options`."
+            " The runtime suite runs them (`examples/custom`)."
         ),
         "",
         "Errors:",

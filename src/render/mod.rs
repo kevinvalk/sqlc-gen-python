@@ -23,19 +23,20 @@ pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File
     };
     // The generated package owns `out`, so it is a regular package: relative
     // imports resolve, and mypy and ruff (INP001) need no configuration.
+    let modules = config.modules();
     let init = match config.backend.defines_errors() {
-        true => python::render(&errors()),
+        true => python::render(&errors(), &[]),
         false => String::new(),
     };
     let mut files = vec![
         file("__init__.py".into(), init),
         file(
             "models.py".into(),
-            python::render(&models(api, config.backend.text_arrays())),
+            python::render(&models(api, config.backend.text_arrays()), &modules),
         ),
     ];
     files.extend((api.modules.iter()).map(|module| {
-        let body = python::render(&queries::module(module, config));
+        let body = python::render(&queries::module(module, config), &modules);
         file(format!("{}.py", module.name), body)
     }));
     files

@@ -275,6 +275,24 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     ]
     assert await api.invoices.list_invoice_numbers(customer_id=uuid4()) == []
 
+    # Batches: each row's result in order, a missing row raising as `:one`'s.
+    batch_get = api.invoices.GetInvoicesBatchParams
+    assert await api.invoices.get_invoices_batch(
+        [batch_get(id=second.id), batch_get(id=first.id)]
+    ) == [second, first]
+    assert await api.invoices.get_invoices_batch([]) == []
+    await no_row(
+        api,
+        api.invoices.get_invoices_batch(
+            [batch_get(id=first.id), batch_get(id=uuid4())]
+        ),
+    )
+    batch_numbers = api.invoices.ListInvoiceNumbersBatchParams
+    assert await api.invoices.list_invoice_numbers_batch(
+        [batch_numbers(customer_id=ada.id), batch_numbers(customer_id=uuid4())]
+    ) == [["2026-0001", "2026-0002"], []]
+    assert await api.invoices.list_invoice_numbers_batch([]) == []
+
     # Line items: exact decimals with their scale, and an empty batch.
     lines = [
         api.line_items.CreateLineItemsParams(
@@ -447,6 +465,27 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         await api.customers.get_customer_by_name(name="Bob")
     with pytest.raises(api.MultipleRows):
         await api.customers.get_customer_id_by_email(email=email)
+
+    # A batch of updates: only the issued invoice is voided.
+    batch_void = api.invoices.VoidInvoicesBatchParams
+    fourth = await api.invoices.create_invoice(
+        customer_id=bob.id,
+        number="2026-0004",
+        currency="EUR",
+        issued_on=None,
+        due_on=None,
+        notes=None,
+    )
+    assert await api.invoices.issue_invoice(issued_on=today, id=fourth.id) == 1
+    assert (
+        await api.invoices.void_invoices_batch(
+            [batch_void(id=fourth.id), batch_void(id=first.id)]
+        )
+        is None
+    )
+    assert await api.invoices.void_invoices_batch([]) is None
+    assert await api.invoices.get_invoice_status(id=fourth.id) is m.InvoiceStatus.VOID
+    assert await api.invoices.get_invoice_status(id=first.id) is m.InvoiceStatus.PAID
 
     # Enums print as their database label on every Python version.
     assert (str(m.InvoiceStatus.PAID), f"{m.BillingPaymentMethod.DIRECT_DEBIT}") == (

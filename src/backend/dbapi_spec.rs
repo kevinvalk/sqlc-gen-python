@@ -35,6 +35,8 @@ fn query(command: Command, params: Vec<Field>) -> Query {
         sql: Sql(pieces),
         binds: params.iter().map(|p| p.name.clone()).collect(),
         slices: Vec::new(),
+        copy_into: None,
+        rows: None,
         params,
         columns: Vec::new(),
         command,
@@ -44,7 +46,10 @@ fn query(command: Command, params: Vec<Field>) -> Query {
 #[test]
 fn a_driver_is_given_sqlcs_statement_as_written() {
     let query = query(Command::Exec, vec![field("id", Type::INT)]);
-    let statement = python::render(&[python::constant("_GET", Backend::Psycopg.statement(&query))]);
+    let statement = python::render(
+        &[python::constant("_GET", Backend::Psycopg.statement(&query))],
+        &[],
+    );
     assert!(
         statement.ends_with("_GET: Final = \"SELECT $1\"\n"),
         "{statement}"
@@ -128,7 +133,10 @@ fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
         name: "p".into(),
     };
     query.sql.0.push(Piece::Text(" LIKE '%:x%'".into()));
-    let statement = python::render(&[python::constant("_GET", Backend::Pymysql.statement(&query))]);
+    let statement = python::render(
+        &[python::constant("_GET", Backend::Pymysql.statement(&query))],
+        &[],
+    );
     assert!(
         statement.contains(r#""SELECT %s LIKE '%%:x%%'""#),
         "{statement}"
@@ -140,7 +148,10 @@ fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
         params: Vec::new(),
         ..query
     };
-    let statement = python::render(&[python::constant("_GET", Backend::Pymysql.statement(&query))]);
+    let statement = python::render(
+        &[python::constant("_GET", Backend::Pymysql.statement(&query))],
+        &[],
+    );
     assert!(statement.contains(r#""SELECT '%:x%'""#), "{statement}");
 }
 

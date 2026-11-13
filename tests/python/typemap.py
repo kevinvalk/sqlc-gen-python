@@ -40,7 +40,7 @@ import sqlalchemy
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import postgres
-from pgvalues import Pg, json_type, tables
+from pgvalues import Pg, json_type, sqlalchemy_type, tables
 from postgres import aw, database
 from suite.deep import failure, strip_none
 
@@ -97,6 +97,17 @@ EDGES: dict[str, tuple[str, ...]] = {
     "inet": ("'0.0.0.0'", "'255.255.255.255'", "'::'", "'::ffff:1.2.3.4'", "'10.0.0.1/8'",
              "'2001:db8::1/64'", "'192.168.0.0/24'"),
     "cidr": ("'0.0.0.0/0'", "'::/0'", "'10.0.0.0/8'", "'192.168.1.1/32'", "'2001:db8::/32'"),
+    "hstore": ("''", "'a=>1, b=>NULL'", "'\"k y\"=>\"ü\"'"),
+    "ltree": ("''", "'a.b.c'", "'Top.Science_1'"),
+    "regclass": ("'pg_class'", "'pg_catalog.pg_type'"),
+    "int4range": ("'empty'", "'[1,5)'", "'[1,5]'", "'(,5)'", "'[1,)'", "'(,)'",
+                  "'[-2147483648,2147483647)'"),
+    "int8range": ("'empty'", "'[1,5)'", "'(,)'", "'[-9223372036854775808,9223372036854775807)'"),
+    "numrange": ("'empty'", "'[1.50,2.500)'", "'(,0]'", "'[-1e30,1e30]'"),
+    "daterange": ("'empty'", "'[2024-01-01,2024-02-01)'", "'[0001-01-01,9999-12-31]'",
+                  "'(,infinity)'"),
+    "tsrange": ("'empty'", "'[2024-01-01 00:00,2024-01-02 00:00)'", "'(,)'"),
+    "tstzrange": ("'empty'", "'[2024-01-01 00:00+00,2024-01-02 00:00+05:30)'", "'[2024-01-01,)'"),
 }  # fmt: skip
 
 
@@ -204,8 +215,15 @@ async def _edge(conn: Any, p: Probe, driver: str, edge: str, sql: str) -> str:  
     columns = f"{sql}, to_json({sql})::text" if is_json else sql
     transaction = await aw(conn.begin())
     try:
+        # A range is read through SQLAlchemy's type, as the generated code
+        # does (§6, typed statements).
+        select = sqlalchemy.text(f"SELECT {columns}")
+        if (
+            ranged := sqlalchemy_type(Pg(p.type.split("[")[0], p.type.count("[]")))
+        ) is not None:
+            select = select.columns(sqlalchemy.column("v", ranged))
         try:
-            result = await aw(conn.execute(sqlalchemy.text(f"SELECT {columns}")))
+            result = await aw(conn.execute(select))
             value, *document = result.one()
         except Exception as error:  # noqa: BLE001 -- what a driver raises is the observation
             return f"raises {type(getattr(error, 'orig', None) or error).__name__}"
@@ -239,10 +257,11 @@ async def _round_trip(conn: Any, p: Probe, sql: str, value: object) -> str:  # n
     cast = sqlalchemy.text(
         f"SELECT ({sql})::{text}::text, CAST(:v AS {p.type})::{text}::text"
     )
+    pg = Pg(base, p.type.count("[]"))
     if base in {"json", "jsonb"}:
-        cast = cast.bindparams(
-            sqlalchemy.bindparam("v", type_=json_type(Pg(base, p.type.count("[]"))))
-        )
+        cast = cast.bindparams(sqlalchemy.bindparam("v", type_=json_type(pg)))
+    elif (ranged := sqlalchemy_type(pg)) is not None:
+        cast = cast.bindparams(sqlalchemy.bindparam("v", type_=ranged))
     try:
         sent, back = (await aw(conn.execute(cast, {"v": value}))).one()
     except Exception as error:  # noqa: BLE001 -- what a driver raises is the observation

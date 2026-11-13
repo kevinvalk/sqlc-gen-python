@@ -12,6 +12,7 @@ use std::collections::BTreeSet;
 use anyhow::{Context, Result, bail};
 
 use crate::config::Config;
+use crate::engine::Engine;
 use crate::plugin;
 use crate::python::Type;
 
@@ -26,13 +27,31 @@ pub struct Api {
 /// The API of `request`, as `config` asks for it. The backend is consulted
 /// only for what it cannot represent, which must fail generation.
 pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api> {
-    let resolver = models::Resolver::new(request)?;
+    let resolver = models::Resolver::new(request, config)?;
     if !config.backend.runs(resolver.engine) {
         bail!(
             "the {} backend does not run {}",
             config.backend.name(),
             resolver.engine.name()
         );
+    }
+    if config.database_analysis {
+        if resolver.engine != Engine::PostgreSql {
+            bail!("database_analysis: sqlc analyses queries on a database for PostgreSQL only");
+        }
+        // Static analysis reports any arithmetic as a bare `int`, which
+        // PostgreSQL never names a type.
+        let columns = (request.queries.iter()).flat_map(|query| {
+            (query.columns.iter()).chain(query.params.iter().filter_map(|p| p.column.as_ref()))
+        });
+        if let Some(column) = columns.into_iter().find(|c| c.data_type() == "int") {
+            bail!(
+                "database_analysis: sqlc analysed the queries statically, as it reports column \
+                 \"{}\" as a bare int; set analyzer: {{database: true}} on a database in \
+                 sqlc.yaml, or remove the option",
+                column.name
+            );
+        }
     }
     if config.asynchronous
         && let Some(problem) = config.backend.async_problem()

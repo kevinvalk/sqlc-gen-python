@@ -50,10 +50,17 @@ pub fn statement(query: &Query) -> ast::Expr {
     );
     let binds: Vec<ast::Expr> = (query.params.iter())
         .filter_map(|param| {
-            let how = match param.ty.element {
-                _ if query.slices.contains(&param.name) => "expanding=True",
-                Type::Json(Json::Json) => "type_=postgresql.JSON(none_as_null=True)",
-                Type::Json(Json::Jsonb) => "type_=postgresql.JSONB(none_as_null=True)",
+            let how = match (&param.ty.element, param.ty.element.json()) {
+                _ if query.slices.contains(&param.name) => "expanding=True".to_string(),
+                (_, Some(Json::Json)) => "type_=postgresql.JSON(none_as_null=True)".into(),
+                (_, Some(Json::Jsonb)) => "type_=postgresql.JSONB(none_as_null=True)".into(),
+                (
+                    Type::Library {
+                        sql_type: Some(sql_type),
+                        ..
+                    },
+                    _,
+                ) => format!("type_={sql_type}"),
                 _ => return None,
             };
             Some(python::expr(&format!(
@@ -65,7 +72,7 @@ pub fn statement(query: &Query) -> ast::Expr {
     if !binds.is_empty() {
         statement = python::call(python::attribute(statement, "bindparams"), binds);
     }
-    let types: Vec<Option<ast::Expr>> = query.columns.iter().map(enum_array).collect();
+    let types: Vec<Option<ast::Expr>> = query.columns.iter().map(column_type).collect();
     if types.iter().all(Option::is_none) {
         return statement;
     }
@@ -76,16 +83,55 @@ pub fn statement(query: &Query) -> ast::Expr {
     python::call(python::attribute(statement, "columns"), columns)
 }
 
-/// The SQLAlchemy type a column of enum arrays loads through, if it is one.
-fn enum_array(column: &Field) -> Option<ast::Expr> {
-    let Type::Enum(class) = &column.ty.element else {
-        return None;
-    };
-    (column.ty.array_dims > 0).then(|| {
-        python::expr(&format!(
-            "postgresql.ARRAY(sqlalchemy.Enum(*models.{class}))"
-        ))
+/// SQLAlchemy's range classes, by the range's PostgreSQL type: its SQL type,
+/// which turns each driver's range into SQLAlchemy's `Range`, and the type of
+/// its bounds.
+const RANGES: &[(&str, &str, &str)] = &[
+    ("int4range", "postgresql.INT4RANGE", "int"),
+    ("int8range", "postgresql.INT8RANGE", "int"),
+    ("numrange", "postgresql.NUMRANGE", "Decimal"),
+    ("daterange", "postgresql.DATERANGE", "dt.date"),
+    ("tsrange", "postgresql.TSRANGE", "dt.datetime"),
+    ("tstzrange", "postgresql.TSTZRANGE", "dt.datetime"),
+];
+
+/// The Python type of a column of `data_type` that SQLAlchemy decides,
+/// whatever the driver: a range, as SQLAlchemy's `Range`; an `hstore`, as a
+/// `dict`.
+pub fn scalar_type(data_type: &str) -> Option<Type> {
+    let name = data_type.strip_prefix("pg_catalog.").unwrap_or(data_type);
+    // SQLAlchemy registers psycopg's `hstore` codec, and parses asyncpg's
+    // text, through its own type.
+    if name == "hstore" {
+        return Some(Type::Library {
+            annotation: "dict[str, str | None]".into(),
+            sql_type: Some("postgresql.HSTORE"),
+        });
+    }
+    let (_, sql_type, bound) = RANGES.iter().find(|(range, ..)| *range == name)?;
+    Some(Type::Library {
+        annotation: format!("postgresql.Range[{bound}]"),
+        sql_type: Some(sql_type),
     })
+}
+
+/// The SQLAlchemy type a column loads through, if a driver needs one: an
+/// array of enums, or a type of SQLAlchemy's own class, as the class, which
+/// SQLAlchemy instantiates (SQLAlchemy 2.0's `HSTORE()` is untyped).
+fn column_type(column: &Field) -> Option<ast::Expr> {
+    match (&column.ty.element, column.ty.array_dims) {
+        (Type::Enum(class), 1..) => Some(python::expr(&format!(
+            "postgresql.ARRAY(sqlalchemy.Enum(*models.{class}))"
+        ))),
+        (
+            Type::Library {
+                sql_type: Some(sql_type),
+                ..
+            },
+            0,
+        ) => Some(python::expr(sql_type)),
+        _ => None,
+    }
 }
 
 /// The annotation of the connection the queries run on.
@@ -105,10 +151,13 @@ pub fn body(query: &Query, asynchronous: bool) -> (String, String) {
             .collect::<Vec<_>>()
             .join(", ")
     };
-    let values = match (&query.command, query.params.is_empty()) {
-        (Command::CopyFrom(_), _) => ", params".to_string(),
-        (_, true) => String::new(),
-        (_, false) => format!(", {{{}}}", each(|p| format!("\"{0}\": {0}", p.name))),
+    // A batch binds each row's values, `r.p`; at once, as `params`, if it
+    // returns nothing.
+    let values = match (&query.rows, &query.command, query.params.is_empty()) {
+        (Some(_), Command::CopyFrom | Command::Exec, _) => ", params".to_string(),
+        (Some(_), _, _) => format!(", {{{}}}", each(|p| format!("\"{0}\": r.{0}", p.name))),
+        (None, _, true) => String::new(),
+        (None, _, false) => format!(", {{{}}}", each(|p| format!("\"{0}\": {0}", p.name))),
     };
     // `conn.execute(...)` then `then`, awaited if need be.
     let execute = |then: &str| {
@@ -121,14 +170,13 @@ pub fn body(query: &Query, asynchronous: bool) -> (String, String) {
     };
 
     let (returns, body) = match &query.command {
-        Command::Exec => ("None".into(), execute("")),
         Command::ExecRows => ("int".into(), format!("return {}", execute(".rowcount"))),
         Command::ExecLastId => ("int".into(), format!("return {}", execute(".lastrowid"))),
         Command::ExecResult => (
             "sqlalchemy.CursorResult[Any]".into(),
             format!("return {}", execute("")),
         ),
-        Command::CopyFrom(_) => (
+        Command::CopyFrom | Command::Exec if query.rows.is_some() => (
             "None".into(),
             format!(
                 "params = [{{{}}} for r in rows]\nif params:\n    {}",
@@ -136,6 +184,8 @@ pub fn body(query: &Query, asynchronous: bool) -> (String, String) {
                 execute("")
             ),
         ),
+        Command::Exec => ("None".into(), execute("")),
+        Command::CopyFrom => unreachable!("a :copyfrom takes rows"),
         Command::One(Shape::Scalar(ty)) => {
             let value = execute(".scalar_one()");
             (
@@ -183,5 +233,12 @@ pub fn body(query: &Query, asynchronous: bool) -> (String, String) {
         }
     };
 
-    (returns, body)
+    match (&query.rows, &query.command) {
+        // A batch: the body once per row, each result collected.
+        (Some(_), Command::One(_) | Command::Many(_)) => (
+            format!("list[{returns}]"),
+            super::per_row(&body, "for r in rows", &returns),
+        ),
+        _ => (returns, body),
+    }
 }

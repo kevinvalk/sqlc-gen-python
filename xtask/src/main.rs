@@ -200,8 +200,11 @@ fn verify(generated: &GenDir, options: &[&str]) -> Result<(), String> {
 /// The golden cases the runtime proof reads back: the models the type-truth
 /// probe reads every type through (`tests/python/typemap.py`), and the acceptance
 /// fixtures the runtime suite runs (`tests/python/suite/`).
-const PROVEN: [&str; 13] = [
+const PROVEN: [&str; 16] = [
     "billing_pymysql",
+    "custom_psycopg",
+    "pgtext_psycopg",
+    "pgtext_psycopg_async",
     "billing_sqlalchemy",
     "billing_sqlalchemy_async",
     "pgtypes_sqlalchemy",
@@ -216,13 +219,19 @@ const PROVEN: [&str; 13] = [
     "ledger_sqlite3_async",
 ];
 
-/// The directory of golden case `name`: an example's codegen `out`,
-/// `examples/<example>/<name>/`.
+/// The directory of golden case `name`: the `out` of a codegen entry of an
+/// example's sqlc.yaml, `examples/<example>/<name>/`, generated or not yet.
 fn case_dir(name: &str) -> Option<PathBuf> {
     let examples = fs::read_dir(root().join("examples")).ok()?;
     (examples.filter_map(Result::ok))
-        .map(|example| example.path().join(name))
-        .find(|dir| dir.is_dir())
+        .map(|example| example.path())
+        .find(|example| {
+            let config = fs::read_to_string(example.join("sqlc.yaml")).unwrap_or_default();
+            config
+                .lines()
+                .any(|line| line.trim() == format!("- out: {name}"))
+        })
+        .map(|example| example.join(name))
 }
 
 /// Makes the generated files of `to` exactly those of `from`: all but what
@@ -237,6 +246,7 @@ fn mirror_generated(from: &Path, to: &Path) -> std::io::Result<()> {
             })
             .collect())
     };
+    fs::create_dir_all(to)?;
     for stale in generated(to)? {
         fs::remove_file(stale)?;
     }

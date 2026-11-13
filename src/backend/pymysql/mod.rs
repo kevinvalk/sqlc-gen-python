@@ -22,4 +22,5 @@ pub const DRIVER: Driver = Driver {
     no_rows: "SELECT NULL FROM DUAL WHERE FALSE",
     bind: |_, value| value.into(),
     text_arrays: false,
+    copies: false,
 };

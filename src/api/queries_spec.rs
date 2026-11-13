@@ -224,14 +224,13 @@ fn a_query_is_a_snake_case_function_a_private_constant_and_perhaps_a_class() {
         (
             query.function.as_str(),
             query.constant.as_str(),
-            query.class()
+            query.classes().next()
         ),
         ("get_author", "_GET_AUTHOR", None)
     );
-    assert_eq!(
-        returning(":copyfrom", vec![]),
-        Command::CopyFrom("GetAuthorParams".into())
-    );
+    let copy = resolve(self::query(":copyfrom", "SELECT 1"));
+    assert_eq!(copy.command, Command::CopyFrom);
+    assert_eq!(copy.rows.as_deref(), Some("GetAuthorParams"));
     let Command::One(Shape::Row(class, _)) = returning(
         ":one",
         vec![column("bio", "text", false), column("name", "text", true)],
@@ -277,16 +276,20 @@ fn errors_name_the_file_and_the_query() {
 // -- Commands ----------------------------------------------------------------
 
 #[test]
-fn commands_without_a_postgresql_meaning_are_errors_that_say_what_to_use() {
+fn commands_an_engine_cannot_run_are_errors_that_say_what_to_use() {
     assert!(error(query(":execlastid", "")).contains(
         ":execlastid is not supported on postgresql; use INSERT ... RETURNING with :one"
     ));
+    // A batch runs per row of its parameters, on PostgreSQL alone.
     for batch in [":batchexec", ":batchmany", ":batchone"] {
         let error = error(query(batch, ""));
         assert!(
-            error.contains(&format!(
-                "{batch} is pgx-only; use :copyfrom for bulk inserts"
-            )),
+            error.contains("has no parameters to run it per row"),
+            "{error}"
+        );
+        let error = format!("{:#}", on("sqlite", query(batch, "")).unwrap_err());
+        assert!(
+            error.contains(&format!("{batch} is PostgreSQL only")),
             "{error}"
         );
     }
@@ -587,10 +590,9 @@ fn the_commands_that_return_no_rows_ignore_any_columns() {
     assert_eq!(returning(":exec", vec![]), Command::Exec);
     assert_eq!(returning(":execrows", vec![]), Command::ExecRows);
     assert_eq!(returning(":execresult", vec![]), Command::ExecResult);
-    assert_eq!(
-        returning(":copyfrom", vec![]),
-        Command::CopyFrom("GetAuthorParams".into())
-    );
+    let copy = resolve(self::query(":copyfrom", "SELECT 1"));
+    assert_eq!(copy.command, Command::CopyFrom);
+    assert_eq!(copy.rows.as_deref(), Some("GetAuthorParams"));
 }
 
 #[test]
@@ -834,5 +836,28 @@ fn execlastid_is_mysqls_alone() {
             error.contains("use INSERT ... RETURNING with :one"),
             "{engine}: {error}"
         );
+    }
+}
+
+#[test]
+fn a_batch_is_its_command_per_row_of_its_params() {
+    for (batch, single) in [
+        (":batchexec", ":exec"),
+        (":batchone", ":one"),
+        (":batchmany", ":many"),
+    ] {
+        let columns = vec![column("bio", "text", false), column("name", "text", true)];
+        let resolved = resolve(plugin::Query {
+            params: vec![param(1, column("id", "pg_catalog.int8", true))],
+            columns: columns.clone(),
+            ..query(batch, "SELECT bio, name FROM authors WHERE id = $1")
+        });
+        let one = resolve(plugin::Query {
+            params: vec![param(1, column("id", "pg_catalog.int8", true))],
+            columns,
+            ..query(single, "SELECT bio, name FROM authors WHERE id = $1")
+        });
+        assert_eq!(resolved.command, one.command, "{batch}");
+        assert_eq!(resolved.rows.as_deref(), Some("GetAuthorParams"));
     }
 }

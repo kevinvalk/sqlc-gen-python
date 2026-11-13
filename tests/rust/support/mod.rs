@@ -139,7 +139,11 @@ impl Case {
 /// The files a golden case holds as generated, as a plugin returns them, by
 /// name: all but what tools hide there (`.ruff_cache`).
 pub fn generated_files(dir: &Path) -> Vec<plugin::File> {
-    let mut files: Vec<plugin::File> = (fs::read_dir(dir).unwrap())
+    // A case not yet blessed has nothing generated.
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut files: Vec<plugin::File> = (entries)
         .map(|entry| entry.unwrap().path())
         .filter(|path| is_generated(path))
         .map(|path| plugin::File {
@@ -177,6 +181,7 @@ pub fn export(package: &str, files: &[plugin::File]) {
 /// Every invariant of what `request` generated, as listed in `corpus.rs`;
 /// empty if it holds them all.
 pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -> Vec<String> {
+    let request = &renamed(request);
     let mut problems = Vec::new();
     let stems: BTreeSet<&str> = (request.queries.iter())
         .map(|query| stem(&query.filename))
@@ -227,6 +232,40 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
     }
     models_follow_catalog(request, models, &mut problems);
     problems
+}
+
+/// `request` with each column and parameter its options `rename` named
+/// otherwise spelt as renamed, its SQL name kept as its `original_name`:
+/// what the naming checks hold the output to.
+fn renamed(request: &plugin::GenerateRequest) -> plugin::GenerateRequest {
+    let mut request = request.clone();
+    let Ok(config) = Config::from_request(&request) else {
+        return request;
+    };
+    let rename = |column: &mut plugin::Column| {
+        if let Some(name) = config.rename.get(&column.name) {
+            if column.original_name.is_empty() {
+                column.original_name = column.name.clone();
+            }
+            column.name = name.clone();
+        }
+    };
+    for schema in request.catalog.iter_mut().flat_map(|c| &mut c.schemas) {
+        schema
+            .tables
+            .iter_mut()
+            .flat_map(|t| &mut t.columns)
+            .for_each(rename);
+    }
+    for query in &mut request.queries {
+        query.columns.iter_mut().for_each(rename);
+        query
+            .params
+            .iter_mut()
+            .filter_map(|p| p.column.as_mut())
+            .for_each(rename);
+    }
+    request
 }
 
 /// Whether a generated file name stays inside the output directory.
@@ -658,6 +697,12 @@ fn uses(query: &plugin::Query) -> Vec<usize> {
         .collect()
 }
 
+/// Whether a query's function takes `rows` of its parameters: a `:copyfrom`,
+/// or a batch (`:batchexec`, `:batchone`, `:batchmany`).
+fn takes_rows(query: &plugin::Query) -> bool {
+    query.cmd == ":copyfrom" || query.cmd.starts_with(":batch")
+}
+
 /// A query file's stem, which names its module.
 fn stem(filename: &str) -> &str {
     Path::new(filename)
@@ -682,7 +727,7 @@ fn signature_is_safe(
     let positional: Vec<&str> = (parameters.posonlyargs.iter().chain(&parameters.args))
         .map(|p| p.name().as_str())
         .collect();
-    let copyfrom = query.cmd == ":copyfrom";
+    let copyfrom = takes_rows(query);
     let expected: &[&str] = if copyfrom {
         &["conn", "rows"]
     } else {
@@ -740,18 +785,22 @@ fn runs_its_statement(
         calls: Vec<&'a ExprCall>,
         conns: usize,
         awaited: Vec<TextRange>,
+        writes: Vec<TextRange>,
     }
     impl<'a> Visitor<'a> for Executes<'a> {
         fn visit_expr(&mut self, expr: &'a Expr) {
             match expr {
                 Expr::Call(call)
                     if call.func.as_attribute_expr().is_some_and(|method| {
-                        ["execute", "executemany"].contains(&method.attr.as_str())
+                        ["execute", "executemany", "copy"].contains(&method.attr.as_str())
                     }) =>
                 {
                     self.calls.push(call)
                 }
                 Expr::Name(name) if name.id.as_str() == "conn" => self.conns += 1,
+                Expr::Call(call) if unparse(&call.func) == "copy.write_row" => {
+                    self.writes.push(call.range());
+                }
                 Expr::Await(awaited) => self.awaited.push(awaited.value.range()),
                 _ => {}
             }
@@ -768,7 +817,12 @@ fn runs_its_statement(
             executes.conns
         ));
     };
-    if executes.awaited.contains(&call.range()) != asynchronous {
+    // A `COPY` is entered (`async with`), and its rows written awaited.
+    let awaited = match unparse(&call.func).ends_with(".copy") {
+        false => executes.awaited.contains(&call.range()),
+        true => (executes.writes.iter()).all(|write| executes.awaited.contains(write)),
+    };
+    if awaited != asynchronous {
         problems.push(format!(
             "{}: awaits its statement exactly when async",
             query.name
@@ -784,9 +838,19 @@ fn runs_its_statement(
     {
         statement = Some(&*method.value);
     }
-    if !statement.is_some_and(|first| is_name(first, constant))
-        || !call.arguments.keywords.is_empty()
-    {
+    // A batch on psycopg asks for each row's result: `returning=True`.
+    let keywords: Vec<String> = call
+        .arguments
+        .keywords
+        .iter()
+        .map(|k| unparse(&k.value))
+        .collect();
+    let returning = (call.arguments.keywords.iter()).all(|k| {
+        k.arg
+            .as_ref()
+            .is_some_and(|arg| arg.as_str() == "returning")
+    }) && keywords.iter().all(|value| value == "True");
+    if !statement.is_some_and(|first| is_name(first, constant)) || !returning {
         let args: Vec<String> = args.iter().map(unparse).collect();
         return problems.push(format!(
             "{}: executes ({}), not its own statement `{constant}`",
@@ -795,7 +859,7 @@ fn runs_its_statement(
         ));
     }
 
-    let copyfrom = query.cmd == ":copyfrom";
+    let copyfrom = takes_rows(query);
     let value = |name: &str| match copyfrom {
         true => format!("r.{name}"),
         false => name.to_string(),
@@ -818,7 +882,7 @@ fn runs_its_statement(
         .collect();
     let bound = match (&args[1..], copyfrom) {
         ([], false) => Some(Vec::new()),
-        ([Expr::Dict(dict)], false) => Some(pairs(dict)),
+        ([Expr::Dict(dict)], _) => Some(pairs(dict)),
         ([Expr::Tuple(tuple)], false) => Some(positions(&tuple.elts)),
         // SQLAlchemy's `executemany` form: a list of dicts built before.
         ([rows], true) if is_name(rows, "params") => {
@@ -836,6 +900,28 @@ fn runs_its_statement(
             Expr::Tuple(tuple) => Some(positions(&tuple.elts)),
             _ => None,
         },
+        // psycopg's `COPY`: each row written as a tuple.
+        ([], true) => {
+            #[derive(Default)]
+            struct Rows<'a>(Vec<&'a [Expr]>);
+            impl<'a> Visitor<'a> for Rows<'a> {
+                fn visit_expr(&mut self, expr: &'a Expr) {
+                    if let Expr::Call(call) = expr
+                        && unparse(&call.func) == "copy.write_row"
+                        && let [Expr::Tuple(tuple)] = &call.arguments.args[..]
+                    {
+                        self.0.push(&tuple.elts);
+                    }
+                    walk_expr(self, expr);
+                }
+            }
+            let mut rows = Rows::default();
+            rows.visit_body(&function.body);
+            match rows.0[..] {
+                [row] => Some(positions(row)),
+                _ => None,
+            }
+        }
         _ => None,
     };
     if bound
@@ -1008,6 +1094,29 @@ fn sql_round_trips(
     engine: Engine,
     problems: &mut Vec<String>,
 ) {
+    if backend == Backend::Psycopg && query.cmd == ":copyfrom" {
+        // psycopg copies the rows into sqlc's table and columns.
+        let quote = |name: &str| format!("\"{}\"", name.replace('"', "\"\""));
+        let table = query.insert_into_table.clone().unwrap_or_default();
+        let table = match table.schema.as_str() {
+            "" => quote(&table.name),
+            schema => format!("{}.{}", quote(schema), quote(&table.name)),
+        };
+        let columns: Vec<String> = (query.params.iter())
+            .map(|p| {
+                let column = p.column.clone().unwrap_or_default();
+                match column.original_name.as_str() {
+                    "" => quote(&column.name),
+                    original => quote(original),
+                }
+            })
+            .collect();
+        let copy = format!("COPY {table} ({}) FROM STDIN", columns.join(", "));
+        if sql != copy {
+            problems.push(format!("{}: copies with {sql:?}, not {copy:?}", query.name));
+        }
+        return;
+    }
     if backend != Backend::SqlAlchemy {
         // PyMySQL formats the statement with `%`, as `sql % args`: each `%s`
         // is a placeholder, `?` to MySQL, and `%%` a `%`.
@@ -1122,7 +1231,14 @@ fn result_follows_sqlc(
     let Some(returns) = function.returns.as_deref() else {
         return problems.push(format!("{}: no return annotation", query.name));
     };
-    let item = match (query.cmd.as_str(), returns) {
+    // A batch returns a list, its command's result per row.
+    let (cmd, returns) = match (query.cmd.strip_prefix(":batch"), returns) {
+        (Some(cmd @ ("one" | "many")), Expr::Subscript(list)) if is_name(&list.value, "list") => {
+            (format!(":{cmd}"), &*list.slice)
+        }
+        _ => (query.cmd.clone(), returns),
+    };
+    let item = match (cmd.as_str(), returns) {
         (":one", _) => {
             let reads: &[&str] = match backend {
                 Backend::SqlAlchemy => &["one", "scalar_one"],

@@ -18,10 +18,12 @@ Each type in the generator's map, with the annotation the generator writes for i
 | `citext` | `str` | `str` | `str` | `str` | ok |
 | `date` | `date` | `date` | `date` | `date` | ok |
 | `date[]` | `list[date]` | `list` `list[date]` | `list` `list[date]` | `list` `list[date]` | ok |
+| `daterange` | `Range[date]` | `Range` | `Range` | `Range` | ok |
 | `float4` | `float` | `float` | `float` | `float` | ok |
 | `float4[]` | `list[float]` | `list` `list[float]` | `list` `list[float]` | `list` `list[float]` | ok |
 | `float8` | `float` | `float` | `float` | `float` | ok |
 | `float8[]` | `list[float]` | `list` `list[float]` | `list` `list[float]` | `list` `list[float]` | ok |
+| `hstore` | `dict[str, str \| None]` | `dict` | `dict` | `dict` | ok |
 | `inet` | `IPv4Address \| IPv6Address \| IPv4Interface \| IPv6Interface` | `IPv4Address` `IPv4Interface` `IPv6Address` `IPv6Interface` | `IPv4Address` `IPv4Interface` `IPv6Address` `IPv6Interface` | `IPv4Address` `IPv4Interface` `IPv6Address` `IPv6Interface` | ok |
 | `inet[]` | `list[IPv4Address \| IPv6Address \| IPv4Interface \| IPv6Interface]` | `list` `list[IPv4Address]` `list[IPv4Interface]` `list[IPv6Address]` `list[IPv6Interface]` | `list` `list[IPv4Address]` `list[IPv4Interface]` `list[IPv6Address]` `list[IPv6Interface]` | `list` `list[IPv4Address]` `list[IPv4Interface]` `list[IPv6Address]` `list[IPv6Interface]` | ok |
 | `int2` | `int` | `int` | `int` | `int` | ok |
@@ -29,14 +31,17 @@ Each type in the generator's map, with the annotation the generator writes for i
 | `int4` | `int` | `int` | `int` | `int` | ok |
 | `int4[]` | `list[int]` | `list` `list[int]` | `list` `list[int]` | `list` `list[int]` | ok |
 | `int4[][]` | `list[list[int]]` | `list` `list[list[int]]` | `list` `list[list[int]]` | `list` `list[list[int]]` | ok |
+| `int4range` | `Range[int]` | `Range` | `Range` | `Range` | ok |
 | `int8` | `int` | `int` | `int` | `int` | ok |
 | `int8[]` | `list[int]` | `list` `list[int]` | `list` `list[int]` | `list` `list[int]` | ok |
+| `int8range` | `Range[int]` | `Range` | `Range` | `Range` | ok |
 | `interval` | `timedelta` | `timedelta` | `timedelta` | `timedelta` | ok |
 | `interval[]` | `list[timedelta]` | `list` `list[timedelta]` | `list` `list[timedelta]` | `list` `list[timedelta]` | ok |
 | `json` | `object` | `dict` `float` `int` `list` `str` | `dict` `float` `int` `list` `str` | `dict` `float` `int` `list` `str` | ok |
 | `json[]` | `list[object]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | ok |
 | `jsonb` | `object` | `dict` `int` `list` `str` | `dict` `int` `list` `str` | `dict` `int` `list` `str` | ok |
 | `jsonb[]` | `list[object]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | ok |
+| `ltree` | `str` | `str` | `str` | `str` | ok |
 | `macaddr` | `str` | `str` | `str` | `str` | ok |
 | `macaddr[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `macaddr8` | `str` | `str` | `str` | `str` | ok |
@@ -47,8 +52,10 @@ Each type in the generator's map, with the annotation the generator writes for i
 | `name[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `numeric` | `Decimal` | `Decimal` | `Decimal` | `Decimal` | ok |
 | `numeric[]` | `list[Decimal]` | `list` `list[Decimal]` | `list` `list[Decimal]` | `list` `list[Decimal]` | ok |
+| `numrange` | `Range[Decimal]` | `Range` | `Range` | `Range` | ok |
 | `oid` | `int` | `int` | `int` | `int` | ok |
 | `oid[]` | `list[int]` | `list` `list[int]` | `list` `list[int]` | `list` `list[int]` | ok |
+| `regclass` | `str` | `str` | `str` | `str` | ok |
 | `text` | `str` | `str` | `str` | `str` | ok |
 | `text[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `time` | `time` | `time` | `time` | `time` | ok |
@@ -59,6 +66,8 @@ Each type in the generator's map, with the annotation the generator writes for i
 | `timestamptz[]` | `list[datetime]` | `list` `list[datetime(Europe/Amsterdam)]` | `list` `list[datetime(Europe/Amsterdam)]` | `list` `list[datetime(UTC)]` `list[datetime]` | ok |
 | `timetz` | `time` | `time` | `time` | `time` | ok |
 | `timetz[]` | `list[time]` | `list` `list[time]` | `list` `list[time]` | `list` `list[time]` | ok |
+| `tsrange` | `Range[datetime]` | `Range` | `Range` | `Range` | ok |
+| `tstzrange` | `Range[datetime]` | `Range` | `Range` | `Range` | ok |
 | `tsvector` | `str` | `str` | `str` | `str` | ok |
 | `uuid` | `UUID` | `UUID` | `UUID` | `UUID` | ok |
 | `uuid[]` | `list[UUID]` | `list` `list[UUID]` | `list` `list[UUID]` | `list` `list[UUID]` | ok |
@@ -81,6 +90,8 @@ Each type in the generator's map, with the annotation the generator writes for i
 | `date[]` | `'4713-01-01 BC'` | raises DataError | raises DataError | raises ValueError |
 | `date[]` | `'0001-01-01'` |  |  | lossy: `{0001-01-01}` comes back as `{-infinity}` |
 | `date[]` | `'9999-12-31'` |  |  | lossy: `{9999-12-31}` comes back as `{infinity}` |
+| `daterange` | `'[0001-01-01,9999-12-31]'` | raises DataError | raises DataError | raises ValueError |
+| `daterange` | `'(,infinity)'` | raises DataError | raises DataError |  |
 | `interval` | `'1 mon'` | lossy: `1 mon` comes back as `30 days` | lossy: `1 mon` comes back as `30 days` | lossy: `1 mon` comes back as `30 days` |
 | `interval` | `'1 year 2 mons 3 days 04:05:06.789'` | lossy: `1 year 2 mons 3 days 04:05:06...` comes back as `428 days 04:05:06.789` | lossy: `1 year 2 mons 3 days 04:05:06...` comes back as `428 days 04:05:06.789` | lossy: `1 year 2 mons 3 days 04:05:06...` comes back as `428 days 04:05:06.789` |
 | `interval` | `'-178000000 years'` | lossy: `-178000000 years` comes back as `-545490560 days` | lossy: `-178000000 years` comes back as `-545490560 days` | lossy: `-178000000 years` comes back as `-545490560 days` |

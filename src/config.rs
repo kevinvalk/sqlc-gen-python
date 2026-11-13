@@ -15,6 +15,7 @@
 //!         inflection_exclude: [campus]
 //! ```
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
@@ -47,6 +48,35 @@ pub struct Config {
     /// churn when sqlc is upgraded.
     #[serde(default)]
     pub omit_sqlc_version: bool,
+
+    /// Python types for database types or columns the type map does not
+    /// have, or should not decide.
+    #[serde(default)]
+    pub overrides: Vec<Override>,
+
+    /// Python names for SQL names: a table's or enum's class, a column's field
+    /// or parameter.
+    #[serde(default)]
+    pub rename: BTreeMap<String, String>,
+
+    /// sqlc analysed the queries on a database (`analyzer: {database: true}`
+    /// with a `database` block), so the types it reports for expressions and
+    /// function calls are PostgreSQL's, not its guesses. PostgreSQL only.
+    #[serde(default)]
+    pub database_analysis: bool,
+}
+
+/// The Python type of every column of a database type, or of one column.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Override {
+    /// A type as sqlc reports it, `pg_catalog.` optional: `ltree`, `int4`.
+    pub db_type: Option<String>,
+    /// A column, `table.column` or `schema.table.column`.
+    pub column: Option<String>,
+    /// The annotation: builtins, the names generated code imports, and
+    /// dotted paths, whose module is imported: `numpy.typing.NDArray[numpy.float64]`.
+    pub python_type: String,
 }
 
 #[cfg(test)]
@@ -58,6 +88,9 @@ impl Config {
             asynchronous: false,
             models: ModelConfig::default(),
             omit_sqlc_version: false,
+            overrides: Vec::new(),
+            rename: BTreeMap::new(),
+            database_analysis: false,
         }
     }
 }
@@ -94,7 +127,27 @@ impl Config {
             [] => b"{}",
             options => options,
         };
-        serde_json::from_slice(options).context("reading plugin options")
+        let config: Self = serde_json::from_slice(options).context("reading plugin options")?;
+        for (i, rule) in config.overrides.iter().enumerate() {
+            if rule.db_type.is_some() == rule.column.is_some() {
+                bail!("overrides[{i}]: name exactly one of db_type and column");
+            }
+            python::modules_of(&rule.python_type)
+                .with_context(|| format!("overrides[{i}]: python_type \"{}\"", rule.python_type))?;
+        }
+        if let Some((sql, python)) =
+            (config.rename.iter()).find(|(_, python)| !python::is_public_name(python))
+        {
+            bail!("rename: \"{sql}\" to \"{python}\", which is no public Python name");
+        }
+        Ok(config)
+    }
+
+    /// The modules the overrides' types are read from, to import.
+    pub fn modules(&self) -> Vec<String> {
+        (self.overrides.iter())
+            .flat_map(|rule| python::modules_of(&rule.python_type).unwrap_or_default())
+            .collect()
     }
 }
 

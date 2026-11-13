@@ -43,7 +43,7 @@ pub fn scalar_type(column: &plugin::Column) -> Option<Type> {
 
 /// Whether `data_type` is sqlc's guess rather than a type it read: `any` for
 /// an expression it could not type, or nothing.
-pub fn is_guess(data_type: &str) -> bool {
+pub fn is_guess(data_type: &str, _database: bool) -> bool {
     ["", "any"].contains(&data_type.to_ascii_lowercase().as_str())
 }
 

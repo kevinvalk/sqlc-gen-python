@@ -228,21 +228,23 @@ its edges.*
 | `inet` | `IPv4Address \| IPv6Address \| IPv4Interface \| IPv6Interface` | An address with a prefix comes back as an `Interface`. |
 | `cidr` | `IPv4Network \| IPv6Network` | |
 | `macaddr`, `macaddr8`, `xml`, `tsvector` | `str` | An array of `tsvector` is an error: asyncpg decodes `ARRAY[''::tsvector]` as a corrupt item, and hangs on an array of it and another item. |
+| `ltree`, `regclass` | `str` | Both drivers return the text. Arrays of them are an error, as `citext`'s. |
+| `hstore` | `dict[str, str \| None]` on SQLAlchemy, `str` on psycopg | SQLAlchemy registers psycopg's codec, and loads and binds through `postgresql.HSTORE`, which parses asyncpg's text; raw psycopg returns the text. Arrays of it are an error. |
+| `int4range`, `int8range`, `numrange`, `daterange`, `tsrange`, `tstzrange` | `Range[T]` on psycopg (`psycopg.types.range`), `postgresql.Range[T]` on SQLAlchemy | `T` is the bounds' type. The drivers' classes differ, so SQLAlchemy loads and binds each through its own range type (`postgresql.INT4RANGE`, ...), which makes either driver's a `postgresql.Range`. Arrays of them are an error. |
+| `bit`, `varbit`, `point`, `line`, `lseg`, `box`, `path`, `polygon`, `circle`, `xid`, `xid8`, `cid`, `tid`, `pg_lsn` | `str` on psycopg | psycopg returns the text, asyncpg objects of its own, so on SQLAlchemy they are an error: override them (§7). |
 | a catalog enum | `models.X` (`X` inside `models.py`) | coerced by `from_row` (§4, rule 4) |
 | `T[]`, `T[][]` | `list[T]`, `list[list[T]]` | `is_array` / `array_dims` from sqlc [2]. psycopg rejects a tuple parameter, so parameters are `list` too. |
 
-1. Any other type MUST be an error naming the column or parameter: ranges,
-   geometry, `bit`, `varbit`, `"char"`, `int2vector`, composite types, domains, and
-   arrays of `citext`, of `tsvector` or of multi-dimensional enums, and
-   `json`/`jsonb` array parameters (each backend binds only a scalar one,
-   §6). The drivers disagree on these
-   (for example `Range` versus `asyncpg.types.Range`, or `str` versus `bytes`),
-   or nobody has probed them. A type is added only together with driver
-   evidence. *[3]; CLAUDE.md: never paper over an unknown with `Any`.*
-   A domain (`CREATE DOMAIN amount AS numeric(12, 2) CHECK (VALUE >= 0)`)
-   arrives as its bare name, never its base type *[2]*, so it is as unknown as
-   an extension's type; the error says to declare the column with the base
-   type and the domain's `CHECK` as a column constraint instead.
+1. Any other type MUST be an error naming the column or parameter, unless an
+   override names it (§7): multiranges, `"char"`, `int2vector`, composite
+   types, domains, other extensions' types, the text types above on
+   SQLAlchemy, arrays of `citext`, `hstore`, `ltree`, `tsvector`, ranges or
+   multi-dimensional enums, and `json`/`jsonb` array parameters (each
+   backend binds only a scalar one, §6). The drivers disagree on these, or
+   nobody has probed them. A type is added only together with driver
+   evidence. *[3]; CLAUDE.md: never paper over an unknown with `Any`.* A
+   domain (`CREATE DOMAIN amount AS numeric(12, 2) CHECK (VALUE >= 0)`)
+   arrives as its bare name, never its base type *[2]*: override it.
 2. A column whose type sqlc could not infer MUST be an error that asks for a
    cast, as `coalesce(<expr>, <default>)::<type>` where the value can be NULL.
    That is an empty type, `any`, and two that look like types but are
@@ -285,12 +287,16 @@ its edges.*
 
    This rule assumes sqlc's static analysis. Its database-backed analysis (a
    `database` block, unless `analyzer: {database: false}`) reports the types
-   PostgreSQL resolves, spelled with SQL's standard names, which nothing in
-   the request tells apart from static analysis's guesses: a query that
-   compares a `bigint` column with a parameter, or casts a value to
-   `numeric`, is then an error. Keep `analyzer: {database: false}` for this
-   plugin. *[2]: `format_type` names, probed in the corpus's managed-db
-   requests.*
+   PostgreSQL resolves for expressions, function calls and parameters,
+   spelled with SQL's standard names (`integer`, `character varying(20)`),
+   which nothing in the request tells apart from static analysis's guesses.
+   So the option `database_analysis: true` (§7) says it: those names are then
+   the types they name, a function call's type is PostgreSQL's, and only
+   nothing and the pseudo-types (`any`) are guesses. A request holding a bare
+   `int`, static analysis's report of any arithmetic, which PostgreSQL never
+   names a type, MUST then be an error. *[2]: probed in the corpus's
+   managed-db requests, which spell a table's own column statically and an
+   expression with the standard name.*
 3. Parameter types arrive spelled `{schema: "", name: "billing.payment_method"}`
    or `pg_catalog.int4`, while result columns arrive as
    `{schema: "billing", name: "payment_method"}`. The generator MUST normalise
@@ -601,7 +607,11 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    type. *[2]* It MUST become a field typed as `t`'s model, built by
    `models.M.from_row(row[a:b])` over `t`'s columns in catalog order. *[4]*
 6. **`:copyfrom`.** The function MUST be
-   `def f(conn, rows: Iterable[<Query>Params]) -> None`, running a single
+   `def f(conn, rows: Iterable[<Query>Params]) -> None`. On psycopg it is
+   PostgreSQL's `COPY`: the statement constant is
+   `COPY "<table>" ("<column>", ...) FROM STDIN` of the table and columns
+   sqlc reports (`insert_into_table`), every name quoted as stored, and each
+   row is `copy.write_row((r.<a>, ...))`. Elsewhere it is a single
    executemany of one row of parameters per row, its fields written out. On
    SQLAlchemy those are dicts, and an empty list runs nothing, as SQLAlchemy
    raises on one; a driver's `executemany` runs none for it itself.
@@ -609,9 +619,18 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      a count that is wrong on one driver is worse than none.
    - sqlc rejects `ON CONFLICT`, `RETURNING` and non-parameter values in
      `:copyfrom`. *[2], [3]*
-7. **`sqlc.narg`** is a nullable parameter: `T | None`, still required. A
+7. **Batches** (`:batchexec`, `:batchone`, `:batchmany`) run their command
+   (`:exec`, `:one`, `:many`) once per row:
+   `def f(conn, rows: Iterable[<Query>Params])`, returning `None`, `list[X]`
+   or `list[list[X]]`, one result per row in order; a `:batchone` row without
+   exactly one result raises as `:one` does. On psycopg every row is sent at
+   once, `cur.executemany(<constant>, [...], returning=True)`, and each
+   result read from `cur.results()`; on SQLAlchemy the command runs per row.
+   A batch MUST be an error on MySQL and SQLite, as in sqlc, and without
+   parameters. *[2], [4]: pgx's batches.*
+8. **`sqlc.narg`** is a nullable parameter: `T | None`, still required. A
    parameter used several times arrives once. *[2]*
-8. **`= ANY(@ids::type[])`** is how to pass a list. The parameter is
+9. **`= ANY(@ids::type[])`** is how to pass a list. The parameter is
    `list[T]`, and an empty list matches nothing (tested). Without the cast,
    sqlc types the parameter as the element (`WHERE mood = ANY($1)` takes a
    `models.Mood`), and PostgreSQL rejects the call.
@@ -626,6 +645,9 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
 | `omit_sqlc_version` | `false` | Leave the sqlc line out of the header. |
 | `models.exact_table_names` | `false` | Name model classes after the table verbatim, without singularising. *[4]* |
 | `models.inflection_exclude` | `[]` | Table names that must not be singularised. *[4]* |
+| `overrides` | `[]` | Python types the type map does not decide: `{db_type: <type>, python_type: <annotation>}` for every column of a type as sqlc reports it (`pg_catalog.` optional), or `{column: <table.column>, python_type: ...}` (or `schema.table.column`) for one, which wins. The annotation may use builtins, the names of §2, and dotted names, whose module is imported (`ipaddress.IPv4Address` imports `ipaddress`); `| None` and lists are added as the column says. The value is passed as the driver returns and takes it, except that a JSON column's still binds as JSON. *[4]: sqlc-gen-go's `overrides`, which sqlc does not send to a plugin.* |
+| `rename` | `{}` | Python names for SQL names: a table's or enum's (`name` or `schema.name`) becomes the class named, a column's or parameter's the field or parameter. *[4]: sqlc-gen-go's `rename`.* |
+| `database_analysis` | `false` | sqlc analysed the queries on a database (§5, rule 2). PostgreSQL only. |
 
 Unknown keys MUST be an error. *[1]: stderr is not shown on success.* Each
 option that existed before is removed for a reason:

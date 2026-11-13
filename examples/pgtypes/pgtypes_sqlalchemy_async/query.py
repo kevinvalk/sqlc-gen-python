@@ -5,12 +5,55 @@
 from typing import Final
 
 import sqlalchemy
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from . import models
 
 _GET_SCALARS: Final = sqlalchemy.text(
-    "SELECT id, small, regular, big, approximate, exact, price, flag, label, fixed, varying, raw, identifier, document, day, clock, moment, duration, address, feeling, object, single, title, email, mac, mac8, markup, search, wall, naive, plain_json, network FROM scalars WHERE id = :id"
+    "SELECT id, small, regular, big, approximate, exact, price, flag, label, fixed, varying, raw, identifier, document, day, clock, moment, duration, address, feeling, object, single, title, email, mac, mac8, markup, search, wall, naive, plain_json, network, pairs, tree, relation, span, big_span, amounts, days, times, moments FROM scalars WHERE id = :id"
+).columns(
+    sqlalchemy.column("id"),
+    sqlalchemy.column("small"),
+    sqlalchemy.column("regular"),
+    sqlalchemy.column("big"),
+    sqlalchemy.column("approximate"),
+    sqlalchemy.column("exact"),
+    sqlalchemy.column("price"),
+    sqlalchemy.column("flag"),
+    sqlalchemy.column("label"),
+    sqlalchemy.column("fixed"),
+    sqlalchemy.column("varying"),
+    sqlalchemy.column("raw"),
+    sqlalchemy.column("identifier"),
+    sqlalchemy.column("document"),
+    sqlalchemy.column("day"),
+    sqlalchemy.column("clock"),
+    sqlalchemy.column("moment"),
+    sqlalchemy.column("duration"),
+    sqlalchemy.column("address"),
+    sqlalchemy.column("feeling"),
+    sqlalchemy.column("object_"),
+    sqlalchemy.column("single"),
+    sqlalchemy.column("title"),
+    sqlalchemy.column("email"),
+    sqlalchemy.column("mac"),
+    sqlalchemy.column("mac8"),
+    sqlalchemy.column("markup"),
+    sqlalchemy.column("search"),
+    sqlalchemy.column("wall"),
+    sqlalchemy.column("naive"),
+    sqlalchemy.column("plain_json"),
+    sqlalchemy.column("network"),
+    sqlalchemy.column("pairs", postgresql.HSTORE),
+    sqlalchemy.column("tree"),
+    sqlalchemy.column("relation"),
+    sqlalchemy.column("span", postgresql.INT4RANGE),
+    sqlalchemy.column("big_span", postgresql.INT8RANGE),
+    sqlalchemy.column("amounts", postgresql.NUMRANGE),
+    sqlalchemy.column("days", postgresql.DATERANGE),
+    sqlalchemy.column("times", postgresql.TSRANGE),
+    sqlalchemy.column("moments", postgresql.TSTZRANGE),
 )
 
 

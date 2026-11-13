@@ -30,7 +30,7 @@ fn documented(docstrings: &[&str]) -> String {
     let body = docstrings
         .iter()
         .flat_map(|text| [ann_assign("x", expr("int")), docstring(text)]);
-    render(&[class("A", [], [], body)])
+    render(&[class("A", [], [], body)], &[])
 }
 
 /// The docstrings a rendered module holds, read back by ruff's parser.
@@ -139,14 +139,14 @@ fn a_docstring_escapes_a_tab_that_would_follow_its_own_indentation() {
     if let ast::Stmt::FunctionDef(definition) = &mut function {
         definition.body.insert(0, docstring("a\n\tb\nc\\"));
     }
-    let source = render(&[function]);
+    let source = render(&[function], &[]);
     assert!(source.contains("\n    \\tb\n"), "{source}");
 }
 
 /// How a module holding `x = f(<value>)` renders.
 fn rendered_string(value: &str) -> String {
     let call = call(expr("f"), [string(value)]);
-    render(&[assign("X", call)])
+    render(&[assign("X", call)], &[])
 }
 
 #[test]
@@ -207,7 +207,7 @@ fn an_empty_class_body_becomes_pass() {
 
 #[test]
 fn a_module_renders_through_ruffs_formatter() {
-    let rendered = render(&[assign("X", string("y"))]);
+    let rendered = render(&[assign("X", string("y"))], &[]);
     assert_eq!(rendered, "X = \"y\"\n");
 }
 
@@ -215,7 +215,7 @@ fn a_module_renders_through_ruffs_formatter() {
 
 /// The imports of a module whose body reads `reads`.
 fn imports_for(reads: &str) -> String {
-    let rendered = render(&[stmt(&format!("x = {reads}"))]);
+    let rendered = render(&[stmt(&format!("x = {reads}"))], &[]);
     rendered[..rendered.find("x = ").unwrap()].trim_end().into()
 }
 
@@ -299,5 +299,5 @@ fn a_public_name_is_an_ascii_identifier_that_is_neither_a_keyword_nor_private() 
 #[test]
 #[should_panic(expected = "generated invalid Python")]
 fn rendering_a_tree_that_is_not_python_is_a_bug_not_an_error() {
-    render(&[assign("class", string("y"))]);
+    render(&[assign("class", string("y"))], &[]);
 }

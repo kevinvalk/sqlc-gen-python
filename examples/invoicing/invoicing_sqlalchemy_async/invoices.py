@@ -4,7 +4,7 @@
 #   sqlc v1.31.1
 import dataclasses
 import datetime as dt
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from decimal import Decimal
 from typing import Any, Final
 from uuid import UUID
@@ -432,3 +432,68 @@ async def list_invoice_statuses(conn: AsyncConnection) -> list[models.InvoiceSta
         models.InvoiceStatus(value)
         for value in (await conn.execute(_LIST_INVOICE_STATUSES)).scalars()
     ]
+
+
+_GET_INVOICES_BATCH: Final = sqlalchemy.text(
+    "SELECT id, customer_id, number, status, currency, issued_on, due_on, notes, created_at, paid_at FROM invoices WHERE id = :id"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class GetInvoicesBatchParams:
+    id: UUID
+
+
+async def get_invoices_batch(
+    conn: AsyncConnection, rows: Iterable[GetInvoicesBatchParams]
+) -> list[models.Invoice]:
+    """Several invoices at once: each id must exist."""
+    return [
+        models.Invoice.from_row(
+            (await conn.execute(_GET_INVOICES_BATCH, {"id": r.id})).one()
+        )
+        for r in rows
+    ]
+
+
+_LIST_INVOICE_NUMBERS_BATCH: Final = sqlalchemy.text(
+    "SELECT number FROM invoices WHERE customer_id = :customer_id ORDER BY number"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListInvoiceNumbersBatchParams:
+    customer_id: UUID
+
+
+async def list_invoice_numbers_batch(
+    conn: AsyncConnection, rows: Iterable[ListInvoiceNumbersBatchParams]
+) -> list[list[str]]:
+    return [
+        list(
+            (
+                await conn.execute(
+                    _LIST_INVOICE_NUMBERS_BATCH, {"customer_id": r.customer_id}
+                )
+            ).scalars()
+        )
+        for r in rows
+    ]
+
+
+_VOID_INVOICES_BATCH: Final = sqlalchemy.text(
+    "UPDATE invoices SET status = 'void' WHERE id = :id AND status = 'issued'"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class VoidInvoicesBatchParams:
+    id: UUID
+
+
+async def void_invoices_batch(
+    conn: AsyncConnection, rows: Iterable[VoidInvoicesBatchParams]
+) -> None:
+    params = [{"id": r.id} for r in rows]
+    if params:
+        await conn.execute(_VOID_INVOICES_BATCH, params)

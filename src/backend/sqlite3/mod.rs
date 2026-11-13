@@ -13,4 +13,5 @@ pub const DRIVER: Driver = Driver {
     no_rows: "SELECT NULL WHERE 0",
     bind: |_, value| value.into(),
     text_arrays: false,
+    copies: false,
 };

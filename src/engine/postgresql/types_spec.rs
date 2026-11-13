@@ -59,7 +59,7 @@ fn a_declared_or_cast_type_reads_as_the_type_it_names() {
         ("bigserial", "int8"),
     ] {
         assert_eq!(scalar_type(spelling), scalar_type(typname), "{spelling}");
-        assert!(!is_guess(spelling), "{spelling}");
+        assert!(!is_guess(spelling, false), "{spelling}");
     }
 }
 
@@ -90,7 +90,7 @@ fn sqls_standard_names_are_guesses() {
         "timestamp with time zone",
         "timestamp without time zone",
     ] {
-        assert!(is_guess(guess), "{guess:?}");
+        assert!(is_guess(guess, false), "{guess:?}");
     }
     for declared in [
         "pg_catalog.int8",
@@ -103,7 +103,7 @@ fn sqls_standard_names_are_guesses() {
         "date",
         "integer",
     ] {
-        assert!(!is_guess(declared), "{declared}");
+        assert!(!is_guess(declared, false), "{declared}");
     }
 }
 
@@ -159,7 +159,7 @@ fn a_type_without_driver_evidence_is_unknown() {
         "int4range",
         "point",
         "pg_catalog.bit",
-        "hstore",
+        "vector",
         "tid",
         "any",
         // A type the schema declares, such as an enum, is the schema's to
@@ -183,4 +183,23 @@ fn the_date_and_time_types_are_distinguished() {
     assert_eq!(scalar_type("time"), Some(Type::TIME));
     assert_eq!(scalar_type("timestamptz"), Some(Type::DATETIME));
     assert_eq!(scalar_type("pg_catalog.interval"), Some(Type::TIMEDELTA));
+}
+
+#[test]
+fn analysed_on_a_database_a_standard_name_is_the_type_postgresql_resolved() {
+    // `format_type`'s spelling, its modifiers left out.
+    for (spelling, python) in [
+        ("integer", Type::INT),
+        ("bigint", Type::INT),
+        ("boolean", Type::BOOL),
+        ("double precision", Type::FLOAT),
+        ("numeric(12,2)", Type::DECIMAL),
+        ("character varying(255)", Type::STR),
+        ("timestamp(3) with time zone", Type::DATETIME),
+    ] {
+        assert!(!is_guess(spelling, true), "{spelling}");
+        assert_eq!(scalar_type(spelling), Some(python), "{spelling}");
+    }
+    assert!(is_guess("bigint", false));
+    assert!(is_guess("any", true));
 }

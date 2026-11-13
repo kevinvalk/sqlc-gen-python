@@ -32,8 +32,9 @@ mod spec;
 
 // -- Rendering ---------------------------------------------------------------
 
-/// Renders a module of `body`, after the imports it reads: ruff unparses the
-/// tree, ruff formats the result.
+/// Renders a module of `body`, after the imports it reads, of the
+/// [vocabulary](VOCABULARY) and of `modules` (an override's): ruff unparses
+/// the tree, ruff formats the result.
 ///
 /// `Generator::generate` is `pub(crate)` to ruff, so there is no whole-module
 /// entry point that hands back its buffer; each top-level statement is unparsed
@@ -44,8 +45,8 @@ mod spec;
 /// exactly when the tree was not valid Python. That is a bug in this crate,
 /// never a property of the user's schema — unusable SQL names are handled
 /// where names are made — so it panics, like a bad [`expr`] fragment does.
-pub fn render(body: &[ast::Stmt]) -> String {
-    let mut unparsed = imports(body);
+pub fn render(body: &[ast::Stmt], modules: &[String]) -> String {
+    let mut unparsed = imports(body, modules);
     for stmt in body {
         unparsed += &Generator::new(&Indentation::default(), LineEnding::Lf).stmt(stmt);
         unparsed.push('\n');
@@ -386,6 +387,19 @@ pub enum Type {
     /// An enum class this plugin generates in the models module. How it is
     /// written depends on which module is doing the writing.
     Enum(String),
+    /// A type an override names, written as given. A driver returns and
+    /// takes the value unconverted; a JSON column's is still bound as JSON.
+    Custom {
+        annotation: String,
+        json: Option<Json>,
+    },
+    /// A value of the backend's own class, such as a range: written as the
+    /// backend names it, and on SQLAlchemy loaded and bound through the SQL
+    /// type `sql_type` names, so that every driver's value is one class.
+    Library {
+        annotation: String,
+        sql_type: Option<&'static str>,
+    },
     /// Decoded JSON, `object`: the decoder is configurable, so nothing
     /// narrower holds under every configuration. Which JSON type it was
     /// decoded from is kept, as a backend may bind each through its own type.
@@ -434,15 +448,97 @@ impl Type {
     pub const TIMEDELTA: Self = Self::Python("dt.timedelta");
     pub const UUID: Self = Self::Python("UUID");
 
+    /// The JSON type a value of this type binds as, if any: an override of a
+    /// JSON column keeps it.
+    pub fn json(&self) -> Option<Json> {
+        match self {
+            Self::Json(json)
+            | Self::Custom {
+                json: Some(json), ..
+            } => Some(*json),
+            _ => None,
+        }
+    }
+
     /// The source naming this type from within `scope`.
     pub fn source(&self, scope: Scope) -> String {
         match (self, scope) {
             (Self::Python(source) | Self::Converted(source), _) => (*source).into(),
             (Self::Json(_), _) => "object".into(),
+            (Self::Custom { annotation, .. } | Self::Library { annotation, .. }, _) => {
+                annotation.clone()
+            }
             (Self::Enum(class), Scope::Models) => class.clone(),
             (Self::Enum(class), Scope::Queries) => format!("models.{class}"),
         }
     }
+}
+
+/// The modules an override's `annotation` reads names from, to import: of
+/// each dotted name, all but its last part (`numpy.typing.NDArray` reads
+/// `numpy.typing`). Any other name must be a builtin or one generated code
+/// imports, and the annotation no more than names, subscripts, `|` and `None`.
+pub fn modules_of(annotation: &str) -> anyhow::Result<Vec<String>> {
+    fn walk(expr: &ast::Expr, modules: &mut Vec<String>) -> anyhow::Result<()> {
+        match expr {
+            ast::Expr::Name(name) => {
+                let id = name.id.as_str();
+                if !ruff_python_stdlib::builtins::is_python_builtin(id, 10, false)
+                    && !is_imported(id)
+                {
+                    anyhow::bail!("`{id}` is neither a builtin nor a dotted name to import");
+                }
+            }
+            ast::Expr::Attribute(attribute) => {
+                let mut parts = vec![attribute.attr.as_str()];
+                let mut value = &*attribute.value;
+                while let ast::Expr::Attribute(inner) = value {
+                    parts.push(inner.attr.as_str());
+                    value = &inner.value;
+                }
+                let ast::Expr::Name(root) = value else {
+                    anyhow::bail!("`{}` is no dotted name", python_source(expr));
+                };
+                if !is_imported(&root.id) {
+                    parts.push(root.id.as_str());
+                    parts.reverse();
+                    parts.pop();
+                    let module = parts.join(".");
+                    if !modules.contains(&module) {
+                        modules.push(module);
+                    }
+                }
+            }
+            ast::Expr::Subscript(subscript) => {
+                walk(&subscript.value, modules)?;
+                walk(&subscript.slice, modules)?;
+            }
+            ast::Expr::Tuple(tuple) => {
+                for item in &tuple.elts {
+                    walk(item, modules)?;
+                }
+            }
+            ast::Expr::BinOp(op) if op.op == ast::Operator::BitOr => {
+                walk(&op.left, modules)?;
+                walk(&op.right, modules)?;
+            }
+            ast::Expr::NoneLiteral(_) => {}
+            _ => anyhow::bail!("`{}` is no type", python_source(expr)),
+        }
+        Ok(())
+    }
+    let expr = parse_expression(annotation)
+        .map_err(|error| anyhow::anyhow!("not a Python expression: {error}"))?
+        .into_syntax()
+        .body;
+    let mut modules = Vec::new();
+    walk(&expr, &mut modules)?;
+    Ok(modules)
+}
+
+/// The source of an expression, for an error.
+fn python_source(expr: &ast::Expr) -> String {
+    Generator::new(&Indentation::default(), LineEnding::Lf).expr(expr)
 }
 
 // -- Imports -----------------------------------------------------------------
@@ -482,6 +578,7 @@ const VOCABULARY: [&[Import]; 3] = [
         Import::From("psycopg.rows", "tuple_row"),
         Import::From("psycopg.types.json", "Json"),
         Import::From("psycopg.types.json", "Jsonb"),
+        Import::From("psycopg.types.range", "Range"),
         Import::From("sqlalchemy.dialects", "postgresql"),
         Import::From("sqlalchemy.ext.asyncio", "AsyncConnection"),
     ],
@@ -521,13 +618,14 @@ impl Import {
 }
 
 /// The import block of a module whose body reads `body`'s names: the
-/// [vocabulary](VOCABULARY) it reads, with names from one module merged, and a
-/// blank line between sections.
+/// [vocabulary](VOCABULARY) it reads, with names from one module merged, and
+/// each of `modules` whose first name it reads, in the standard library's
+/// section or the third-party one; a blank line between sections.
 ///
 /// It is the one part of a module besides the header written as text: every
-/// name in it is a constant of this crate, and the blank line between
-/// sections is layout a tree cannot carry.
-fn imports(body: &[ast::Stmt]) -> String {
+/// name in it is a constant of this crate or a checked dotted name, and the
+/// blank line between sections is layout a tree cannot carry.
+fn imports(body: &[ast::Stmt], modules: &[String]) -> String {
     #[derive(Default)]
     struct Reads(BTreeSet<String>);
     impl<'a> Visitor<'a> for Reads {
@@ -541,26 +639,47 @@ fn imports(body: &[ast::Stmt]) -> String {
     let mut reads = Reads::default();
     reads.visit_body(body);
 
-    let sections: Vec<String> = (VOCABULARY.iter())
-        .map(|section| {
-            let mut lines: Vec<String> = Vec::new();
+    let sections: Vec<String> = (VOCABULARY.iter().enumerate())
+        .map(|(at, section)| {
+            // isort's order: each `import` by its module, then each `from`.
+            let mut plain: Vec<(String, String)> = Vec::new();
+            let mut froms: Vec<String> = Vec::new();
             let mut previous: Option<Import> = None;
             for &import in section.iter().filter(|i| reads.0.contains(i.binding())) {
                 match (import, previous) {
                     (Import::From(module, name), Some(Import::From(last, _))) if last == module => {
-                        *lines.last_mut().expect("a previous import") += &format!(", {name}");
+                        *froms.last_mut().expect("a previous import") += &format!(", {name}");
                     }
                     (Import::From(module, name), _) => {
-                        lines.push(format!("from {module} import {name}"));
+                        froms.push(format!("from {module} import {name}"));
                     }
                     (Import::Module(module), _) => match import.binding() {
-                        alias if alias == module => lines.push(format!("import {module}")),
-                        alias => lines.push(format!("import {module} as {alias}")),
+                        alias if alias == module => {
+                            plain.push((module.into(), format!("import {module}")))
+                        }
+                        alias => plain.push((module.into(), format!("import {module} as {alias}"))),
                     },
                 }
                 previous = Some(import);
             }
-            lines.iter().map(|line| format!("{line}\n")).collect()
+            let stdlib = |module: &str| {
+                let root = module.split('.').next().unwrap_or(module);
+                ruff_python_stdlib::sys::is_known_standard_library(10, root)
+            };
+            for module in modules {
+                let root = module.split('.').next().unwrap_or(module);
+                let section = if stdlib(module) { 0 } else { 1 };
+                if section == at
+                    && reads.0.contains(root)
+                    && !plain.iter().any(|(m, _)| m == module)
+                {
+                    plain.push((module.clone(), format!("import {module}")));
+                }
+            }
+            plain.sort_by_key(|(module, _)| module.to_lowercase());
+            (plain.into_iter().map(|(_, line)| line).chain(froms))
+                .map(|line| format!("{line}\n"))
+                .collect()
         })
         .filter(|section: &String| !section.is_empty())
         .collect();

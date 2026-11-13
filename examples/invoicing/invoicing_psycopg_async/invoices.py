@@ -4,7 +4,7 @@
 #   sqlc v1.31.1
 import dataclasses
 import datetime as dt
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from decimal import Decimal
 from typing import Any, Final
 from uuid import UUID
@@ -429,3 +429,68 @@ async def list_invoice_statuses(
     cur = psycopg.AsyncRawCursor(conn, row_factory=tuple_row)
     await cur.execute(_LIST_INVOICE_STATUSES)
     return [models.InvoiceStatus(row[0]) for row in await cur.fetchall()]
+
+
+_GET_INVOICES_BATCH: Final = "SELECT id, customer_id, number, status, currency, issued_on, due_on, notes, created_at, paid_at FROM invoices WHERE id = $1"
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class GetInvoicesBatchParams:
+    id: UUID
+
+
+async def get_invoices_batch(
+    conn: psycopg.AsyncConnection[Any], rows: Iterable[GetInvoicesBatchParams]
+) -> list[models.Invoice]:
+    """Several invoices at once: each id must exist."""
+    cur = psycopg.AsyncRawCursor(conn, row_factory=tuple_row)
+    await cur.executemany(_GET_INVOICES_BATCH, [(r.id,) for r in rows], returning=True)
+    values: list[models.Invoice] = []
+    async for result in cur.results():
+        match await result.fetchmany(2):
+            case [row]:
+                values.append(models.Invoice.from_row(row))
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
+    return values
+
+
+_LIST_INVOICE_NUMBERS_BATCH: Final = (
+    "SELECT number FROM invoices WHERE customer_id = $1 ORDER BY number"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListInvoiceNumbersBatchParams:
+    customer_id: UUID
+
+
+async def list_invoice_numbers_batch(
+    conn: psycopg.AsyncConnection[Any], rows: Iterable[ListInvoiceNumbersBatchParams]
+) -> list[list[str]]:
+    cur = psycopg.AsyncRawCursor(conn, row_factory=tuple_row)
+    await cur.executemany(
+        _LIST_INVOICE_NUMBERS_BATCH, [(r.customer_id,) for r in rows], returning=True
+    )
+    return [
+        [row[0] for row in await result.fetchall()] async for result in cur.results()
+    ]
+
+
+_VOID_INVOICES_BATCH: Final = (
+    "UPDATE invoices SET status = 'void' WHERE id = $1 AND status = 'issued'"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class VoidInvoicesBatchParams:
+    id: UUID
+
+
+async def void_invoices_batch(
+    conn: psycopg.AsyncConnection[Any], rows: Iterable[VoidInvoicesBatchParams]
+) -> None:
+    cur = psycopg.AsyncRawCursor(conn, row_factory=tuple_row)
+    await cur.executemany(_VOID_INVOICES_BATCH, [(r.id,) for r in rows])

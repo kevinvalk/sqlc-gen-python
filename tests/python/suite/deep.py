@@ -43,6 +43,7 @@ def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: ANN40
             check(element, item, f"{path}[{i}]")
     elif origin is not None:
         assert isinstance(value, origin), f"{path}: {value!r} is not {hint}"
+        bounds(value, hint, path)
     elif dataclasses.is_dataclass(hint):
         assert type(value) is hint, f"{path}: {type(value).__name__} is not {hint}"
         fields = typing.get_type_hints(hint)
@@ -57,6 +58,25 @@ def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: ANN40
         assert type(value) is hint, (
             f"{path}: {type(value).__name__} {value!r} is not {hint}"
         )
+
+
+def bounds(value: object, hint: Any, path: str) -> None:  # noqa: ANN401
+    """Check what a generic value holds: a dict's keys and items (an
+    `hstore`), or a range's bounds, psycopg's or SQLAlchemy's, each of the
+    range's type or open (`None`).
+    """
+    if isinstance(value, dict):
+        key, item = typing.get_args(hint)
+        for k, v in typing.cast("dict[object, object]", value).items():
+            check(k, key, f"{path} key")
+            check(v, item, f"{path}[{k!r}]")
+        return
+    if not (hasattr(value, "lower") and hasattr(value, "upper")):
+        return
+    (bound,) = typing.get_args(hint)
+    for end in ("lower", "upper"):
+        if (limit := getattr(value, end)) is not None:
+            check(limit, bound, f"{path}.{end}")
 
 
 def failure(value: object, hint: Any, path: str = "value") -> str | None:  # noqa: ANN401

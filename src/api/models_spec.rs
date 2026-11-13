@@ -72,6 +72,14 @@ fn try_resolve(schemas: Vec<plugin::Schema>) -> Result<Api> {
 }
 
 fn resolve_with(schemas: Vec<plugin::Schema>, config: &ModelConfig) -> Result<Api> {
+    let config = Config {
+        models: config.clone(),
+        ..Config::of(Backend::SqlAlchemy)
+    };
+    resolve_options(schemas, &config)
+}
+
+fn resolve_options(schemas: Vec<plugin::Schema>, config: &Config) -> Result<Api> {
     let request = plugin::GenerateRequest {
         settings: Some(plugin::Settings {
             engine: "postgresql".into(),
@@ -84,11 +92,7 @@ fn resolve_with(schemas: Vec<plugin::Schema>, config: &ModelConfig) -> Result<Ap
         }),
         ..plugin::GenerateRequest::default()
     };
-    let config = Config {
-        models: config.clone(),
-        ..Config::of(Backend::SqlAlchemy)
-    };
-    crate::api::resolve(&request, &config)
+    crate::api::resolve(&request, config)
 }
 
 fn sql_schema(name: &str, tables: Vec<plugin::Table>, enums: Vec<plugin::Enum>) -> plugin::Schema {
@@ -597,4 +601,123 @@ fn a_class_with_the_name_of_an_import_is_an_error() {
         error.to_string().starts_with("`Decimal` is a name"),
         "{error}"
     );
+}
+
+// -- Overrides and renames ----------------------------------------------------
+
+/// The options `{"backend": "sqlalchemy", "async": false, ...json}`.
+fn options(json: &str) -> Config {
+    let request = plugin::GenerateRequest {
+        plugin_options: format!(r#"{{"backend": "sqlalchemy", "async": false, {json}}}"#)
+            .into_bytes(),
+        ..plugin::GenerateRequest::default()
+    };
+    Config::from_request(&request).unwrap()
+}
+
+/// The annotation of each field of the only model, by name.
+fn annotations(api: &Api) -> Vec<(String, String)> {
+    (api.models[0].fields.iter())
+        .map(|f| {
+            (
+                f.name.clone(),
+                f.ty.annotation(crate::python::Scope::Models),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn an_override_names_the_type_of_a_column_or_of_every_column_of_a_type() {
+    let mut path = column("path", "vector");
+    path.not_null = false;
+    // sqlc names each catalog column's table.
+    let label = plugin::Column {
+        table: Some(plugin::Identifier {
+            name: "items".into(),
+            ..plugin::Identifier::default()
+        }),
+        ..column("label", "text")
+    };
+    let schemas = || {
+        vec![sql_schema(
+            "public",
+            vec![table(
+                "items",
+                vec![column("id", "pg_catalog.int8"), path.clone(), label.clone()],
+            )],
+            vec![],
+        )]
+    };
+    // An unknown type is an error until an override names it.
+    assert!(resolve_options(schemas(), &options(r#""overrides": []"#)).is_err());
+    let config = options(
+        r#""overrides": [
+            {"db_type": "vector", "python_type": "str"},
+            {"db_type": "int8", "python_type": "int"},
+            {"column": "items.label", "python_type": "app.types.Label"}
+        ]"#,
+    );
+    let api = resolve_options(schemas(), &config).unwrap();
+    assert_eq!(
+        annotations(&api),
+        [
+            ("id".into(), "int".into()),
+            ("path".into(), "str | None".into()),
+            ("label".into(), "app.types.Label".into()),
+        ]
+    );
+    assert_eq!(config.modules(), ["app.types"]);
+}
+
+#[test]
+fn an_override_is_an_annotation_whose_every_name_can_be_imported() {
+    for bad in ["Label", "list[Label]", "1 + 2", "lambda: 0"] {
+        let request = plugin::GenerateRequest {
+            plugin_options: format!(
+                r#"{{"backend": "sqlalchemy", "async": false, "overrides": [{{"db_type": "x", "python_type": "{bad}"}}]}}"#
+            )
+            .into_bytes(),
+            ..plugin::GenerateRequest::default()
+        };
+        assert!(Config::from_request(&request).is_err(), "{bad}");
+    }
+    let both = r#""overrides": [{"db_type": "x", "column": "t.c", "python_type": "str"}]"#;
+    let request = plugin::GenerateRequest {
+        plugin_options: format!(r#"{{"backend": "sqlalchemy", "async": false, {both}}}"#)
+            .into_bytes(),
+        ..plugin::GenerateRequest::default()
+    };
+    let error = format!("{:#}", Config::from_request(&request).unwrap_err());
+    assert!(
+        error.contains("exactly one of db_type and column"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_rename_names_a_class_or_a_field() {
+    let schemas = vec![sql_schema(
+        "public",
+        vec![table(
+            "media",
+            vec![
+                column("id", "pg_catalog.int8"),
+                column("spotify_url", "text"),
+            ],
+        )],
+        vec![],
+    )];
+    let api = resolve_options(
+        schemas,
+        &options(r#""rename": {"media": "Media", "spotify_url": "spotify_link"}"#),
+    )
+    .unwrap();
+    assert_eq!(api.models[0].name, "Media");
+    let names: Vec<&str> = api.models[0]
+        .fields
+        .iter()
+        .map(|f| f.name.as_str())
+        .collect();
+    assert_eq!(names, ["id", "spotify_link"]);
 }

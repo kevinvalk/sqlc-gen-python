@@ -18,6 +18,8 @@ from ipaddress import (
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy.dialects import postgresql
+
 
 class AnalyticsEventKind(str, enum.Enum):
     CLICK = "click"
@@ -188,6 +190,15 @@ class Scalar:
     naive: dt.datetime
     plain_json: object
     network: IPv4Network | IPv6Network
+    pairs: dict[str, str | None]
+    tree: str
+    relation: str
+    span: postgresql.Range[int]
+    big_span: postgresql.Range[int]
+    amounts: postgresql.Range[Decimal]
+    days: postgresql.Range[dt.date]
+    times: postgresql.Range[dt.datetime]
+    moments: postgresql.Range[dt.datetime]
 
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "Scalar":
@@ -224,4 +235,13 @@ class Scalar:
             naive=row[29],
             plain_json=row[30],
             network=row[31],
+            pairs=row[32],
+            tree=row[33],
+            relation=row[34],
+            span=row[35],
+            big_span=row[36],
+            amounts=row[37],
+            days=row[38],
+            times=row[39],
+            moments=row[40],
         )
