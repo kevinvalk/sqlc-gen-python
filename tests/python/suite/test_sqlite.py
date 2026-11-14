@@ -53,7 +53,7 @@ async def _sqlite3(case: GoldenCase, called: set[str]) -> None:
     conn.row_factory = _dicts
     try:
         conn.executescript(SCHEMA)
-        await scenario(_api(case, conn, called))
+        await scenario(queries(case, conn, called))
     finally:
         conn.close()
 
@@ -62,7 +62,7 @@ async def _aiosqlite(case: GoldenCase, called: set[str]) -> None:
     async with aiosqlite.connect(":memory:") as conn:
         conn.row_factory = _dicts
         await conn.executescript(SCHEMA)
-        await scenario(_api(case, conn, called))
+        await scenario(queries(case, conn, called))
 
 
 async def _sqlalchemy_sync(case: GoldenCase, called: set[str]) -> None:
@@ -71,7 +71,7 @@ async def _sqlalchemy_sync(case: GoldenCase, called: set[str]) -> None:
         with engine.connect() as conn:
             for statement in STATEMENTS:
                 conn.exec_driver_sql(statement)
-            await scenario(_api(case, conn, called))
+            await scenario(queries(case, conn, called))
     finally:
         engine.dispose()
 
@@ -82,13 +82,9 @@ async def _sqlalchemy_async(case: GoldenCase, called: set[str]) -> None:
         async with engine.connect() as conn:
             for statement in STATEMENTS:
                 await conn.exec_driver_sql(statement)
-            await scenario(_api(case, conn, called))
+            await scenario(queries(case, conn, called))
     finally:
         await engine.dispose()
-
-
-def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
-    return queries(case, conn, called)
 
 
 async def scenario(api: Any) -> None:  # noqa: ANN401

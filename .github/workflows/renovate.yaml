@@ -1,0 +1,41 @@
+name: Renovate
+on:
+  # Allows manual/automated ad-hoc trigger
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: Log level
+        required: true
+        default: "debug"
+        type: choice
+        options:
+          - debug
+          - info
+          - warn
+          - error
+          - fatal
+      overrideSchedule:
+        description: Ignores schedules and merge/commit everything now
+        default: false
+        type: boolean
+
+  # Whenever we change this file in our main branch
+  push:
+    branches:
+      - main
+    paths:
+      - .github/renovate.json5
+      - .github/workflows/renovate.yaml
+
+  # Run twice in the early morning for initial and follow up steps (create pull request and merge)
+  schedule:
+    # NOTE: We run this "second" in the grand scheme of images, web and infrastructure
+    - cron: 15,45 2 * * * # IMPORTANT: Any renovate auto scheduling periods should be within this time!!!!
+
+jobs:
+  renovate:
+    uses: omniasoft/images/.github/workflows/renovate.yaml@main
+    secrets: inherit
+    with:
+      logLevel: ${{ inputs.logLevel || 'warn' }}
+      overrideSchedule: ${{ inputs.overrideSchedule || false }}

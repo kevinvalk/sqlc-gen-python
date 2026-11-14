@@ -109,10 +109,10 @@ pub fn stmts(template: &str, holes: Vec<(&str, Hole)>) -> Vec<ast::Stmt> {
         .unwrap_or_else(|error| panic!("template `{template}`: {error}"))
         .into_syntax()
         .body;
-    filler.splice(&mut body);
     for stmt in &mut body {
         filler.visit_stmt(stmt);
     }
+    filler.splice(&mut body);
     body.into_iter().collect()
 }
 
@@ -176,10 +176,10 @@ struct Filler {
 impl Filler {
     /// The hole `name` spells, if it spells one.
     fn hole(&self, name: &str) -> Option<&Hole> {
-        name.strip_prefix(PREFIX).map(|hole| &self.holes[hole])
+        self.holes.get(name.strip_prefix(PREFIX)?)
     }
 
-    /// The identifier a hole at `name` gives, or `name` itself.
+    /// The identifier a hole at `name` gives, if `name` is a hole's.
     fn identifier(&self, name: &str) -> Option<String> {
         match self.hole(name)? {
             Hole::Name(name) => Some(name.clone()),
@@ -252,8 +252,14 @@ impl Filler {
     }
 }
 
+/// Fills the template's own holes, never what fills one: data that happens
+/// to spell a hole stays data. Lists and statements are spliced in after the
+/// walk, a hole of one expression as the walk meets it, unwalked.
 impl Transformer for Filler {
     fn visit_stmt(&self, stmt: &mut ast::Stmt) {
+        if self.stmt_hole(stmt).is_some() {
+            return;
+        }
         match stmt {
             ast::Stmt::FunctionDef(def) => {
                 if let Some(name) = self.identifier(def.name.as_str()) {
@@ -278,11 +284,22 @@ impl Transformer for Filler {
                 Some(hole) => panic!("{hole:?} in an expression's place"),
                 None => {}
             },
+            // `*$hole`, spread below.
+            ast::Expr::Starred(starred)
+                if (starred.value.as_name_expr())
+                    .is_some_and(|name| self.hole(name.id.as_str()).is_some()) =>
+            {
+                return;
+            }
             ast::Expr::Attribute(attribute) => {
                 if let Some(name) = self.identifier(attribute.attr.as_str()) {
                     attribute.attr = ast::Identifier::new(name, attribute.attr.range);
                 }
             }
+            _ => {}
+        }
+        walk_expr(self, expr);
+        match expr {
             ast::Expr::Call(call) => {
                 let args = std::mem::take(&mut call.arguments.args)
                     .into_iter()
@@ -306,10 +323,15 @@ impl Transformer for Filler {
             ast::Expr::Tuple(tuple) => tuple.elts = self.spread(std::mem::take(&mut tuple.elts)),
             _ => {}
         }
-        walk_expr(self, expr);
     }
 
     fn visit_keyword(&self, keyword: &mut ast::Keyword) {
+        // `**$hole`, spread by the call.
+        let spread = (keyword.value.as_name_expr())
+            .is_some_and(|name| keyword.arg.is_none() && self.hole(name.id.as_str()).is_some());
+        if spread {
+            return;
+        }
         if let Some(arg) = &keyword.arg
             && let Some(name) = self.identifier(arg.as_str())
         {
@@ -319,6 +341,7 @@ impl Transformer for Filler {
     }
 
     fn visit_parameters(&self, parameters: &mut ast::Parameters) {
+        walk_parameters(self, parameters);
         let mut filled = ThinVec::new();
         for parameter in std::mem::take(&mut parameters.kwonlyargs) {
             match self.hole(parameter.parameter.name.as_str()) {
@@ -328,6 +351,5 @@ impl Transformer for Filler {
             }
         }
         parameters.kwonlyargs = filled;
-        walk_parameters(self, parameters);
     }
 }

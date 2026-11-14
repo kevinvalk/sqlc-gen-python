@@ -29,14 +29,14 @@ pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File
             contents: contents.into_bytes(),
         }
     };
-    // The generated package owns `out`, so it is a regular package: relative
-    // imports resolve, and mypy and ruff (INP001) need no configuration.
-    // `NoRowError`, if `:one`s raise it, or one that cannot lack a row
-    // would should it.
+    // `NoRowError` with `raise_on_none`, or for a `:one` that cannot lack a
+    // row, should it lack one.
     let raises = config.raise_on_none
         || (api.modules.iter().flat_map(|module| &module.queries))
             .any(|query| query.raises && query.reads_one());
     let init = errors(config.backend.errors(raises));
+    // The generated package owns `out`, so it is a regular package: relative
+    // imports resolve, and mypy and ruff (INP001) need no configuration.
     let mut files = vec![
         file("__init__.py".into(), &init),
         file(

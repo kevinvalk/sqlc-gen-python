@@ -147,19 +147,14 @@ pub fn body(query: &Query, asynchronous: bool) -> (ast::Expr, Vec<ast::Stmt>) {
             .collect();
         python::dict(items)
     };
-    // A parameter's value: itself, or its field of the one record.
-    let own = |name: &str| match query.bundle {
-        Some(_) => py_expr!("params.$name", name = name),
-        None => python::name(name),
-    };
-    let of_row = |name: &str| py_expr!("r.$name", name = name);
+    let value = |name: &str| super::value(query, name);
     // A batch binds each row's values, `r.p`; at once, as `params`, if it
     // returns nothing.
-    let values = match (&query.rows, &query.command, query.params.is_empty()) {
-        (Some(_), Command::Exec, _) => vec![python::name("params")],
-        (Some(_), _, _) => vec![named(&of_row)],
-        (None, _, true) => vec![],
-        (None, _, false) => vec![named(&own)],
+    let rows = query.takes.rows();
+    let values = match (rows, &query.command, query.params.is_empty()) {
+        (true, Command::Exec, _) => vec![python::name("params")],
+        (false, _, true) => vec![],
+        _ => vec![named(&value)],
     };
     // `conn.execute(...)`, awaited in a coroutine.
     let executed = py_expr!(
@@ -170,14 +165,14 @@ pub fn body(query: &Query, asynchronous: bool) -> (ast::Expr, Vec<ast::Stmt>) {
     // What a row's execution returns: its type, the statements that compute
     // it, and the value.
     let (returns, lines, value) = match &query.command {
-        Command::Exec if query.rows.is_some() => {
+        Command::Exec if rows => {
             let body = py_stmts!(
                 "
                 params = [$row for r in rows]
                 if params:
                     $executed
                 ",
-                row = named(&of_row),
+                row = named(&value),
                 executed = executed,
             );
             return (python::expr("None"), body);
@@ -273,13 +268,13 @@ pub fn body(query: &Query, asynchronous: bool) -> (ast::Expr, Vec<ast::Stmt>) {
             )
         }
     };
-    let body = match (&query.rows, lines.is_empty()) {
-        (None, _) => {
+    let body = match (rows, lines.is_empty()) {
+        (false, _) => {
             let returned = py_stmt!("return $value", value = value);
             return (returns, lines.into_iter().chain([returned]).collect());
         }
-        (Some(_), true) => py_stmts!("return [$value for r in rows]", value = value),
-        (Some(_), false) => py_stmts!(
+        (true, true) => py_stmts!("return [$value for r in rows]", value = value),
+        (true, false) => py_stmts!(
             "
             values: list[$returns] = []
             for r in rows:

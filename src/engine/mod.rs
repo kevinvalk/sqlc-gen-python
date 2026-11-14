@@ -39,13 +39,18 @@ pub enum Piece {
     /// Text, as sqlc wrote it.
     Text(String),
     /// A placeholder as sqlc wrote it (`$1`, `?`, `?2`), of the parameter
-    /// Python names `name`.
-    Param { placeholder: String, name: String },
+    /// [`Bind`] numbers `number` and Python names `name`.
+    Param {
+        placeholder: String,
+        number: i32,
+        name: String,
+    },
     /// A `sqlc.slice`'s placeholder, after the marker sqlc writes before it
     /// (`/*SLICE:ids*/`): it stands for one placeholder per item of the list.
     Slice {
         marker: String,
         placeholder: String,
+        number: i32,
         name: String,
     },
 }
@@ -324,7 +329,11 @@ fn cut(
         from = range.end;
         let name = bind.name.to_string();
         let piece = match bind.slice {
-            None => Piece::Param { placeholder, name },
+            None => Piece::Param {
+                placeholder,
+                number,
+                name,
+            },
             Some(slice) => {
                 let marker = format!("/*SLICE:{slice}*/");
                 let Some(kept) = before.strip_suffix(&marker) else {
@@ -334,6 +343,7 @@ fn cut(
                 Piece::Slice {
                     marker,
                     placeholder,
+                    number,
                     name,
                 }
             }

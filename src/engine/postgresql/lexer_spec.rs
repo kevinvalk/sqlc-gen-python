@@ -46,6 +46,7 @@ fn a_statement_is_cut_at_its_placeholders_each_named_and_back_to_sqlcs_text() {
     let cut = sql(text, &binds(&[(12, "p"), (1, "q")])).unwrap();
     let param = |number: i32, name: &str| Piece::Param {
         placeholder: format!("${number}"),
+        number,
         name: name.into(),
     };
     assert_eq!(

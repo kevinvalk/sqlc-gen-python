@@ -272,9 +272,15 @@ impl<'a> Resolver<'a> {
     /// Objects in the default schema keep their bare name; everything else is
     /// qualified, so `analytics.event` becomes `AnalyticsEvent`.
     fn class_name(&self, schema: &plugin::Schema, name: &str) -> String {
-        if let Some(renamed) = self.renamed_class(schema, name) {
-            return renamed.into();
+        match self.renamed_class(schema, name) {
+            Some(renamed) => renamed.into(),
+            None => self.spelt(schema, name),
         }
+    }
+
+    /// `name`, declared in `schema`, as a class name: qualified unless the
+    /// default schema's.
+    fn spelt(&self, schema: &plugin::Schema, name: &str) -> String {
         match schema.name == self.catalog.default_schema {
             true => name.to_upper_camel_case(),
             false => format!("{}_{name}", schema.name).to_upper_camel_case(),
@@ -327,9 +333,11 @@ impl<'a> Resolver<'a> {
         if let Some(renamed) = self.renamed_class(schema, table) {
             return renamed.into();
         }
+        // Renamed by the table's name alone: never by its singular, which
+        // may well be a column's.
         match config.is_inflection_excluded(table) {
-            true => self.class_name(schema, table),
-            false => self.class_name(schema, &singular(table)),
+            true => self.spelt(schema, table),
+            false => self.spelt(schema, &singular(table)),
         }
     }
 

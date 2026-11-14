@@ -54,3 +54,16 @@ fn a_hole_after_star_or_two_takes_a_list_and_a_statement_of_its_own_statements()
 fn a_hole_not_given_is_a_bug() {
     py_expr!("$a + $b", a = python::int(1));
 }
+
+#[test]
+fn data_that_spells_a_hole_stays_data() {
+    // An override's annotation may be any dotted name, a hole's spelling too.
+    let data = python::expr("__hole_x.T");
+    let filled = py_expr!("f($a, *$b)", a = data.clone(), b = vec![data]);
+    assert_eq!(python::python_source(&filled), "f(__hole_x.T, __hole_x.T)");
+    let stmts = py_stmts!(
+        "$body",
+        body = vec![python::assign("__hole_y", python::int(1))]
+    );
+    assert_eq!(source(&stmts), "__hole_y = 1\n");
+}

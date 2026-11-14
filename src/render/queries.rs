@@ -5,7 +5,7 @@ use ruff_python_ast as ast;
 
 use super::{Attribute, docstring, record};
 use crate::api::models::Field;
-use crate::api::queries::{Command, Module, Query, RowField, Shape};
+use crate::api::queries::{Command, Module, Query, RowField, Shape, Takes};
 use crate::config::Config;
 use crate::python::{self, Scope, py_expr, py_stmt};
 
@@ -14,8 +14,7 @@ use crate::python::{self, Scope, py_expr, py_stmt};
 pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
     (module.queries.iter())
         .flat_map(|query| {
-            let params = (query.rows.as_ref().or(query.bundle.as_ref()))
-                .map(|class| params_class(class, &query.params));
+            let params = (query.takes.class()).map(|class| params_class(class, &query.params));
             let row = match &query.command {
                 Command::One(Shape::Row(class, fields))
                 | Command::Many(Shape::Row(class, fields)) => {
@@ -106,8 +105,8 @@ fn function(query: &Query, config: &Config) -> ast::Stmt {
     let conn = config.backend.connection(asynchronous);
     let (returns, body) = config.backend.body(query, asynchronous);
     let body: Vec<ast::Stmt> = docstring(&query.comment).into_iter().chain(body).collect();
-    let mut function = match (&query.rows, &query.bundle) {
-        (None, Some(class)) => py_stmt!(
+    let mut function = match &query.takes {
+        Takes::Record(class) => py_stmt!(
             "
             def $name(conn: $conn, params: $class) -> $returns:
                 $body
@@ -118,7 +117,7 @@ fn function(query: &Query, config: &Config) -> ast::Stmt {
             returns = returns,
             body = body,
         ),
-        (Some(class), _) => py_stmt!(
+        Takes::Rows(class) => py_stmt!(
             "
             def $name(conn: $conn, rows: Iterable[$class]) -> $returns:
                 $body
@@ -129,7 +128,7 @@ fn function(query: &Query, config: &Config) -> ast::Stmt {
             returns = returns,
             body = body,
         ),
-        (None, None) => py_stmt!(
+        Takes::Keywords => py_stmt!(
             "
             def $name(conn: $conn, *, $params) -> $returns:
                 $body

@@ -78,13 +78,10 @@ impl Driver {
         for (at, piece) in query.sql.0.iter().enumerate() {
             match piece {
                 Piece::Text(_) => {}
-                Piece::Param { placeholder, name }
-                | Piece::Slice {
-                    placeholder, name, ..
-                } => {
+                Piece::Param { number, name, .. } | Piece::Slice { number, name, .. } => {
                     let number = match self.placeholder {
                         Some(_) => at as i32,
-                        None => placeholder.trim_start_matches('$').parse().unwrap_or(0),
+                        None => *number,
                     };
                     if !names.iter().any(|&(n, _)| n == number) {
                         names.push((number, name));
@@ -155,12 +152,7 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (ast::Expr, V
             .collect();
         python::tuple(values)
     };
-    // A parameter's value: itself, or its field of the one record.
-    let own = |name: &str| match query.bundle {
-        Some(_) => py_expr!("params.$name", name = name),
-        None => python::name(name),
-    };
-    let of_row = |name: &str| py_expr!("r.$name", name = name);
+    let value = |name: &str| super::value(query, name);
     let names = driver.values(query);
     // The statement, each slice's placeholder made one per item.
     let mut statement = python::name(&query.constant);
@@ -176,21 +168,21 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (ast::Expr, V
                 statement = statement,
                 marker = python::string(&format!("{marker}{placeholder}")),
                 placeholder = python::string(placeholder),
-                items = own(name),
+                items = value(name),
                 none = python::string(driver.no_rows),
             );
         }
     }
     let values: Vec<ast::Expr> = match names.is_empty() {
         true => vec![],
-        false => vec![tuple(&names, &own)],
+        false => vec![tuple(&names, &value)],
     };
     let execute = py_expr!(
         &t("await cur.execute($statement, *$values)"),
         statement = statement,
         values = values,
     );
-    let rows = || py_expr!("[$row for r in rows]", row = tuple(&names, &of_row));
+    let rows = || py_expr!("[$row for r in rows]", row = tuple(&names, &value));
     // The body on a cursor of its own, closed after.
     let on_cursor = |body: Vec<ast::Stmt>| {
         py_stmts!(
@@ -207,10 +199,10 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (ast::Expr, V
     let none = || python::expr("None");
     let int = || python::name("int");
 
-    let (returns, body) = match (&query.command, &query.rows) {
+    let (returns, body) = match (&query.command, query.takes.rows()) {
         // One `with` for both (ruff's SIM117); only psycopg copies, with no
         // setup.
-        (Command::Exec, Some(_)) if driver.copies && query.copy_into.is_some() => {
+        (Command::Exec, true) if driver.copies && query.copy_into.is_some() => {
             let names: Vec<&str> = query.params.iter().map(|p| p.name.as_str()).collect();
             let copy = py_stmts!(
                 &t("
@@ -220,11 +212,11 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (ast::Expr, V
                     "),
                 cursor = python::expr(api.closing),
                 statement = &query.constant,
-                row = tuple(&names, &of_row),
+                row = tuple(&names, &value),
             );
             (none(), copy)
         }
-        (Command::Exec, Some(_)) => {
+        (Command::Exec, true) => {
             let many = py_stmts!(
                 &t("await cur.executemany($statement, $rows)"),
                 statement = &query.constant,
@@ -234,7 +226,7 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (ast::Expr, V
         }
         // A batch: every row's statement sent at once (psycopg pipelines
         // `executemany`), then each one's result read in turn.
-        (Command::One(_) | Command::Many(_), Some(_)) => {
+        (Command::One(_) | Command::Many(_), true) => {
             let mut body = py_stmts!(
                 &t("await cur.executemany($statement, $rows, returning=True)"),
                 statement = &query.constant,
@@ -270,7 +262,7 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (ast::Expr, V
                 on_cursor(body),
             )
         }
-        (Command::Exec, None) => (none(), on_cursor(vec![python::expression(execute)])),
+        (Command::Exec, false) => (none(), on_cursor(vec![python::expression(execute)])),
         (Command::ExecRows, _) if driver.execute_counts => (
             int(),
             on_cursor(py_stmts!("return $execute", execute = execute)),
@@ -298,7 +290,7 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (ast::Expr, V
             body.extend(py_stmts!("return cur"));
             (python::expr(api.cursor_type), body)
         }
-        (Command::One(_) | Command::Many(_), None) => {
+        (Command::One(_) | Command::Many(_), false) => {
             let (returns, read) = read(driver, query, "cur", asynchronous, &|value| {
                 py_stmt!("return $value", value = value)
             });
@@ -345,10 +337,7 @@ fn many(
             ty.annotation(Scope::Queries),
             ty.read(py_expr!("row[0]"), Scope::Queries, driver.text_arrays),
         ),
-        shape => (
-            class(shape),
-            py_expr!("$class.from_row(row)", class = class(shape)),
-        ),
+        shape => (class(shape), from_row(shape)),
     };
     let all = py_expr!(
         &python::coroutine("[$each for row in await $cur.fetchall()]", asynchronous),
@@ -379,37 +368,35 @@ fn read(
         true => (py_stmts!("raise NoRowError"), false),
     };
     let (returns, found) = match shape {
-        // A row's value is `Any`: the annotated local states the type the
-        // value would leak.
-        Shape::Scalar(ty) if !ty.converts() => {
-            let annotation = ty.annotation(Scope::Queries);
-            let returns = FieldType {
-                optional: ty.optional || optional,
-                ..ty.clone()
-            }
-            .annotation(Scope::Queries);
-            let mut found = py_stmts!(
-                "value: $annotation = row[0]",
-                annotation = annotation.clone(),
-            );
-            found.push(emit(python::name("value")));
-            (returns, found)
-        }
         Shape::Scalar(ty) => {
-            let value = ty.read(py_expr!("row[0]"), Scope::Queries, driver.text_arrays);
             let returns = FieldType {
                 optional: ty.optional || optional,
                 ..ty.clone()
             };
-            (returns.annotation(Scope::Queries), vec![emit(value)])
+            let found = match ty.converts() {
+                true => vec![emit(ty.read(
+                    py_expr!("row[0]"),
+                    Scope::Queries,
+                    driver.text_arrays,
+                ))],
+                // A row's value is `Any`: the annotated local states the type
+                // the value would leak.
+                false => {
+                    let annotation = ty.annotation(Scope::Queries);
+                    let mut found =
+                        py_stmts!("value: $annotation = row[0]", annotation = annotation);
+                    found.push(emit(python::name("value")));
+                    found
+                }
+            };
+            (returns.annotation(Scope::Queries), found)
         }
         shape => {
-            let value = py_expr!("$class.from_row(row)", class = class(shape));
             let returns = match optional {
                 true => py_expr!("$class | None", class = class(shape)),
                 false => class(shape),
             };
-            (returns, vec![emit(value)])
+            (returns, vec![emit(from_row(shape))])
         }
     };
     let matched = py_stmts!(
@@ -430,6 +417,11 @@ fn read(
         missing = missing,
     );
     (returns, matched)
+}
+
+/// A row of `shape`, from the result's `row`.
+fn from_row(shape: &Shape) -> ast::Expr {
+    py_expr!("$class.from_row(row)", class = class(shape))
 }
 
 /// An error if `sql_enum` has a label PostgreSQL quotes in an array's text,

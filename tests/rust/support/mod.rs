@@ -615,7 +615,14 @@ fn queries_follow_sqlc(
                 (asynchronous, takes),
                 problems,
             );
-            result_follows_sqlc(request, query, function, body, models, &config, problems);
+            result_follows_sqlc(
+                request,
+                query,
+                function,
+                (body, models),
+                (&config, engine),
+                problems,
+            );
             sql_round_trips(query, &sql, &parameters, backend, engine, problems);
         }
     }
@@ -753,7 +760,8 @@ fn stem(filename: &str) -> String {
 
 /// Checks what makes one query's function safe to call (§6, "Functions"):
 /// `conn` first and positional, annotated as the backend's connection, then
-/// only the `rows` of a `:copyfrom`, every other parameter keyword-only; no
+/// only the `rows` of a `:copyfrom` or batch, or the one record `params`,
+/// every other parameter keyword-only; no
 /// defaults, so none can be forgotten; and `async def` exactly when the
 /// options ask for coroutines.
 fn signature_is_safe(
@@ -806,7 +814,7 @@ fn signature_is_safe(
 /// and awaited exactly when async, binding each parameter as itself: under its
 /// own name (`{"p": p}`) on SQLAlchemy, or in its own place in a tuple
 /// (`(p, q)`), wrapped at most in a JSON type, on a driver; for each row of a
-/// `:copyfrom`, as `r.p`. A function run on its neighbour's statement, or two
+/// `:copyfrom` or batch, as `r.p`, and of the one record, as `params.p`. A function run on its neighbour's statement, or two
 /// values of one type swapped, would type-check and run. And that this is
 /// all it does with the connection: the caller owns the transaction, which a
 /// `conn.commit()` would end.
@@ -900,7 +908,7 @@ fn runs_its_statement(
         ));
     }
 
-    let copyfrom = takes == Takes::Rows;
+    let rows = takes == Takes::Rows;
     let value = |name: &str| takes.value(name);
     // Each parameter as it is bound: by name, or by position, a slice's
     // items each in a place of its own. psycopg binds `$N` by `N`; PyMySQL's
@@ -911,15 +919,13 @@ fn runs_its_statement(
     };
     let mut placed: Vec<(i32, String)> = Vec::new();
     for (at, piece) in pieces.0.iter().enumerate() {
-        let (placeholder, value) = match piece {
+        let (number, value) = match piece {
             Piece::Text(_) => continue,
-            Piece::Param { placeholder, name } => (placeholder, value(name)),
-            Piece::Slice {
-                placeholder, name, ..
-            } => (placeholder, format!("*{}", value(name))),
+            Piece::Param { number, name, .. } => (number, value(name)),
+            Piece::Slice { number, name, .. } => (number, format!("*{}", value(name))),
         };
         let number = match engine {
-            Engine::PostgreSql => placeholder[1..].parse().unwrap_or_default(),
+            Engine::PostgreSql => *number,
             _ => at as i32,
         };
         if !placed.iter().any(|(n, _)| *n == number) {
@@ -930,7 +936,7 @@ fn runs_its_statement(
     let mut expected: Vec<(String, String)> = (placed.into_iter().enumerate())
         .map(|(i, (_, value))| (format!("${}", i + 1), value))
         .collect();
-    let bound = match (&args[1..], copyfrom) {
+    let bound = match (&args[1..], rows) {
         ([], false) => Some(Vec::new()),
         ([Expr::Dict(dict)], _) => Some(pairs(dict)),
         ([Expr::Tuple(tuple)], false) => Some(positions(&tuple.elts)),
@@ -1246,12 +1252,15 @@ fn sql_round_trips(
         return problems.push(format!("{}: sqlc's text does not cut", query.name));
     };
     let mut placeholders = (pieces.0.into_iter()).filter_map(|piece| match piece {
-        Piece::Param { placeholder, name } => Some((placeholder, name)),
+        Piece::Param {
+            placeholder, name, ..
+        } => Some((placeholder, name)),
         // An expanding bind is its parentheses too.
         Piece::Slice {
             marker,
             placeholder,
             name,
+            ..
         } => Some((format!("({marker}{placeholder})"), name)),
         Piece::Text(_) => None,
     });
@@ -1304,22 +1313,19 @@ fn result_follows_sqlc(
     request: &plugin::GenerateRequest,
     query: &plugin::Query,
     function: &StmtFunctionDef,
-    body: &[Stmt],
-    models: &[Stmt],
-    config: &Config,
+    (body, models): (&[Stmt], &[Stmt]),
+    (config, engine): (&Config, Engine),
     problems: &mut Vec<String>,
 ) {
     // A `:one` that cannot lack a row raises should it, whatever the options.
-    let single = Engine::of(request).is_ok_and(|engine| engine.single_row(&query.text));
-    let (backend, raises) = (config.backend, config.raise_on_none || single);
+    let backend = config.backend;
+    let raises = config.raise_on_none || engine.single_row(&query.text);
     let Some(returns) = function.returns.as_deref() else {
         return problems.push(format!("{}: no return annotation", query.name));
     };
     // A scalar subquery is NULL when it finds no row, though sqlc reports it
     // NOT NULL, unless it counts.
-    let items = Engine::of(request)
-        .ok()
-        .and_then(|e| e.items(&query.text, query.columns.len()));
+    let items = engine.items(&query.text, query.columns.len());
     let shape = |i: usize| {
         let column = &query.columns[i];
         let subquery =

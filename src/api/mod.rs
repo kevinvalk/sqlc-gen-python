@@ -80,7 +80,7 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
         .chain(
             queries
                 .clone()
-                .filter(|query| query.rows.is_some())
+                .filter(|query| query.takes.class().is_some())
                 .flat_map(|query| &query.params),
         )
         .map(|field| &field.name)
@@ -88,7 +88,8 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
     if let Some(name) = names.into_iter().find(|name| roots.contains(name)) {
         bail!("`{name}` would hide the module an override imports; rename it");
     }
-    for sql_enum in (api.enums.iter()).filter(|e| api.array_enums().contains(e.name.as_str())) {
+    let arrays = api.array_enums();
+    for sql_enum in (api.enums.iter()).filter(|e| arrays.contains(e.name.as_str())) {
         (config.backend.check_array_enum(sql_enum))
             .with_context(|| format!("enum class `{}`", sql_enum.name))?;
     }

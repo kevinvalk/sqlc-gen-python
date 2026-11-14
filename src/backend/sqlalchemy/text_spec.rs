@@ -78,6 +78,7 @@ fn a_slice_takes_the_place_of_the_parentheses_sqlc_wrote_around_it() {
             Piece::Slice {
                 marker: "/*SLICE:ids*/".into(),
                 placeholder: "?".into(),
+                number: 1,
                 name: "ids".into(),
             },
             Piece::Text(format!("{after} AND x::int = 1")),

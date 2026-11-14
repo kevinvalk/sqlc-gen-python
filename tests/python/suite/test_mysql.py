@@ -81,7 +81,7 @@ def _setup(url: sqlalchemy.URL) -> None:
 def _pymysql(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
     conn = mysql.connect(url)
     try:
-        asyncio.run(scenario(_api(case, conn, called)))
+        asyncio.run(scenario(queries(case, conn, called)))
         conn.rollback()
     finally:
         conn.close()
@@ -91,7 +91,7 @@ def _sqlalchemy_sync(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) ->
     engine = sqlalchemy.create_engine(url)
     try:
         with engine.connect() as conn:
-            asyncio.run(scenario(_api(case, conn, called)))
+            asyncio.run(scenario(queries(case, conn, called)))
             conn.rollback()
     finally:
         engine.dispose()
@@ -103,14 +103,10 @@ async def _sqlalchemy_async(
     engine = create_async_engine(url)
     try:
         async with engine.connect() as conn:
-            await scenario(_api(case, conn, called))
+            await scenario(queries(case, conn, called))
             await conn.rollback()
     finally:
         await engine.dispose()
-
-
-def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
-    return queries(case, conn, called)
 
 
 async def scenario(api: Any) -> None:  # noqa: ANN401, PLR0915

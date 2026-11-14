@@ -53,7 +53,7 @@ and renders it with ruff's formatter. Read `docs/development.md` for the archite
 - `cargo test` stays hermetic: no Python, Docker or network. Python tooling lives
   in a uv project under `tests/python`; Docker is needed for `capture`, `verify`,
   CI, and a `bless` that changes a case the runtime proof reads
-  (`pgtypes_sqlalchemy`, `invoicing_*`, `ledger_*`), and they fail
+  (every example but `authors` and `booktest`), and they fail
   loudly without it.
 - The sqlc endtoend corpus (pinned sqlc version) is committed as test input.
 

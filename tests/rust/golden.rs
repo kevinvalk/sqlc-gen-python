@@ -91,8 +91,8 @@ fn diff(case_dir: &Path, generated: &Files) -> Option<String> {
 }
 
 /// The static gate's `ruff format --check` holds the output to the formatter
-/// the plugin renders with, so both must be one ruff release. Dependabot bumps
-/// the Python pin but cannot bump the crates' git tag.
+/// the plugin renders with, so both must be one ruff release. Renovate bumps
+/// both in one pull request; this holds it to that.
 #[test]
 fn the_gate_formats_with_the_ruff_the_plugin_renders_with() {
     let read = |path: &str| fs::read_to_string(support::root().join(path)).unwrap();

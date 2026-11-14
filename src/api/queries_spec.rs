@@ -274,7 +274,7 @@ fn a_query_is_a_snake_case_function_a_private_constant_and_perhaps_a_class() {
         ("get_author", "_GET_AUTHOR", None)
     );
     let copy = resolve(self::query(":copyfrom", "SELECT 1"));
-    assert_eq!(copy.rows.as_deref(), Some("GetAuthorParams"));
+    assert_eq!(copy.takes, Takes::Rows("GetAuthorParams".into()));
     let Command::One(Shape::Row(class, _)) = returning(
         ":one",
         vec![column("bio", "text", false), column("name", "text", true)],
@@ -641,7 +641,7 @@ fn the_commands_that_return_no_rows_ignore_any_columns() {
     // A `:copyfrom` is an `:exec` of each row.
     let copy = resolve(self::query(":copyfrom", "SELECT 1"));
     assert_eq!(copy.command, Command::Exec);
-    assert_eq!(copy.rows.as_deref(), Some("GetAuthorParams"));
+    assert_eq!(copy.takes, Takes::Rows("GetAuthorParams".into()));
 }
 
 #[test]
@@ -901,6 +901,7 @@ fn a_slice_is_a_list_of_its_type_bound_one_placeholder_per_item() {
     assert!(resolved.sql.0.contains(&Piece::Slice {
         marker: "/*SLICE:ids*/".into(),
         placeholder: "?".into(),
+        number: 1,
         name: "ids".into(),
     }));
     let error = on(
@@ -949,7 +950,7 @@ fn a_batch_is_its_command_per_row_of_its_params() {
             ..query(single, "SELECT bio, name FROM authors WHERE id = $1")
         });
         assert_eq!(resolved.command, one.command, "{batch}");
-        assert_eq!(resolved.rows.as_deref(), Some("GetAuthorParams"));
+        assert_eq!(resolved.takes, Takes::Rows("GetAuthorParams".into()));
     }
 }
 

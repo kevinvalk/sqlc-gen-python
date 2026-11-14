@@ -89,6 +89,9 @@ pub struct Override {
     /// The annotation: builtins, the names generated code imports, and
     /// dotted paths, whose module is imported: `app.types.Embedding`.
     pub python_type: String,
+    /// The modules the annotation reads names from, to import.
+    #[serde(skip)]
+    pub modules: Vec<String>,
 }
 
 #[cfg(test)]
@@ -148,7 +151,7 @@ impl Config {
             }
             // As ruff writes it: nothing after it, such as a `# comment`,
             // can then swallow what generated code writes after it.
-            (rule.python_type, _) = python::annotation(&rule.python_type)
+            (rule.python_type, rule.modules) = python::annotation(&rule.python_type)
                 .with_context(|| format!("overrides[{i}]: python_type \"{}\"", rule.python_type))?;
         }
         if let Some((sql, python)) =
@@ -162,10 +165,7 @@ impl Config {
     /// The modules the overrides' types are read from, to import.
     pub fn modules(&self) -> Vec<String> {
         (self.overrides.iter())
-            .flat_map(|rule| {
-                (python::annotation(&rule.python_type).map(|(_, modules)| modules))
-                    .unwrap_or_default()
-            })
+            .flat_map(|rule| rule.modules.iter().cloned())
             .collect()
     }
 }

@@ -881,3 +881,20 @@ fn a_bare_db_type_override_names_the_default_schemas_type_too() {
     let api = resolve_options(schemas, &config).unwrap();
     assert_eq!(annotations(&api), [("v".into(), "str".into())]);
 }
+
+#[test]
+fn a_rename_of_a_tables_singular_is_no_rename_of_the_table() {
+    // `author` names a column; the table `authors` keeps its class.
+    let schemas = public(vec![table(
+        "authors",
+        vec![column("id", "pg_catalog.int8"), column("author", "text")],
+    )]);
+    let api = resolve_options(schemas, &options(r#""rename": {"author": "writer"}"#)).unwrap();
+    assert_eq!(api.models[0].name, "Author");
+    let fields: Vec<&str> = api.models[0]
+        .fields
+        .iter()
+        .map(|f| f.name.as_str())
+        .collect();
+    assert_eq!(fields, ["id", "writer"]);
+}

@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::api::models::{Field, FieldType, Member};
-use crate::api::queries::Command;
+use crate::api::queries::{Command, Takes};
 use crate::backend::Backend;
 use crate::engine::{Piece, Sql};
 use crate::python::{self, Type};
@@ -25,6 +25,7 @@ fn query(command: Command, params: Vec<Field>) -> Query {
     for (i, param) in params.iter().enumerate() {
         pieces.push(Piece::Param {
             placeholder: format!("${}", i + 1),
+            number: i as i32 + 1,
             name: param.name.clone(),
         });
     }
@@ -34,9 +35,8 @@ fn query(command: Command, params: Vec<Field>) -> Query {
         comment: String::new(),
         sql: Sql(pieces),
         copy_into: None,
-        rows: None,
         raises: true,
-        bundle: None,
+        takes: Takes::Keywords,
         params,
         columns: Vec::new(),
         command,
@@ -136,6 +136,7 @@ fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
     let mut query = query(Command::Exec, vec![field("p", Type::STR)]);
     query.sql.0[1] = Piece::Param {
         placeholder: "?".into(),
+        number: 1,
         name: "p".into(),
     };
     query.sql.0.push(Piece::Text(" LIKE '%:x%'".into()));
@@ -166,6 +167,7 @@ fn a_slice_is_one_placeholder_per_item_and_a_subquery_of_none_when_empty() {
     query.sql.0[1] = Piece::Slice {
         marker: "/*SLICE:ids*/".into(),
         placeholder: "?".into(),
+        number: 1,
         name: "ids".into(),
     };
     let (_, body) = Backend::Pymysql.body(&query, false);

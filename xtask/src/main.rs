@@ -23,13 +23,13 @@ commands:
   bless [CASE...] [--allow-regressions]
           rewrite the golden cases that changed (the generated directories in
           examples/, each a codegen `out` of its sqlc.yaml) and the corpus
-          ledger, or with CASE names only those cases; refuses if the unit specs, the sweep or
-          the static gate fail, if anything else would change, or if a corpus
-          request stops generating (unless --allow-regressions); a change to
-          a case the runtime proof reads back (pgtypes_sqlalchemy, invoicing_*,
-          ledger_*)
-          also needs verify to pass (docker or SQLC_TEST_DATABASE_URL), which
-          rewrites docs/typemap.md to match
+          ledger, or with CASE names only those cases; refuses if the unit
+          specs, the sweep or the static gate fail, if anything else would
+          change, or if a corpus request stops generating (unless
+          --allow-regressions); a change to a case the runtime proof reads
+          back (of every example but authors and booktest) also needs verify
+          to pass (docker or SQLC_TEST_DATABASE_URL), which rewrites
+          docs/typemap.md to match
   capture [--sqlc-bin PATH] [--check]
           re-capture tests/sqlc/endtoend and tests/sqlc/examples/*.json from the sqlc
           .prototools pins (downloaded, or the binary at PATH; several
@@ -125,8 +125,8 @@ fn check(generated: &GenDir) -> Result<(), String> {
 /// everything generated passes the static gate, nothing outside `names` would
 /// change, and no corpus request stops generating unless `allow_regressions`
 /// says that is intended. The static gate cannot see a wrong type that is
-/// still well typed, so a change to a [`PROVEN`] case must also pass the
-/// runtime proof.
+/// still well typed, so a change to a case of a [`PROVEN`] example must also
+/// pass the runtime proof.
 fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<(), String> {
     if let Some(name) = names.iter().find(|name| case_dir(name).is_none()) {
         return Err(format!(
@@ -165,7 +165,7 @@ fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<
         ));
     }
     generated.gate()?;
-    if changed.iter().any(|name| PROVEN.contains(name)) {
+    if changed.iter().any(|name| proven(name)) {
         run(uv_python("tests/python/verify.py").arg(&generated.0))?;
     }
 
@@ -205,27 +205,23 @@ fn verify(generated: &GenDir, options: &[&str]) -> Result<(), String> {
         .args(options))
 }
 
-/// The golden cases the runtime proof reads back: the models the type-truth
-/// probe reads every type through (`tests/python/typemap.py`), and the acceptance
-/// fixtures the runtime suite runs (`tests/python/suite/`).
-const PROVEN: [&str; 16] = [
-    "billing_pymysql",
-    "custom_psycopg",
-    "pgtext_psycopg",
-    "pgtext_psycopg_async",
-    "billing_sqlalchemy",
-    "billing_sqlalchemy_async",
-    "pgtypes_sqlalchemy",
-    "pgtypes_sqlalchemy_async",
-    "invoicing_sqlalchemy",
-    "invoicing_sqlalchemy_async",
-    "invoicing_psycopg",
-    "invoicing_psycopg_async",
-    "ledger_sqlalchemy",
-    "ledger_sqlalchemy_async",
-    "ledger_sqlite3",
-    "ledger_sqlite3_async",
+/// The examples whose cases the runtime proof reads back: the models the
+/// type-truth probe reads every type through (`tests/python/typemap.py`), and
+/// the acceptance fixtures the runtime suite runs (`tests/python/suite/`).
+const PROVEN: [&str; 6] = [
+    "billing",
+    "custom",
+    "invoicing",
+    "ledger",
+    "pgtext",
+    "pgtypes",
 ];
+
+/// Whether golden case `name` is of a [`PROVEN`] example.
+fn proven(name: &str) -> bool {
+    (case_dir(name).and_then(|dir| dir.parent()?.file_name().map(ToOwned::to_owned)))
+        .is_some_and(|example| PROVEN.iter().any(|proven| example == *proven))
+}
 
 /// The directory of golden case `name`: the `out` of a codegen entry of an
 /// example's sqlc.yaml, `examples/<example>/<name>/`, generated or not yet.

@@ -49,13 +49,7 @@ pub struct Query {
     /// Every column of the result as the database returns it, embeds expanded.
     pub columns: Vec<Field>,
     pub command: Command,
-    /// The `<Query>Params` class whose rows the function takes, if it runs its
-    /// command once per row: a `:copyfrom`, or a batch (`:batchexec` is an
-    /// `:exec` per row, `:batchone` a `:one`, `:batchmany` a `:many`).
-    pub rows: Option<String>,
-    /// The `<Query>Params` class the function takes its parameters as, if it
-    /// takes more than the options' `max_params`.
-    pub bundle: Option<String>,
+    pub takes: Takes,
     /// Whether a `:one` raises without a row, rather than return `None`: as
     /// the options say, but a statement that always returns one (`SELECT
     /// count(*) ...`) has none to lack, so it is its row's type.
@@ -75,7 +69,36 @@ impl Query {
             Command::One(Shape::Row(class, _)) | Command::Many(Shape::Row(class, _)) => Some(class),
             _ => None,
         };
-        (self.rows.iter().chain(&self.bundle).chain(row)).map(String::as_str)
+        (self.takes.class().into_iter()).chain(row.map(String::as_str))
+    }
+}
+
+/// How a query's function takes its parameters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Takes {
+    /// Each as a keyword.
+    Keywords,
+    /// All as one record of the `<Query>Params` class, `params`: more of them
+    /// than the options' `max_params`.
+    Record(String),
+    /// `rows` of the `<Query>Params` class, its command run once per row: a
+    /// `:copyfrom`, or a batch (`:batchexec` is an `:exec` per row,
+    /// `:batchone` a `:one`, `:batchmany` a `:many`).
+    Rows(String),
+}
+
+impl Takes {
+    /// The `<Query>Params` class, if the function takes one.
+    pub fn class(&self) -> Option<&str> {
+        match self {
+            Self::Keywords => None,
+            Self::Record(class) | Self::Rows(class) => Some(class),
+        }
+    }
+
+    /// Whether the function runs its command once per row.
+    pub fn rows(&self) -> bool {
+        matches!(self, Self::Rows(_))
     }
 }
 
@@ -95,7 +118,8 @@ pub enum Command {
     ExecResult,
     /// Returns the id the `INSERT` generated.
     ExecLastId,
-    /// Returns the only row; none, or more than one, raises.
+    /// Returns the only row, or `None` without one unless the query
+    /// [`raises`](Query::raises); a second row raises.
     One(Shape),
     /// Returns every row, as a list.
     Many(Shape),
@@ -204,6 +228,7 @@ fn module_name(file: &str) -> Result<String> {
     Ok(stem)
 }
 
+/// `query` as the function it becomes, or why it cannot be one.
 fn resolve(
     query: &plugin::Query,
     resolver: &Resolver,
@@ -226,40 +251,7 @@ fn resolve(
         _ => (cmd, cmd == ":copyfrom"),
     };
     let params_class = format!("{class}Params");
-    let rows = batch.then(|| params_class.clone());
-    let (command, columns) = match cmd {
-        ":exec" => (Command::Exec, Vec::new()),
-        ":execrows" => (Command::ExecRows, Vec::new()),
-        ":execresult" => (Command::ExecResult, Vec::new()),
-        ":copyfrom" => (Command::Exec, Vec::new()),
-        ":one" | ":many" => {
-            let (fields, columns) = columns(query, resolver, models)?;
-            let shape = match fields.as_slice() {
-                [] => bail!(
-                    "{cmd} has no result columns in sqlc's report; if the query returns rows, \
-                     list them with casts (SELECT n::int, s::text FROM ...), otherwise use :exec"
-                ),
-                [RowField::Column(field)] => Shape::Scalar(field.ty.clone()),
-                _ => row_shape(
-                    models,
-                    &query.columns,
-                    fields,
-                    resolver.catalog,
-                    class + "Row",
-                ),
-            };
-            match cmd {
-                ":one" => (Command::One(shape), columns),
-                _ => (Command::Many(shape), columns),
-            }
-        }
-        ":execlastid" if resolver.engine.has_last_insert_id() => (Command::ExecLastId, Vec::new()),
-        ":execlastid" => bail!(
-            ":execlastid is not supported on {}; use INSERT ... RETURNING with :one",
-            resolver.engine.name()
-        ),
-        _ => bail!("{cmd} is not a command sqlc-gen-python knows"),
-    };
+    let (command, columns) = command(query, cmd, &class, resolver, models)?;
     let uses = params(&query.params, resolver)?;
     // PostgreSQL's `$N` is its parameter's number. MySQL's and SQLite's `?`
     // are numbered by sqlc's order of the parameters, as sqlc-gen-go binds
@@ -292,9 +284,14 @@ fn resolve(
         true => function + "_",
         false => function,
     };
-    // More parameters than the options take as keywords: one record of them.
-    let bundle =
-        (!batch && config.max_params.is_some_and(|max| params.len() > max)).then_some(params_class);
+    // Rows of them; or more than the options take as keywords, one record.
+    let takes = match batch {
+        true => Takes::Rows(params_class),
+        false if config.max_params.is_some_and(|max| params.len() > max) => {
+            Takes::Record(params_class)
+        }
+        false => Takes::Keywords,
+    };
     let resolved = Query {
         constant: format!("_{}", function.to_uppercase()),
         function,
@@ -307,12 +304,54 @@ fn resolve(
         copy_into: copy_into(query),
         columns,
         raises: config.raise_on_none || resolver.engine.single_row(&query.text),
-        bundle,
+        takes,
         command,
-        rows,
     };
     config.backend.check(resolver.engine, &resolved)?;
     Ok(resolved)
+}
+
+/// The command `cmd` runs, with the columns of its result.
+fn command(
+    query: &plugin::Query,
+    cmd: &str,
+    class: &str,
+    resolver: &Resolver,
+    models: &[Model],
+) -> Result<(Command, Vec<Field>)> {
+    Ok(match cmd {
+        ":exec" => (Command::Exec, Vec::new()),
+        ":execrows" => (Command::ExecRows, Vec::new()),
+        ":execresult" => (Command::ExecResult, Vec::new()),
+        ":copyfrom" => (Command::Exec, Vec::new()),
+        ":one" | ":many" => {
+            let (fields, columns) = columns(query, resolver, models)?;
+            let shape = match fields.as_slice() {
+                [] => bail!(
+                    "{cmd} has no result columns in sqlc's report; if the query returns rows, \
+                     list them with casts (SELECT n::int, s::text FROM ...), otherwise use :exec"
+                ),
+                [RowField::Column(field)] => Shape::Scalar(field.ty.clone()),
+                _ => row_shape(
+                    models,
+                    &query.columns,
+                    fields,
+                    resolver.catalog,
+                    format!("{class}Row"),
+                ),
+            };
+            match cmd {
+                ":one" => (Command::One(shape), columns),
+                _ => (Command::Many(shape), columns),
+            }
+        }
+        ":execlastid" if resolver.engine.has_last_insert_id() => (Command::ExecLastId, Vec::new()),
+        ":execlastid" => bail!(
+            ":execlastid is not supported on {}; use INSERT ... RETURNING with :one",
+            resolver.engine.name()
+        ),
+        _ => bail!("{cmd} is not a command sqlc-gen-python knows"),
+    })
 }
 
 /// What a `:copyfrom` inserts into: the table sqlc reports, and each

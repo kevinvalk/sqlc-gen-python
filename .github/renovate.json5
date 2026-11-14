@@ -1,0 +1,82 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    ":preserveSemverRanges", // Update SemVer ranges
+    ":automergeMinor", // We want to merge all minor and patches
+  ],
+  // IMPORTANT: This needs to match GitHub Actions schedule which run in UTC (renovate without timezone also runs UTC)
+  automergeSchedule: ["* 0-6 * * 6"],
+  // A week before a release is proposed, so a compromised one can be caught and yanked first.
+  minimumReleaseAge: "7 days",
+  // Every update waits for CI, the whole proof: a new driver, ruff or sqlc can change what is generated.
+  enabledManagers: ["cargo", "pep621", "github-actions", "proto", "custom.regex"],
+  packageRules: [
+    {
+      groupName: "github-actions",
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["major", "minor", "patch", "pin", "digest", "pinDigest"],
+      automergeType: "branch",
+      automerge: true,
+    },
+    {
+      // The plugin and xtask share the root Cargo.lock.
+      groupName: "cargo",
+      matchManagers: ["cargo"],
+      automergeType: "branch",
+    },
+    {
+      // The Python side of the proof (tests/python), with its uv.lock.
+      groupName: "python",
+      matchManagers: ["pep621"],
+      automergeType: "branch",
+    },
+    {
+      // The plugin formats with ruff's crates, and the gate checks with ruff itself: one version, moved together
+      // (tests/rust/golden.rs fails otherwise).
+      groupName: "ruff",
+      matchPackageNames: ["ruff", "astral-sh/ruff"],
+      automergeType: "branch",
+    },
+    {
+      // A new sqlc changes what the corpus captures (`cargo xtask capture`), and a new database what the type map
+      // proves (`cargo xtask verify`): a pull request, merged by hand once both are redone.
+      matchPackageNames: ["sqlc", "postgres", "mysql"],
+      automerge: false,
+    },
+  ],
+  customManagers: [
+    {
+      // The Rust toolchain, an exact release (rust-toolchain.toml says why).
+      customType: "regex",
+      managerFilePatterns: ["/^rust-toolchain\\.toml$/"],
+      matchStrings: ["channel = \"(?<currentValue>[0-9.]+)\""],
+      depNameTemplate: "rust-lang/rust",
+      datasourceTemplate: "github-releases",
+    },
+    {
+      // ruff's crates, a git tag the cargo manager leaves alone.
+      customType: "regex",
+      managerFilePatterns: ["/^Cargo\\.toml$/"],
+      matchStrings: ["git = \"https://github\\.com/astral-sh/ruff\\.git\", tag = \"(?<currentValue>[0-9.]+)\""],
+      depNameTemplate: "astral-sh/ruff",
+      datasourceTemplate: "github-releases",
+    },
+    {
+      // uv, which `required-version` pins and setup-uv reads.
+      customType: "regex",
+      managerFilePatterns: ["/^tests/python/pyproject\\.toml$/"],
+      matchStrings: ["required-version = \"==(?<currentValue>[0-9.]+)\""],
+      depNameTemplate: "astral-sh/uv",
+      datasourceTemplate: "github-releases",
+    },
+    {
+      // The databases the proof runs on: `NEWEST = "postgres:18"`, `IMAGE = "mysql:8.4"`. Not capture.py's
+      // POSTGRES, which is the version sqlc's own tests run and moves with sqlc.
+      customType: "regex",
+      managerFilePatterns: ["/^tests/python/(postgres|mysql)\\.py$/"],
+      matchStrings: ["= \"(?<depName>postgres|mysql):(?<currentValue>[0-9.]+)\""],
+      datasourceTemplate: "docker",
+    },
+  ],
+}

@@ -24,7 +24,7 @@ use ruff_python_ast as ast;
 use serde::Deserialize;
 
 use crate::api::models::Enum;
-use crate::api::queries::{Query, Shape};
+use crate::api::queries::{Query, Shape, Takes};
 use crate::engine::Engine;
 use crate::python::{self, Type, py_expr};
 use dbapi::Driver;
@@ -170,6 +170,16 @@ const RANGES: &[(&str, &str, &str)] = &[
 fn range(name: &str) -> Option<(&'static str, &'static str)> {
     let (_, bound, class) = RANGES.iter().find(|(range, ..)| *range == name)?;
     Some((bound, class))
+}
+
+/// A parameter's value, as `query`'s function reads it: itself, its field of
+/// the one record, or the row's.
+fn value(query: &Query, name: &str) -> ast::Expr {
+    match query.takes {
+        Takes::Keywords => python::name(name),
+        Takes::Record(_) => py_expr!("params.$name", name = name),
+        Takes::Rows(_) => py_expr!("r.$name", name = name),
+    }
 }
 
 /// The class a row of `shape` becomes, as a query module names it.

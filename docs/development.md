@@ -75,9 +75,11 @@ are specified in a `_spec.rs` beside it.
 build attestation and the notes in `.github/release-notes.md`. A failed tag
 cannot be reused (tag ruleset, immutable releases): release the next patch.
 
-Dependabot bumps the actions, crates, toolchain and Python lock. By hand:
+Renovate (`.github/renovate.json5`) bumps everything pinned: the actions,
+crates, toolchain, Python lock, uv, ruff (the crates' tag and the Python pin
+together), sqlc and the databases. Each waits for CI. By hand, on its pull
+request:
 
-- sqlc in `.prototools`, then `cargo xtask capture`;
-- the ruff crates' `tag` in `Cargo.toml` (must match ruff in `tests/python/pyproject.toml`);
-- uv's `required-version` in `tests/python/pyproject.toml`;
-- PostgreSQL: `NEWEST` in `tests/python/postgres.py`, `POSTGRES` in `tests/python/capture.py`.
+- sqlc: `cargo xtask capture`, and `POSTGRES` in `tests/python/capture.py` to
+  the version sqlc's own tests run;
+- PostgreSQL or MySQL: `cargo xtask verify` to rewrite `docs/typemap.md`.
