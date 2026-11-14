@@ -10,6 +10,7 @@ use std::path::Path;
 
 use anyhow::{Result, bail};
 use heck::ToUpperCamelCase;
+use ruff_python_ast as ast;
 use ruff_python_stdlib::builtins::is_python_builtin;
 
 use super::models::{Field, FieldType, Model};
@@ -19,14 +20,15 @@ use super::{Problems, params, results};
 use crate::config::Config;
 use crate::engine::{Bind, Engine, Sql};
 use crate::plugin;
-use crate::python;
+use crate::python::vocabulary::{FROM_ROW, MODELS};
+use crate::python::{self, Expression, Scope, int, name};
 
 #[cfg(test)]
 #[path = "queries_spec.rs"]
 mod spec;
 
 /// The queries of one query file, which become one module.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Module {
     /// The query file's stem: `invoices.sql` is the module `invoices`.
     pub name: String,
@@ -34,7 +36,7 @@ pub struct Module {
 }
 
 /// One query, as a SQL constant, perhaps a class, and a function.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Query {
     pub function: String,
     pub constant: String,
@@ -112,7 +114,7 @@ pub struct CopyInto {
 }
 
 /// What a query's function does with the statement it runs (`cmd`).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     Exec,
     ExecRows,
@@ -127,7 +129,7 @@ pub enum Command {
 }
 
 /// What one row of a result becomes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Shape {
     /// The value of the only column.
     Scalar(FieldType),
@@ -137,8 +139,39 @@ pub enum Shape {
     Row(String, Vec<RowField>),
 }
 
+impl Shape {
+    /// The annotation of a row of this shape in its query module: `missing`,
+    /// of one that may not be there.
+    pub fn annotation(&self, missing: bool) -> ast::Expr {
+        let class = match self {
+            Self::Scalar(ty) => {
+                let ty = FieldType {
+                    optional: ty.optional || missing,
+                    ..ty.clone()
+                };
+                return ty.annotation(Scope::Queries);
+            }
+            Self::Model(model) => MODELS.attr(model),
+            Self::Row(class, _) => name(class),
+        };
+        match missing {
+            true => class.or_none(),
+            false => class,
+        }
+    }
+
+    /// What `row`, as the database returns it, becomes: its only column, or
+    /// its record.
+    pub fn read(&self, row: impl Into<ast::Expr>, text_arrays: bool) -> ast::Expr {
+        match self {
+            Self::Scalar(ty) => ty.read(row.index(int(0)), Scope::Queries, text_arrays),
+            record => record.annotation(false).attr(FROM_ROW).call([row.into()]),
+        }
+    }
+}
+
 /// One field of a `<Query>Row`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RowField {
     Column(Field),
     /// `sqlc.embed(t)`: `t`'s model, built from the next `width` columns.

@@ -1,8 +1,9 @@
 //! The generated API, decided once whatever the engine and backend: the
 //! models and enums of the catalog ([`models`]), typed and spelt by one
 //! reading of it ([`resolver`], [`names`]) and named as sqlc names them
-//! ([`inflection`]), and the functions of the queries ([`queries`]). It holds
-//! no Python syntax and no backend's SQL; [`crate::render`] writes it.
+//! ([`inflection`]), and the functions of the queries ([`queries`]). A type
+//! is held as it is annotated and read; no class, statement or function is
+//! built here: [`crate::render`] and the backend write those.
 
 pub mod inflection;
 pub mod models;
@@ -25,7 +26,7 @@ use crate::plugin;
 use crate::python::Type;
 
 /// Everything a codegen entry generates, decided.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Api {
     pub enums: Vec<models::Enum>,
     pub models: Vec<models::Model>,

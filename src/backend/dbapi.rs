@@ -5,22 +5,28 @@
 use anyhow::{Result, bail};
 use ruff_python_ast as ast;
 
-use super::class;
-
-use crate::api::models::{Enum, Field, FieldType};
+use crate::api::models::{Enum, Field};
 use crate::api::queries::{Command, CopyInto, Query, Shape};
 use crate::engine::Piece;
-use crate::python::{self, Scope, py_expr, py_stmt, py_stmts};
+use crate::python::vocabulary::{
+    CONN, COPY, CUR, LEN, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, R, RESULT, ROW, ROWS, Symbol, VALUE,
+    VALUES,
+};
+use crate::python::{
+    Each, Expression, Scope, ann_assign, assign, each, expression, for_, int, keyword, list,
+    list_of, match_, name, none, pattern, raise, return_, starred, stmts, string, true_, tuple,
+    with,
+};
 
 #[cfg(test)]
 #[path = "dbapi_spec.rs"]
 mod spec;
 
-/// How a driver is written: its blocking API, its coroutines' if it has
+/// How a driver is written: its blocking functions, its coroutines if it has
 /// them, and what it does with a statement.
 pub struct Driver {
-    pub sync: Api,
-    pub asynchronous: Option<Api>,
+    pub sync: Flavor,
+    pub asynchronous: Option<Flavor>,
     /// The placeholder the driver takes for every value, in the text's
     /// order, if not sqlc's own numbered one.
     pub placeholder: Option<&'static str>,
@@ -45,22 +51,23 @@ pub struct Driver {
     pub copies: bool,
 }
 
-/// One of a driver's APIs, blocking or coroutines.
-pub struct Api {
+/// A driver's blocking functions, or its coroutines: how each part of a
+/// query's function is written with them.
+pub struct Flavor {
     /// The annotation of the connection.
-    pub connection: &'static str,
+    pub connection: fn() -> ast::Expr,
     /// The cursor a statement runs on, from `conn`, as `with` enters it,
     /// which closes it after; and as `:execresult` returns it, open, and its
     /// type. Either is then set up with `setup`, if any.
-    pub closing: &'static str,
-    pub cursor: &'static str,
-    pub cursor_type: &'static str,
-    pub setup: Option<&'static str>,
+    pub closing: fn() -> ast::Expr,
+    pub cursor: fn() -> ast::Expr,
+    pub cursor_type: fn() -> ast::Expr,
+    pub setup: Option<fn() -> ast::Stmt>,
 }
 
 impl Driver {
-    /// The API of blocking functions, or of coroutines.
-    pub fn api(&self, asynchronous: bool) -> &Api {
+    /// How blocking functions are written, or coroutines.
+    pub fn flavor(&self, asynchronous: bool) -> &Flavor {
         match asynchronous {
             false => &self.sync,
             true => self
@@ -70,27 +77,27 @@ impl Driver {
         }
     }
 
-    /// Each value a statement of `query` binds, in order, by its parameter's
-    /// name: one per placeholder in the text's order for a driver that takes
-    /// its own, or one per `$N`, by `N`.
-    fn values<'q>(&self, query: &'q Query) -> Vec<&'q str> {
-        let mut names: Vec<(i32, &str)> = Vec::new();
+    /// The parameter of each value a statement of `query` binds, in order:
+    /// one per placeholder in the text's order for a driver that takes its
+    /// own, or one per `$N`, by `N`.
+    fn binds<'q>(&self, query: &'q Query) -> Vec<&'q Field> {
+        let mut binds: Vec<(i32, &Field)> = Vec::new();
         for (at, piece) in query.sql.0.iter().enumerate() {
-            match piece {
-                Piece::Text(_) => {}
-                Piece::Param { number, name, .. } | Piece::Slice { number, name, .. } => {
-                    let number = match self.placeholder {
-                        Some(_) => at as i32,
-                        None => *number,
-                    };
-                    if !names.iter().any(|&(n, _)| n == number) {
-                        names.push((number, name));
-                    }
-                }
+            let (Piece::Param { number, name, .. } | Piece::Slice { number, name, .. }) = piece
+            else {
+                continue;
+            };
+            let number = match self.placeholder {
+                Some(_) => at as i32,
+                None => *number,
+            };
+            if !binds.iter().any(|&(n, _)| n == number) {
+                let param = query.params.iter().find(|param| param.name == *name);
+                binds.push((number, param.expect("a placeholder is a parameter's")));
             }
         }
-        names.sort_by_key(|&(number, _)| number);
-        names.into_iter().map(|(_, name)| name).collect()
+        binds.sort_by_key(|&(number, _)| number);
+        binds.into_iter().map(|(_, param)| param).collect()
     }
 }
 
@@ -101,10 +108,10 @@ pub fn statement(driver: &Driver, query: &Query) -> ast::Expr {
     if driver.copies
         && let Some(into) = &query.copy_into
     {
-        return python::string(&copy(into));
+        return string(&copy(into));
     }
     let Some(own) = driver.placeholder else {
-        return python::string(&query.sql.text());
+        return string(&query.sql.text());
     };
     let formats = driver.formats && !query.params.is_empty();
     let text: String = (query.sql.0.iter())
@@ -116,7 +123,7 @@ pub fn statement(driver: &Driver, query: &Query) -> ast::Expr {
             Piece::Slice { marker, .. } => format!("{marker}{own}"),
         })
         .collect();
-    python::string(&text)
+    string(&text)
 }
 
 /// The `COPY` that writes rows into `into`'s table and columns, every name
@@ -131,297 +138,211 @@ fn copy(into: &CopyInto) -> String {
     format!("COPY {table} ({}) FROM STDIN", columns.join(", "))
 }
 
-/// What a query's function returns, and its body: one execution of its
-/// statement on a cursor of its own, closed after, the result shaped by its
-/// command (`docs/python-output.md` §6, "Functions"). Each template is the
-/// coroutine's ([`python::coroutine`]).
-pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> (ast::Expr, Vec<ast::Stmt>) {
-    let api = driver.api(asynchronous);
-    let t = |template: &str| python::coroutine(template, asynchronous);
-    // The values as a tuple, each read from `of(name)`: a slice's items each
-    // a value of its own.
-    let tuple = |names: &[&str], of: &dyn Fn(&str) -> ast::Expr| {
-        let values = (names.iter())
-            .map(|&name| match query.sql.is_slice(name) {
-                true => python::starred(of(name)),
-                false => {
-                    let param = query.params.iter().find(|p| p.name == name);
-                    param.map_or_else(|| of(name), |param| (driver.bind)(param, of(name)))
+/// The body of a query's function: one execution of its statement on a
+/// cursor of its own, closed after, the result shaped by its command
+/// (`docs/python-output.md` §6, "Functions"). A coroutine awaits what the
+/// driver's coroutines return, and enters its cursor with `async with`.
+pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
+    let body = Body {
+        driver,
+        flavor: driver.flavor(asynchronous),
+        query,
+        asynchronous,
+    };
+    let returning = || [keyword("returning", true_())];
+    let on_cursor = match (&query.command, query.takes.rows()) {
+        (Command::Exec, true) if driver.copies && query.copy_into.is_some() => return body.copy(),
+        // The cursor is the result, so it stays open.
+        (Command::ExecResult, _) => {
+            return stmts![
+                assign(CUR, (body.flavor.cursor)()),
+                body.setup(),
+                body.counted(),
+                return_(CUR),
+            ];
+        }
+        (Command::Exec, true) => vec![expression(body.execute_many([]))],
+        // A batch: every row's statement sent at once (psycopg pipelines
+        // `executemany`), then each one's result read in turn.
+        (Command::One(shape), true) => stmts![
+            expression(body.execute_many(returning())),
+            ann_assign(
+                VALUES,
+                super::returns(query, body.flavor.cursor_type),
+                list(vec![]),
+            ),
+            for_(
+                body.results(),
+                vec![body.one(shape, RESULT, |value| {
+                    expression(VALUES.attr("append").call([value]))
+                })],
+            ),
+            return_(VALUES),
+        ],
+        (Command::Many(shape), true) => stmts![
+            expression(body.execute_many(returning())),
+            return_(list_of(body.many(shape, RESULT), body.results())),
+        ],
+        (Command::Exec, false) => vec![expression(body.execute())],
+        (Command::ExecRows, _) if driver.execute_counts => vec![return_(body.execute())],
+        (Command::ExecRows, _) => stmts![body.counted(), return_(CUR.attr("rowcount"))],
+        (Command::ExecLastId, _) => {
+            stmts![expression(body.execute()), return_(CUR.attr("lastrowid")),]
+        }
+        (Command::One(shape), false) => {
+            stmts![expression(body.execute()), body.one(shape, CUR, return_),]
+        }
+        (Command::Many(shape), false) => {
+            stmts![expression(body.execute()), return_(body.many(shape, CUR)),]
+        }
+    };
+    let cursor = (body.flavor.closing)().entered_as(CUR);
+    vec![with(
+        asynchronous,
+        vec![cursor],
+        stmts![body.setup(), on_cursor],
+    )]
+}
+
+/// What the body of one query's function is made of, on its driver.
+struct Body<'a> {
+    driver: &'a Driver,
+    flavor: &'a Flavor,
+    query: &'a Query,
+    asynchronous: bool,
+}
+
+impl Body<'_> {
+    /// What sets a new cursor up, if the driver needs it.
+    fn setup(&self) -> Option<ast::Stmt> {
+        self.flavor.setup.map(|setup| setup())
+    }
+
+    /// `cur.execute(statement, values)`: the statement, run once.
+    fn execute(&self) -> ast::Expr {
+        let binds = self.driver.binds(self.query);
+        let values = (!binds.is_empty()).then(|| self.values(&binds));
+        (CUR.attr("execute"))
+            .call(std::iter::once(self.statement()).chain(values))
+            .awaited(self.asynchronous)
+    }
+
+    /// `cur.executemany(statement, [values for r in rows])`: the statement,
+    /// run for each row.
+    fn execute_many(&self, keywords: impl IntoIterator<Item = ast::Keyword>) -> ast::Expr {
+        let binds = self.driver.binds(self.query);
+        let rows = list_of(self.values(&binds), each(R, ROWS));
+        (CUR.attr("executemany"))
+            .call_with([name(&self.query.constant), rows], keywords)
+            .awaited(self.asynchronous)
+    }
+
+    /// [`Self::execute`], in a pipeline of its own if the driver counts a
+    /// statement of a pipeline only once it syncs.
+    fn counted(&self) -> ast::Stmt {
+        let execute = expression(self.execute());
+        match self.driver.pipelines {
+            true => {
+                let pipeline = CONN.attr("pipeline").call([]).entered();
+                with(self.asynchronous, vec![pipeline], vec![execute])
+            }
+            false => execute,
+        }
+    }
+
+    /// PostgreSQL's `COPY` of the rows: its cursor and the copy entered in
+    /// one `with` (ruff's SIM117). Only psycopg copies, with no setup.
+    fn copy(&self) -> Vec<ast::Stmt> {
+        let columns: Vec<&Field> = self.query.params.iter().collect();
+        let write = (COPY.attr("write_row"))
+            .call([self.values(&columns)])
+            .awaited(self.asynchronous);
+        let copy = CUR.attr("copy").call([name(&self.query.constant)]);
+        vec![with(
+            self.asynchronous,
+            vec![
+                (self.flavor.closing)().entered_as(CUR),
+                copy.entered_as(COPY),
+            ],
+            vec![for_(each(R, ROWS), vec![expression(write)])],
+        )]
+    }
+
+    /// The statement, each slice's placeholder made one per item:
+    /// `.replace(marker, ", ".join([placeholder] * len(items)) or no_rows)`.
+    fn statement(&self) -> ast::Expr {
+        let placeholder = self.driver.placeholder.unwrap_or("?");
+        let mut sliced: Vec<&str> = Vec::new();
+        let mut statement = name(&self.query.constant);
+        for piece in &self.query.sql.0 {
+            if let Piece::Slice { marker, name, .. } = piece
+                && !sliced.contains(&name.as_str())
+            {
+                sliced.push(name);
+                let count = LEN.call([super::value(self.query, name)]);
+                let places = (string(", ").attr("join"))
+                    .call([list(vec![string(placeholder)]).times(count)])
+                    .or(string(self.driver.no_rows));
+                let marker = string(&format!("{marker}{placeholder}"));
+                statement = statement.attr("replace").call([marker, places]);
+            }
+        }
+        statement
+    }
+
+    /// The values of `params`, as the tuple a statement binds, each read as
+    /// the function takes it: a slice's items each a value of its own.
+    fn values(&self, params: &[&Field]) -> ast::Expr {
+        let values = (params.iter())
+            .map(|param| {
+                let value = super::value(self.query, &param.name);
+                match self.query.sql.is_slice(&param.name) {
+                    true => starred(value),
+                    false => (self.driver.bind)(param, value),
                 }
             })
             .collect();
-        python::tuple(values)
-    };
-    let value = |name: &str| super::value(query, name);
-    let names = driver.values(query);
-    // The statement, each slice's placeholder made one per item.
-    let mut statement = python::name(&query.constant);
-    let mut sliced: Vec<&str> = Vec::new();
-    for piece in &query.sql.0 {
-        if let Piece::Slice { marker, name, .. } = piece
-            && !sliced.contains(&name.as_str())
-        {
-            sliced.push(name);
-            let placeholder = driver.placeholder.unwrap_or("?");
-            statement = py_expr!(
-                r#"$statement.replace($marker, ", ".join([$placeholder] * len($items)) or $none)"#,
-                statement = statement,
-                marker = python::string(&format!("{marker}{placeholder}")),
-                placeholder = python::string(placeholder),
-                items = value(name),
-                none = python::string(driver.no_rows),
-            );
-        }
+        tuple(values)
     }
-    let values: Vec<ast::Expr> = match names.is_empty() {
-        true => vec![],
-        false => vec![tuple(&names, &value)],
-    };
-    let execute = py_expr!(
-        &t("await cur.execute($statement, *$values)"),
-        statement = statement,
-        values = values,
-    );
-    let rows = || py_expr!("[$row for r in rows]", row = tuple(&names, &value));
-    // The body on a cursor of its own, closed after.
-    let on_cursor = |body: Vec<ast::Stmt>| {
-        py_stmts!(
-            &t("
-                async with $cursor as cur:
-                    $setup
-                    $body
-                "),
-            cursor = python::expr(api.closing),
-            setup = api.setup.map(python::stmt).into_iter().collect::<Vec<_>>(),
-            body = body,
+
+    /// `for result in cur.results()`: each row's result of a batch.
+    fn results(&self) -> Each {
+        each(RESULT, CUR.attr("results").call([])).asynchronous(self.asynchronous)
+    }
+
+    /// Every row of the result `cur` holds, as a list.
+    fn many(&self, shape: &Shape, cur: Symbol) -> ast::Expr {
+        let fetched = (cur.attr("fetchall").call([])).awaited(self.asynchronous);
+        list_of(shape.read(ROW, self.driver.text_arrays), each(ROW, fetched))
+    }
+
+    /// The only row of the result `cur` holds, handed to `emit` (`return x`,
+    /// `values.append(x)`): the first two rows tell one row from none, which
+    /// is `None` or raises, and from several, which raise.
+    fn one(&self, shape: &Shape, cur: Symbol, emit: fn(ast::Expr) -> ast::Stmt) -> ast::Stmt {
+        let found = match shape {
+            // A row's value is `Any`: the annotated local states the type the
+            // value would leak.
+            Shape::Scalar(ty) if !ty.converts() => vec![
+                ann_assign(VALUE, ty.annotation(Scope::Queries), ROW.index(int(0))),
+                emit(VALUE.into()),
+            ],
+            shape => vec![emit(shape.read(ROW, self.driver.text_arrays))],
+        };
+        let missing = match self.query.raises {
+            true => raise(NO_ROW_ERROR),
+            false => emit(none()),
+        };
+        let fetched = (cur.attr("fetchmany").call([int(2)])).awaited(self.asynchronous);
+        match_(
+            fetched,
+            vec![
+                (pattern::sequence(vec![pattern::capture(ROW)]), found),
+                (pattern::sequence(vec![]), vec![missing]),
+                (pattern::wildcard(), vec![raise(MULTIPLE_ROWS_ERROR)]),
+            ],
         )
-    };
-    let none = || python::expr("None");
-    let int = || python::name("int");
-
-    let (returns, body) = match (&query.command, query.takes.rows()) {
-        // One `with` for both (ruff's SIM117); only psycopg copies, with no
-        // setup.
-        (Command::Exec, true) if driver.copies && query.copy_into.is_some() => {
-            let names: Vec<&str> = query.params.iter().map(|p| p.name.as_str()).collect();
-            let copy = py_stmts!(
-                &t("
-                    async with $cursor as cur, cur.copy($statement) as copy:
-                        for r in rows:
-                            await copy.write_row($row)
-                    "),
-                cursor = python::expr(api.closing),
-                statement = &query.constant,
-                row = tuple(&names, &value),
-            );
-            (none(), copy)
-        }
-        (Command::Exec, true) => {
-            let many = py_stmts!(
-                &t("await cur.executemany($statement, $rows)"),
-                statement = &query.constant,
-                rows = rows(),
-            );
-            (none(), on_cursor(many))
-        }
-        // A batch: every row's statement sent at once (psycopg pipelines
-        // `executemany`), then each one's result read in turn.
-        (Command::One(_) | Command::Many(_), true) => {
-            let mut body = py_stmts!(
-                &t("await cur.executemany($statement, $rows, returning=True)"),
-                statement = &query.constant,
-                rows = rows(),
-            );
-            let returns = match many(driver, query, "result", asynchronous) {
-                Some((returns, item)) => {
-                    body.extend(py_stmts!(
-                        &t("return [$item async for result in cur.results()]"),
-                        item = item,
-                    ));
-                    returns
-                }
-                None => {
-                    let (returns, read) = read(driver, query, "result", asynchronous, &|value| {
-                        py_stmt!("values.append($value)", value = value)
-                    });
-                    body.extend(py_stmts!(
-                        &t("
-                            values: list[$returns] = []
-                            async for result in cur.results():
-                                $read
-                            return values
-                            "),
-                        returns = returns.clone(),
-                        read = read,
-                    ));
-                    returns
-                }
-            };
-            (
-                py_expr!("list[$returns]", returns = returns),
-                on_cursor(body),
-            )
-        }
-        (Command::Exec, false) => (none(), on_cursor(vec![python::expression(execute)])),
-        (Command::ExecRows, _) if driver.execute_counts => (
-            int(),
-            on_cursor(py_stmts!("return $execute", execute = execute)),
-        ),
-        (Command::ExecRows, _) => {
-            let mut body = counted(driver, execute, asynchronous);
-            body.extend(py_stmts!("return cur.rowcount"));
-            (int(), on_cursor(body))
-        }
-        (Command::ExecLastId, _) => {
-            let body = py_stmts!(
-                "
-                $execute
-                return cur.lastrowid
-                ",
-                execute = execute,
-            );
-            (int(), on_cursor(body))
-        }
-        // The cursor is the result, so it stays open.
-        (Command::ExecResult, _) => {
-            let mut body = py_stmts!("cur = $cursor", cursor = python::expr(api.cursor));
-            body.extend(api.setup.map(python::stmt));
-            body.extend(counted(driver, execute, asynchronous));
-            body.extend(py_stmts!("return cur"));
-            (python::expr(api.cursor_type), body)
-        }
-        (Command::One(_) | Command::Many(_), false) => {
-            let (returns, read) = read(driver, query, "cur", asynchronous, &|value| {
-                py_stmt!("return $value", value = value)
-            });
-            let body = std::iter::once(python::expression(execute))
-                .chain(read)
-                .collect();
-            (returns, on_cursor(body))
-        }
-    };
-    (returns, body)
-}
-
-/// `execute`, run in a pipeline of its own if the driver counts a statement
-/// of a pipeline only once it syncs.
-fn counted(driver: &Driver, execute: ast::Expr, asynchronous: bool) -> Vec<ast::Stmt> {
-    match driver.pipelines {
-        true => py_stmts!(
-            &python::coroutine(
-                "
-                async with conn.pipeline():
-                    $execute
-                ",
-                asynchronous,
-            ),
-            execute = execute,
-        ),
-        false => vec![python::expression(execute)],
     }
-}
-
-/// A `:many`'s result, as one expression, from the result `cur` holds: what
-/// it returns, and the expression.
-fn many(
-    driver: &Driver,
-    query: &Query,
-    cur: &str,
-    asynchronous: bool,
-) -> Option<(ast::Expr, ast::Expr)> {
-    let Command::Many(shape) = &query.command else {
-        return None;
-    };
-    let (item, each) = match shape {
-        Shape::Scalar(ty) => (
-            ty.annotation(Scope::Queries),
-            ty.read(py_expr!("row[0]"), Scope::Queries, driver.text_arrays),
-        ),
-        shape => (class(shape), from_row(shape)),
-    };
-    let all = py_expr!(
-        &python::coroutine("[$each for row in await $cur.fetchall()]", asynchronous),
-        each = each,
-        cur = cur,
-    );
-    Some((py_expr!("list[$item]", item = item), all))
-}
-
-/// What a `:one` or `:many` returns, and the statements that read it from the
-/// result `cur` holds and hand it to `emit` (`return x`, `values.append(x)`).
-fn read(
-    driver: &Driver,
-    query: &Query,
-    cur: &str,
-    asynchronous: bool,
-    emit: &dyn Fn(ast::Expr) -> ast::Stmt,
-) -> (ast::Expr, Vec<ast::Stmt>) {
-    if let Some((returns, value)) = many(driver, query, cur, asynchronous) {
-        return (returns, vec![emit(value)]);
-    }
-    let Command::One(shape) = &query.command else {
-        unreachable!("only a :one or a :many reads rows")
-    };
-    // Without a row, `None`, or `NoRowError`.
-    let (missing, optional) = match query.raises {
-        false => (vec![emit(python::expr("None"))], true),
-        true => (py_stmts!("raise NoRowError"), false),
-    };
-    let (returns, found) = match shape {
-        Shape::Scalar(ty) => {
-            let returns = FieldType {
-                optional: ty.optional || optional,
-                ..ty.clone()
-            };
-            let found = match ty.converts() {
-                true => vec![emit(ty.read(
-                    py_expr!("row[0]"),
-                    Scope::Queries,
-                    driver.text_arrays,
-                ))],
-                // A row's value is `Any`: the annotated local states the type
-                // the value would leak.
-                false => {
-                    let annotation = ty.annotation(Scope::Queries);
-                    let mut found =
-                        py_stmts!("value: $annotation = row[0]", annotation = annotation);
-                    found.push(emit(python::name("value")));
-                    found
-                }
-            };
-            (returns.annotation(Scope::Queries), found)
-        }
-        shape => {
-            let returns = match optional {
-                true => py_expr!("$class | None", class = class(shape)),
-                false => class(shape),
-            };
-            (returns, vec![emit(from_row(shape))])
-        }
-    };
-    let matched = py_stmts!(
-        &python::coroutine(
-            "
-            match await $cur.fetchmany(2):
-                case [row]:
-                    $found
-                case []:
-                    $missing
-                case _:
-                    raise MultipleRowsError
-            ",
-            asynchronous,
-        ),
-        cur = cur,
-        found = found,
-        missing = missing,
-    );
-    (returns, matched)
-}
-
-/// A row of `shape`, from the result's `row`.
-fn from_row(shape: &Shape) -> ast::Expr {
-    py_expr!("$class.from_row(row)", class = class(shape))
 }
 
 /// An error if `sql_enum` has a label PostgreSQL quotes in an array's text,

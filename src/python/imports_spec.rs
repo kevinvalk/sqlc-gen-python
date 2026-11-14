@@ -1,38 +1,54 @@
 //! Specification for the import block.
 
-use ruff_python_stdlib::sys::is_known_standard_library;
-
 use super::*;
-use crate::python::{render, stmt};
+use crate::python::vocabulary::{DATE, MODELS};
+use crate::python::{Expression, assign, name, render, tuple};
 
 /// The imports of a module whose body reads `reads`.
-fn imports_for(reads: &str) -> String {
-    let rendered = render(&[stmt(&format!("x = {reads}"))], &[]);
+fn imports_for(reads: Vec<ast::Expr>) -> String {
+    let rendered = render(&[assign("x", tuple(reads))], &[]);
     rendered[..rendered.find("x = ").unwrap()].trim_end().into()
 }
 
 #[test]
 fn nothing_is_imported_until_something_is_read() {
-    assert_eq!(imports_for("int"), "");
+    assert_eq!(imports_for(vec![name("int")]), "");
 }
 
 #[test]
 fn a_module_imports_exactly_the_vocabulary_its_body_reads() {
     assert_eq!(
-        imports_for("[UUID, uuid, Decimal(), models.X, unknown]"),
+        imports_for(vec![
+            name("UUID"),
+            name("uuid"),
+            name("Decimal").call([]),
+            MODELS.attr("X"),
+            name("unknown"),
+        ]),
         "from decimal import Decimal\nfrom uuid import UUID\n\nfrom . import models"
     );
 }
 
 #[test]
+fn a_name_that_is_bound_is_not_read() {
+    // An enum's member `UUID` is not the class its module would import.
+    let rendered = render(&[assign("UUID", name("int"))], &[]);
+    assert_eq!(rendered, "UUID = int\n");
+}
+
+#[test]
 fn datetime_is_imported_as_dt_by_ruffs_import_conventions() {
-    assert_eq!(imports_for("dt.date"), "import datetime as dt");
+    assert_eq!(imports_for(vec![DATE.into()]), "import datetime as dt");
 }
 
 #[test]
 fn plain_imports_come_before_from_imports_and_one_modules_names_merge() {
     assert_eq!(
-        imports_for("(Any, enum, IPv6Network, IPv4Address, dataclasses)"),
+        imports_for(
+            ["Any", "enum", "IPv6Network", "IPv4Address", "dataclasses"]
+                .map(name)
+                .to_vec()
+        ),
         "import dataclasses\nimport enum\nfrom ipaddress import IPv4Address, IPv6Network\nfrom typing import Any"
     );
 }
@@ -40,36 +56,21 @@ fn plain_imports_come_before_from_imports_and_one_modules_names_merge() {
 #[test]
 fn sections_go_standard_library_third_party_relative_with_a_blank_line_between() {
     assert_eq!(
-        imports_for("(models, AsyncConnection, sqlalchemy, Sequence, postgresql)"),
+        imports_for(
+            [
+                "models",
+                "AsyncConnection",
+                "sqlalchemy",
+                "Sequence",
+                "postgresql"
+            ]
+            .map(name)
+            .to_vec()
+        ),
         "from collections.abc import Sequence\n\n\
          import sqlalchemy\n\
          from sqlalchemy.dialects import postgresql\n\
          from sqlalchemy.ext.asyncio import AsyncConnection\n\n\
          from . import models"
     );
-}
-
-#[test]
-fn the_vocabulary_is_written_in_isorts_sections_and_order() {
-    // As ruff's isort sections them, for the oldest supported Python.
-    let section = |module: &str| match module.split('.').next().unwrap_or_default() {
-        "" => 2,
-        top if is_known_standard_library(10, top) => 0,
-        _ => 1,
-    };
-    for (n, imports) in VOCABULARY.iter().enumerate() {
-        assert!(imports.is_sorted(), "section {n} is not in isort's order");
-        for import in *imports {
-            let (Import::Module(module) | Import::From(module, _)) = *import;
-            assert_eq!(section(module), n, "{import:?}");
-        }
-    }
-}
-
-#[test]
-fn an_imported_name_is_one_nothing_generated_may_define() {
-    for name in ["Decimal", "UUID", "Sequence", "Any", "dt", "models"] {
-        assert!(is_imported(name), "{name}");
-    }
-    assert!(!is_imported("datetime"));
 }

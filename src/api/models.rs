@@ -2,7 +2,7 @@
 //!
 //! Naming, singularisation and type resolution all happen here, exactly once
 //! ([`super::resolver`], [`super::names`]), so [`crate::render`] only has to
-//! decide how things look. [`super::queries`] resolves the queries the same
+//! lay the classes out. [`super::queries`] resolves the queries the same
 //! way, against these classes.
 
 use anyhow::anyhow;
@@ -13,7 +13,8 @@ use super::names::members;
 use super::resolver::Resolver;
 use crate::config::ModelConfig;
 use crate::plugin;
-use crate::python::{self, Scope, Type, py_expr};
+use crate::python::vocabulary::{FROM_ARRAY, LIST, V};
+use crate::python::{self, Expression, Scope, Type, each, list_of, unless_none};
 
 #[cfg(test)]
 #[path = "models_spec.rs"]
@@ -37,7 +38,7 @@ pub struct Member {
 }
 
 /// A table, as a Python class.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Model {
     /// The table this models, used to match `sqlc.embed` and to reuse a model
     /// as a query's return type.
@@ -48,7 +49,7 @@ pub struct Model {
 }
 
 /// One column, as a class attribute.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Field {
     pub name: String,
     pub comment: String,
@@ -60,7 +61,7 @@ pub struct Field {
 /// The element type is kept apart from the generics wrapping it, because
 /// nullability and array depth are properties of the *column* while the element
 /// type is a property of the column's database type.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FieldType {
     pub element: Type,
     /// Nesting depth of a SQL array; zero for a scalar column.
@@ -147,17 +148,16 @@ impl FieldType {
     /// be absent, not a list of independently absent elements.
     pub fn annotation(&self, scope: Scope) -> ast::Expr {
         let element = self.element.annotation(scope);
-        let list =
-            (0..self.array_dims).fold(element, |inner, _| py_expr!("list[$inner]", inner = inner));
+        let list = (0..self.array_dims).fold(element, |inner, _| LIST.index(inner));
         match self.optional {
-            true => py_expr!("$list | None", list = list),
+            true => list.or_none(),
             false => list,
         }
     }
 
     /// The annotation, as written, for an error to show.
     pub fn describe(&self, scope: Scope) -> String {
-        python::python_source(&self.annotation(scope))
+        python::unparse(&self.annotation(scope))
     }
 
     /// Whether [`Self::read`] converts a value.
@@ -170,30 +170,19 @@ impl FieldType {
     /// that an enum's labels, which drivers return as `str`, become members,
     /// and a [`Type::Converted`] value its type. A driver that returns an
     /// array of enums as its text (`text_arrays`) has it parsed by the enum.
-    pub fn read(&self, value: ast::Expr, scope: Scope, text_arrays: bool) -> ast::Expr {
+    pub fn read(&self, value: impl Into<ast::Expr>, scope: Scope, text_arrays: bool) -> ast::Expr {
+        let value = value.into();
         if !self.converts() {
             return value;
         }
         let class = self.element.annotation(scope);
         let read = match (self.array_dims, text_arrays) {
-            (0, _) => py_expr!("$class($value)", class = class, value = value.clone()),
-            (_, false) => py_expr!(
-                "[$class(v) for v in $value]",
-                class = class,
-                value = value.clone()
-            ),
-            (_, true) => py_expr!(
-                "$class.from_array($value)",
-                class = class,
-                value = value.clone()
-            ),
+            (0, _) => class.call([value.clone()]),
+            (_, false) => list_of(class.call([V.into()]), each(V, value.clone())),
+            (_, true) => class.attr(FROM_ARRAY).call([value.clone()]),
         };
         match self.optional {
-            true => py_expr!(
-                "None if $value is None else $read",
-                value = value,
-                read = read
-            ),
+            true => unless_none(value, read),
             false => read,
         }
     }

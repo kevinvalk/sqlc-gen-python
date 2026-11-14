@@ -25,10 +25,10 @@ fn only_a_driver_without_its_own_defines_the_errors_of_a_one() {
     assert!(Backend::SqlAlchemy.errors(true).is_empty());
     assert_eq!(
         Backend::Psycopg.errors(true),
-        ["MultipleRowsError", "NoRowError"]
+        [MULTIPLE_ROWS_ERROR, NO_ROW_ERROR]
     );
     // No `:one` raises without a row: only a second row raises.
-    assert_eq!(Backend::Sqlite3.errors(false), ["MultipleRowsError"]);
+    assert_eq!(Backend::Sqlite3.errors(false), [MULTIPLE_ROWS_ERROR]);
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn a_type_the_drivers_disagree_on_is_the_backends_to_decide() {
     use crate::python::Type;
     let annotation = |backend: Backend, data_type: &str| {
         (backend.scalar_type(Engine::PostgreSql, data_type))
-            .map(|ty| crate::python::python_source(&ty.annotation(crate::python::Scope::Queries)))
+            .map(|ty| crate::python::unparse(&ty.annotation(crate::python::Scope::Queries)))
     };
     // A range is each library's class, SQLAlchemy's whatever the driver.
     assert_eq!(

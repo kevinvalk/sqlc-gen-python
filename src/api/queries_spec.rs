@@ -3,6 +3,7 @@
 use super::*;
 use crate::api::fixtures::authors::{resolve, *};
 use crate::api::fixtures::*;
+use crate::backend::Backend;
 
 // -- Modules -----------------------------------------------------------------
 
@@ -363,4 +364,47 @@ fn a_batch_is_its_command_per_row_of_its_params() {
         assert_eq!(resolved.command, one.command, "{batch}");
         assert_eq!(resolved.takes, Takes::Rows("GetAuthorParams".into()));
     }
+}
+
+// -- What a function returns --------------------------------------------------
+
+#[test]
+fn a_function_returns_what_one_run_of_its_command_does_or_a_list_of_that_per_row() {
+    let returns = |cmd: &str, columns: Vec<plugin::Column>, raise_on_none: bool| {
+        let config = Config {
+            raise_on_none,
+            ..Config::of(Backend::Psycopg)
+        };
+        let query = plugin::Query {
+            columns,
+            params: vec![param(1, column("id", "int8", true))],
+            ..query(cmd, "SELECT $1")
+        };
+        let mut modules = try_resolve_with("postgresql", vec![query], &config).unwrap();
+        let query = modules.remove(0).queries.remove(0);
+        python::unparse(&Backend::Psycopg.returns(&query, true))
+    };
+    let author = || authors().into_iter().map(of_authors).collect::<Vec<_>>();
+    let bio = || vec![column("bio", "text", false)];
+
+    assert_eq!(returns(":exec", vec![], false), "None");
+    assert_eq!(returns(":execrows", vec![], false), "int");
+    // The library's own result: here, the cursor.
+    assert_eq!(
+        returns(":execresult", vec![], false),
+        "psycopg.AsyncRawCursor[tuple[Any, ...]]"
+    );
+    assert_eq!(returns(":many", author(), false), "list[models.Author]");
+    // Without a row, `None`, unless that raises; a NULL is `None` once.
+    assert_eq!(returns(":one", author(), false), "models.Author | None");
+    assert_eq!(returns(":one", author(), true), "models.Author");
+    assert_eq!(returns(":one", bio(), false), "str | None");
+    assert_eq!(returns(":one", bio(), true), "str | None");
+    // Per row: nothing, or each row's result.
+    assert_eq!(returns(":batchexec", vec![], false), "None");
+    assert_eq!(returns(":batchone", bio(), false), "list[str | None]");
+    assert_eq!(
+        returns(":batchmany", author(), false),
+        "list[list[models.Author]]"
+    );
 }

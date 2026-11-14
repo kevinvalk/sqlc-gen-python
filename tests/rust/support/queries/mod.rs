@@ -63,7 +63,7 @@ pub(super) fn queries_follow_sqlc(
             queries.len()
         ));
     }
-    let conn = &sqlc_gen_python::python::python_source(&backend.connection(asynchronous));
+    let conn = &sqlc_gen_python::python::unparse(&backend.connection(asynchronous));
     for ((query, (constant, sql)), function) in queries.into_iter().zip(statements).zip(functions) {
         let parameters = parameters(body, function);
         let takes = Takes::of(query, &config);

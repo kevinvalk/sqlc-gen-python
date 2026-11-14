@@ -30,12 +30,14 @@ src/
   main.rs          the stdio shim sqlc runs
   plugin.rs        the sqlc wire protocol, generated from protos/sqlc.proto
   config.rs        what the user asked for
-  python.rs        writing Python: the templates, and what the modules below share
+  python.rs        writing Python, as ruff's tree from the first node to the last
   python/
-    syntax.rs        names, nodes that hold data, fragments
-    quote.rs         templates: Python with holes for data
-    types.rs         the Python types a column can have
-    imports.rs       the import block, read off the names a module reads
+    syntax.rs        the names Python accepts; a constructor for each node, no parser
+      expression.rs    expressions, and what one grows into
+      statement.rs     statements, functions, classes, imports
+    vocabulary.rs    every name generated code reads or binds, each a constant
+    types.rs         the Python types a column can have; an override's annotation
+    imports.rs       the imports, read off the names a module reads
     render.rs        a tree as source: ruff unparses, ruff formats
 
   api/             the generated API, decided once, whatever the engine and backend
@@ -49,8 +51,9 @@ src/
     inflection.rs    singularising table names exactly as sqlc does
 
   render/          writing the `Api` as files
-    mod.rs           the package's files, the header, the models module, records
-    queries.rs       a query file's modules: statements, row classes, functions
+    mod.rs           the package's files, the header, records
+    models.rs        the models module: enums and tables as classes
+    queries.rs       a query file's module: statements, row classes, functions
 
   engine/          the database: what its types are in Python, how its SQL reads
     mod.rs           `Engine`, one variant per engine sqlc analyses for; `Sql`
@@ -60,17 +63,29 @@ src/
     mysql/           types.rs (the type map), lexer.rs (placeholders as code)
 
   backend/         the Python library the generated code runs SQL through
-    mod.rs           `Backend`, one variant per library
+    mod.rs           `Backend`, one variant per library; what a function returns
     sqlalchemy/      mod.rs (statements, function bodies), text.rs (text() rewriting)
     dbapi.rs         a driver that takes sqlc's SQL as written: function bodies
-    psycopg/         psycopg 3's raw cursors, as a `dbapi::Driver`
-    sqlite3/         `sqlite3` and `aiosqlite`, as a `dbapi::Driver`
-    pymysql/         PyMySQL, as a `dbapi::Driver` that takes `%s`
+    psycopg.rs       psycopg 3's raw cursors, as a `dbapi::Driver`
+    sqlite3.rs       `sqlite3` and `aiosqlite`, as a `dbapi::Driver`
+    pymysql.rs       PyMySQL, as a `dbapi::Driver` that takes `%s`
 ```
 
 - **engine**: the database (`engine:`): its type map and where its placeholders are.
 - **backend**: the Python library (`backend:`): how a statement is written and run.
 - **api**: everything else, decided once whatever the two.
+
+Generated Python is never written as text: every expression and statement is
+built as a ruff AST node (`python/syntax.rs`), so a construct that is not
+Python does not compile, and schema data can only ever be a name or a string.
+A name generated code reads or binds itself (`cur`, `Sequence`, `from_row`)
+is a constant of `python/vocabulary.rs`, which reads as the name it is:
+`CUR.attr("execute").call([statement])`. What is still spelt where it is used
+is a library's own member (`"execute"`), in the backend that calls it.
+Only three things are text, because a tree cannot hold them: the header
+comment, the blank line between import sections, and how a docstring or a
+multi-line SQL string is spelt. The one Python the plugin parses is an
+override's `python_type`, which is the user's.
 
 `Engine` and `Backend` answer each question with an exhaustive `match`, so a
 new variant makes the compiler list what it must answer. Each module's rules

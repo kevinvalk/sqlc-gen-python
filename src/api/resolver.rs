@@ -244,7 +244,7 @@ impl<'a> Resolver<'a> {
                 )
             }
             Some(rule) => Type::Custom {
-                annotation: rule.python_type.clone(),
+                annotation: rule.python_type.expr.clone(),
                 json: match self.engine.scalar_type(column) {
                     Some(Type::Json(json)) => Some(json),
                     _ => None,

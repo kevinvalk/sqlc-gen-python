@@ -22,14 +22,15 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
 use crate::backend::Backend;
-use crate::{plugin, python};
+use crate::plugin;
+use crate::python::{self, Annotation};
 
 #[cfg(test)]
 #[path = "config_spec.rs"]
 mod spec;
 
 /// Everything the generator needs beyond the request itself.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     /// The library the generated code runs its SQL through. Required: no one
@@ -79,7 +80,7 @@ pub struct Config {
 }
 
 /// The Python type of every column of a database type, or of one column.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Override {
     /// A type as sqlc reports it, `pg_catalog.` optional: `ltree`, `int4`.
@@ -88,28 +89,7 @@ pub struct Override {
     pub column: Option<String>,
     /// The annotation: builtins, the names generated code imports, and
     /// dotted paths, whose module is imported: `app.types.Embedding`.
-    pub python_type: String,
-    /// The modules the annotation reads names from, to import.
-    #[serde(skip)]
-    pub modules: Vec<String>,
-}
-
-#[cfg(test)]
-impl Config {
-    /// The options naming only `backend`.
-    pub fn of(backend: Backend) -> Self {
-        Self {
-            backend,
-            asynchronous: false,
-            models: ModelConfig::default(),
-            omit_sqlc_version: false,
-            overrides: Vec::new(),
-            rename: BTreeMap::new(),
-            database_analysis: false,
-            raise_on_none: false,
-            max_params: None,
-        }
-    }
+    pub python_type: Annotation,
 }
 
 /// How model classes are named.
@@ -144,15 +124,11 @@ impl Config {
             [] => b"{}",
             options => options,
         };
-        let mut config: Self = serde_json::from_slice(options).context("reading plugin options")?;
-        for (i, rule) in config.overrides.iter_mut().enumerate() {
+        let config: Self = serde_json::from_slice(options).context("reading plugin options")?;
+        for (i, rule) in config.overrides.iter().enumerate() {
             if rule.db_type.is_some() == rule.column.is_some() {
                 bail!("overrides[{i}]: name exactly one of db_type and column");
             }
-            // As ruff writes it: nothing after it, such as a `# comment`,
-            // can then swallow what generated code writes after it.
-            (rule.python_type, rule.modules) = python::annotation(&rule.python_type)
-                .with_context(|| format!("overrides[{i}]: python_type \"{}\"", rule.python_type))?;
         }
         if let Some((sql, python)) =
             (config.rename.iter()).find(|(_, python)| !python::is_public_name(python))
@@ -165,7 +141,7 @@ impl Config {
     /// The modules the overrides' types are read from, to import.
     pub fn modules(&self) -> Vec<String> {
         (self.overrides.iter())
-            .flat_map(|rule| rule.modules.iter().cloned())
+            .flat_map(|rule| rule.python_type.modules.iter().cloned())
             .collect()
     }
 }
@@ -178,5 +154,23 @@ impl ModelConfig {
                 .inflection_exclude
                 .iter()
                 .any(|excluded| excluded.eq_ignore_ascii_case(table))
+    }
+}
+
+#[cfg(test)]
+impl Config {
+    /// The options naming only `backend`.
+    pub fn of(backend: Backend) -> Self {
+        Self {
+            backend,
+            asynchronous: false,
+            models: ModelConfig::default(),
+            omit_sqlc_version: false,
+            overrides: Vec::new(),
+            rename: BTreeMap::new(),
+            database_analysis: false,
+            raise_on_none: false,
+            max_params: None,
+        }
     }
 }

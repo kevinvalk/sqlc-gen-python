@@ -1,0 +1,341 @@
+//! Statements: what a module, a class and a function are made of.
+
+use ruff_python_ast as ast;
+use ruff_text_size::TextRange;
+use thin_vec::ThinVec;
+
+use super::expression::{Each, string, target};
+use super::identifier;
+
+/// What a body is put together from: a statement, one that may be absent,
+/// or several ([`stmts!`]).
+pub trait Statements {
+    fn append_to(self, body: &mut Vec<ast::Stmt>);
+}
+
+impl Statements for ast::Stmt {
+    fn append_to(self, body: &mut Vec<ast::Stmt>) {
+        body.push(self);
+    }
+}
+
+impl Statements for Option<ast::Stmt> {
+    fn append_to(self, body: &mut Vec<ast::Stmt>) {
+        body.extend(self);
+    }
+}
+
+impl Statements for Vec<ast::Stmt> {
+    fn append_to(self, body: &mut Vec<ast::Stmt>) {
+        body.extend(self);
+    }
+}
+
+/// A body: its parts in order, each a statement, an optional one, or
+/// several.
+macro_rules! stmts {
+    ($($part:expr),* $(,)?) => {{
+        let mut body: Vec<ruff_python_ast::Stmt> = Vec::new();
+        $($crate::python::Statements::append_to($part, &mut body);)*
+        body
+    }};
+}
+pub(crate) use stmts;
+
+/// An expression statement, such as a call made for its effect.
+pub fn expression(value: impl Into<ast::Expr>) -> ast::Stmt {
+    node!(ast::StmtExpr {
+        value: Box::new(value.into()),
+    })
+    .into()
+}
+
+/// A docstring: first in a class or function body, or directly under the
+/// attribute it documents. [`crate::python::render()`] spells it.
+///
+/// This is how generated code carries documentation: ruff's AST has nowhere to
+/// put a `#` comment, but a docstring is an ordinary string expression, and
+/// tooling reads it where it would ignore a comment.
+pub fn docstring(text: &str) -> ast::Stmt {
+    expression(string(text))
+}
+
+/// `return value`.
+pub fn return_(value: impl Into<ast::Expr>) -> ast::Stmt {
+    node!(ast::StmtReturn {
+        value: Some(Box::new(value.into())),
+    })
+    .into()
+}
+
+/// `raise error`.
+pub fn raise(error: impl Into<ast::Expr>) -> ast::Stmt {
+    node!(ast::StmtRaise {
+        exc: Some(Box::new(error.into())),
+        cause: None,
+    })
+    .into()
+}
+
+/// `name = value`, such as `OPEN = "open"`.
+pub fn assign(name: impl AsRef<str>, value: impl Into<ast::Expr>) -> ast::Stmt {
+    assign_to(target(name), value)
+}
+
+/// `target = value`, of a target that is no bare name, such as
+/// `cur.row_factory = None`.
+pub fn assign_to(target: ast::Expr, value: impl Into<ast::Expr>) -> ast::Stmt {
+    node!(ast::StmtAssign {
+        targets: vec![target],
+        value: Box::new(value.into()),
+    })
+    .into()
+}
+
+/// `name: annotation`: a declaration, such as a record's field.
+pub fn annotate(name: impl AsRef<str>, annotation: impl Into<ast::Expr>) -> ast::Stmt {
+    annotated(name, annotation.into(), None)
+}
+
+/// `name: annotation = value`, such as `value: int = row[0]`.
+pub fn ann_assign(
+    name: impl AsRef<str>,
+    annotation: impl Into<ast::Expr>,
+    value: impl Into<ast::Expr>,
+) -> ast::Stmt {
+    annotated(name, annotation.into(), Some(value.into()))
+}
+
+fn annotated(name: impl AsRef<str>, annotation: ast::Expr, value: Option<ast::Expr>) -> ast::Stmt {
+    node!(ast::StmtAnnAssign {
+        target: Box::new(target(name)),
+        annotation: Box::new(annotation),
+        value: value.map(Box::new),
+        simple: true,
+    })
+    .into()
+}
+
+/// `if test:` and its body.
+pub fn if_(test: impl Into<ast::Expr>, body: Vec<ast::Stmt>) -> ast::Stmt {
+    node!(ast::StmtIf {
+        test: Box::new(test.into()),
+        body: body.into(),
+        elif_else_clauses: vec![],
+    })
+    .into()
+}
+
+/// `for <each>:` and its body.
+pub fn for_(each: Each, body: Vec<ast::Stmt>) -> ast::Stmt {
+    node!(ast::StmtFor {
+        is_async: each.is_async,
+        target: Box::new(target(&each.target)),
+        iter: Box::new(each.iter),
+        body: body.into(),
+        orelse: ThinVec::new(),
+    })
+    .into()
+}
+
+/// `with <items>:` and its body; `async with` in a coroutine whose library
+/// enters them asynchronously.
+pub fn with(asynchronous: bool, items: Vec<ast::WithItem>, body: Vec<ast::Stmt>) -> ast::Stmt {
+    node!(ast::StmtWith {
+        is_async: asynchronous,
+        items: items,
+        body: body.into(),
+    })
+    .into()
+}
+
+/// `match subject:`, with each case's pattern ([`pattern`]) and body.
+pub fn match_(
+    subject: impl Into<ast::Expr>,
+    cases: Vec<(ast::Pattern, Vec<ast::Stmt>)>,
+) -> ast::Stmt {
+    node!(ast::StmtMatch {
+        subject: Box::new(subject.into()),
+        cases: (cases.into_iter())
+            .map(|(pattern, body)| node!(ast::MatchCase {
+                pattern: pattern,
+                guard: None,
+                body: body.into(),
+            }))
+            .collect(),
+    })
+    .into()
+}
+
+/// The patterns of a [`match_`].
+pub mod pattern {
+    use super::*;
+
+    /// `[a, b]`: a sequence of exactly these.
+    pub fn sequence(patterns: Vec<ast::Pattern>) -> ast::Pattern {
+        node!(ast::PatternMatchSequence { patterns: patterns }).into()
+    }
+
+    /// `name`: anything, bound to `name`.
+    pub fn capture(name: impl AsRef<str>) -> ast::Pattern {
+        node!(ast::PatternMatchAs {
+            pattern: None,
+            name: Some(identifier(name)),
+        })
+        .into()
+    }
+
+    /// `_`: anything.
+    pub fn wildcard() -> ast::Pattern {
+        node!(ast::PatternMatchAs {
+            pattern: None,
+            name: None,
+        })
+        .into()
+    }
+}
+
+/// A parameter without a default, such as `id: int`.
+pub fn parameter(
+    name: impl AsRef<str>,
+    annotation: impl Into<ast::Expr>,
+) -> ast::ParameterWithDefault {
+    node!(ast::ParameterWithDefault {
+        parameter: node!(ast::Parameter {
+            name: identifier(name),
+            annotation: Some(Box::new(annotation.into())),
+        }),
+        default: None,
+    })
+}
+
+/// The parameter a method is called on, which needs no annotation: `self`,
+/// `cls`.
+pub fn receiver(name: impl AsRef<str>) -> ast::ParameterWithDefault {
+    node!(ast::ParameterWithDefault {
+        parameter: node!(ast::Parameter {
+            name: identifier(name),
+            annotation: None,
+        }),
+        default: None,
+    })
+}
+
+/// A function definition: `def name(*parameters, *, *keyword_only) ->
+/// returns`, with its decorators above and its body below.
+pub struct Function {
+    pub name: String,
+    pub decorators: Vec<ast::Expr>,
+    pub parameters: Vec<ast::ParameterWithDefault>,
+    pub keyword_only: Vec<ast::ParameterWithDefault>,
+    pub returns: ast::Expr,
+    pub body: Vec<ast::Stmt>,
+    pub is_async: bool,
+}
+
+impl Function {
+    /// `def name() -> returns`, to fill in.
+    pub fn new(name: impl AsRef<str>, returns: impl Into<ast::Expr>) -> Self {
+        Self {
+            name: name.as_ref().into(),
+            decorators: vec![],
+            parameters: vec![],
+            keyword_only: vec![],
+            returns: returns.into(),
+            body: vec![],
+            is_async: false,
+        }
+    }
+}
+
+impl From<Function> for ast::Stmt {
+    fn from(function: Function) -> Self {
+        node!(ast::StmtFunctionDef {
+            is_async: function.is_async,
+            decorator_list: decorators(function.decorators),
+            name: identifier(&function.name),
+            type_params: None,
+            parameters: Box::new(node!(ast::Parameters {
+                posonlyargs: ThinVec::new(),
+                args: function.parameters.into(),
+                vararg: None,
+                kwonlyargs: function.keyword_only.into(),
+                kwarg: None,
+            })),
+            returns: Some(Box::new(function.returns)),
+            body: function.body.into(),
+        })
+        .into()
+    }
+}
+
+/// A class definition.
+///
+/// An empty base list omits the parentheses, and an empty body becomes `pass`,
+/// since neither is valid Python written out literally.
+pub fn class(
+    name: impl AsRef<str>,
+    decorated: impl IntoIterator<Item = ast::Expr>,
+    bases: impl IntoIterator<Item = ast::Expr>,
+    body: impl IntoIterator<Item = ast::Stmt>,
+) -> ast::Stmt {
+    let bases: ThinVec<ast::Expr> = bases.into_iter().collect();
+    let body: ThinVec<ast::Stmt> = body.into_iter().collect();
+
+    node!(ast::StmtClassDef {
+        decorator_list: decorators(decorated),
+        name: identifier(name),
+        type_params: None,
+        arguments: (!bases.is_empty()).then(|| {
+            Box::new(node!(ast::Arguments {
+                args: bases,
+                keywords: ThinVec::new(),
+            }))
+        }),
+        body: match body.is_empty() {
+            true => thin_vec::thin_vec![node!(ast::StmtPass {}).into()],
+            false => body,
+        },
+    })
+    .into()
+}
+
+fn decorators(expressions: impl IntoIterator<Item = ast::Expr>) -> ThinVec<ast::Decorator> {
+    (expressions.into_iter())
+        .map(|expression| {
+            node!(ast::Decorator {
+                expression: expression
+            })
+        })
+        .collect()
+}
+
+/// `import module`, bound as `alias` if it has one.
+pub fn import(module: &str, alias: Option<&str>) -> ast::Stmt {
+    node!(ast::StmtImport {
+        names: vec![node!(ast::Alias {
+            name: identifier(module),
+            asname: alias.map(identifier),
+        })],
+        is_lazy: false,
+    })
+    .into()
+}
+
+/// `from module import names`; `module` may be relative, such as `.`.
+pub fn import_from(module: &str, names: &[&str]) -> ast::Stmt {
+    let level = module.chars().take_while(|c| *c == '.').count();
+    let module = &module[level..];
+    node!(ast::StmtImportFrom {
+        module: (!module.is_empty()).then(|| identifier(module)),
+        names: (names.iter())
+            .map(|name| node!(ast::Alias {
+                name: identifier(name),
+                asname: None,
+            }))
+            .collect(),
+        level: level as u32,
+        is_lazy: false,
+    })
+    .into()
+}

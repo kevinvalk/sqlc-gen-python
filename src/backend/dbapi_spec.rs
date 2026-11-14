@@ -5,6 +5,7 @@ use crate::api::models::{Field, FieldType, Member};
 use crate::api::queries::{Command, Takes};
 use crate::backend::Backend;
 use crate::engine::{Piece, Sql};
+use crate::python::vocabulary::FINAL;
 use crate::python::{self, Type};
 
 fn field(name: &str, element: Type) -> Field {
@@ -47,7 +48,11 @@ fn query(command: Command, params: Vec<Field>) -> Query {
 fn a_driver_is_given_sqlcs_statement_as_written() {
     let query = query(Command::Exec, vec![field("id", Type::INT)]);
     let statement = python::render(
-        &[python::constant("_GET", Backend::Psycopg.statement(&query))],
+        &[python::ann_assign(
+            "_GET",
+            FINAL,
+            Backend::Psycopg.statement(&query),
+        )],
         &[],
     );
     assert!(
@@ -59,15 +64,15 @@ fn a_driver_is_given_sqlcs_statement_as_written() {
 #[test]
 fn a_driver_binds_each_parameter_by_position_json_wrapped_on_psycopg() {
     let params = vec![field("id", Type::INT), field("data", Type::JSONB)];
-    let (_, body) = Backend::Psycopg.body(&query(Command::Exec, params.clone()), false);
-    let body = python::stmts_source(&body);
+    let body = Backend::Psycopg.body(&query(Command::Exec, params.clone()), false);
+    let body = python::unparse_stmts(&body);
     assert_eq!(
         body,
         "with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:\n    \
          cur.execute(_GET, (id, None if data is None else Jsonb(data)))"
     );
-    let (_, body) = Backend::Sqlite3.body(&query(Command::Exec, params[..1].to_vec()), true);
-    let body = python::stmts_source(&body);
+    let body = Backend::Sqlite3.body(&query(Command::Exec, params[..1].to_vec()), true);
+    let body = python::unparse_stmts(&body);
     assert_eq!(
         body,
         "async with conn.cursor() as cur:\n    \
@@ -79,9 +84,10 @@ fn a_driver_binds_each_parameter_by_position_json_wrapped_on_psycopg() {
 #[test]
 fn a_one_raises_without_exactly_one_row_on_a_driver_if_asked() {
     let one = Command::One(crate::api::queries::Shape::Scalar(field("n", Type::INT).ty));
-    let (returns, body) = Backend::Sqlite3.body(&query(one, Vec::new()), false);
-    let body = python::stmts_source(&body);
-    assert_eq!(python::python_source(&returns), "int");
+    let query = query(one, Vec::new());
+    let returns = Backend::Sqlite3.returns(&query, false);
+    let body = python::unparse_stmts(&Backend::Sqlite3.body(&query, false));
+    assert_eq!(python::unparse(&returns), "int");
     assert_eq!(
         body,
         "with contextlib.closing(conn.cursor()) as cur:\n    \
@@ -141,7 +147,11 @@ fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
     };
     query.sql.0.push(Piece::Text(" LIKE '%:x%'".into()));
     let statement = python::render(
-        &[python::constant("_GET", Backend::Pymysql.statement(&query))],
+        &[python::ann_assign(
+            "_GET",
+            FINAL,
+            Backend::Pymysql.statement(&query),
+        )],
         &[],
     );
     assert!(
@@ -155,7 +165,11 @@ fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
         ..query
     };
     let statement = python::render(
-        &[python::constant("_GET", Backend::Pymysql.statement(&query))],
+        &[python::ann_assign(
+            "_GET",
+            FINAL,
+            Backend::Pymysql.statement(&query),
+        )],
         &[],
     );
     assert!(statement.contains(r#""SELECT '%:x%'""#), "{statement}");
@@ -170,8 +184,8 @@ fn a_slice_is_one_placeholder_per_item_and_a_subquery_of_none_when_empty() {
         number: 1,
         name: "ids".into(),
     };
-    let (_, body) = Backend::Pymysql.body(&query, false);
-    let body = python::stmts_source(&body);
+    let body = Backend::Pymysql.body(&query, false);
+    let body = python::unparse_stmts(&body);
     assert!(
         body.contains(
             r#"cur.execute(_GET.replace("/*SLICE:ids*/%s", ", ".join(["%s"] * len(ids)) or "SELECT NULL FROM DUAL WHERE FALSE"), (*ids,))"#
@@ -187,9 +201,9 @@ fn a_one_returns_none_without_a_row_and_raises_on_a_second_by_default() {
         raises: false,
         ..query(one, Vec::new())
     };
-    let (returns, body) = Backend::Sqlite3.body(&query, false);
-    let body = python::stmts_source(&body);
-    assert_eq!(python::python_source(&returns), "int | None");
+    let returns = Backend::Sqlite3.returns(&query, false);
+    let body = python::unparse_stmts(&Backend::Sqlite3.body(&query, false));
+    assert_eq!(python::unparse(&returns), "int | None");
     assert!(
         body.contains("case []:\n            return None\n        case _:\n            raise MultipleRowsError"),
         "{body}"

@@ -32,7 +32,7 @@ fn money_is_the_text_the_drivers_return() {
 
 #[test]
 fn json_is_object_because_its_decoder_is_configurable() {
-    let source = |ty: Type, scope| crate::python::python_source(&ty.annotation(scope));
+    let source = |ty: Type, scope| crate::python::unparse(&ty.annotation(scope));
     assert_eq!(source(Type::JSON, Scope::Models), "object");
     assert_eq!(source(Type::JSONB, Scope::Queries), "object");
 }

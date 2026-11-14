@@ -9,16 +9,20 @@
 //! mysql-connector's prepared cursors read a negative `TIME` as positive (and
 //! its C extension an unsigned `BIGINT`'s largest value as `-1`).
 
-use super::dbapi::{Api, Driver};
+use ruff_python_ast as ast;
+
+use super::dbapi::{Driver, Flavor};
+use crate::python::Expression;
+use crate::python::vocabulary::{CONN, PYMYSQL};
 
 pub const DRIVER: Driver = Driver {
-    sync: Api {
+    sync: Flavor {
         // Generic only in its stubs, over a cursor class defaulting to the
         // plain one.
-        connection: "pymysql.Connection",
-        closing: "conn.cursor(pymysql.cursors.Cursor)",
-        cursor: "conn.cursor(pymysql.cursors.Cursor)",
-        cursor_type: "pymysql.cursors.Cursor",
+        connection: || PYMYSQL.attr("Connection"),
+        closing: cursor,
+        cursor,
+        cursor_type,
         setup: None,
     },
     asynchronous: None,
@@ -31,3 +35,14 @@ pub const DRIVER: Driver = Driver {
     text_arrays: false,
     copies: false,
 };
+
+/// `conn.cursor(pymysql.cursors.Cursor)`: a cursor of tuples, whatever the
+/// connection's cursor class.
+fn cursor() -> ast::Expr {
+    CONN.attr("cursor").call([cursor_type()])
+}
+
+/// `pymysql.cursors.Cursor`.
+fn cursor_type() -> ast::Expr {
+    PYMYSQL.attr("cursors").attr("Cursor")
+}

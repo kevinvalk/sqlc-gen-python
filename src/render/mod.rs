@@ -1,6 +1,8 @@
 //! Writing the decided [`Api`] as Python files, each a tree [`python::render`]
-//! writes: the models module here, the query modules in `queries.rs`.
+//! writes: the models module ([`models`]), a module per query file
+//! ([`queries`]), and here the package they make and the records both define.
 
+mod models;
 mod queries;
 
 #[cfg(test)]
@@ -9,10 +11,17 @@ mod spec;
 use ruff_python_ast as ast;
 
 use crate::api::Api;
-use crate::api::models::{Enum, Field, Model};
+use crate::api::models::Field;
 use crate::config::Config;
 use crate::plugin;
-use crate::python::{self, Scope, py_expr, py_stmt};
+use crate::python::vocabulary::{
+    ANY, CLASSMETHOD, CLS, DATACLASSES, FROM_ROW, LOOKUP_ERROR, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR,
+    ROW, SEQUENCE, Symbol,
+};
+use crate::python::{
+    self, Expression, Function, Scope, annotate, class, docstring, forward, int, keyword, name,
+    parameter, receiver, return_, true_,
+};
 
 /// Renders every file a codegen entry asked for.
 pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File> {
@@ -41,7 +50,7 @@ pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File
         file("__init__.py".into(), &init),
         file(
             "models.py".into(),
-            &models(api, config.backend.text_arrays()),
+            &models::module(api, config.backend.text_arrays()),
         ),
     ];
     files.extend((api.modules.iter()).map(|module| {
@@ -77,84 +86,18 @@ fn header(sqlc_version: &str, config: &Config) -> String {
 
 /// The errors of `names`, which a `:one` raises without exactly one row,
 /// where the backend's library has none (§6, "Functions", rule 3).
-fn errors(names: &[&str]) -> Vec<ast::Stmt> {
+fn errors(names: &[Symbol]) -> Vec<ast::Stmt> {
     [
-        ("NoRowError", "A `:one` query returned no row."),
+        (NO_ROW_ERROR, "A `:one` query returned no row."),
         (
-            "MultipleRowsError",
+            MULTIPLE_ROWS_ERROR,
             "A `:one` query returned more than one row.",
         ),
     ]
     .into_iter()
-    .filter(|(name, _)| names.contains(name))
-    .map(|(name, doc)| {
-        python::class(
-            name,
-            [],
-            [python::expr("LookupError")],
-            [python::docstring(doc)],
-        )
-    })
+    .filter(|(error, _)| names.contains(error))
+    .map(|(error, doc)| class(error, [], [LOOKUP_ERROR.into()], [docstring(doc)]))
     .collect()
-}
-
-/// The models module: the classes every query module shares
-/// (`docs/python-output.md` §4).
-fn models(api: &Api, text_arrays: bool) -> Vec<ast::Stmt> {
-    let arrays = api.array_enums();
-    (api.enums.iter())
-        .map(|e| enum_class(e, text_arrays && arrays.contains(e.name.as_str())))
-        .chain(
-            api.models
-                .iter()
-                .map(|model| model_class(model, text_arrays)),
-        )
-        .collect()
-}
-
-/// A `str`-mixin enum: both drivers bind a member as its label, and
-/// `enum.StrEnum` would need Python 3.11. Without the `__str__` override,
-/// `str(member)` changes between Python 3.10 and 3.12.
-///
-/// Where the driver returns an array of it as the array's text, the enum
-/// parses one (`from_array`): its labels need no quoting there, so the text is
-/// its labels between braces, split by commas.
-fn enum_class(sql_enum: &Enum, from_array: bool) -> ast::Stmt {
-    let members = (sql_enum.members.iter())
-        .map(|member| python::assign(&member.name, python::string(&member.value)));
-    let str_method = python::stmt("def __str__(self) -> str:\n    return str.__str__(self)");
-    let from_array = from_array.then(|| {
-        py_stmt!(
-            r#"
-            @classmethod
-            def from_array(cls, text: str) -> $returns:
-                """The members of an array of this enum, as PostgreSQL writes one: `{a,b}`."""
-                return [cls(label) for label in text[1:-1].split(",") if label]
-            "#,
-            returns = python::string(&format!("list[{}]", sql_enum.name)),
-        )
-    });
-
-    python::class(
-        &sql_enum.name,
-        [],
-        [python::expr("str"), python::expr("enum.Enum")],
-        (docstring(&sql_enum.comment).into_iter())
-            .chain(members)
-            .chain([str_method])
-            .chain(from_array),
-    )
-}
-
-/// A table's record, read from a row of exactly its columns.
-fn model_class(model: &Model, text_arrays: bool) -> ast::Stmt {
-    let attributes: Vec<Attribute> = (model.fields.iter().enumerate())
-        .map(|(i, field)| Attribute {
-            comment: field.comment.clone(),
-            ..Attribute::column(field, i, Scope::Models, text_arrays)
-        })
-        .collect();
-    record(&model.name, &model.comment, &attributes)
 }
 
 /// One field of a [`record`].
@@ -185,33 +128,31 @@ impl Attribute {
 /// A record of results also builds itself from a driver's row, by position, so
 /// duplicate column names cannot confuse it (§4, rule 4). One without columns
 /// has no row to read.
-fn record(name: &str, comment: &str, attributes: &[Attribute]) -> ast::Stmt {
+fn record(class_name: &str, comment: &str, attributes: &[Attribute]) -> ast::Stmt {
     let fields = (attributes.iter()).flat_map(|attribute| {
-        let declaration = python::ann_assign(&attribute.name, attribute.annotation.clone());
-        std::iter::once(declaration).chain(docstring(&attribute.comment))
+        let declaration = annotate(&attribute.name, attribute.annotation.clone());
+        std::iter::once(declaration).chain(documentation(&attribute.comment))
     });
     let reads: Option<Vec<ast::Keyword>> = (attributes.iter())
-        .map(|attribute| Some(python::keyword(&attribute.name, attribute.read.clone()?)))
+        .map(|attribute| Some(keyword(&attribute.name, attribute.read.clone()?)))
         .collect();
     let from_row = reads.filter(|reads| !reads.is_empty()).map(|reads| {
-        py_stmt!(
-            "
-            @classmethod
-            def from_row(cls, row: Sequence[Any]) -> $returns:
-                return cls(**$reads)
-            ",
-            returns = python::string(name),
-            reads = reads,
-        )
+        Function {
+            decorators: vec![CLASSMETHOD.into()],
+            parameters: vec![receiver(CLS), parameter(ROW, SEQUENCE.index(ANY))],
+            body: vec![return_(CLS.call_with([], reads))],
+            ..Function::new(FROM_ROW, forward(name(class_name)))
+        }
+        .into()
     });
+    let options = ["frozen", "slots", "kw_only"].map(|option| keyword(option, true_()));
+    let dataclass = DATACLASSES.attr("dataclass").call_with([], options);
 
-    python::class(
-        name,
-        [python::expr(
-            "dataclasses.dataclass(frozen=True, slots=True, kw_only=True)",
-        )],
+    class(
+        class_name,
+        [dataclass],
         [],
-        (docstring(comment).into_iter())
+        (documentation(comment).into_iter())
             .chain(fields)
             .chain(from_row),
     )
@@ -219,10 +160,10 @@ fn record(name: &str, comment: &str, attributes: &[Attribute]) -> ast::Stmt {
 
 /// `row[at]`: one column of a row.
 fn row(at: usize) -> ast::Expr {
-    py_expr!("row[$at]", at = python::int(at))
+    ROW.index(int(at))
 }
 
-/// The docstring for an object the schema documented, if it did.
-fn docstring(comment: &str) -> Option<ast::Stmt> {
-    (!comment.trim().is_empty()).then(|| python::docstring(comment.trim()))
+/// The docstring of what the schema documented, if it did.
+fn documentation(comment: &str) -> Option<ast::Stmt> {
+    (!comment.trim().is_empty()).then(|| docstring(comment.trim()))
 }

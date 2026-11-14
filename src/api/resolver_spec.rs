@@ -125,7 +125,8 @@ fn a_rename_names_a_class_or_a_field() {
 fn an_override_is_written_as_ruff_writes_it() {
     // A comment would otherwise swallow the ` | None` written after it.
     let config = options(r#""overrides": [{"db_type": "vector", "python_type": "app.T  # note"}]"#);
-    assert_eq!(config.overrides[0].python_type, "app.T");
+    let written = crate::python::unparse(&config.overrides[0].python_type.expr);
+    assert_eq!(written, "app.T");
     let nullable = plugin::Column {
         not_null: false,
         ..column("v", "vector", true)

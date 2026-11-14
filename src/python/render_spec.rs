@@ -2,12 +2,15 @@
 //! what ruff's formatter is left to decide.
 
 use super::*;
-use crate::python::{ann_assign, assign, class, docstring, expr, py_expr, stmt, string};
+use crate::python::vocabulary::{ENUM, FINAL, INT, SQLALCHEMY, STR};
+use crate::python::{
+    Expression, Function, ann_assign, annotate, assign, class, docstring, name, none, string,
+};
 
 fn documented(docstrings: &[&str]) -> String {
     let body = docstrings
         .iter()
-        .flat_map(|text| [ann_assign("x", expr("int")), docstring(text)]);
+        .flat_map(|text| [annotate("x", INT), docstring(text)]);
     render(&[class("A", [], [], body)], &[])
 }
 
@@ -113,17 +116,17 @@ fn a_docstring_escapes_a_tab_that_would_follow_its_own_indentation() {
     assert_eq!(docstrings_of(&source), ["x\n    \ty\n    "]);
 
     // A backslash keeps the formatter from re-indenting a function's (D206).
-    let mut function = stmt("def f() -> None:\n    pass");
-    if let ast::Stmt::FunctionDef(definition) = &mut function {
-        definition.body.insert(0, docstring("a\n\tb\nc\\"));
-    }
-    let source = render(&[function], &[]);
+    let function = Function {
+        body: vec![docstring("a\n\tb\nc\\")],
+        ..Function::new("f", none())
+    };
+    let source = render(&[function.into()], &[]);
     assert!(source.contains("\n    \\tb\n"), "{source}");
 }
 
 /// How a module holding `x = f(<value>)` renders.
 fn rendered_string(value: &str) -> String {
-    let call = py_expr!("f($value)", value = string(value));
+    let call = name("f").call([string(value)]);
     render(&[assign("X", call)], &[])
 }
 
@@ -182,15 +185,21 @@ fn rendering_a_tree_that_is_not_python_is_a_bug_not_an_error() {
 
 #[test]
 fn a_string_assigned_to_a_name_ruff_takes_for_a_secrets_trips_s105() {
-    let trips = |source: &str| trips_s105(&[stmt(source)]);
-    assert!(trips(r#"_GET_API_TOKEN: Final = "SELECT 1""#));
-    assert!(trips(
-        "class Role(str, enum.Enum):\n    PASSWORD = \"password\""
-    ));
-    assert!(trips(r#"_UPDATE_USER_PASSWD = "x""#));
-    assert!(!trips(r#"_GET_TOKENS: Final = "SELECT 1""#));
-    assert!(!trips(
-        r#"_GET_API_TOKEN: Final = sqlalchemy.text("SELECT 1")"#
-    ));
-    assert!(!trips(r#"_TOKEN = """#));
+    let trips = |stmt: ast::Stmt| trips_s105(&[stmt]);
+    let select = || string("SELECT 1");
+    assert!(trips(ann_assign("_GET_API_TOKEN", FINAL, select())));
+    assert!(trips(class(
+        "Role",
+        [],
+        [STR.into(), ENUM.attr("Enum")],
+        [assign("PASSWORD", string("password"))],
+    )));
+    assert!(trips(assign("_UPDATE_USER_PASSWD", string("x"))));
+    assert!(!trips(ann_assign("_GET_TOKENS", FINAL, select())));
+    assert!(!trips(ann_assign(
+        "_GET_API_TOKEN",
+        FINAL,
+        SQLALCHEMY.attr("text").call([select()]),
+    )));
+    assert!(!trips(assign("_TOKEN", string(""))));
 }

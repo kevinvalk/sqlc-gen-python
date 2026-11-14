@@ -10,6 +10,10 @@ use ruff_python_stdlib::keyword::is_keyword;
 
 use super::models::Member;
 use crate::python;
+use crate::python::vocabulary::{
+    BOOL, BYTES, CLASSMETHOD, CONN, CUR, DICT, FLOAT, FROM_ROW, INT, LEN, LIST, OBJECT, ROW, ROWS,
+    STR, Symbol, TUPLE, VALUE,
+};
 
 #[cfg(test)]
 #[path = "names_spec.rs"]
@@ -21,24 +25,24 @@ mod spec;
 /// `classmethod: str` the `from_row` decorator; in a function, a parameter
 /// `row` would hide the row being read. What the code imports is
 /// [`python::is_imported`]'s to say.
-const RESERVED: &[&str] = &[
-    "bool",
-    "bytes",
-    "classmethod",
-    "conn",
-    "cur",
-    "dict",
-    "float",
-    "from_row",
-    "int",
-    "len",
-    "list",
-    "object",
-    "row",
-    "rows",
-    "str",
-    "tuple",
-    "value",
+const RESERVED: &[Symbol] = &[
+    BOOL,
+    BYTES,
+    CLASSMETHOD,
+    CONN,
+    CUR,
+    DICT,
+    FLOAT,
+    FROM_ROW,
+    INT,
+    LEN,
+    LIST,
+    OBJECT,
+    ROW,
+    ROWS,
+    STR,
+    TUPLE,
+    VALUE,
 ];
 
 /// Whether a list of names may repeat one.
@@ -72,7 +76,8 @@ pub fn names(spellings: &[&str], repeats: Repeats) -> Result<Vec<String>> {
                 (Repeats::Numbered, repeat @ 2..) => format!("{name}_{repeat}"),
                 _ => name,
             };
-            let reserved = RESERVED.contains(&name.as_str()) || python::is_imported(&name);
+            let reserved = RESERVED.iter().any(|reserved| reserved.as_ref() == name)
+                || python::is_imported(&name);
             let name = match is_keyword(&name) || reserved {
                 true => name + "_",
                 false => name,
