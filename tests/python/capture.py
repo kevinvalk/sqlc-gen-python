@@ -153,6 +153,10 @@ SERVERS = 4
 
 CONFIGS = ("sqlc.json", "sqlc.yaml", "sqlc.yml")
 CONTEXTS = ("base", "managed-db")
+# The commands of sqlc's tests that compile a case's queries, as `generate`
+# does. Any other (`parse`, `analyze`, `fmt` after v1.31.1) reads SQL that
+# need not compile, and sends a plugin nothing.
+COMPILES = ("generate", "diff", "vet")
 # The settings that decide a request. The rest of a config (Go options, plugins,
 # vet rules, cloud) never reaches a plugin's input.
 ANALYSIS = (
@@ -176,6 +180,7 @@ class Run:
 
     case: str
     context: str
+    command: str
     dir: Path
     config: Json
     env: dict[str, str]
@@ -187,7 +192,8 @@ class Outcome:
     """What a run produced.
 
     `captured` requests, the `error` sqlc's test expects, an unexpected `failure`,
-    or `skipped` for a context sqlc's tests do not have.
+    or `skipped` for a context sqlc's tests do not have, or a command that
+    compiles nothing.
     """
 
     run: Run
@@ -603,6 +609,7 @@ def upstream_runs(root: Path) -> Iterator[Run]:
             yield Run(
                 case=case.relative_to(root).as_posix(),
                 context=context,
+                command=settings.get("command", "generate"),
                 dir=case,
                 config=analysis_only(case / config),
                 env=settings.get("env", {}),
@@ -614,7 +621,7 @@ def local_runs(root: Path) -> Iterator[Run]:
     """Run each example, statically: its codegen entries are the golden tests'."""
     for example in sorted(p.parent for p in root.glob("*/sqlc.yaml")):
         config = analysis_only(example / "sqlc.yaml")
-        yield Run(example.name, "base", example, config, {}, None)
+        yield Run(example.name, "base", "generate", example, config, {}, None)
 
 
 def analysis_only(path: Path) -> Json:
@@ -643,6 +650,8 @@ def generate(sqlc: Path, servers: Queue[str], run: Run) -> Outcome:
     """Run sqlc's `json` codegen, which writes the request a plugin would get."""
     if run.context not in CONTEXTS:
         return Outcome(run, "skipped", detail="sqlc's tests have no such context")
+    if run.command not in COMPILES:
+        return Outcome(run, "skipped", detail="sqlc's test compiles no queries")
     if run.context == "base":
         return generate_with(sqlc, run, run.config)
     server = servers.get()

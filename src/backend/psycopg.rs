@@ -24,12 +24,10 @@ pub const DRIVER: Driver = Driver {
         cursor_type: || cursor_type("AsyncRawCursor"),
         setup: None,
     }),
-    placeholder: None,
-    formats: false,
+    // PostgreSQL's own `$N`, as sqlc writes them.
+    placeholders: None,
     execute_counts: false,
     pipelines: true,
-    // PostgreSQL has no `sqlc.slice`.
-    no_rows: "",
     bind,
     // psycopg knows no type the schema declares.
     text_arrays: true,
@@ -55,10 +53,9 @@ const TEXT: &[&str] = &[
     "xid", "xid8", "tid", "pg_lsn",
 ];
 
-/// The Python type psycopg returns for a column of `data_type`, of those it
-/// alone decides.
-pub fn scalar_type(data_type: &str) -> Option<Type> {
-    let pg_type = data_type.strip_prefix("pg_catalog.").unwrap_or(data_type);
+/// The Python type psycopg returns for a column of PostgreSQL's `pg_type`,
+/// of those it alone decides.
+pub fn scalar_type(pg_type: &str) -> Option<Type> {
     if let Some((bound, _)) = super::range(pg_type) {
         return Some(Type::Library {
             annotation: RANGE.index(bound),

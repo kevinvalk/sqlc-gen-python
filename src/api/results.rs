@@ -7,7 +7,6 @@ use super::models::{Field, Model};
 use super::names::{self, Repeats};
 use super::queries::{RowField, Shape};
 use super::resolver::Resolver;
-use crate::engine::select::Item;
 use crate::plugin;
 
 #[cfg(test)]
@@ -20,31 +19,7 @@ pub(super) fn columns(
     resolver: &Resolver,
     models: &[Model],
 ) -> Result<(Vec<RowField>, Vec<Field>)> {
-    // Where sqlc's report is not enough: a `count(...)`'s type is the
-    // engine's whatever it counts, which sqlc reports as a guess like any
-    // call's; and a scalar subquery is NULL when it finds no row, which sqlc
-    // reports NOT NULL.
-    let items = resolver.engine.items(&query.text, query.columns.len());
-    let columns: Vec<plugin::Column> = (query.columns.iter().enumerate())
-        .map(|(i, column)| match items.as_ref().map(|items| &items[i]) {
-            Some(Item::Call(name)) if name == "count" && column.is_func_call => plugin::Column {
-                is_func_call: false,
-                r#type: Some(plugin::Identifier {
-                    name: resolver.engine.count_type().into(),
-                    ..Default::default()
-                }),
-                ..column.clone()
-            },
-            Some(Item::Subquery { row: false }) => plugin::Column {
-                not_null: false,
-                ..column.clone()
-            },
-            _ => column.clone(),
-        })
-        .collect();
-    let columns = columns.as_slice();
-    let outer = resolver.engine.outer_joined(&query.text);
-    let embeds: Vec<Option<&Model>> = (columns.iter())
+    let embeds: Vec<Option<&Model>> = (query.columns.iter())
         .map(|column| {
             let Some(table) = column.embed_table.as_ref().filter(|t| !t.name.is_empty()) else {
                 return Ok(None);
@@ -56,6 +31,7 @@ pub(super) fn columns(
             .with_context(|| format!("sqlc.embed({}) names no table", table.name))
         })
         .collect::<Result<_>>()?;
+    let (columns, present) = reported(query, resolver, &embeds);
     let spellings: Vec<&str> = (columns.iter().zip(&embeds))
         .map(|(column, embed)| {
             embed.map_or(resolver.spelling(&column.name), |model| model.name.as_str())
@@ -66,26 +42,24 @@ pub(super) fn columns(
     let mut flat = Vec::new();
     for ((name, column), embed) in names::names(&spellings, Repeats::Numbered)?
         .into_iter()
-        .zip(columns)
+        .zip(&columns)
         .zip(embeds)
     {
         match embed {
             Some(model) => {
+                // sqlc reports every embed nullable: its table may be missing
+                // unless the statement proves each row has a row of it.
                 let table = column.embed_table.as_ref().map_or("", |t| t.name.as_str());
-                let outer = (outer.as_ref()).is_none_or(|tables| {
-                    tables
-                        .iter()
-                        .any(|joined| joined.eq_ignore_ascii_case(table))
-                });
+                let outer = !present.iter().any(|name| name.eq_ignore_ascii_case(table));
                 let missing = match outer {
                     false => None,
                     true => Some(
                         (model.fields.iter().position(|field| !field.ty.optional)).with_context(
                             || {
                                 format!(
-                                    "sqlc.embed({table}) of an outer join, of whose columns none \
-                                     is NOT NULL to tell a missing row by; select its columns \
-                                     instead"
+                                    "sqlc.embed({table}) of a table that may be missing, as \
+                                     after an outer join, of whose columns none is NOT NULL to \
+                                     tell a missing row by; select its columns instead"
                                 )
                             },
                         )?,
@@ -110,6 +84,59 @@ pub(super) fn columns(
         }
     }
     Ok((fields, flat))
+}
+
+/// sqlc's columns of a result, corrected where its report is not enough
+/// ([`crate::engine::select`]), and the tables every row has a row of: a
+/// `count(...)`'s type is the engine's whatever it counts, which sqlc
+/// reports as a guess like any call's; and a scalar subquery that finds no
+/// row, and an aggregate of no rows, are NULL, which sqlc reports NOT NULL.
+///
+/// A statement whose list is not read proves nothing: each of its columns
+/// may be NULL, and each table missing.
+fn reported(
+    query: &plugin::Query,
+    resolver: &Resolver,
+    embeds: &[Option<&Model>],
+) -> (Vec<plugin::Column>, Vec<String>) {
+    // An embed is one column of the report, and each of its table's in the
+    // statement's list.
+    let widths = embeds
+        .iter()
+        .map(|embed| embed.map(|model| model.fields.len()));
+    let width = widths.clone().map(|width| width.unwrap_or(1)).sum();
+    let Some(items) = resolver.engine.items(&query.text, width) else {
+        let nullable = |column: &plugin::Column| plugin::Column {
+            not_null: false,
+            ..column.clone()
+        };
+        return (query.columns.iter().map(nullable).collect(), Vec::new());
+    };
+
+    let mut at = 0;
+    let columns = (query.columns.iter().zip(widths))
+        .map(|(column, embed)| {
+            let Some(item) = items.get(at).filter(|_| embed.is_none()) else {
+                at += embed.unwrap_or(1);
+                return column.clone();
+            };
+            at += 1;
+            let count = item.count && column.is_func_call;
+            plugin::Column {
+                is_func_call: column.is_func_call && !count,
+                r#type: match count {
+                    true => Some(plugin::Identifier {
+                        name: resolver.engine.count_type().into(),
+                        ..Default::default()
+                    }),
+                    false => column.r#type.clone(),
+                },
+                not_null: column.not_null && !item.nullable,
+                ..column.clone()
+            }
+        })
+        .collect();
+    (columns, resolver.engine.present(&query.text))
 }
 
 /// The shape of a row of several columns: the model of the table they are

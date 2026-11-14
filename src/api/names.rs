@@ -88,19 +88,23 @@ pub fn names(spellings: &[&str], repeats: Repeats) -> Result<Vec<String>> {
     distinct(spellings, names)
 }
 
-/// An enum's members, in order: each label's words in UPPER_SNAKE_CASE,
-/// split as snake_case splits them (`in shock`, `in-shock` and `inShock` are
-/// `IN_SHOCK`), with anything not an ASCII letter, digit or `_` dropped.
+/// An enum's members, in order: each label's words, as `spelling` spells
+/// the label, in UPPER_SNAKE_CASE, split as snake_case splits them (`in
+/// shock`, `in-shock` and `inShock` are `IN_SHOCK`), with anything not an
+/// ASCII letter, digit or `_` dropped.
 ///
 /// A name that is not public is an error: one that is empty or starts with a
 /// digit is not an identifier, and one starting with `_` is reserved
 /// (`_sunder_`), mangled (`__x`) or private to pyright and ruff (`_1ST`). So
 /// are two labels that make one name: Go numbers them `value_<i>`, which
 /// would be a member nobody could guess.
-pub fn members(labels: &[String]) -> Result<Vec<Member>> {
+pub fn members<'l>(
+    labels: &'l [String],
+    spelling: impl Fn(&'l str) -> &'l str,
+) -> Result<Vec<Member>> {
     let names = (labels.iter())
         .map(|label| {
-            let name = (label.to_shouty_snake_case().chars())
+            let name = (spelling(label).to_shouty_snake_case().chars())
                 .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
                 .collect();
             usable(label, name)
@@ -119,7 +123,10 @@ pub fn members(labels: &[String]) -> Result<Vec<Member>> {
 fn usable(spelling: &str, name: String) -> Result<String> {
     match python::is_public_name(&name) {
         true => Ok(name),
-        false => bail!("\"{spelling}\" does not become a usable Python name; rename it"),
+        false => bail!(
+            "\"{spelling}\" does not become a usable Python name; give it one with the rename \
+             option"
+        ),
     }
 }
 

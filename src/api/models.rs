@@ -5,7 +5,7 @@
 //! lay the classes out. [`super::queries`] resolves the queries the same
 //! way, against these classes.
 
-use anyhow::anyhow;
+use anyhow::{Result, anyhow, bail};
 use ruff_python_ast as ast;
 
 use super::Problems;
@@ -83,20 +83,24 @@ pub fn resolve(
     for schema in resolver.catalog.user_schemas() {
         for sql_enum in &schema.enums {
             let what = format!("enum \"{}\"", sql_enum.name);
+            let name = resolver.class_name(schema, &sql_enum.name);
+            problems.take(&what, usable(&name));
             enums.push(Enum {
-                name: resolver.class_name(schema, &sql_enum.name),
+                name,
                 comment: sql_enum.comment.clone(),
                 members: problems
-                    .take(&what, members(&sql_enum.vals))
+                    .take(&what, members(&sql_enum.vals, |l| resolver.spelling(l)))
                     .unwrap_or_default(),
             });
         }
         for table in &schema.tables {
             let relation = table.rel.clone().unwrap_or_default();
             let what = format!("table \"{}\"", relation.name);
+            let name = resolver.model_name(schema, &relation.name, config);
+            problems.take(&what, usable(&name));
             let fields = resolver.fields(&table.columns, &what, problems);
             models.push(Model {
-                name: resolver.model_name(schema, &relation.name, config),
+                name,
                 comment: table.comment.clone(),
                 fields,
                 table: plugin::Identifier {
@@ -119,26 +123,34 @@ pub fn resolve(
         .chain(models.iter().map(|m| m.name.as_str()))
         .collect();
     classes.sort_unstable();
-    for name in classes.iter().filter(|name| !python::is_class_name(name)) {
-        problems.note(anyhow!(
-            "`{name}` is not a usable Python class name, one in CapWords that hides no builtin; \
-             rename the table or type"
-        ));
-    }
     // A class called `Decimal` would replace the import every `Decimal`
     // annotation means.
     for name in classes.iter().filter(|name| python::is_imported(name)) {
         problems.note(anyhow!(
-            "`{name}` is a name generated code imports; rename the table or type"
+            "`{name}` is a name generated code imports; name the table or type otherwise with \
+             the rename option"
         ));
     }
     for pair in classes.windows(2).filter(|pair| pair[0] == pair[1]) {
         problems.note(anyhow!(
-            "more than one table or type would be the Python class `{}`; rename one",
+            "more than one table or type would be the Python class `{}`; name one otherwise with \
+             the rename option",
             pair[0]
         ));
     }
     (enums, models)
+}
+
+/// An error for a class name Python cannot take: the singular of a table
+/// `s` is no name at all.
+fn usable(name: &str) -> Result<()> {
+    if !python::is_class_name(name) {
+        bail!(
+            "`{name}` is not a usable Python class name, one in CapWords that hides no builtin; \
+             name it with the rename option"
+        )
+    }
+    Ok(())
 }
 
 impl FieldType {

@@ -27,21 +27,15 @@ mod spec;
 pub struct Driver {
     pub sync: Flavor,
     pub asynchronous: Option<Flavor>,
-    /// The placeholder the driver takes for every value, in the text's
-    /// order, if not sqlc's own numbered one.
-    pub placeholder: Option<&'static str>,
-    /// Whether the driver formats a statement with parameters with `%`, so
-    /// that every other `%` is doubled.
-    pub formats: bool,
+    /// The driver's own placeholders, if it does not take sqlc's numbered
+    /// ones.
+    pub placeholders: Option<Placeholders>,
     /// Whether `execute` returns the rows it affected, which is then the
     /// count: the cursor's `rowcount` is not typed as one.
     pub execute_counts: bool,
     /// Whether a count must be read in a pipeline of its own: psycopg counts
     /// a statement in a pipeline only once the pipeline syncs.
     pub pipelines: bool,
-    /// A subquery of no rows, for a `sqlc.slice` of none: `x IN (...)` is
-    /// then false, and `x NOT IN (...)` true, as of an empty list.
-    pub no_rows: &'static str,
     /// A parameter's value, from the expression holding it.
     pub bind: fn(&Field, ast::Expr) -> ast::Expr,
     /// Whether an array of enums comes back as the array's text.
@@ -49,6 +43,18 @@ pub struct Driver {
     /// Whether a `:copyfrom` runs PostgreSQL's `COPY`, through the cursor's
     /// `copy()`, rather than one `INSERT` per row.
     pub copies: bool,
+}
+
+/// A driver's own placeholders: one per value, in the text's order.
+pub struct Placeholders {
+    /// The placeholder of every value.
+    pub text: &'static str,
+    /// Whether the driver formats a statement with parameters with `%`, so
+    /// that every other `%` is doubled.
+    pub formats: bool,
+    /// A subquery of no rows, for a `sqlc.slice` of none: `x IN (...)` is
+    /// then false, and `x NOT IN (...)` true, as of an empty list.
+    pub no_rows: &'static str,
 }
 
 /// A driver's blocking functions, or its coroutines: how each part of a
@@ -87,7 +93,7 @@ impl Driver {
             else {
                 continue;
             };
-            let number = match self.placeholder {
+            let number = match self.placeholders {
                 Some(_) => at as i32,
                 None => *number,
             };
@@ -110,17 +116,17 @@ pub fn statement(driver: &Driver, query: &Query) -> ast::Expr {
     {
         return string(&copy(into));
     }
-    let Some(own) = driver.placeholder else {
+    let Some(own) = &driver.placeholders else {
         return string(&query.sql.text());
     };
-    let formats = driver.formats && !query.params.is_empty();
+    let formats = own.formats && !query.params.is_empty();
     let text: String = (query.sql.0.iter())
         .map(|piece| match piece {
             Piece::Text(text) if formats => text.replace('%', "%%"),
             Piece::Text(text) => text.clone(),
             // A slice keeps its marker, which the function replaces.
-            Piece::Param { .. } => own.into(),
-            Piece::Slice { marker, .. } => format!("{marker}{own}"),
+            Piece::Param { .. } => own.text.into(),
+            Piece::Slice { marker, .. } => format!("{marker}{}", own.text),
         })
         .collect();
     string(&text)
@@ -271,9 +277,12 @@ impl Body<'_> {
     /// The statement, each slice's placeholder made one per item:
     /// `.replace(marker, ", ".join([placeholder] * len(items)) or no_rows)`.
     fn statement(&self) -> ast::Expr {
-        let placeholder = self.driver.placeholder.unwrap_or("?");
-        let mut sliced: Vec<&str> = Vec::new();
         let mut statement = name(&self.query.constant);
+        // Only an engine whose driver has its own placeholders has slices.
+        let Some(own) = &self.driver.placeholders else {
+            return statement;
+        };
+        let mut sliced: Vec<&str> = Vec::new();
         for piece in &self.query.sql.0 {
             if let Piece::Slice { marker, name, .. } = piece
                 && !sliced.contains(&name.as_str())
@@ -281,9 +290,9 @@ impl Body<'_> {
                 sliced.push(name);
                 let count = LEN.call([super::value(self.query, name)]);
                 let places = (string(", ").attr("join"))
-                    .call([list(vec![string(placeholder)]).times(count)])
-                    .or(string(self.driver.no_rows));
-                let marker = string(&format!("{marker}{placeholder}"));
+                    .call([list(vec![string(own.text)]).times(count)])
+                    .or(string(own.no_rows));
+                let marker = string(&format!("{marker}{}", own.text));
                 statement = statement.attr("replace").call([marker, places]);
             }
         }

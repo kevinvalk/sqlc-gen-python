@@ -110,6 +110,10 @@ fn respell_strings(source: &str) -> String {
         .unwrap_or_else(|error| panic!("generated invalid Python ({error}):\n{source}"));
     strings.visit_body(&parsed.syntax().body);
 
+    // Last first, so that a replacement moves no range still to replace; and
+    // sorted, as a visitor walks in evaluation order (a conditional's test
+    // before its body), not the source's.
+    strings.0.sort_by_key(|(range, ..)| range.start());
     let mut respelt = source.to_string();
     for (range, text, docstring) in strings.0.into_iter().rev() {
         let start = range.start().to_usize();

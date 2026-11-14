@@ -169,13 +169,26 @@ impl Engine {
         }
     }
 
-    /// Whether `data_type` is sqlc's guess rather than a type it read, if the
-    /// queries were analysed on a `database` or else statically: on MySQL and
-    /// SQLite, `any` for an expression it could not type, or nothing.
-    pub fn is_guess(self, data_type: &str, database: bool) -> bool {
+    /// Whether the type of `column`, a query's `parameter` or a column of a
+    /// result or a table, is sqlc's guess rather than a type it read: on
+    /// MySQL and SQLite, `any` for an expression it could not type, or
+    /// nothing.
+    ///
+    /// On PostgreSQL, a bare `integer` is a guess too, like every standard
+    /// name ([`postgresql::is_guess`]): sqlc spells a column's own type
+    /// `pg_catalog.int4`, so this is the first overload of a function
+    /// (`age(ts)`, an interval, read through a CTE is the `integer` of
+    /// `age(xid)`). But for a parameter with no column behind it, which sqlc
+    /// types so itself: a `LIMIT`'s or an `OFFSET`'s, or a function's
+    /// argument.
+    pub fn is_guess(self, column: &plugin::Column, parameter: bool) -> bool {
+        let data_type = column.data_type();
         match self {
-            Self::PostgreSql => postgresql::is_guess(data_type, database),
-            Self::Sqlite | Self::MySql => ["", "any"].contains(&data_type),
+            Self::PostgreSql => {
+                let read = parameter && column.table.is_none();
+                postgresql::is_guess(&data_type) || (data_type == "integer" && !read)
+            }
+            Self::Sqlite | Self::MySql => ["", "any"].contains(&data_type.as_str()),
         }
     }
 
@@ -184,9 +197,12 @@ impl Engine {
     /// (`price * 1.1` too), and MySQL's `1.0`, a `DECIMAL`, is `float`. A
     /// cast is spelt as declared (`INTEGER`, `SIGNED`, `REAL`, `DOUBLE`).
     pub fn is_untyped_expression(self, column: &plugin::Column) -> bool {
-        self != Self::PostgreSql
-            && column.table.is_none()
-            && ["int", "float"].contains(&column.data_type().as_str())
+        match self {
+            Self::PostgreSql => false,
+            Self::Sqlite | Self::MySql => {
+                column.table.is_none() && ["int", "float"].contains(&column.data_type().as_str())
+            }
+        }
     }
 
     /// What to do about a column of `data_type` that has no Python type, for
@@ -201,16 +217,18 @@ impl Engine {
                 "; but SQLite stores a value of its NUMERIC affinity as whichever of an integer, \
                  a real and text it looks like, so better declare it INTEGER, REAL, TEXT or BLOB"
             }
-            _ => "",
+            Self::PostgreSql | Self::MySql => "",
         }
     }
 
-    /// How else to have sqlc type a function's result, for an error to
-    /// suggest, if there is a way.
-    pub fn analyses(self) -> &'static str {
+    /// What else may make sqlc report a type that reads as a guess, for an
+    /// error to say: on PostgreSQL, analysing the queries on a database,
+    /// which names each type as static analysis names only its guesses.
+    pub fn analysis(self) -> &'static str {
         match self {
             Self::PostgreSql => {
-                "; or have sqlc analyse the queries on a database (database_analysis)"
+                "; with a database block in sqlc.yaml, also set analyzer: {database: false}, \
+                 as only sqlc's static analysis can be told from a guess"
             }
             Self::Sqlite | Self::MySql => "",
         }
@@ -244,31 +262,158 @@ impl Engine {
         }
     }
 
-    /// What each of `columns` result columns of `text` is, by position,
-    /// where certain ([`select::items`]).
+    /// What each of the `columns` items of `text`'s result list is, by
+    /// position, if it is read ([`select::items`]).
     pub fn items(self, text: &str, columns: usize) -> Option<Vec<select::Item>> {
-        select::items(&self.words(text), columns)
+        select::items(&self.words(text), columns, &self.aggregates())
     }
 
     /// Whether `text` returns exactly one row, whatever the data
     /// ([`select::single_row`]).
     pub fn single_row(self, text: &str) -> bool {
-        select::single_row(&self.words(text))
+        select::single_row(&self.words(text), &self.aggregates())
     }
 
-    /// The tables `text`'s outer joins may leave without a row, lowercase;
-    /// `None` for any ([`select::outer_joined`]).
-    pub fn outer_joined(self, text: &str) -> Option<Vec<String>> {
-        select::outer_joined(&self.words(text))
+    /// The tables every row of `text`'s result has a row of
+    /// ([`select::present`]).
+    pub fn present(self, text: &str) -> Vec<String> {
+        select::present(&self.words(text), &self.aggregates())
     }
 
-    /// The text of each token of `text`'s code, comments left out.
+    /// The engine's aggregate functions, as its manual lists them. One that
+    /// is not here, as any the schema defines, is read as any other function.
+    fn aggregates(self) -> select::Aggregates {
+        match self {
+            Self::PostgreSql => select::Aggregates {
+                nullable: &[
+                    "any_value",
+                    "array_agg",
+                    "avg",
+                    "bit_and",
+                    "bit_or",
+                    "bit_xor",
+                    "bool_and",
+                    "bool_or",
+                    "corr",
+                    "covar_pop",
+                    "covar_samp",
+                    "every",
+                    "json_agg",
+                    "json_agg_strict",
+                    "json_arrayagg",
+                    "json_object_agg",
+                    "json_object_agg_strict",
+                    "json_object_agg_unique",
+                    "json_object_agg_unique_strict",
+                    "json_objectagg",
+                    "jsonb_agg",
+                    "jsonb_agg_strict",
+                    "jsonb_object_agg",
+                    "jsonb_object_agg_strict",
+                    "jsonb_object_agg_unique",
+                    "jsonb_object_agg_unique_strict",
+                    "max",
+                    "min",
+                    "mode",
+                    "percentile_cont",
+                    "percentile_disc",
+                    "range_agg",
+                    "range_intersect_agg",
+                    "regr_avgx",
+                    "regr_avgy",
+                    "regr_intercept",
+                    "regr_r2",
+                    "regr_slope",
+                    "regr_sxx",
+                    "regr_sxy",
+                    "regr_syy",
+                    "stddev",
+                    "stddev_pop",
+                    "stddev_samp",
+                    "string_agg",
+                    "sum",
+                    "var_pop",
+                    "var_samp",
+                    "variance",
+                    "xmlagg",
+                ],
+                never_null: &["count", "regr_count"],
+                scalar_of_several: &[],
+                bare_columns: false,
+            },
+            Self::Sqlite => select::Aggregates {
+                nullable: &["avg", "group_concat", "max", "min", "string_agg", "sum"],
+                // Of no rows, `total` is `0.0`, and a JSON group its empty
+                // array or object.
+                never_null: &[
+                    "count",
+                    "json_group_array",
+                    "json_group_object",
+                    "jsonb_group_array",
+                    "jsonb_group_object",
+                    "total",
+                ],
+                scalar_of_several: &["max", "min"],
+                bare_columns: true,
+            },
+            Self::MySql => select::Aggregates {
+                nullable: &[
+                    "avg",
+                    "group_concat",
+                    "json_arrayagg",
+                    "json_objectagg",
+                    "max",
+                    "min",
+                    "std",
+                    "stddev",
+                    "stddev_pop",
+                    "stddev_samp",
+                    "sum",
+                    "var_pop",
+                    "var_samp",
+                    "variance",
+                ],
+                // Of no rows, a bitwise aggregate is its neutral value.
+                never_null: &["bit_and", "bit_or", "bit_xor", "count"],
+                scalar_of_several: &[],
+                bare_columns: true,
+            },
+        }
+    }
+
+    /// The text of each token of `text`'s code, comments left out. None of a
+    /// MySQL statement with a comment that is code, which MySQL runs and its
+    /// lexer here leaves out (`/*! LEFT */ JOIN`): it is then not read.
     fn words(self, text: &str) -> Vec<String> {
         let chars: Vec<char> = text.chars().collect();
         match self {
             Self::PostgreSql => postgresql::words(&chars),
             Self::Sqlite => sqlite::words(&chars),
+            Self::MySql if text.contains("/*!") || text.contains("/*M!") => Vec::new(),
             Self::MySql => mysql::words(&chars),
+        }
+    }
+
+    /// Why a statement's placeholders may not be the parameters sqlc reported,
+    /// for an error to say, if the engine has a reason.
+    fn misnumbered(self) -> &'static str {
+        match self {
+            Self::PostgreSql | Self::MySql => "",
+            // sqlc numbers a `sqlc.arg` among `?`s, and a `sqlc.slice` used
+            // again, as SQLite does not.
+            Self::Sqlite => {
+                "; on SQLite, name every parameter of the statement with sqlc.arg rather than \
+                 mix them with ?, and use a sqlc.slice once"
+            }
+        }
+    }
+
+    /// The engine's own name of the type sqlc reports as `data_type`, for a
+    /// backend to know it by: PostgreSQL's, whatever spelling sqlc read.
+    pub fn type_name(self, data_type: &str) -> String {
+        match self {
+            Self::PostgreSql => postgresql::type_name(data_type),
+            Self::Sqlite | Self::MySql => data_type.to_string(),
         }
     }
 
@@ -312,9 +457,11 @@ fn cut(
         (params.iter()).find(|bind| !placeholders.iter().any(|(_, found)| *found == bind.number))
     {
         bail!(
-            "sqlc reported parameter {} (\"{}\"), but the SQL has no placeholder for it outside strings and comments",
+            "sqlc reported parameter {} (\"{}\"), but the SQL has no placeholder for it outside \
+             strings and comments{}",
             engine.placeholder(bind.number),
-            bind.name
+            bind.name,
+            engine.misnumbered()
         );
     }
     let text = |range: Range<usize>| chars[range].iter().collect::<String>();
@@ -323,7 +470,10 @@ fn cut(
     for (range, number) in placeholders {
         let placeholder = text(range.clone());
         let Some(bind) = params.iter().find(|bind| bind.number == number) else {
-            bail!("the SQL uses {placeholder}, which sqlc reported no parameter for");
+            bail!(
+                "the SQL uses {placeholder}, which sqlc reported no parameter for{}",
+                engine.misnumbered()
+            );
         };
         let mut before = text(from..range.start);
         from = range.end;
@@ -355,6 +505,18 @@ fn cut(
     }
     if from < chars.len() {
         pieces.push(Piece::Text(text(from..chars.len())));
+    }
+
+    // Generated code expands a slice by replacing its marker in the whole
+    // statement, where a string or a comment that spells it would expand too.
+    let spelt = |marker: &str| {
+        (pieces.iter()).any(|piece| matches!(piece, Piece::Text(text) if text.contains(marker)))
+    };
+    if let Some(marker) = (pieces.iter()).find_map(|piece| match piece {
+        Piece::Slice { marker, .. } if spelt(marker) => Some(marker),
+        _ => None,
+    }) {
+        bail!("the SQL spells {marker} where no sqlc.slice is, in a string or a comment");
     }
     Ok(Sql(pieces))
 }

@@ -3,8 +3,9 @@
 //! sqlc parses the schema and queries, then hands a plugin a `GenerateRequest`
 //! describing everything it resolved. [`generate`] turns that into Python:
 //!
-//! - [`api`] decides the generated API once, whatever the engine and backend:
-//!   models, enums, names, functions, parameters and result shapes.
+//! - [`api`] decides the generated API once: models, enums, names, functions,
+//!   parameters and result shapes, asking the engine and the backend what
+//!   only they know.
 //! - [`render`] writes it as Python files, asking the backend for each
 //!   statement and function body.
 //! - [`engine`] is the database: which Python type each column type is, and

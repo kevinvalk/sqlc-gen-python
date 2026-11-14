@@ -31,3 +31,4 @@ sql:
         options:
           backend: sqlite3
           async: true
+          max_params: 3

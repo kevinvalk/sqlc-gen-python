@@ -1,4 +1,5 @@
-//! The generated API, decided once whatever the engine and backend: the
+//! The generated API, decided once, with the engine and the backend asked
+//! what only they know: the
 //! models and enums of the catalog ([`models`]), typed and spelt by one
 //! reading of it ([`resolver`], [`names`]) and named as sqlc names them
 //! ([`inflection`]), and the functions of the queries ([`queries`]). A type
@@ -21,7 +22,6 @@ use std::collections::BTreeSet;
 use anyhow::{Context, Result, bail};
 
 use crate::config::Config;
-use crate::engine::Engine;
 use crate::plugin;
 use crate::python::Type;
 
@@ -43,24 +43,6 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
             config.backend.name(),
             resolver.engine.name()
         );
-    }
-    if config.database_analysis {
-        if resolver.engine != Engine::PostgreSql {
-            bail!("database_analysis: sqlc analyses queries on a database for PostgreSQL only");
-        }
-        // Static analysis reports any arithmetic as a bare `int`, which
-        // PostgreSQL never names a type.
-        let columns = (request.queries.iter()).flat_map(|query| {
-            (query.columns.iter()).chain(query.params.iter().filter_map(|p| p.column.as_ref()))
-        });
-        if let Some(column) = columns.into_iter().find(|c| c.data_type() == "int") {
-            bail!(
-                "database_analysis: sqlc analysed the queries statically, as it reports column \
-                 \"{}\" as a bare int; set analyzer: {{database: true}} on a database in \
-                 sqlc.yaml, or remove the option",
-                column.name
-            );
-        }
     }
     if config.asynchronous
         && let Some(problem) = config.backend.async_problem()
@@ -95,7 +77,10 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
         .map(|field| &field.name)
         .chain(queries.map(|query| &query.function));
     if let Some(name) = names.into_iter().find(|name| roots.contains(name)) {
-        bail!("`{name}` would hide the module an override imports; rename it");
+        bail!(
+            "`{name}` would hide the module an override imports; name it otherwise with the \
+             rename option"
+        );
     }
     let arrays = api.array_enums();
     for sql_enum in (api.enums.iter()).filter(|e| arrays.contains(e.name.as_str())) {

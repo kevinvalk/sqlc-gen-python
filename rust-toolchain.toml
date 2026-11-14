@@ -2,8 +2,8 @@
 # runner of the same image and requires the same bytes, and clippy and rustfmt
 # must not change under a commit. The bytes match only on that image: the
 # plugin embeds the host triple and the source paths of dependencies, ~/.cargo
-# included. The cost is one bump per Rust release, which Dependabot opens as a
-# PR. `minimal` leaves out rust-src: where it is installed (rust-analyzer adds
+# included. The cost is one bump per Rust release, which Renovate makes.
+# `minimal` leaves out rust-src: where it is installed (rust-analyzer adds
 # it), its path ends up in the plugin's panic messages.
 [toolchain]
 channel = "1.99.1"

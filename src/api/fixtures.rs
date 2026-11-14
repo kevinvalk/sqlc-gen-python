@@ -201,10 +201,18 @@ pub mod authors {
         error_of(try_resolve(query))
     }
 
+    /// A statement that selects `columns`, each a name: one whose list is
+    /// not an item per column would leave every column optional.
+    pub fn selecting(columns: &[plugin::Column]) -> String {
+        let list: Vec<&str> = columns.iter().map(|_| "x").collect();
+        format!("SELECT {} FROM authors", list.join(", "))
+    }
+
     pub fn returning(cmd: &str, columns: Vec<plugin::Column>) -> Command {
         resolve(plugin::Query {
+            text: selecting(&columns),
             columns,
-            ..query(cmd, "SELECT 1")
+            ..query(cmd, "")
         })
         .command
     }

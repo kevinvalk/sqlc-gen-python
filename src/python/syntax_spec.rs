@@ -55,6 +55,15 @@ fn an_expression_grows_as_python_reads() {
         "cur.execute(sql, returning=True)"
     );
     assert_eq!(written(LIST.index(INT).or_none()), "list[int] | None");
+    // Once: a union that has `None` already is itself.
+    assert_eq!(
+        written(INT.or_none().union(STR).or_none()),
+        "int | None | str"
+    );
+    assert_eq!(
+        written(LIST.index(INT.or_none()).or_none()),
+        "list[int | None] | None"
+    );
     assert_eq!(
         written(DICT.index_each(vec![STR.into(), INT.into()])),
         "dict[str, int]"

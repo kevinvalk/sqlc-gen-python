@@ -19,7 +19,7 @@ mod sqlite3;
 #[cfg(test)]
 mod spec;
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use ruff_python_ast as ast;
 use serde::Deserialize;
 
@@ -78,13 +78,14 @@ impl Backend {
         }
     }
 
-    /// The Python type of a column of `data_type` that only the backend's
-    /// driver decides: a class of its own, or text where drivers disagree.
-    pub fn scalar_type(self, engine: Engine, data_type: &str) -> Option<Type> {
+    /// The Python type of a column of the type the engine names `type_name`
+    /// ([`Engine::type_name`]) that only the backend's driver decides: a
+    /// class of its own, or text where drivers disagree.
+    pub fn scalar_type(self, engine: Engine, type_name: &str) -> Option<Type> {
         match (self, engine) {
-            (Self::SqlAlchemy, Engine::PostgreSql) => sqlalchemy::scalar_type(data_type),
-            (Self::Psycopg, _) => psycopg::scalar_type(data_type),
-            _ => None,
+            (Self::SqlAlchemy, Engine::PostgreSql) => sqlalchemy::scalar_type(type_name),
+            (Self::Psycopg, Engine::PostgreSql) => psycopg::scalar_type(type_name),
+            (Self::SqlAlchemy | Self::Psycopg | Self::Sqlite3 | Self::Pymysql, _) => None,
         }
     }
 
@@ -100,7 +101,21 @@ impl Backend {
 
     /// An error for what the backend cannot represent or run faithfully,
     /// asked while the API is decided, so that generation fails.
+    ///
+    /// A MySQL driver's `executemany` rewrites an `INSERT` into one statement
+    /// of many rows, and formats what follows its `VALUES` list in some
+    /// versions only (PyMySQL from 1.2.4, not mysqlclient): a `%` there,
+    /// doubled for the driver, would reach MySQL doubled, in a string too.
     pub fn check(self, engine: Engine, query: &Query) -> Result<()> {
+        if engine == Engine::MySql
+            && matches!(query.takes, Takes::Rows(_))
+            && query.sql.text().contains('%')
+        {
+            bail!(
+                ":copyfrom has a % in its statement, which a MySQL driver's executemany doubles \
+                 or not by its version; write it without one, as MOD(a, b) for a % b"
+            )
+        }
         match self.driver() {
             None => sqlalchemy::check(engine, query),
             Some(_) => Ok(()),
@@ -122,13 +137,12 @@ impl Backend {
     }
 
     /// The errors a `:one` raises that the package defines itself, as a
-    /// driver has none: `MultipleRowsError`, and `NoRowError` if any raises
-    /// it.
-    pub fn errors(self, raises: bool) -> &'static [Symbol] {
-        match (self.driver(), raises) {
-            (None, _) => &[],
-            (Some(_), false) => &[MULTIPLE_ROWS_ERROR],
-            (Some(_), true) => &[MULTIPLE_ROWS_ERROR, NO_ROW_ERROR],
+    /// driver has none: always both, so that what a package exports does not
+    /// change with its queries.
+    pub fn errors(self) -> &'static [Symbol] {
+        match self.driver() {
+            None => &[],
+            Some(_) => &[MULTIPLE_ROWS_ERROR, NO_ROW_ERROR],
         }
     }
 

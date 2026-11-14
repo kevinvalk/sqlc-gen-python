@@ -78,7 +78,8 @@ fn row_class(class: &str, fields: &[RowField], text_arrays: bool) -> ast::Stmt {
     record(class, "", &attributes)
 }
 
-/// `<Query>Params`, one row of a `:copyfrom` or a batch.
+/// `<Query>Params`: one row of a `:copyfrom` or a batch, or the one record
+/// of a query's parameters.
 fn params_class(class: &str, params: &[Field]) -> ast::Stmt {
     let attributes: Vec<Attribute> = (params.iter())
         .map(|param| Attribute {

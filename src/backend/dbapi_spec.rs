@@ -209,3 +209,21 @@ fn a_one_returns_none_without_a_row_and_raises_on_a_second_by_default() {
         "{body}"
     );
 }
+
+#[test]
+fn a_copy_quotes_every_name_as_postgresql_stores_it() {
+    let into = CopyInto {
+        schema: "Sales".into(),
+        table: "line \"items\"".into(),
+        columns: vec!["id".into(), "Unit Price".into()],
+    };
+    assert_eq!(
+        copy(&into),
+        r#"COPY "Sales"."line ""items""" ("id", "Unit Price") FROM STDIN"#
+    );
+    let unqualified = CopyInto {
+        schema: String::new(),
+        ..into
+    };
+    assert!(copy(&unqualified).starts_with(r#"COPY "line ""items""" ("#));
+}

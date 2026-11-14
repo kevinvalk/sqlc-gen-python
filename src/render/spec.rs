@@ -50,6 +50,14 @@ fn the_sqlc_line_is_left_out_when_asked_or_unknown() {
 }
 
 #[test]
+fn a_version_that_could_end_the_comment_is_left_out() {
+    let without = header_of("", "");
+    for version in ["v1\nimport os", "v1\rimport os", "v1 import", "v1\u{2028}x"] {
+        assert_eq!(header_of(version, ""), without, "{version:?}");
+    }
+}
+
+#[test]
 fn the_package_defines_the_errors_of_a_one_where_the_library_has_none() {
     let init = |backend: &str, raises: bool| {
         let options =
@@ -57,16 +65,13 @@ fn the_package_defines_the_errors_of_a_one_where_the_library_has_none() {
         generated("", &options).remove(0).1
     };
     assert!(!init("sqlalchemy", true).contains("class"));
-    for error in [
-        "class NoRowError(LookupError):",
-        "class MultipleRowsError(LookupError):",
-    ] {
-        assert!(init("psycopg", true).contains(error), "{error}");
+    // Both, whatever the queries raise: what a package exports is stable.
+    for raises in [true, false] {
+        for error in [
+            "class NoRowError(LookupError):",
+            "class MultipleRowsError(LookupError):",
+        ] {
+            assert!(init("psycopg", raises).contains(error), "{error}");
+        }
     }
-    // Without a row, `None`: only a second row raises.
-    let none = init("psycopg", false);
-    assert!(
-        !none.contains("NoRowError") && none.contains("MultipleRowsError"),
-        "{none}"
-    );
 }

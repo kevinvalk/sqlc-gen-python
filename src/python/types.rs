@@ -62,9 +62,8 @@ pub enum Scope {
 }
 
 impl Type {
-    // The closed vocabulary the type map (`engine/postgresql/types.rs`) maps
-    // onto: every element type this plugin can produce for a column appears
-    // here exactly once.
+    // The closed vocabulary the engines' type maps map onto: every element
+    // type this plugin can produce for a column appears here exactly once.
     pub const BOOL: Self = Self::Python(&[names::BOOL]);
     pub const BOOL_FROM_INT: Self = Self::Converted(names::BOOL);
     pub const BYTES: Self = Self::Python(&[names::BYTES]);
@@ -181,6 +180,11 @@ fn imported(annotation: &ast::Expr, modules: &mut Vec<String>) -> anyhow::Result
                 _ if is_imported(&root.id) => {
                     anyhow::bail!("`{}` is a name generated code binds", root.id)
                 }
+                // What is right is in reach: say it.
+                "datetime" => anyhow::bail!(
+                    "generated code imports `datetime` as `dt`: write `dt.{}`",
+                    attribute.attr
+                ),
                 _ if (CONVENTIONS.iter()).any(|aliased| {
                     module == *aliased || module.starts_with(&format!("{aliased}."))
                 }) =>
@@ -194,13 +198,18 @@ fn imported(annotation: &ast::Expr, modules: &mut Vec<String>) -> anyhow::Result
                 _ => {}
             }
         }
+        // Several arguments are a tuple, which is no type on its own; nor
+        // is the `...` of `tuple[int, ...]`.
         ast::Expr::Subscript(subscript) => {
             imported(&subscript.value, modules)?;
-            imported(&subscript.slice, modules)?;
-        }
-        ast::Expr::Tuple(tuple) => {
-            for item in &tuple.elts {
-                imported(item, modules)?;
+            let arguments = match &*subscript.slice {
+                ast::Expr::Tuple(tuple) => tuple.elts.as_slice(),
+                argument => std::slice::from_ref(argument),
+            };
+            for argument in arguments {
+                if !argument.is_ellipsis_literal_expr() {
+                    imported(argument, modules)?;
+                }
             }
         }
         ast::Expr::BinOp(op) if op.op == ast::Operator::BitOr => {
@@ -225,11 +234,9 @@ const TYPES: &[Symbol] = &[
     names::IPV6_NETWORK,
 ];
 
-/// The modules ruff's import conventions (ICN001) alias by default, and
-/// `datetime`, which generated code imports as `dt`.
+/// The modules ruff's import conventions (ICN001) alias by default.
 const CONVENTIONS: &[&str] = &[
     "altair",
-    "datetime",
     "holoviews",
     "matplotlib",
     "networkx",

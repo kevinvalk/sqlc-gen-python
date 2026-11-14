@@ -100,3 +100,17 @@ fn out_must_end_in_a_name_the_package_can_be_imported_by() {
         );
     }
 }
+
+#[test]
+fn a_rename_names_a_public_python_name() {
+    let rename = |name: &str| {
+        parse(&format!(
+            r#"{{"backend": "psycopg", "async": false, "rename": {{"id": "{name}"}}}}"#
+        ))
+    };
+    assert!(rename("identifier").is_ok());
+    for bad in ["_id", "class", "1st", "a b"] {
+        let error = format!("{:#}", rename(bad).unwrap_err());
+        assert!(error.contains("is no public Python name"), "{bad}: {error}");
+    }
+}

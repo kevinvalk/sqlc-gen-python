@@ -142,6 +142,34 @@ fn queries_that_spell_one_class_are_an_error() {
     }
 }
 
+#[test]
+fn a_copyfrom_copies_only_a_statement_that_binds_each_parameter_once() {
+    let copy = |text: &str, params: Vec<plugin::Parameter>| {
+        resolve(plugin::Query {
+            insert_into_table: Some(plugin::Identifier {
+                name: "authors".into(),
+                ..Default::default()
+            }),
+            params,
+            ..query(":copyfrom", text)
+        })
+    };
+    let name = || param(1, column("name", "text", true));
+    let bio = || param(2, column("bio", "text", false));
+    let both = copy(
+        "INSERT INTO authors (name, bio) VALUES ($1, $2)",
+        vec![name(), bio()],
+    );
+    let columns = both.copy_into.map(|into| into.columns);
+    assert_eq!(columns, Some(vec!["name".to_string(), "bio".to_string()]));
+    // `COPY` would write one column for the two the statement inserts.
+    let twice = copy(
+        "INSERT INTO authors (name, bio) VALUES ($1, $1)",
+        vec![name()],
+    );
+    assert_eq!(twice.copy_into, None);
+}
+
 // -- Names -------------------------------------------------------------------
 
 #[test]
@@ -242,6 +270,32 @@ fn a_merge_cannot_count_its_rows() {
 }
 
 #[test]
+fn a_mysql_copyfrom_has_no_percent_sign() {
+    // sqlc accepts ON DUPLICATE KEY UPDATE in a :copyfrom, where PyMySQL
+    // before 1.2.4 leaves a doubled `%` doubled: 'x%%' would be stored.
+    let copy = |text: &str| {
+        on(
+            "mysql",
+            plugin::Query {
+                params: vec![named(1, "name", "text", true)],
+                ..query(":copyfrom", text)
+            },
+        )
+    };
+    let error = error_of(copy(
+        "INSERT INTO authors (name) VALUES (?) ON DUPLICATE KEY UPDATE name = 'x%'",
+    ));
+    assert!(
+        error.ends_with(
+            ":copyfrom has a % in its statement, which a MySQL driver's executemany doubles or \
+             not by its version; write it without one, as MOD(a, b) for a % b"
+        ),
+        "{error}"
+    );
+    copy("INSERT INTO authors (name) VALUES (?)").unwrap();
+}
+
+#[test]
 fn a_type_sqlc_only_guessed_is_an_error_that_asks_for_a_cast() {
     // sqlc's static analyser reports `quantity * unit_price` on numeric
     // columns as a bare `int`, and `abs(unit_price)` as the `bigint` of an
@@ -281,6 +335,51 @@ fn a_type_sqlc_only_guessed_is_an_error_that_asks_for_a_cast() {
             "{error}"
         );
     }
+}
+
+#[test]
+fn a_bare_integer_is_a_type_sqlc_read_only_of_a_parameter_without_a_column() {
+    // sqlc spells a column's own type `pg_catalog.int4`. Through a CTE,
+    // `age(created_at)`, an interval, is the `integer` of `age(xid)`, the
+    // function's first overload; and sqlc's database analysis spells every
+    // `int4` so, with a NOT NULL nothing proves. A `LIMIT`'s parameter is
+    // sqlc's own `integer`.
+    let through = |table: &str| plugin::Identifier {
+        name: table.into(),
+        ..Default::default()
+    };
+    let through_cte = plugin::Column {
+        table: Some(through("c")),
+        ..column("a", "integer", true)
+    };
+    let through_subquery = column("a", "integer", true);
+    for column in [through_cte.clone(), through_subquery.clone()] {
+        let error = error(plugin::Query {
+            columns: vec![column],
+            ..query(":one", "SELECT 1")
+        });
+        assert!(
+            error.contains(r#"column "a" has a type sqlc could not infer"#)
+                && error.contains("also set analyzer: {database: false}"),
+            "{error}"
+        );
+    }
+    let taking = |parameter: plugin::Column| {
+        try_resolve(plugin::Query {
+            params: vec![param(1, parameter)],
+            ..query(":exec", "SELECT 1 LIMIT $1")
+        })
+    };
+    let error = error_of(taking(through_cte));
+    assert!(
+        error.contains(r#"parameter $1 ("a") has a type sqlc could not infer"#),
+        "{error}"
+    );
+    let limit = taking(through_subquery).unwrap();
+    assert_eq!(
+        limit.params[0].ty.describe(crate::python::Scope::Queries),
+        "int"
+    );
 }
 
 #[test]
@@ -376,9 +475,10 @@ fn a_function_returns_what_one_run_of_its_command_does_or_a_list_of_that_per_row
             ..Config::of(Backend::Psycopg)
         };
         let query = plugin::Query {
+            text: selecting(&columns) + " WHERE id = $1",
             columns,
             params: vec![param(1, column("id", "int8", true))],
-            ..query(cmd, "SELECT $1")
+            ..query(cmd, "")
         };
         let mut modules = try_resolve_with("postgresql", vec![query], &config).unwrap();
         let query = modules.remove(0).queries.remove(0);
@@ -406,5 +506,14 @@ fn a_function_returns_what_one_run_of_its_command_does_or_a_list_of_that_per_row
     assert_eq!(
         returns(":batchmany", author(), false),
         "list[list[models.Author]]"
+    );
+}
+
+#[test]
+fn a_command_the_plugin_does_not_know_is_an_error() {
+    let error = error(query(":stream", "SELECT 1"));
+    assert!(
+        error.ends_with(":stream is not a command sqlc-gen-python knows"),
+        "{error}"
     );
 }

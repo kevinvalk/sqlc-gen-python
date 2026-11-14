@@ -16,23 +16,43 @@ mod spec;
 
 /// The imports of a module whose body reads `body`'s names, a section at a
 /// time: the [vocabulary](VOCABULARY) it reads, with names from one module
-/// merged, and each of `modules` whose first name it reads, in the standard
+/// merged, and each of `modules` it reads a name from, in the standard
 /// library's section or the third-party one.
 pub(super) fn imports(body: &[ast::Stmt], modules: &[String]) -> Vec<Vec<ast::Stmt>> {
+    // The names the body reads, and the dotted ones in full: `a`, `a.b.C`.
     #[derive(Default)]
     struct Reads(BTreeSet<String>);
     impl<'a> Visitor<'a> for Reads {
         fn visit_expr(&mut self, expr: &'a ast::Expr) {
-            if let ast::Expr::Name(name) = expr
-                && name.ctx.is_load()
-            {
-                self.0.insert(name.id.to_string());
+            match expr {
+                ast::Expr::Name(name) if name.ctx.is_load() => {
+                    self.0.insert(name.id.to_string());
+                }
+                ast::Expr::Attribute(_) => {
+                    self.0.extend(dotted(expr));
+                }
+                _ => {}
             }
             walk_expr(self, expr);
         }
     }
+    fn dotted(expr: &ast::Expr) -> Option<String> {
+        match expr {
+            ast::Expr::Name(name) => Some(name.id.to_string()),
+            ast::Expr::Attribute(attribute) => {
+                Some(format!("{}.{}", dotted(&attribute.value)?, attribute.attr))
+            }
+            _ => None,
+        }
+    }
     let mut reads = Reads::default();
     reads.visit_body(body);
+    // A module is read where a name is read from it: `app.types.Embedding`
+    // reads `app.types`, and another module's `app.names.Name` does not.
+    let reads_from = |module: &str| {
+        let prefix = format!("{module}.");
+        reads.0.iter().any(|read| read.starts_with(&prefix))
+    };
     let stdlib = |module: &str| {
         let root = module.split('.').next().unwrap_or(module);
         ruff_python_stdlib::sys::is_known_standard_library(10, root)
@@ -56,12 +76,8 @@ pub(super) fn imports(body: &[ast::Stmt], modules: &[String]) -> Vec<Vec<ast::St
                 }
             }
             for module in modules {
-                let root = module.split('.').next().unwrap_or(module);
                 let section = if stdlib(module) { 0 } else { 1 };
-                if section == at
-                    && reads.0.contains(root)
-                    && !plain.iter().any(|(m, _)| m == module)
-                {
+                if section == at && reads_from(module) && !plain.iter().any(|(m, _)| m == module) {
                     plain.push((module, import(module, None)));
                 }
             }

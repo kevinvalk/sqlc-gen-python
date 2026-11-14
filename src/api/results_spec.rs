@@ -5,6 +5,8 @@ use crate::api::fixtures::authors::*;
 use crate::api::fixtures::*;
 use crate::api::models::FieldType;
 use crate::api::queries::{Command, Takes};
+use crate::backend::Backend;
+use crate::config::Config;
 use crate::python::Type;
 
 #[test]
@@ -123,7 +125,10 @@ fn an_embed_is_a_field_of_its_model_over_the_tables_columns() {
     };
     let query = resolve(plugin::Query {
         columns: vec![embed, column("total", "int8", true)],
-        ..query(":one", "SELECT 1")
+        ..query(
+            ":one",
+            "SELECT authors.id, authors.name, authors.bio, t.total FROM authors JOIN t ON true",
+        )
     });
     let Command::One(Shape::Row(_, fields)) = &query.command else {
         panic!("not a row");
@@ -171,8 +176,88 @@ fn an_embed_an_outer_join_may_leave_without_a_row_is_none_then() {
     let left =
         "SELECT b.id, authors.id, authors.name, authors.bio FROM books b LEFT JOIN authors ON true";
     assert_eq!(embedded(left), Some(0));
-    let right = "SELECT b.id, authors.id, authors.name, authors.bio FROM authors RIGHT JOIN books b ON true";
-    assert_eq!(embedded(right), Some(0));
+    // Nor is a row of it proven by what is not read: a subquery under its
+    // name, a join in parentheses.
+    for unproven in [
+        "SELECT b.id, authors.id, authors.name, authors.bio FROM authors RIGHT JOIN books b ON true",
+        "SELECT b.id, authors.id, authors.name, authors.bio FROM books b \
+         LEFT JOIN LATERAL (SELECT * FROM authors LIMIT 1) authors ON true",
+        "SELECT b.id, authors.id, authors.name, authors.bio FROM books b \
+         LEFT JOIN (authors JOIN publishers p ON true) ON true",
+    ] {
+        assert_eq!(embedded(unproven), Some(0), "{unproven}");
+    }
+}
+
+#[test]
+fn a_column_after_an_embed_is_read_at_its_place_in_the_statements_list() {
+    // sqlc reports an embed as one column, and writes each of its table's.
+    let embed = plugin::Column {
+        name: "authors".into(),
+        embed_table: Some(plugin::Identifier {
+            name: "authors".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let query = resolve(plugin::Query {
+        columns: vec![embed, column("title", "text", true)],
+        ..query(
+            ":one",
+            "SELECT authors.id, authors.name, authors.bio, \
+             (SELECT b.title FROM books b LIMIT 1) AS title FROM authors",
+        )
+    });
+    // The subquery may find no book, whatever sqlc reports.
+    assert!(query.columns[3].ty.optional);
+}
+
+#[test]
+fn a_list_that_is_not_read_leaves_every_column_optional() {
+    // Which item is which column is not known: to trust sqlc's NOT NULL of
+    // any would be a guess.
+    let query = resolve(plugin::Query {
+        columns: vec![column("id", "int8", true), column("title", "text", true)],
+        ..query(
+            ":many",
+            "SELECT a.id, (SELECT b.title FROM books b LIMIT 1), 1 AS unreported FROM authors a",
+        )
+    });
+    let Command::Many(Shape::Row(_, fields)) = query.command else {
+        panic!("not a row: {:?}", query.command);
+    };
+    let optional: Vec<bool> = (fields.iter())
+        .map(|field| match field {
+            RowField::Column(field) => field.ty.optional,
+            RowField::Embed { .. } => panic!("an embed"),
+        })
+        .collect();
+    assert_eq!(optional, [true, true]);
+}
+
+#[test]
+fn an_ungrouped_aggregate_is_optional_though_sqlc_reports_its_cast_not_null() {
+    let total = |sql: &str| {
+        let query = resolve(plugin::Query {
+            columns: vec![column("total", "pg_catalog.numeric", true)],
+            ..query(":one", sql)
+        });
+        (query.command, query.raises)
+    };
+    let numeric = |optional| FieldType {
+        element: Type::DECIMAL,
+        array_dims: 0,
+        optional,
+    };
+    // One row, whose value is NULL of no rows.
+    assert_eq!(
+        total("SELECT sum(amount)::numeric AS total FROM payments"),
+        (Command::One(Shape::Scalar(numeric(true))), true)
+    );
+    assert_eq!(
+        total("SELECT coalesce(sum(amount), 0)::numeric AS total FROM payments"),
+        (Command::One(Shape::Scalar(numeric(false))), true)
+    );
 }
 
 #[test]
@@ -191,6 +276,37 @@ fn an_embed_of_a_table_the_catalog_lacks_is_an_error() {
             ..query(":one", "SELECT 1")
         })
         .ends_with("sqlc.embed(ghosts) names no table")
+    );
+}
+
+#[test]
+fn an_embed_of_a_model_without_fields_is_read_past_the_list() {
+    // Every column of the table has a problem, so its model has no field,
+    // and the embed, last, stands where the list has no item left: the
+    // table's problem is the error, not a panic.
+    let pairs = table("pairs", vec![column("p", "pair", true)]);
+    let embed = plugin::Column {
+        name: "pairs".into(),
+        embed_table: Some(plugin::Identifier {
+            name: "pairs".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let query = plugin::Query {
+        columns: vec![column("id", "int8", true), embed],
+        ..query(":many", "SELECT a.id FROM authors a, pairs")
+    };
+    let request = request(
+        "postgresql",
+        vec![sql_schema("public", vec![pairs], vec![])],
+        vec![query],
+    );
+    let error = crate::api::resolve(&request, &Config::of(Backend::SqlAlchemy)).unwrap_err();
+    let error = format!("{error:#}");
+    assert!(
+        error.contains(r#"table "pairs": column "p" has type "pair""#),
+        "{error}"
     );
 }
 
@@ -267,4 +383,36 @@ fn a_count_is_an_int_on_every_engine_and_any_other_call_asks_for_a_cast() {
             "{engine}"
         );
     }
+}
+
+#[test]
+fn an_embed_that_may_be_missing_needs_a_not_null_column_to_tell_by() {
+    // A table of nullable columns alone: a row of NULLs and no row read alike.
+    let notes = table("notes", vec![column("body", "text", false)]);
+    let embed = plugin::Column {
+        name: "notes".into(),
+        embed_table: Some(plugin::Identifier {
+            name: "notes".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let query = plugin::Query {
+        columns: vec![column("id", "int8", true), embed],
+        ..query(
+            ":many",
+            "SELECT a.id, notes.body FROM authors a LEFT JOIN notes ON true",
+        )
+    };
+    let request = request(
+        "postgresql",
+        vec![sql_schema("public", vec![notes], vec![])],
+        vec![query],
+    );
+    let error = crate::api::resolve(&request, &Config::of(Backend::SqlAlchemy)).unwrap_err();
+    let error = format!("{error:#}");
+    assert!(
+        error.contains("none is NOT NULL to tell a missing row by"),
+        "{error}"
+    );
 }

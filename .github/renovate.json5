@@ -2,7 +2,7 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: [
     "config:recommended",
-    ":preserveSemverRanges", // Update SemVer ranges
+    ":preserveSemverRanges", // A range stays a range, replaced only by a version outside it
     ":automergeAll", // Majors too: CI, the whole proof, decides
     ":automergeBranch", // As commits on main, without a pull request
   ],
@@ -20,9 +20,11 @@
       matchManagers: ["github-actions"],
     },
     {
-      // The plugin and xtask share the root Cargo.lock.
+      // The plugin and xtask share the root Cargo.lock. Cargo.toml names the release each crate was last proven
+      // at, a caret range every later one is inside: bumped, or Cargo.lock would never move.
       groupName: "cargo",
       matchManagers: ["cargo"],
+      rangeStrategy: "bump",
     },
     {
       // The Python side of the proof (tests/python), with its uv.lock.
@@ -31,9 +33,22 @@
     },
     {
       // The plugin formats with ruff's crates, and the gate checks with ruff itself: one version, moved together
-      // (tests/rust/golden.rs fails otherwise).
+      // (tests/rust/golden.rs fails otherwise). Always a pull request: Renovate moves the crates' tag in Cargo.toml
+      // but not Cargo.lock, which `cargo update` then does by hand.
       groupName: "ruff",
       matchPackageNames: ["ruff", "astral-sh/ruff"],
+    },
+    {
+      // pglast 7 is PostgreSQL 17's scanner, the one the pinned sqlc parses with: its major moves with sqlc's, by
+      // hand.
+      matchPackageNames: ["pglast"],
+      allowedVersions: "<8",
+    },
+    {
+      // MySQL's long-term release. A 9.x is an innovation release, supported only until the next.
+      matchDatasources: ["docker"],
+      matchPackageNames: ["mysql"],
+      allowedVersions: "/^8\\./",
     },
   ],
   customManagers: [
@@ -54,12 +69,23 @@
       datasourceTemplate: "github-releases",
     },
     {
-      // uv, which `required-version` pins and setup-uv reads.
+      // The uv CI runs. A new minor is outside the range tests/python/pyproject.toml requires, which then fails:
+      // widened by hand, with uv's changelog read.
       customType: "regex",
-      managerFilePatterns: ["/^tests/python/pyproject\\.toml$/"],
-      matchStrings: ["required-version = \"==(?<currentValue>[0-9.]+)\""],
+      managerFilePatterns: ["/^\\.github/workflows/ci\\.yml$/"],
+      matchStrings: ["UV_VERSION: \"(?<currentValue>[0-9.]+)\""],
       depNameTemplate: "astral-sh/uv",
       datasourceTemplate: "github-releases",
+    },
+    {
+      // sqlc, a plugin's tool, which the proto manager skips. CI fails on a new one until `cargo xtask capture`
+      // has captured what it sends.
+      customType: "regex",
+      managerFilePatterns: ["/^\\.prototools$/"],
+      matchStrings: ["sqlc = \"(?<currentValue>[0-9.]+)\""],
+      depNameTemplate: "sqlc-dev/sqlc",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
     },
     {
       // The databases the proof runs on: `NEWEST = "postgres:18"`, `IMAGE = "mysql:8.4"`. Not capture.py's

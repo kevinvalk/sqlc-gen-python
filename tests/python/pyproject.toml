@@ -46,9 +46,10 @@ dev = [
 ]
 
 [tool.uv]
-# The one uv pin: CI's setup-uv reads it (`version-file`), and uv enforces it
-# locally too.
-required-version = "==0.13.7"
+# A range, so that a developer's uv need not be the release CI runs
+# (`UV_VERSION` in .github/workflows/ci.yml, exact): uv.lock decides every
+# package either way.
+required-version = ">=0.13.7,<0.14"
 
 [tool.ruff]
 target-version = "py310"

@@ -13,17 +13,20 @@ on:
 
 permissions: {}
 
-# The newest commit on main is the one to publish; a tag always finishes.
-# Not CI's group, which this would then wait on itself for.
+# One at a time, and each to its end: cancelled between deleting `unstable`
+# and making it anew, a run would leave none. Of the commits on main that
+# wait, only the newest runs. Not CI's group, which this would then wait on
+# itself for.
 concurrency:
   group: publish-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref_type == 'branch' }}
+  cancel-in-progress: false
 
 jobs:
   version:
     name: tag is on main and is v + Cargo.toml's version
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -56,8 +59,11 @@ jobs:
   publish:
     name: publish the release
     needs: ci
-    if: ${{ !failure() && !cancelled() }}
+    # Only what CI passed, said outright: `version`, skipped on main, would
+    # otherwise skip this too.
+    if: ${{ !cancelled() && needs.ci.result == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'unstable' }}
     permissions:

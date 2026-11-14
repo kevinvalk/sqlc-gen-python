@@ -343,6 +343,23 @@ fn an_array_sqlc_gave_no_depth_is_an_error_not_a_guess() {
 }
 
 #[test]
+fn an_array_deeper_than_an_array_can_be_is_an_error() {
+    // The depth is the request's: `-1` or a billion is no `list` to nest.
+    for array_dims in [-1, 7, i32::MAX] {
+        let tags = plugin::Column {
+            is_array: true,
+            array_dims,
+            ..column("tags", "text", true)
+        };
+        let error = try_resolve(public(vec![table("posts", vec![tags])])).unwrap_err();
+        assert!(
+            format!("{error:#}").contains("where an array has six at most"),
+            "{error:#}"
+        );
+    }
+}
+
+#[test]
 fn two_objects_that_would_share_a_class_name_are_an_error() {
     // sqlc's Go codegen refuses the same: "struct name conflicts with enum name".
     let request = vec![sql_schema(
@@ -374,7 +391,8 @@ fn a_class_with_the_name_of_an_import_is_an_error() {
     let error = try_resolve(public(vec![table("sequences", vec![])])).unwrap_err();
     assert_eq!(
         error.to_string(),
-        "`Sequence` is a name generated code imports; rename the table or type"
+        "`Sequence` is a name generated code imports; name the table or type otherwise with the \
+         rename option"
     );
     let decimal = plugin::Enum {
         name: "decimal".into(),

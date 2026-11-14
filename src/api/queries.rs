@@ -18,7 +18,7 @@ use super::names::{self, Repeats};
 use super::resolver::Resolver;
 use super::{Problems, params, results};
 use crate::config::Config;
-use crate::engine::{Bind, Engine, Sql};
+use crate::engine::{Bind, Engine, Piece, Sql};
 use crate::plugin;
 use crate::python::vocabulary::{FROM_ROW, MODELS};
 use crate::python::{self, Expression, Scope, int, name};
@@ -47,7 +47,8 @@ pub struct Query {
     pub params: Vec<Field>,
     /// A `:copyfrom`, an `:exec` over `rows`: its table, `schema` empty for
     /// the search path's, and its columns, one per parameter, which `COPY`
-    /// writes into.
+    /// writes into. None if the statement binds a parameter twice: `COPY`
+    /// would then write one column for the two it inserts.
     pub copy_into: Option<CopyInto>,
     /// Every column of the result as the database returns it, embeds expanded.
     pub columns: Vec<Field>,
@@ -60,12 +61,6 @@ pub struct Query {
 }
 
 impl Query {
-    /// Whether the query reads at most one row each run: a `:one`, or a
-    /// `:batchone`.
-    pub fn reads_one(&self) -> bool {
-        matches!(self.command, Command::One(_))
-    }
-
     /// The classes the query defines: its `Params`, then its `Row`.
     pub fn classes(&self) -> impl Iterator<Item = &str> {
         let row = match &self.command {
@@ -304,6 +299,9 @@ fn resolve(
         })
         .collect();
     let sql = resolver.engine.sql(&query.text, &binds)?;
+    let placeholders = (sql.0.iter())
+        .filter(|piece| !matches!(piece, Piece::Text(_)))
+        .count();
     let mut params: Vec<Field> = Vec::new();
     for field in uses {
         if !params.iter().any(|p| p.name == field.name) {
@@ -335,7 +333,7 @@ fn resolve(
             .join("\n"),
         sql,
         params,
-        copy_into: copy_into(query),
+        copy_into: copy_into(query).filter(|into| placeholders == into.columns.len()),
         columns,
         raises: config.raise_on_none || resolver.engine.single_row(&query.text),
         takes,

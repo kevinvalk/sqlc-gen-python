@@ -30,8 +30,6 @@ pub struct Resolver<'a> {
     pub catalog: &'a plugin::Catalog,
     overrides: &'a [Override],
     rename: &'a BTreeMap<String, String>,
-    /// Whether sqlc analysed the queries on a database.
-    database: bool,
     backend: Backend,
     /// The rename keys and overrides (by index) something matched: any
     /// other is a typo, which would silently do nothing.
@@ -48,7 +46,6 @@ impl<'a> Resolver<'a> {
             catalog: request.catalog.as_ref().unwrap_or(&EMPTY),
             overrides: &config.overrides,
             rename: &config.rename,
-            database: config.database_analysis,
             backend: config.backend,
             used: RefCell::default(),
         })
@@ -61,7 +58,10 @@ impl<'a> Resolver<'a> {
             bail!("rename: \"{key}\" names no table, type, column or parameter of the queries");
         }
         if let Some(i) = (0..self.overrides.len()).find(|i| !overrides.contains(i)) {
-            bail!("overrides[{i}]: matches no column or parameter of the queries");
+            bail!(
+                "overrides[{i}]: matches no column or parameter that an override before it does \
+                 not"
+            );
         }
         Ok(())
     }
@@ -190,10 +190,7 @@ impl<'a> Resolver<'a> {
         // sqlc reports `coalesce(x, ...)` as the column `x`, but NOT NULL: the
         // type is the first argument's, whatever PostgreSQL resolves
         // (`coalesce(qty, 1.5)` is numeric), so it is no type to trust either.
-        if column.not_null
-            && !self.database
-            && self.source(column).is_some_and(|source| !source.not_null)
-        {
+        if column.not_null && self.source(column).is_some_and(|source| !source.not_null) {
             bail!(
                 "column \"{described}\" has a type sqlc could not infer; add a cast, as {}",
                 self.engine.cast("coalesce(<expr>, <default>)")
@@ -207,7 +204,7 @@ impl<'a> Resolver<'a> {
             )
         }
         Ok(Field {
-            ty: self.field_type(column, &format!("column \"{described}\""), &cast)?,
+            ty: self.field_type(column, false, &format!("column \"{described}\""), &cast)?,
             comment: column.comment.clone(),
             name,
         })
@@ -223,18 +220,33 @@ impl<'a> Resolver<'a> {
             .find(|c| c.name == column.original_name)
     }
 
-    /// The type of `column`, which `what` describes in errors, or an error for
-    /// a type without a verified Python type: annotating it `Any` would hide
-    /// exactly the mistakes the type checkers are there to catch. For a type
-    /// sqlc could not infer, the error suggests `cast`.
+    /// The type of `column`, a query's `parameter` or not, which `what`
+    /// describes in errors, or an error for a type without a verified Python
+    /// type: annotating it `Any` would hide exactly the mistakes the type
+    /// checkers are there to catch. For a type sqlc could not infer, the
+    /// error suggests `cast`.
     ///
     /// A column sqlc marks `is_func_call` has the return type of an overload
     /// it guessed (`abs(numeric)` as `bigint`), and other guesses are
     /// [`Engine::is_guess`]'s to tell (`docs/python-output.md` §5, rule 2).
-    pub fn field_type(&self, column: &plugin::Column, what: &str, cast: &str) -> Result<FieldType> {
+    pub fn field_type(
+        &self,
+        column: &plugin::Column,
+        parameter: bool,
+        what: &str,
+        cast: &str,
+    ) -> Result<FieldType> {
         let data_type = column.data_type();
         let sql_enum = self.declared_enum(&data_type);
-        let array_dims = column.array_dims as usize;
+        // PostgreSQL's own limit (MAXDIM), and no other engine has arrays: a
+        // depth beyond it is no type to nest a `list` for, however deep.
+        let array_dims = match usize::try_from(column.array_dims) {
+            Ok(dims) if dims <= 6 => dims,
+            _ => bail!(
+                "{what} is an array of {} dimensions, where an array has six at most",
+                column.array_dims
+            ),
+        };
         // An override replaces the element's type, and its array is still
         // the array the driver returns.
         let element = match self.overridden(column, &data_type) {
@@ -251,20 +263,24 @@ impl<'a> Resolver<'a> {
                 },
             },
             None => {
-                // On a database, PostgreSQL resolved a function call's type too.
-                if column.is_func_call && !self.database {
+                if column.is_func_call {
                     bail!(
                         "{what} is a function's result, which sqlc types by the function's first \
                          overload whatever its arguments (sum() of a numeric column as bigint); \
-                         add a cast, as {cast}{}",
-                        self.engine.analyses()
+                         add a cast, as {cast}"
                     )
                 }
-                if self.engine.is_guess(&data_type, self.database) {
-                    bail!("{what} has a type sqlc could not infer; add a cast, as {cast}")
+                if self.engine.is_guess(column, parameter) {
+                    bail!(
+                        "{what} has a type sqlc could not infer; add a cast, as {cast}{}",
+                        self.engine.analysis()
+                    )
                 }
                 let Some(element) = (self.engine.scalar_type(column))
-                    .or_else(|| self.backend.scalar_type(self.engine, &data_type))
+                    .or_else(|| {
+                        let name = self.engine.type_name(&data_type);
+                        self.backend.scalar_type(self.engine, &name)
+                    })
                     .or_else(|| self.declared_type(&data_type))
                 else {
                     let hint = self.engine.unmapped(&data_type);

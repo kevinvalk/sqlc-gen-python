@@ -24,6 +24,9 @@ SELECT * FROM accounts WHERE id IN (sqlc.slice(ids)) ORDER BY id;
 INSERT INTO entries (account_id, amount_cents, rate, memo, receipt)
 VALUES (?, ?, ?, ?, ?);
 
+-- name: BookMany :copyfrom
+INSERT INTO entries (account_id, amount_cents, memo) VALUES (?, ?, ?);
+
 -- name: BookReturningID :one
 INSERT INTO entries (account_id, amount_cents, memo) VALUES (?, ?, ?)
 RETURNING id;

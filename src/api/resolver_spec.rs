@@ -137,6 +137,29 @@ fn an_override_is_written_as_ruff_writes_it() {
 }
 
 #[test]
+fn an_override_that_has_none_is_optional_once() {
+    // A JSON column holds `null` whether or not it is nullable.
+    let config =
+        options(r#""overrides": [{"db_type": "jsonb", "python_type": "dict[str, int] | None"}]"#);
+    let nullable = plugin::Column {
+        not_null: false,
+        ..column("maybe", "jsonb", true)
+    };
+    let schemas = public(vec![table(
+        "items",
+        vec![column("always", "jsonb", true), nullable],
+    )]);
+    let api = resolve_options(schemas, &config).unwrap();
+    assert_eq!(
+        annotations(&api),
+        [
+            ("always".into(), "dict[str, int] | None".into()),
+            ("maybe".into(), "dict[str, int] | None".into())
+        ]
+    );
+}
+
+#[test]
 fn an_override_names_only_types_generated_code_can_import_as_written() {
     let error = |python_type: &str| {
         let request = plugin::GenerateRequest {
@@ -153,7 +176,8 @@ fn an_override_names_only_types_generated_code_can_import_as_written() {
     for (bad, problem) in [
         ("numpy.typing.NDArray[numpy.float64]", "ICN001"),
         ("pandas.Series", "ICN001"),
-        ("datetime.date", "ICN001"),
+        ("datetime.date", "write `dt.date`"),
+        ("int, str", "is no type"),
         ("models.Account", "generated code binds"),
         ("sqlalchemy.Text", "generated code binds"),
         ("dt.date.max", "generated code binds"),
@@ -168,6 +192,7 @@ fn an_override_names_only_types_generated_code_can_import_as_written() {
         "Decimal",
         "UUID",
         "list[app.T] | None",
+        "tuple[float, ...]",
         "IPv4Network",
     ] {
         assert_eq!(error(good), None, "{good}");

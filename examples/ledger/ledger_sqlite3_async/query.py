@@ -3,7 +3,7 @@
 #   sqlc-gen-python v0.1.0
 #   sqlc v1.31.1
 import dataclasses
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Any, Final
 
 import aiosqlite
@@ -128,18 +128,48 @@ _BOOK: Final = """INSERT INTO entries (account_id, amount_cents, rate, memo, rec
 VALUES (?, ?, ?, ?, ?)"""
 
 
-async def book(
-    conn: aiosqlite.Connection,
-    *,
-    account_id: int,
-    amount_cents: int,
-    rate: float | None,
-    memo: str | None,
-    receipt: bytes | None,
-) -> None:
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class BookParams:
+    account_id: int
+    amount_cents: int
+    rate: float | None
+    memo: str | None
+    receipt: bytes | None
+
+
+async def book(conn: aiosqlite.Connection, params: BookParams) -> None:
     async with conn.cursor() as cur:
         cur.row_factory = None
-        await cur.execute(_BOOK, (account_id, amount_cents, rate, memo, receipt))
+        await cur.execute(
+            _BOOK,
+            (
+                params.account_id,
+                params.amount_cents,
+                params.rate,
+                params.memo,
+                params.receipt,
+            ),
+        )
+
+
+_BOOK_MANY: Final = (
+    "INSERT INTO entries (account_id, amount_cents, memo) VALUES (?, ?, ?)"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class BookManyParams:
+    account_id: int
+    amount_cents: int
+    memo: str | None
+
+
+async def book_many(conn: aiosqlite.Connection, rows: Iterable[BookManyParams]) -> None:
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.executemany(
+            _BOOK_MANY, [(r.account_id, r.amount_cents, r.memo) for r in rows]
+        )
 
 
 _BOOK_RETURNING_ID: Final = """INSERT INTO entries (account_id, amount_cents, memo) VALUES (?, ?, ?)
@@ -166,7 +196,7 @@ _BALANCE: Final = """SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS b
 FROM entries WHERE account_id = ?"""
 
 
-async def balance(conn: aiosqlite.Connection, *, account_id: int) -> int | None:
+async def balance(conn: aiosqlite.Connection, *, account_id: int) -> int:
     async with conn.cursor() as cur:
         cur.row_factory = None
         await cur.execute(_BALANCE, (account_id,))
@@ -175,7 +205,7 @@ async def balance(conn: aiosqlite.Connection, *, account_id: int) -> int | None:
                 value: int = row[0]
                 return value
             case []:
-                return None
+                raise NoRowError
             case _:
                 raise MultipleRowsError
 

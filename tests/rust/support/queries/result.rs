@@ -8,7 +8,6 @@ use sqlc_gen_python::api::names::Repeats;
 use sqlc_gen_python::backend::Backend;
 use sqlc_gen_python::config::Config;
 use sqlc_gen_python::engine::Engine;
-use sqlc_gen_python::engine::select::Item;
 use sqlc_gen_python::plugin;
 
 use crate::support::python::{Shape, is_name, record, strip_optional, unparse};
@@ -34,18 +33,31 @@ pub(super) fn result_follows_sqlc(
     let Some(returns) = function.returns.as_deref() else {
         return problems.push(format!("{}: no return annotation", query.name));
     };
-    // A scalar subquery is NULL when it finds no row, though sqlc reports it
-    // NOT NULL, unless it counts.
-    let items = engine.items(&query.text, query.columns.len());
-    let shape = |i: usize| {
-        let column = &query.columns[i];
-        let subquery =
-            items.as_ref().map(|items| &items[i]) == Some(&Item::Subquery { row: false });
-        Shape::from(&plugin::Column {
-            not_null: column.not_null && !subquery,
-            ..column.clone()
+    // A scalar subquery that may find no row, and an aggregate of no rows, are
+    // NULL, though sqlc reports them NOT NULL; and so may every column of a
+    // list that is not read. An embed is one column here and each of its
+    // table's in the statement's list.
+    let width = |column: &plugin::Column| {
+        let embed = column.embed_table.as_ref().filter(|_| is_embed(column));
+        embed.map_or(1, |embed| {
+            table(request, embed).map_or(0, |t| t.columns.len())
         })
     };
+    let items = engine.items(&query.text, query.columns.iter().map(width).sum());
+    let columns: Vec<plugin::Column> = (query.columns.iter().enumerate())
+        .map(|(i, column)| {
+            let at: usize = query.columns[..i].iter().map(width).sum();
+            let nullable = match &items {
+                Some(items) => !is_embed(column) && items[at].nullable,
+                None => true,
+            };
+            plugin::Column {
+                not_null: column.not_null && !nullable,
+                ..column.clone()
+            }
+        })
+        .collect();
+    let shape = |i: usize| Shape::from(&columns[i]);
     // A batch returns a list, its command's result per row.
     let (cmd, returns) = match (query.cmd.strip_prefix(":batch"), returns) {
         (Some(cmd @ ("one" | "many")), Expr::Subscript(list)) if is_name(&list.value, "list") => {
@@ -98,7 +110,7 @@ pub(super) fn result_follows_sqlc(
     match record(item, body, models) {
         Some((class, fields)) => {
             let model = item.is_attribute_expr();
-            if model != reuses_model(request, &query.columns) {
+            if model != reuses_model(request, &columns) {
                 problems.push(format!(
                     "{}: returns `{}`, but a model is returned exactly when the result is its table's columns",
                     query.name,

@@ -3,7 +3,7 @@
 #   sqlc-gen-python v0.1.0
 #   sqlc v1.31.1
 import dataclasses
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Any, Final
 
 import sqlalchemy
@@ -115,6 +115,27 @@ async def book(
     )
 
 
+_BOOK_MANY: Final = sqlalchemy.text(
+    "INSERT INTO entries (account_id, amount_cents, memo) VALUES (:account_id, :amount_cents, :memo)"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class BookManyParams:
+    account_id: int
+    amount_cents: int
+    memo: str | None
+
+
+async def book_many(conn: AsyncConnection, rows: Iterable[BookManyParams]) -> None:
+    params = [
+        {"account_id": r.account_id, "amount_cents": r.amount_cents, "memo": r.memo}
+        for r in rows
+    ]
+    if params:
+        await conn.execute(_BOOK_MANY, params)
+
+
 _BOOK_RETURNING_ID: Final = sqlalchemy.text("""INSERT INTO entries (account_id, amount_cents, memo) VALUES (:account_id, :amount_cents, :memo)
 RETURNING id""")
 
@@ -135,10 +156,8 @@ _BALANCE: Final = sqlalchemy.text("""SELECT CAST(coalesce(sum(amount_cents), 0) 
 FROM entries WHERE account_id = :account_id""")
 
 
-async def balance(conn: AsyncConnection, *, account_id: int) -> int | None:
-    value: int | None = (
-        await conn.execute(_BALANCE, {"account_id": account_id})
-    ).scalar_one_or_none()
+async def balance(conn: AsyncConnection, *, account_id: int) -> int:
+    value: int = (await conn.execute(_BALANCE, {"account_id": account_id})).scalar_one()
     return value
 
 

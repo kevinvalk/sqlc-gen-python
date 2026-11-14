@@ -23,9 +23,6 @@ pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Resul
     let columns: Vec<plugin::Column> = (params.iter())
         .map(|param| param.column.clone().unwrap_or_default())
         .collect();
-    // sqlc's Go codegen numbers parameters that spell one name, but a name
-    // the user chose (`sqlc.arg`, `@name`) must bind the placeholder it was
-    // written at, not take, or give another, a suffix.
     // A name the user chose is the identifier after `@`. sqlc names the
     // operand of `@` after its parts when it is an expression, which `@`
     // takes when an operator binds tighter (`@day::date AT TIME ZONE 'UTC'`
@@ -42,7 +39,10 @@ pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Resul
             column.name
         );
     }
-    // Each use of a name the user chose after the first: which use it repeats.
+    // sqlc's Go codegen numbers parameters that spell one name, but a name
+    // the user chose (`sqlc.arg`, `@name`) must bind the placeholder it was
+    // written at, not take, or give another, a suffix. Each use of one after
+    // the first: which use it repeats.
     let mut chosen: HashMap<String, usize> = HashMap::new();
     let repeats: Vec<Option<usize>> = (columns.iter().enumerate())
         .map(|(i, c)| match c.is_named_param && !c.name.is_empty() {
@@ -106,12 +106,10 @@ pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Resul
             }),
             resolver.engine.cast(&format!("sqlc.narg('{name}')"))
         );
-        let mut ty = resolver.field_type(&column, &what, &cast)?;
+        let mut ty = resolver.field_type(&column, true, &what, &cast)?;
         if column.is_sqlc_slice {
-            if ty.array_dims > 0 {
-                bail!("{what} is a sqlc.slice of an array, which binds no placeholder per item");
-            }
-            // The list is never NULL: its items are each bound.
+            // A list, never NULL: its items are each bound. No engine with
+            // slices has arrays, so it is a list of no lists.
             ty.array_dims = 1;
             ty.optional = false;
         }

@@ -21,13 +21,23 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Exact, and a week old before Renovate proposes it: this uv runs in the job
+  # whose build is released. tests/python/pyproject.toml holds the range a
+  # developer's own uv must be in.
+  UV_VERSION: "0.13.7"
+
 # A Renovate branch that failed becomes a pull request, whose push already ran
-# these checks.
+# these checks. Only this repository's branch is Renovate's: a fork's of that
+# name is checked like any other.
 jobs:
   xtask:
     name: cargo xtask ${{ matrix.task }}
-    if: ${{ !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/')) }}
+    if: >-
+      ${{ !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/')
+      && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -40,23 +50,24 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version-file: tests/python/pyproject.toml
+          version: ${{ env.UV_VERSION }}
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo xtask ${{ matrix.task }}
 
   capture:
     name: cargo xtask capture --check
-    if: ${{ !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/')) }}
+    if: >-
+      ${{ !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/')
+      && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Pinned like everything else here: uv runs the build that is released.
-      # The pin is `required-version` in tests/python/pyproject.toml.
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version-file: tests/python/pyproject.toml
+          version: ${{ env.UV_VERSION }}
       # sqlc's own singularisation is Go. Any Go bootstraps it: sqlc's go.mod
       # selects the toolchain (GOTOOLCHAIN=auto), so `stable` is not a pin.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -80,6 +91,7 @@ jobs:
     name: clean rebuild gives the same plugin
     needs: capture
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

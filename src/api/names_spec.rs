@@ -3,6 +3,8 @@
 use super::*;
 use crate::api::fixtures::catalog::*;
 use crate::api::fixtures::*;
+use crate::backend::Backend;
+use crate::config::Config;
 use crate::plugin;
 
 fn try_field_names(columns: &[&str]) -> Result<Vec<String>> {
@@ -140,6 +142,25 @@ fn an_enum_member_is_its_labels_words_in_upper_snake_case() {
     );
     // A separator at either end separates nothing.
     assert_eq!(try_member_names(&["_x_", "-a"]).unwrap(), ["X", "A"]);
+}
+
+#[test]
+fn an_enum_label_is_spelt_as_the_options_rename_it() {
+    // The only way to name a label that is no identifier, such as a size.
+    let sizes = plugin::Enum {
+        name: "size".into(),
+        vals: vec!["xl".into(), "2xl".into()],
+        comment: String::new(),
+    };
+    let config = Config {
+        rename: [("2xl".to_string(), "xxl".to_string())].into(),
+        ..Config::of(Backend::SqlAlchemy)
+    };
+    let api = resolve_options(vec![sql_schema("public", vec![], vec![sizes])], &config).unwrap();
+    let members: Vec<(&str, &str)> = (api.enums[0].members.iter())
+        .map(|member| (member.name.as_str(), member.value.as_str()))
+        .collect();
+    assert_eq!(members, [("XL", "xl"), ("XXL", "2xl")]);
 }
 
 #[test]

@@ -74,3 +74,11 @@ fn sections_go_standard_library_third_party_relative_with_a_blank_line_between()
          from . import models"
     );
 }
+
+#[test]
+fn an_overrides_module_is_imported_only_where_a_name_is_read_from_it() {
+    let modules = ["app.names".to_string(), "app.types".to_string()];
+    let annotation = name("app").attr("types").attr("Title");
+    let rendered = render(&[assign("x", annotation)], &modules);
+    assert_eq!(rendered, "import app.types\n\nx = app.types.Title\n");
+}

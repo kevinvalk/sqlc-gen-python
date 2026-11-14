@@ -22,6 +22,25 @@ these commands are the Rust program in `xtask/`. The Python side runs through
 | `tests/python/` | type-checks and runs the generated code |
 | `docs/python-output.md` | what the plugin generates, rule by rule |
 
+To see what the plugin makes of one statement, have sqlc write the request
+it sends, with its own `json` codegen, and run the plugin on it:
+
+```yaml
+# sqlc.yaml, beside a schema.sql and a query.sql
+version: "2"
+sql:
+  - engine: postgresql
+    schema: schema.sql
+    queries: query.sql
+    gen:
+      json: {out: out, filename: request.json}
+```
+
+```sh
+sqlc generate
+cargo xtask generate out/request.json '{"backend": "psycopg", "async": false}'
+```
+
 ## Architecture
 
 ```
@@ -40,7 +59,7 @@ src/
     imports.rs       the imports, read off the names a module reads
     render.rs        a tree as source: ruff unparses, ruff formats
 
-  api/             the generated API, decided once, whatever the engine and backend
+  api/             the generated API, decided once, before anything is written
     mod.rs           `Api` and `resolve`: the enums, models and query modules
     models.rs        the catalog as enums, models and typed fields
     resolver.rs      one catalog read: types by the type map and overrides, renames
@@ -57,7 +76,7 @@ src/
 
   engine/          the database: what its types are in Python, how its SQL reads
     mod.rs           `Engine`, one variant per engine sqlc analyses for; `Sql`
-    select.rs        what sqlc does not report of a result: counts, subqueries, outer joins
+    select.rs        what sqlc does not report of a result, as far as the SQL proves it
     postgresql/      types.rs (the type map), lexer.rs (placeholders as code)
     sqlite/          types.rs (the type map), lexer.rs (placeholders as code)
     mysql/           types.rs (the type map), lexer.rs (placeholders as code)
@@ -71,9 +90,20 @@ src/
     pymysql.rs       PyMySQL, as a `dbapi::Driver` that takes `%s`
 ```
 
-- **engine**: the database (`engine:`): its type map and where its placeholders are.
-- **backend**: the Python library (`backend:`): how a statement is written and run.
-- **api**: everything else, decided once whatever the two.
+- **engine**: the database (`engine:`): its type map, where its placeholders
+  are, and what its SQL says of a result that sqlc does not report.
+- **backend**: the Python library (`backend:`): how a statement is written and
+  run, and the few types its drivers disagree on.
+- **api**: everything else, decided once. It asks the engine and the backend
+  what only they know, and fails there for whatever they cannot do; `render`
+  after it only writes, and cannot fail.
+
+Where sqlc's report is not enough (`engine/select.rs`), the plugin reads the
+SQL's tokens, and answers only what they prove: what it cannot read is the
+answer that widens a type (a column that may be NULL, a row that may be
+missing), never the one that narrows it. A change there is tried against
+real statements first: sqlc's request for one, as above, shows what the
+plugin makes of it.
 
 Generated Python is never written as text: every expression and statement is
 built as a ruff AST node (`python/syntax.rs`), so a construct that is not
@@ -82,14 +112,16 @@ A name generated code reads or binds itself (`cur`, `Sequence`, `from_row`)
 is a constant of `python/vocabulary.rs`, which reads as the name it is:
 `CUR.attr("execute").call([statement])`. What is still spelt where it is used
 is a library's own member (`"execute"`), in the backend that calls it.
-Only three things are text, because a tree cannot hold them: the header
-comment, the blank line between import sections, and how a docstring or a
-multi-line SQL string is spelt. The one Python the plugin parses is an
-override's `python_type`, which is the user's.
+What is text is what a tree cannot hold: the comments that open a file (the
+header, and `# ruff: noqa: S105` where a statement's name would trip it), the
+blank line between import sections, and how a docstring or a multi-line SQL
+string is spelt. The plugin parses Python in two places: an override's
+`python_type`, which is the user's, and each module it has unparsed, to find
+those strings and for ruff to format.
 
-`Engine` and `Backend` answer each question with an exhaustive `match`, so a
-new variant makes the compiler list what it must answer. Each module's rules
-are specified in a `_spec.rs` beside it.
+`Engine` and `Backend` answer each question with a `match` that names every
+variant, so a new one makes the compiler list what it must answer. Each
+module's rules are specified in a `_spec.rs` beside it.
 
 ## Releasing
 
@@ -103,12 +135,17 @@ prerelease, which moves with `main`. A version:
 `release.yml` reruns CI on the tag and publishes the WASM, `SHA256SUMS`, a
 build attestation and the notes in `.github/release-notes.md`.
 
-Renovate (`.github/renovate.json5`) bumps everything pinned: the actions,
-crates, toolchain, Python lock, uv, ruff (the crates' tag and the Python pin
-together), sqlc and the databases. It merges each into `main` once CI passes
-on its branch, and so into `unstable`. One that fails becomes a pull request,
-to finish by hand:
+Renovate (`.github/renovate.json5`) bumps what is pinned by name: the
+actions, the crates of `Cargo.toml`, the toolchain, the packages of
+`tests/python`, the uv CI runs, ruff (the crates' tag and the Python pin
+together), sqlc and the databases. What only a lock file names (a dependency's
+own dependencies) moves when what needs it does. Each release waits a week,
+then is merged into `main` once CI passes on its branch, and so into
+`unstable`. One that fails becomes a pull request, to finish by hand:
 
 - sqlc: `cargo xtask capture`, and `POSTGRES` in `tests/python/capture.py` to
   the version sqlc's own tests run;
-- PostgreSQL or MySQL: `cargo xtask verify` to rewrite `docs/typemap.md`.
+- ruff: `cargo update` for the crates' new tag, then `cargo xtask bless` if
+  the formatter writes anything differently;
+- PostgreSQL or MySQL: `cargo xtask verify` to rewrite `docs/typemap.md`;
+- a uv minor: widen `required-version` in `tests/python/pyproject.toml`.

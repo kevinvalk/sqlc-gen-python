@@ -11,7 +11,7 @@
 
 use ruff_python_ast as ast;
 
-use super::dbapi::{Driver, Flavor};
+use super::dbapi::{Driver, Flavor, Placeholders};
 use crate::python::Expression;
 use crate::python::vocabulary::{CONN, PYMYSQL};
 
@@ -26,11 +26,13 @@ pub const DRIVER: Driver = Driver {
         setup: None,
     },
     asynchronous: None,
-    placeholder: Some("%s"),
-    formats: true,
+    placeholders: Some(Placeholders {
+        text: "%s",
+        formats: true,
+        no_rows: "SELECT NULL FROM DUAL WHERE FALSE",
+    }),
     execute_counts: true,
     pipelines: false,
-    no_rows: "SELECT NULL FROM DUAL WHERE FALSE",
     bind: |_, value| value,
     text_arrays: false,
     copies: false,

@@ -156,3 +156,12 @@ async def scenario(api: Any) -> None:  # noqa: ANN401
     # A scalar subquery that finds no row is None, though sqlc says NOT NULL.
     last = await q.get_last_amount(id=cash.id)
     assert (last.name, last.last_amount_cents) == ("Cash", None)
+
+    # A `:copyfrom`: the INSERT once per row, and never for none.
+    rows = [
+        q.BookManyParams(account_id=cash.id, amount_cents=300, memo=AWKWARD),
+        q.BookManyParams(account_id=cash.id, amount_cents=200, memo=None),
+    ]
+    assert await q.book_many(rows=rows) is None
+    assert await q.book_many(rows=[]) is None
+    assert await q.balance(account_id=cash.id) == 500

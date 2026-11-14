@@ -84,11 +84,10 @@ pub fn statement(query: &Query) -> ast::Expr {
     statement.attr("columns").call(columns)
 }
 
-/// The Python type of a column of `data_type` that SQLAlchemy decides,
+/// The Python type of a column of PostgreSQL's `pg_type` that SQLAlchemy decides,
 /// whatever the driver: a range, as SQLAlchemy's `Range`; an `hstore`, as a
 /// `dict`.
-pub fn scalar_type(data_type: &str) -> Option<Type> {
-    let pg_type = data_type.strip_prefix("pg_catalog.").unwrap_or(data_type);
+pub fn scalar_type(pg_type: &str) -> Option<Type> {
     // SQLAlchemy registers psycopg's `hstore` codec, and parses asyncpg's
     // text, through its own type.
     if pg_type == "hstore" {

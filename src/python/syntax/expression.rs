@@ -250,9 +250,21 @@ pub trait Expression: Into<ast::Expr> {
         binary(self, ast::Operator::BitOr, other)
     }
 
-    /// `self | None`.
+    /// `self | None`, unless it is a union that has `None`: an override's
+    /// type may, as a JSON column's value is `None` for `null`.
     fn or_none(self) -> ast::Expr {
-        self.union(none())
+        fn has_none(annotation: &ast::Expr) -> bool {
+            match annotation {
+                ast::Expr::NoneLiteral(_) => true,
+                ast::Expr::BinOp(op) => has_none(&op.left) || has_none(&op.right),
+                _ => false,
+            }
+        }
+        let annotation = self.into();
+        match has_none(&annotation) {
+            true => annotation,
+            false => annotation.union(none()),
+        }
     }
 
     /// `self * other`.

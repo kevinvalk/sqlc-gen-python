@@ -5,7 +5,7 @@
 
 use ruff_python_ast as ast;
 
-use super::dbapi::{Driver, Flavor};
+use super::dbapi::{Driver, Flavor, Placeholders};
 use crate::python::vocabulary::{AIOSQLITE, CONN, CONTEXTLIB, CUR, SQLITE3};
 use crate::python::{Expression, assign_to, none};
 
@@ -24,11 +24,13 @@ pub const DRIVER: Driver = Driver {
         cursor_type: || AIOSQLITE.attr("Cursor"),
         setup: Some(plain_rows),
     }),
-    placeholder: Some("?"),
-    formats: false,
+    placeholders: Some(Placeholders {
+        text: "?",
+        formats: false,
+        no_rows: "SELECT NULL WHERE 0",
+    }),
     execute_counts: false,
     pipelines: false,
-    no_rows: "SELECT NULL WHERE 0",
     bind: |_, value| value,
     text_arrays: false,
     copies: false,

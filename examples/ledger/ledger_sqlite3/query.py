@@ -5,7 +5,7 @@
 import contextlib
 import dataclasses
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Any, Final
 
 from . import MultipleRowsError, NoRowError, models
@@ -138,6 +138,26 @@ def book(
     with contextlib.closing(conn.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_BOOK, (account_id, amount_cents, rate, memo, receipt))
+
+
+_BOOK_MANY: Final = (
+    "INSERT INTO entries (account_id, amount_cents, memo) VALUES (?, ?, ?)"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class BookManyParams:
+    account_id: int
+    amount_cents: int
+    memo: str | None
+
+
+def book_many(conn: sqlite3.Connection, rows: Iterable[BookManyParams]) -> None:
+    with contextlib.closing(conn.cursor()) as cur:
+        cur.row_factory = None
+        cur.executemany(
+            _BOOK_MANY, [(r.account_id, r.amount_cents, r.memo) for r in rows]
+        )
 
 
 _BOOK_RETURNING_ID: Final = """INSERT INTO entries (account_id, amount_cents, memo) VALUES (?, ?, ?)

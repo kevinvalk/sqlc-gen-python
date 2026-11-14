@@ -3,6 +3,7 @@
 
 use ruff_python_ast::{Stmt, StmtClassDef};
 use sqlc_gen_python::api::names::{self, Repeats};
+use sqlc_gen_python::config::Config;
 use sqlc_gen_python::plugin;
 
 use super::python::{Shape, fields, is_enum};
@@ -29,6 +30,9 @@ pub(super) fn models_follow_catalog(
             .flat_map(|catalog| catalog.user_schemas())
     };
     let mut enums: Vec<&plugin::Enum> = schemas().flat_map(|schema| &schema.enums).collect();
+    // A label is spelt as the options rename it.
+    let rename = Config::from_request(request).map(|config| config.rename);
+    let rename = rename.unwrap_or_default();
     // Each table, and its columns' names and shapes.
     let mut tables: Vec<(&plugin::Table, Vec<(String, Shape)>)> = (schemas())
         .flat_map(|schema| &schema.tables)
@@ -54,7 +58,8 @@ pub(super) fn models_follow_catalog(
                 continue;
             };
             let sql = enums.swap_remove(sql);
-            let expected = names::members(&sql.vals).unwrap_or_default();
+            let spelling = |label| rename.get(label).map_or(label, String::as_str);
+            let expected = names::members(&sql.vals, spelling).unwrap_or_default();
             if !names.iter().eq(expected.iter().map(|member| &member.name)) {
                 problems.push(format!(
                     "{what}: members {names:?} are not named after their labels {values:?}"

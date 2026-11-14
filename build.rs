@@ -18,6 +18,11 @@ fn main() -> Result<()> {
     // one convention serde does not share handled here: absent fields fall back
     // to the proto3 zero value rather than failing.
     //
+    // Only a message takes the zero-value default; a `oneof`, which is an
+    // enum, just derives. The dumps write its value under the variant's own
+    // key, which a message ignores as it does any key it has no field for, so
+    // one is read as unset: nothing here reads one.
+    //
     // The `bytes` fields are skipped. protobuf JSON base64-encodes them, but a
     // fixture carries only the catalog — plugin options belong to the test case,
     // not the schema — so decoding them would be machinery for nothing. The
@@ -25,7 +30,7 @@ fn main() -> Result<()> {
     let mut config = prost_build::Config::new();
     config
         .type_attribute(".", "#[derive(::serde::Deserialize)]")
-        .type_attribute(".", "#[serde(default)]");
+        .message_attribute(".", "#[serde(default)]");
     for bytes_field in [
         "plugin.File.contents",
         "plugin.Codegen.options",

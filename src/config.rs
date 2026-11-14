@@ -60,12 +60,6 @@ pub struct Config {
     #[serde(default)]
     pub rename: BTreeMap<String, String>,
 
-    /// sqlc analysed the queries on a database (`analyzer: {database: true}`
-    /// with a `database` block), so the types it reports for expressions and
-    /// function calls are PostgreSQL's, not its guesses. PostgreSQL only.
-    #[serde(default)]
-    pub database_analysis: bool,
-
     /// Whether a `:one` raises without a row (SQLAlchemy's `NoResultFound`,
     /// or the package's own `NoRowError`) rather than return `None`. A
     /// second row raises either way: a lookup that is not unique is a bug,
@@ -168,7 +162,6 @@ impl Config {
             omit_sqlc_version: false,
             overrides: Vec::new(),
             rename: BTreeMap::new(),
-            database_analysis: false,
             raise_on_none: false,
             max_params: None,
         }

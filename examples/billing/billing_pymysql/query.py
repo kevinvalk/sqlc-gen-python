@@ -15,17 +15,27 @@ from . import MultipleRowsError, NoRowError, models
 _CREATE_CUSTOMER: Final = "INSERT INTO customers (name, email, vip, preferred_method, metadata) VALUES (%s, %s, %s, %s, %s)"
 
 
-def create_customer(
-    conn: pymysql.Connection,
-    *,
-    name: str,
-    email: str | None,
-    vip: bool,
-    preferred_method: models.CustomersPreferredMethod | None,
-    metadata: str | None,
-) -> int:
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CreateCustomerParams:
+    name: str
+    email: str | None
+    vip: bool
+    preferred_method: models.CustomersPreferredMethod | None
+    metadata: str | None
+
+
+def create_customer(conn: pymysql.Connection, params: CreateCustomerParams) -> int:
     with conn.cursor(pymysql.cursors.Cursor) as cur:
-        cur.execute(_CREATE_CUSTOMER, (name, email, vip, preferred_method, metadata))
+        cur.execute(
+            _CREATE_CUSTOMER,
+            (
+                params.name,
+                params.email,
+                params.vip,
+                params.preferred_method,
+                params.metadata,
+            ),
+        )
         return cur.lastrowid
 
 
@@ -107,20 +117,28 @@ _CREATE_INVOICE: Final = """INSERT INTO invoices (customer_id, number, issued_on
 VALUES (%s, %s, %s, %s, %s, %s)"""
 
 
-def create_invoice(
-    conn: pymysql.Connection,
-    *,
-    customer_id: int,
-    number: str,
-    issued_on: dt.date | None,
-    notes: str | None,
-    attachment: bytes | None,
-    pay_within: dt.timedelta | None,
-) -> int:
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CreateInvoiceParams:
+    customer_id: int
+    number: str
+    issued_on: dt.date | None
+    notes: str | None
+    attachment: bytes | None
+    pay_within: dt.timedelta | None
+
+
+def create_invoice(conn: pymysql.Connection, params: CreateInvoiceParams) -> int:
     with conn.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(
             _CREATE_INVOICE,
-            (customer_id, number, issued_on, notes, attachment, pay_within),
+            (
+                params.customer_id,
+                params.number,
+                params.issued_on,
+                params.notes,
+                params.attachment,
+                params.pay_within,
+            ),
         )
         return cur.lastrowid
 

@@ -1,7 +1,7 @@
 -- A schema exercising the breadth of the PostgreSQL type table, comments,
 -- arrays and a non-default schema. Every type the plugin maps has a column in
 -- `scalars` and, unless its arrays are an error, one in `arrays`, so the
--- runtime proof (tests/py/typemap.py) reads back each of them.
+-- runtime proof (tests/python/typemap.py) reads back each of them.
 
 CREATE EXTENSION IF NOT EXISTS citext;
 CREATE EXTENSION IF NOT EXISTS hstore;
