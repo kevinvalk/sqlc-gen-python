@@ -1,14 +1,16 @@
 # Every layer of the proof (docs/python-output.md, "Proof"), and the
 # plugin itself: `capture --check` builds it and runs it under the pinned sqlc,
 # then a clean build on another runner must give the same bytes. `release.yml`
-# calls this workflow, so a tag is held to exactly these checks and releases
-# exactly the plugin they ran. Each command fails loudly when what it needs is
-# missing; the runners have Docker.
+# calls this workflow for `main` and for a tag, so each is held to exactly
+# these checks and releases exactly the plugin they ran. Each command fails
+# loudly when what it needs is missing; the runners have Docker.
 name: CI
 
 on:
+  # Renovate merges a branch of its own once these checks pass on it
+  # (`automergeType: branch`), without a pull request.
   push:
-    branches: [main]
+    branches: ["renovate/**"]
   pull_request:
   workflow_call:
 
@@ -19,9 +21,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# A Renovate branch that failed becomes a pull request, whose push already ran
+# these checks.
 jobs:
   xtask:
     name: cargo xtask ${{ matrix.task }}
+    if: ${{ !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/')) }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -41,6 +46,7 @@ jobs:
 
   capture:
     name: cargo xtask capture --check
+    if: ${{ !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

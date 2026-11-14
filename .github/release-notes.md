@@ -26,7 +26,7 @@ The plugin needs sqlc's static analysis: with a `database` block, add
 ([§5, rule 2](${SERVER}/${REPO}/blob/${TAG}/docs/python-output.md#type-map)).
 
 sqlc refuses a download whose sha256 differs. To check a downloaded file against
-`SHA256SUMS`, and that it was built from ${TAG} by this repository's release
+`SHA256SUMS`, and that it was built from ${REF} by this repository's release
 workflow on a GitHub-hosted runner:
 
 ```sh
@@ -34,5 +34,5 @@ gh release download ${TAG} --repo ${REPO}
 sha256sum -c SHA256SUMS
 gh attestation verify sqlc-gen-python.wasm --repo ${REPO} \
   --signer-workflow ${REPO}/.github/workflows/release.yml \
-  --source-ref refs/tags/${TAG} --deny-self-hosted-runners
+  --source-ref ${REF} --deny-self-hosted-runners
 ```

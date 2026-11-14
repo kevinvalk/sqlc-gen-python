@@ -2,7 +2,7 @@
 
 ```sh
 cargo test           # the Rust tests: no Python, Docker or network
-cargo xtask check    # what CI requires: fmt, clippy, cargo test, Python type checks
+cargo xtask check    # fmt, clippy, cargo test, Python type checks, ruff and mypy on tests/python
 cargo xtask verify   # runs the generated code on PostgreSQL, MySQL, SQLite (Docker)
 cargo xtask bless    # accept changed output into examples/, after reading it
 cargo xtask capture  # re-capture tests/sqlc/ from the pinned sqlc (network)
@@ -30,12 +30,22 @@ src/
   main.rs          the stdio shim sqlc runs
   plugin.rs        the sqlc wire protocol, generated from protos/sqlc.proto
   config.rs        what the user asked for
-  python.rs        writing Python: syntax, types, imports, rendering
+  python.rs        writing Python: the templates, and what the modules below share
+  python/
+    syntax.rs        names, nodes that hold data, fragments
+    quote.rs         templates: Python with holes for data
+    types.rs         the Python types a column can have
+    imports.rs       the import block, read off the names a module reads
+    render.rs        a tree as source: ruff unparses, ruff formats
 
   api/             the generated API, decided once, whatever the engine and backend
     mod.rs           `Api` and `resolve`: the enums, models and query modules
-    models.rs        the catalog as enums, models and typed fields (`Resolver`)
-    queries.rs       the queries as functions, parameters and result shapes
+    models.rs        the catalog as enums, models and typed fields
+    resolver.rs      one catalog read: types by the type map and overrides, renames
+    names.rs         the Python names of columns, parameters and enum labels
+    queries.rs       the queries as modules, functions and commands
+    params.rs        a query's parameters
+    results.rs       what a query's rows become
     inflection.rs    singularising table names exactly as sqlc does
 
   render/          writing the `Api` as files
@@ -44,6 +54,7 @@ src/
 
   engine/          the database: what its types are in Python, how its SQL reads
     mod.rs           `Engine`, one variant per engine sqlc analyses for; `Sql`
+    select.rs        what sqlc does not report of a result: counts, subqueries, outer joins
     postgresql/      types.rs (the type map), lexer.rs (placeholders as code)
     sqlite/          types.rs (the type map), lexer.rs (placeholders as code)
     mysql/           types.rs (the type map), lexer.rs (placeholders as code)
@@ -67,18 +78,21 @@ are specified in a `_spec.rs` beside it.
 
 ## Releasing
 
+Every commit on `main` that passes CI is published as the `unstable`
+prerelease, which moves with `main`. A version:
+
 1. Set `version` in `Cargo.toml`, run `cargo check`, and get both onto `main`
    with CI green.
 2. `git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z`
 
 `release.yml` reruns CI on the tag and publishes the WASM, `SHA256SUMS`, a
-build attestation and the notes in `.github/release-notes.md`. A failed tag
-cannot be reused (tag ruleset, immutable releases): release the next patch.
+build attestation and the notes in `.github/release-notes.md`.
 
 Renovate (`.github/renovate.json5`) bumps everything pinned: the actions,
 crates, toolchain, Python lock, uv, ruff (the crates' tag and the Python pin
-together), sqlc and the databases. Each waits for CI. By hand, on its pull
-request:
+together), sqlc and the databases. It merges each into `main` once CI passes
+on its branch, and so into `unstable`. One that fails becomes a pull request,
+to finish by hand:
 
 - sqlc: `cargo xtask capture`, and `POSTGRES` in `tests/python/capture.py` to
   the version sqlc's own tests run;

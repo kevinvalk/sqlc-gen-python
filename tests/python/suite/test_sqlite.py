@@ -2,8 +2,9 @@
 
 One scenario drives the ledger API, through `ledger_sqlite3` on `sqlite3` and
 `ledger_sqlite3_async` on `aiosqlite`, and through `ledger_sqlalchemy` and
-`ledger_sqlalchemy_async` on SQLAlchemy's `sqlite` and `sqlite+aiosqlite`. As in `test_runtime.py`, every
-call is checked against its annotations, and every function must be called.
+`ledger_sqlalchemy_async` on SQLAlchemy's `sqlite` and `sqlite+aiosqlite`. As
+in `test_runtime.py`, every call is checked against its annotations, and every
+function must be called.
 """
 
 import asyncio

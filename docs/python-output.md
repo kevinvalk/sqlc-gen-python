@@ -617,10 +617,12 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      alike: `raise_on_none` tells them apart.
    - A `:one` whose statement always returns exactly one row is its row's
      type, never `None`: an `INSERT` of one row of `VALUES` (or `DEFAULT
-     VALUES`) `RETURNING` it, unless `ON CONFLICT DO NOTHING`; and a `SELECT`
-     of aggregates alone (`count`, `sum`, `EXISTS`, ... or a `coalesce` or
-     `CAST` of one), without a top-level `GROUP BY`, `HAVING`, `LIMIT`,
-     `OFFSET`, window or set operation. So creating a row returns it, `SELECT
+     VALUES`) `RETURNING` it, unless something may leave the row out (`ON
+     CONFLICT DO NOTHING`, a `DO UPDATE ... WHERE`, SQLite's `INSERT OR
+     IGNORE`); and a `SELECT` of aggregates alone (`count`, `sum`, `EXISTS`,
+     ... or a `coalesce` or `CAST` of one; not SQLite's `min` or `max` of
+     several arguments, which are of each row), without a top-level `GROUP
+     BY`, `HAVING`, `LIMIT`, `OFFSET`, window or set operation. So creating a row returns it, `SELECT
      count(*) ...` is `int` and `SELECT EXISTS(...)` is `bool`; each reads as
      with `raise_on_none`, so the package defines `NoRowError` for it.
    - `:many` is always eager. *[D]: a lazy generator would let an
@@ -645,8 +647,8 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    type. *[2]* It MUST become a field typed as `t`'s model, built by
    `models.M.from_row(row[a:b])` over `t`'s columns in catalog order. *[4]*
    sqlc marks every embed nullable, joined or not. Where the statement's own
-   `LEFT JOIN` names `t`, or it has a `RIGHT` or `FULL` join, the field is
-   `models.M | None`: `None` when `t`'s first NOT NULL column is NULL, which
+   `LEFT JOIN` names `t`, or it has a `RIGHT` or `FULL` join, or an outer
+   join of or within a parenthesised join, the field is `models.M | None`: `None` when `t`'s first NOT NULL column is NULL, which
    only a missing row makes it. An outer-joined `t` without a NOT NULL column
    MUST be an error, as nothing then tells a missing row from a row of NULLs.
 6. **Scalar subqueries.** A result column that is a parenthesised `SELECT` in

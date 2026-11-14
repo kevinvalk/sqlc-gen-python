@@ -105,45 +105,37 @@ fn function(query: &Query, config: &Config) -> ast::Stmt {
     let conn = config.backend.connection(asynchronous);
     let (returns, body) = config.backend.body(query, asynchronous);
     let body: Vec<ast::Stmt> = docstring(&query.comment).into_iter().chain(body).collect();
-    let mut function = match &query.takes {
-        Takes::Record(class) => py_stmt!(
-            "
-            def $name(conn: $conn, params: $class) -> $returns:
-                $body
-            ",
-            name = &query.function,
-            conn = conn,
-            class = class,
-            returns = returns,
-            body = body,
+    // The record or the rows after `conn`, or each parameter as a keyword.
+    let (positional, keywords) = match &query.takes {
+        Takes::Record(class) => (
+            Some(python::parameter("params", python::name(class))),
+            vec![],
         ),
-        Takes::Rows(class) => py_stmt!(
-            "
-            def $name(conn: $conn, rows: Iterable[$class]) -> $returns:
-                $body
-            ",
-            name = &query.function,
-            conn = conn,
-            class = class,
-            returns = returns,
-            body = body,
-        ),
-        Takes::Keywords => py_stmt!(
-            "
-            def $name(conn: $conn, *, $params) -> $returns:
-                $body
-            ",
-            name = &query.function,
-            conn = conn,
-            params = (query.params.iter())
+        Takes::Rows(class) => {
+            let rows = py_expr!("Iterable[$class]", class = class);
+            (Some(python::parameter("rows", rows)), vec![])
+        }
+        Takes::Keywords => {
+            let keywords = (query.params.iter())
                 .map(|p| python::parameter(&p.name, p.ty.annotation(Scope::Queries)))
-                .collect::<Vec<_>>(),
-            returns = returns,
-            body = body,
-        ),
+                .collect();
+            (None, keywords)
+        }
     };
+    let mut function = py_stmt!(
+        "
+        def $name(conn: $conn, *, $keywords) -> $returns:
+            $body
+        ",
+        name = &query.function,
+        conn = conn,
+        keywords = keywords,
+        returns = returns,
+        body = body,
+    );
     if let ast::Stmt::FunctionDef(definition) = &mut function {
         definition.is_async = asynchronous;
+        definition.parameters.args.extend(positional);
     }
     function
 }

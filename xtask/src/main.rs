@@ -18,8 +18,9 @@ usage: cargo xtask <command>
 
 commands:
   check   rustfmt --check, clippy with warnings denied, cargo test, the
-          static Python gate over every golden case and corpus output, and
-          the scanner proof of the SQL rewriting
+          static Python gate over every golden case and corpus output, the
+          scanner proof of the SQL rewriting, and ruff and mypy over the scripts
+          of tests/python
   bless [CASE...] [--allow-regressions]
           rewrite the golden cases that changed (the generated directories in
           examples/, each a codegen `out` of its sqlc.yaml) and the corpus
@@ -106,6 +107,13 @@ fn check(generated: &GenDir) -> Result<(), String> {
         run(&mut generated.test("--workspace")),
         generated.gate(),
         run(&mut uv_python("tests/python/scanner.py")),
+        run(uv_python("-m").args(["ruff", "check", "tests/python"])),
+        run(uv_python("-m").args(["ruff", "format", "--check", "tests/python"])),
+        run(uv_python("-m").args([
+            "mypy",
+            "--config-file=tests/python/pyproject.toml",
+            "--cache-dir=target/py/mypy",
+        ])),
     ]
     .into_iter()
     .filter_map(Result::err)
@@ -288,7 +296,7 @@ impl GenDir {
     }
 
     /// `cargo test <args>`, set to write every output here (see
-    /// `tests/rust/support/mod.rs`).
+    /// `tests/rust/support/`).
     fn test(&self, args: &str) -> Command {
         let mut test = cargo(&format!("test --no-fail-fast {args}"));
         test.env("GEN_DIR", &self.0);

@@ -62,6 +62,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from dataclasses import dataclass
 from functools import partial
+from itertools import groupby
 from pathlib import Path
 from queue import Queue
 from typing import TYPE_CHECKING, Any
@@ -69,14 +70,13 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 import postgres
+from examples import EXAMPLES, ROOT, golden_cases
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-ROOT = Path(__file__).resolve().parents[2]
 CORPUS = "tests/sqlc/endtoend"
 REQUESTS = "tests/sqlc/examples"
-EXAMPLES = ROOT / "examples"
 # Everything a capture writes, relative to where it writes.
 CAPTURED = (
     f"{CORPUS}/**/request*.json",
@@ -280,12 +280,11 @@ def wire_contract(sqlc: Path) -> None:
     print("holding the WASM plugin to sqlc's wire contract", flush=True)
     run(os.environ.get("CARGO", "cargo"), "wasm", cwd=ROOT)
     wire = Wire(sqlc, ROOT / "target/capture/wire")
-    for name in sorted(p.parent.name for p in EXAMPLES.glob("*/sqlc.yaml")):
-        config = wire.example(name)
-        if (result := wire.generate(config)).returncode:
-            sys.exit(f"sqlc failed in examples/{name}:\n{result.stderr}")
-        for out in outs(config):
-            same_output(wire.work / out, EXAMPLES / name / out)
+    for example, cases in groupby(golden_cases(), key=lambda case: case.example):
+        if (result := wire.generate(wire.example(example))).returncode:
+            sys.exit(f"sqlc failed in examples/{example}:\n{result.stderr}")
+        for case in cases:
+            same_output(wire.work / case.name, case.dir)
     invoicing = wire.example("invoicing")
     wire.fails(invoicing, {}, "reading plugin options", "missing field `backend`")
     wire.fails(
@@ -294,12 +293,6 @@ def wire_contract(sqlc: Path) -> None:
         "reading plugin options",
         "missing field `async`",
     )
-    wire.fails(
-        wire.example("billing"),
-        {"backend": "pymysql", "async": True},
-        "async: no async MySQL driver",
-    )
-    invoicing = wire.example("invoicing")
     backend = {"backend": "sqlalchemy", "async": False}
     # A typo in an option is an error, never a silent no-op.
     wire.fails(
@@ -313,6 +306,11 @@ def wire_contract(sqlc: Path) -> None:
         backend,
         'unsupported.sql: query "Touch"',
         ":execlastid is not supported",
+    )
+    wire.fails(
+        wire.example("billing"),
+        {"backend": "pymysql", "async": True},
+        "async: no async MySQL driver",
     )
 
 
@@ -365,7 +363,7 @@ class Wire:
         """Exit unless one codegen entry of `options` fails as `expected`."""
         (package,) = config["sql"]
         # `{}` leaves `options` out, which sqlc sends as empty bytes.
-        codegen = {"out": "out", "plugin": "python"}
+        codegen: Json = {"out": "out", "plugin": "python"}
         codegen |= {"options": options} if options else {}
         result = self.generate(config | {"sql": [package | {"codegen": [codegen]}]})
         missing = [text for text in expected if text not in result.stderr]

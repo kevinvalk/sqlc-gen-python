@@ -218,14 +218,16 @@ def json_type(pg: Pg) -> Any:  # noqa: ANN401
     return postgresql.ARRAY(base, dimensions=pg.dims) if pg.dims else base
 
 
-# SQLAlchemy's type of each range, which makes every driver's range its `Range`.
-RANGE_TYPES: dict[str, Any] = {
+# SQLAlchemy's type of each range, which makes every driver's range its
+# `Range`, and of `hstore`, which makes every driver's a `dict`.
+LIBRARY_TYPES: dict[str, Any] = {
     "int4range": postgresql.INT4RANGE,
     "int8range": postgresql.INT8RANGE,
     "numrange": postgresql.NUMRANGE,
     "daterange": postgresql.DATERANGE,
     "tsrange": postgresql.TSRANGE,
     "tstzrange": postgresql.TSTZRANGE,
+    "hstore": postgresql.HSTORE,
 }
 
 
@@ -233,7 +235,7 @@ def sqlalchemy_type(pg: Pg) -> Any:  # noqa: ANN401
     """How a range or an `hstore` must be bound and read, as the generated
     code does (§6), so that every driver's value is SQLAlchemy's.
     """
-    kind = {**RANGE_TYPES, "hstore": postgresql.HSTORE}.get(pg.name)
+    kind = LIBRARY_TYPES.get(pg.name)
     return kind() if kind is not None and not pg.dims else None
 
 

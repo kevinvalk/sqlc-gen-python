@@ -25,8 +25,8 @@ import postgres
 import pytest
 import sqlalchemy
 from examples import GoldenCase, golden_cases
+from suite.deep import checked
 
-ROOT = Path(__file__).resolve().parents[3]
 CASES = Path(os.environ["SQLC_CASES"]) if "SQLC_CASES" in os.environ else None
 
 # Each case is a package named for it: in `CASES`, or beside its example's SQL.
@@ -69,11 +69,10 @@ def public_functions(case: GoldenCase, stem: str) -> dict[str, Any]:
 
 def queries(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
     """The case's API on ``conn``: ``await api.<module>.<function>(...)`` runs
-    a sync or an async case alike, each function checked by `deep.checked`, which records it in
-    ``called``. Every module's names are there too (``api.<module>.<Row>``),
-    and the package's ``models``.
+    a sync or an async case alike, each function checked by `deep.checked`,
+    which records it in ``called``. Every module's names are there too
+    (``api.<module>.<Row>``), and the package's ``models``.
     """
-    from deep import checked  # noqa: PLC0415 -- the suite's own module
 
     def bind(function: Any) -> Any:  # noqa: ANN401
         # A function of more parameters than `max_params` takes one record
@@ -137,12 +136,15 @@ def server() -> Iterator[sqlalchemy.URL]:
 
 
 def pytest_sessionfinish(session: pytest.Session) -> None:
-    """Fail a run that skipped anything: there is no silent skip."""
+    """Fail a run that skipped anything, or expected a failure: there is no
+    silent skip.
+    """
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")
     assert reporter is not None, "the verdict needs the terminal reporter"
-    if reporter.stats.get("skipped") and session.exitstatus == pytest.ExitCode.OK:
+    unproven = [k for k in ("skipped", "xfailed", "xpassed") if reporter.stats.get(k)]
+    if unproven and session.exitstatus == pytest.ExitCode.OK:
         reporter.write("\n")  # end the progress line
-        reporter.write_line("FAILED: a test was skipped", red=True)
+        reporter.write_line(f"FAILED: a test was {unproven[0]}", red=True)
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 

@@ -1,30 +1,8 @@
-//! Specification for writing Python: fragments, syntax and imports.
+//! Specification for rendering a tree: docstrings, multi-line strings, and
+//! what ruff's formatter is left to decide.
 
 use super::*;
-use ruff_python_codegen::{Generator, Indentation};
-use ruff_python_stdlib::sys::is_known_standard_library;
-use ruff_source_file::LineEnding;
-
-fn written(stmt: &ast::Stmt) -> String {
-    Generator::new(&Indentation::default(), LineEnding::Lf).stmt(stmt)
-}
-
-fn unparse(expr: &ast::Expr) -> String {
-    Generator::new(&Indentation::default(), LineEnding::Lf).expr(expr)
-}
-
-// -- Syntax ------------------------------------------------------------------
-
-#[test]
-fn a_string_literal_is_quoted_to_avoid_escaping() {
-    // Data is built rather than parsed precisely so ruff escapes it; here it
-    // switches quote style instead, as Black does.
-    assert_eq!(unparse(&string("open")), r#""open""#);
-    assert_eq!(
-        unparse(&string(r#"a "quoted" value"#)),
-        r#"'a "quoted" value'"#
-    );
-}
+use crate::python::{ann_assign, assign, class, docstring, expr, py_expr, stmt, string};
 
 fn documented(docstrings: &[&str]) -> String {
     let body = docstrings
@@ -191,109 +169,9 @@ fn a_string_without_a_line_break_is_left_to_ruff() {
 }
 
 #[test]
-fn a_class_without_bases_omits_the_parentheses() {
-    let built = class("Author", [], [], [ann_assign("id", name("int"))]);
-    assert_eq!(written(&built), "class Author:\n    id: int");
-}
-
-#[test]
-fn an_empty_class_body_becomes_pass() {
-    // Python has no empty suite, so something has to stand in for one.
-    assert_eq!(
-        written(&class("Empty", [], [], [])),
-        "class Empty:\n    pass"
-    );
-}
-
-#[test]
 fn a_module_renders_through_ruffs_formatter() {
     let rendered = render(&[assign("X", string("y"))], &[]);
     assert_eq!(rendered, "X = \"y\"\n");
-}
-
-// -- Imports -----------------------------------------------------------------
-
-/// The imports of a module whose body reads `reads`.
-fn imports_for(reads: &str) -> String {
-    let rendered = render(&[stmt(&format!("x = {reads}"))], &[]);
-    rendered[..rendered.find("x = ").unwrap()].trim_end().into()
-}
-
-#[test]
-fn nothing_is_imported_until_something_is_read() {
-    assert_eq!(imports_for("int"), "");
-}
-
-#[test]
-fn a_module_imports_exactly_the_vocabulary_its_body_reads() {
-    assert_eq!(
-        imports_for("[UUID, uuid, Decimal(), models.X, unknown]"),
-        "from decimal import Decimal\nfrom uuid import UUID\n\nfrom . import models"
-    );
-}
-
-#[test]
-fn datetime_is_imported_as_dt_by_ruffs_import_conventions() {
-    assert_eq!(imports_for("dt.date"), "import datetime as dt");
-}
-
-#[test]
-fn plain_imports_come_before_from_imports_and_one_modules_names_merge() {
-    assert_eq!(
-        imports_for("(Any, enum, IPv6Network, IPv4Address, dataclasses)"),
-        "import dataclasses\nimport enum\nfrom ipaddress import IPv4Address, IPv6Network\nfrom typing import Any"
-    );
-}
-
-#[test]
-fn sections_go_standard_library_third_party_relative_with_a_blank_line_between() {
-    assert_eq!(
-        imports_for("(models, AsyncConnection, sqlalchemy, Sequence, postgresql)"),
-        "from collections.abc import Sequence\n\n\
-         import sqlalchemy\n\
-         from sqlalchemy.dialects import postgresql\n\
-         from sqlalchemy.ext.asyncio import AsyncConnection\n\n\
-         from . import models"
-    );
-}
-
-#[test]
-fn the_vocabulary_is_written_in_isorts_sections_and_order() {
-    // As ruff's isort sections them, for the oldest supported Python.
-    let section = |module: &str| match module.split('.').next().unwrap_or_default() {
-        "" => 2,
-        top if is_known_standard_library(10, top) => 0,
-        _ => 1,
-    };
-    for (n, imports) in VOCABULARY.iter().enumerate() {
-        assert!(imports.is_sorted(), "section {n} is not in isort's order");
-        for import in *imports {
-            let (Import::Module(module) | Import::From(module, _)) = *import;
-            assert_eq!(section(module), n, "{import:?}");
-        }
-    }
-}
-
-#[test]
-fn an_imported_name_is_one_nothing_generated_may_define() {
-    for name in ["Decimal", "UUID", "Sequence", "Any", "dt", "models"] {
-        assert!(is_imported(name), "{name}");
-    }
-    assert!(!is_imported("datetime"));
-}
-
-#[test]
-fn a_public_name_is_an_ascii_identifier_that_is_neither_a_keyword_nor_private() {
-    for name in ["id", "user_id", "VALUE_0", "Author", "match", "type"] {
-        assert!(is_public_name(name), "{name}");
-    }
-    // Not ASCII: ruff PLC2401, and Python NFKC-normalises identifiers, so
-    // `ﬁle` (a ligature) and `file` would be one name.
-    for name in [
-        "", "1st", "user id", "a-b", "class", "None", "_id", "__x", "_sunder_", "naïve", "ﬁle",
-    ] {
-        assert!(!is_public_name(name), "{name}");
-    }
 }
 
 #[test]

@@ -1,11 +1,19 @@
 //! The generated API, decided once whatever the engine and backend: the
-//! models and enums of the catalog ([`models`]), named as sqlc names them
+//! models and enums of the catalog ([`models`]), typed and spelt by one
+//! reading of it ([`resolver`], [`names`]) and named as sqlc names them
 //! ([`inflection`]), and the functions of the queries ([`queries`]). It holds
 //! no Python syntax and no backend's SQL; [`crate::render`] writes it.
 
 pub mod inflection;
 pub mod models;
+pub mod names;
+mod params;
 pub mod queries;
+pub mod resolver;
+mod results;
+
+#[cfg(test)]
+mod fixtures;
 
 use std::collections::BTreeSet;
 
@@ -27,7 +35,7 @@ pub struct Api {
 /// The API of `request`, as `config` asks for it. The backend is consulted
 /// only for what it cannot represent, which must fail generation.
 pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api> {
-    let resolver = models::Resolver::new(request, config)?;
+    let resolver = resolver::Resolver::new(request, config)?;
     if !config.backend.runs(resolver.engine) {
         bail!(
             "the {} backend does not run {}",

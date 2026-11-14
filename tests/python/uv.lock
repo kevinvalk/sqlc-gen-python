@@ -1214,6 +1214,7 @@ dev = [
     { name = "sqlalchemy", version = "2.1.8", source = { registry = "https://pypi.org/simple" }, extra = ["asyncio"], marker = "python_full_version >= '3.11'" },
     { name = "types-pymysql" },
     { name = "types-pyyaml" },
+    { name = "typing-extensions" },
 ]
 
 [package.metadata]
@@ -1236,6 +1237,7 @@ dev = [
     { name = "sqlalchemy", extras = ["asyncio"], marker = "python_full_version >= '3.11'", specifier = "==2.1.8" },
     { name = "types-pymysql", specifier = "==1.2.4.20261111" },
     { name = "types-pyyaml", specifier = "==6.0.12.20261111" },
+    { name = "typing-extensions", specifier = "==4.16.0" },
 ]
 
 [[package]]

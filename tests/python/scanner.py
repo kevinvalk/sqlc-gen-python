@@ -203,12 +203,11 @@ def refusal(sql: str, found: list[Placeholder]) -> str | None:
     """Why the rewriting must refuse ``sql``, if it must.
 
     In the order the rewriting checks: sqlc left a named parameter as written,
-    as it does in a
-    statement it does not analyse (a lone ``@`` operator directly before what
-    starts an identifier, or ``sqlc.arg`` and its kin); or a placeholder
-    directly follows ``:``, ``\\`` or a word character (a digit of another
-    placeholder, say), or runs into a word character, which ``text()`` would
-    read as part of its bind.
+    as it does in a statement it does not analyse (a lone ``@`` operator
+    directly before what starts an identifier, or ``sqlc.arg`` and its kin); or
+    a placeholder directly follows ``:``, ``\\`` or a word character (a digit
+    of another placeholder, say), or runs into a word character, which
+    ``text()`` would read as part of its bind.
     """
     code = [t for t in parser.scan(sql) if t.name not in {"C_COMMENT", "SQL_COMMENT"}]
     texts = [sql[t.start : t.end + 1] for t in code]

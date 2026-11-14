@@ -35,13 +35,6 @@ fn continues_identifier(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_' || c == '$' || !c.is_ascii()
 }
 
-/// The start and end of each token of `sql`, scanned as MySQL's lexer does
-/// under its default SQL mode, leaving out whitespace and comments: `#` and
-/// `-- ` (two dashes, then whitespace) to the end of the line, and
-/// `/* ... */`, which does not nest. A string, `'...'` or `"..."`, and a
-/// quoted identifier, `` `...` ``, are one token: a quote doubled inside
-/// continues one, and so does a quote after a backslash in a string. A word or
-/// a number is read whole.
 /// The text of each token of `sql`, as [`tokens`] scans it.
 pub fn words(sql: &[char]) -> Vec<String> {
     (tokens(sql).into_iter())
@@ -49,6 +42,13 @@ pub fn words(sql: &[char]) -> Vec<String> {
         .collect()
 }
 
+/// The start and end of each token of `sql`, scanned as MySQL's lexer does
+/// under its default SQL mode, leaving out whitespace and comments: `#` and
+/// `-- ` (two dashes, then whitespace) to the end of the line, and
+/// `/* ... */`, which does not nest. A string, `'...'` or `"..."`, and a
+/// quoted identifier, `` `...` ``, are one token: a quote doubled inside
+/// continues one, and so does a quote after a backslash in a string. A word or
+/// a number is read whole.
 fn tokens(sql: &[char]) -> Vec<(usize, usize)> {
     // Just past the quote that closes the one at `i`.
     let quoted = |i: usize, close: char, escapes: bool| {

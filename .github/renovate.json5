@@ -3,46 +3,37 @@
   extends: [
     "config:recommended",
     ":preserveSemverRanges", // Update SemVer ranges
-    ":automergeMinor", // We want to merge all minor and patches
+    ":automergeAll", // Majors too: CI, the whole proof, decides
+    ":automergeBranch", // As commits on main, without a pull request
   ],
   // IMPORTANT: This needs to match GitHub Actions schedule which run in UTC (renovate without timezone also runs UTC)
-  automergeSchedule: ["* 0-6 * * 6"],
+  automergeSchedule: ["* 0-6 * * *"],
   // A week before a release is proposed, so a compromised one can be caught and yanked first.
   minimumReleaseAge: "7 days",
-  // Every update waits for CI, the whole proof: a new driver, ruff or sqlc can change what is generated.
+  // Every update waits for CI on its branch (ci.yml runs on `renovate/**`): a new driver, ruff, sqlc or database can
+  // change what is generated or proven. One that fails becomes a pull request, to finish by hand: for sqlc,
+  // `cargo xtask capture`; for a database, `cargo xtask verify` (docs/development.md).
   enabledManagers: ["cargo", "pep621", "github-actions", "proto", "custom.regex"],
   packageRules: [
     {
       groupName: "github-actions",
       matchManagers: ["github-actions"],
-      matchUpdateTypes: ["major", "minor", "patch", "pin", "digest", "pinDigest"],
-      automergeType: "branch",
-      automerge: true,
     },
     {
       // The plugin and xtask share the root Cargo.lock.
       groupName: "cargo",
       matchManagers: ["cargo"],
-      automergeType: "branch",
     },
     {
       // The Python side of the proof (tests/python), with its uv.lock.
       groupName: "python",
       matchManagers: ["pep621"],
-      automergeType: "branch",
     },
     {
       // The plugin formats with ruff's crates, and the gate checks with ruff itself: one version, moved together
       // (tests/rust/golden.rs fails otherwise).
       groupName: "ruff",
       matchPackageNames: ["ruff", "astral-sh/ruff"],
-      automergeType: "branch",
-    },
-    {
-      // A new sqlc changes what the corpus captures (`cargo xtask capture`), and a new database what the type map
-      // proves (`cargo xtask verify`): a pull request, merged by hand once both are redone.
-      matchPackageNames: ["sqlc", "postgres", "mysql"],
-      automerge: false,
     },
   ],
   customManagers: [

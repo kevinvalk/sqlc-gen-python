@@ -60,13 +60,6 @@ fn continues_identifier(c: char) -> bool {
     starts_identifier(c) || c.is_ascii_digit() || c == '$'
 }
 
-/// The start and end of each token of `sql`, scanned as SQLite's tokenizer
-/// does, leaving out whitespace and comments: `--` to the end of the line, and
-/// `/* ... */`, which does not nest. A string `'...'` and a quoted identifier
-/// (`"..."`, `` `...` ``, `[...]`) are one token, a quote doubled inside
-/// continuing one. A word or a number is read whole, and so is a placeholder
-/// or a variable: `?` and its digits, or `:`, `@` or `$` and an identifier's
-/// characters.
 /// The text of each token of `sql`, as [`tokens`] scans it.
 pub fn words(sql: &[char]) -> Vec<String> {
     (tokens(sql).into_iter())
@@ -74,6 +67,13 @@ pub fn words(sql: &[char]) -> Vec<String> {
         .collect()
 }
 
+/// The start and end of each token of `sql`, scanned as SQLite's tokenizer
+/// does, leaving out whitespace and comments: `--` to the end of the line, and
+/// `/* ... */`, which does not nest. A string `'...'` and a quoted identifier
+/// (`"..."`, `` `...` ``, `[...]`) are one token, a quote doubled inside
+/// continuing one. A word or a number is read whole, and so is a placeholder
+/// or a variable: `?` and its digits, or `:`, `@` or `$` and an identifier's
+/// characters.
 fn tokens(sql: &[char]) -> Vec<(usize, usize)> {
     let run = |from: usize, continues: fn(char) -> bool| {
         from + sql[from..].iter().take_while(|&&c| continues(c)).count()

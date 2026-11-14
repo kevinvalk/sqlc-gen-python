@@ -6,7 +6,9 @@ PostgreSQL, MySQL and SQLite.
 ## Use
 
 Take the plugin URL and sha256 from a
-[release](https://github.com/kevinvalk/sqlc-gen-python/releases/latest):
+[release](https://github.com/kevinvalk/sqlc-gen-python/releases/latest), or
+from [`unstable`](https://github.com/kevinvalk/sqlc-gen-python/releases/tag/unstable),
+the latest commit that passed every check:
 
 ```yaml
 version: "2"

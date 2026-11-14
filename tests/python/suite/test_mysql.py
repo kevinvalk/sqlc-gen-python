@@ -19,7 +19,6 @@ import mysql
 import pytest
 import sqlalchemy
 from examples import GoldenCase
-from postgres import aw
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from conftest import cases, functions, no_row, queries
@@ -248,5 +247,5 @@ async def scenario(api: Any) -> None:  # noqa: ANN401, PLR0915
     assert (total, str(total)) == (Decimal("18.95"), "18.95")
 
     result = await q.delete_draft_invoices(customer_id=acme)
-    assert await aw(result.rowcount) == 1
+    assert result.rowcount == 1
     assert await q.count_invoices(customer_id=acme) == 1

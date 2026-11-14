@@ -33,19 +33,18 @@ import sys
 import typing
 from collections import defaultdict
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 import sqlalchemy
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import postgres
+from examples import EXAMPLES
 from pgvalues import Pg, json_type, sqlalchemy_type, tables
 from postgres import aw, database
 from suite.deep import failure, strip_none
 
-ROOT = Path(__file__).resolve().parents[2]
-SCHEMA = ROOT / "examples/pgtypes/schema.sql"
+SCHEMA = EXAMPLES / "pgtypes/schema.sql"
 # The generated models of that schema, which the probe reads every type through.
 PGTYPES = "pgtypes_sqlalchemy"
 DRIVERS = ("psycopg", "psycopg_async", "asyncpg")
@@ -115,7 +114,7 @@ EDGES: dict[str, tuple[str, ...]] = {
 class Probe:
     """One type, alone or as an array, and what each driver did with it."""
 
-    type: str
+    pg: Pg
     annotation: Any
     # Driver -> the Python types it returned, as ``list[int]`` and ``int``.
     seen: dict[str, set[str]] = field(default_factory=dict)
@@ -123,6 +122,11 @@ class Probe:
     notes: defaultdict[str, dict[str, str]] = field(
         default_factory=lambda: defaultdict(dict)
     )
+
+    @property
+    def type(self) -> str:
+        """The type as SQL names it: ``int4[]``."""
+        return self.pg.name + "[]" * self.pg.dims
 
     @property
     def mismatches(self) -> list[str]:
@@ -147,18 +151,24 @@ def probe(server: sqlalchemy.URL, package: str) -> list[Probe]:
                 f"ALTER DATABASE {url.database} SET timezone = '{TIMEZONE}'"
             )
             conn.commit()
-            annotations = {
-                (column.pg.name, column.pg.dims): strip_none(hint)[0]
-                for t in tables(conn, models)
-                if t.model is not None
-                for column, hint in zip(
-                    t.columns, typing.get_type_hints(t.model).values(), strict=True
-                )
-                if not column.pg.labels
-            }
+            annotations: dict[tuple[str, int], object] = {}
+            for t in tables(conn, models):
+                if t.model is None:
+                    # Its types would otherwise go unprobed, and the verdict stay ok.
+                    message = f"{package}: no one model reads the table {t.sql}"
+                    raise LookupError(message)
+                hints = typing.get_type_hints(t.model).values()
+                for column, hint in zip(t.columns, hints, strict=True):
+                    if column.pg.labels:
+                        continue
+                    key = (column.pg.name, column.pg.dims)
+                    annotation = strip_none(hint)[0]
+                    if annotations.setdefault(key, annotation) != annotation:
+                        message = f"{package}: {column.pg.name} is annotated two ways"
+                        raise LookupError(message)
         engine.dispose()
         probes = [
-            Probe(name + "[]" * dims, annotation)
+            Probe(Pg(name, dims), annotation)
             for (name, dims), annotation in sorted(annotations.items())
         ]
         for driver in DRIVERS:
@@ -176,9 +186,9 @@ async def _drive(url: sqlalchemy.URL, probes: list[Probe]) -> None:
         conn = await aw(engine.connect())
         for p in probes:
             p.seen[driver] = set()
-            if p.type.split("[")[0] not in EDGES:
+            if p.pg.name not in EDGES:
                 p.notes["-"][driver] = "MISMATCH: no edge values to probe"
-            for edge, sql in expressions(p.type):
+            for edge, sql in expressions(p):
                 if note := await _edge(conn, p, driver, edge, sql):
                     p.notes[edge][driver] = note
         await aw(conn.close())
@@ -186,47 +196,43 @@ async def _drive(url: sqlalchemy.URL, probes: list[Probe]) -> None:
         await aw(engine.dispose())
 
 
-def expressions(pg_type: str) -> list[tuple[str, str]]:
+def expressions(p: Probe) -> list[tuple[str, str]]:
     """Each edge of a type, and the SQL that selects it: alone, or in an
     array as deep as the type's (NULL and empty arrays too, but never a NULL
     item: see "Known limitations" in docs/python-output.md).
     """
-    base = pg_type.split("[", maxsplit=1)[0]
-    dims = pg_type.count("[]")
 
     def nested(sql: str) -> str:
-        for _ in range(dims):
+        for _ in range(p.pg.dims):
             sql = f"ARRAY[{sql}]"
         return sql
 
     # A `\:` keeps SQLAlchemy from reading a colon in a literal as a bind.
     edges = [
-        (edge, nested(f"({edge.replace(':', chr(92) + ':')})::{base}"))
-        for edge in EDGES.get(base, ())
+        (edge, nested(f"({edge.replace(':', chr(92) + ':')})::{p.pg.name}"))
+        for edge in EDGES.get(p.pg.name, ())
     ]
-    empty = [("{}", f"'{{}}'::{pg_type}")] if dims else []
-    return [("NULL", f"NULL::{pg_type}"), *empty, *edges]
+    empty = [("{}", f"'{{}}'::{p.type}")] if p.pg.dims else []
+    return [("NULL", f"NULL::{p.type}"), *empty, *edges]
 
 
 async def _edge(conn: Any, p: Probe, driver: str, edge: str, sql: str) -> str:  # noqa: ANN401
     """Select one edge, check it, bind it back; say what was notable."""
     # JSON is also selected as the text of the document it holds.
-    is_json = p.type.split("[")[0] in {"json", "jsonb"}
+    is_json = p.pg.name in {"json", "jsonb"}
     columns = f"{sql}, to_json({sql})::text" if is_json else sql
     transaction = await aw(conn.begin())
     try:
         # A range is read through SQLAlchemy's type, as the generated code
         # does (§6, typed statements).
-        select = sqlalchemy.text(f"SELECT {columns}")
-        if (
-            ranged := sqlalchemy_type(Pg(p.type.split("[")[0], p.type.count("[]")))
-        ) is not None:
-            select = select.columns(sqlalchemy.column("v", ranged))
+        text = sqlalchemy.text(f"SELECT {columns}")
+        ranged = sqlalchemy_type(p.pg)
+        typed = text if ranged is None else text.columns(sqlalchemy.column("v", ranged))
         try:
-            result = await aw(conn.execute(select))
+            result = await aw(conn.execute(typed))
             value, *document = result.one()
         except Exception as error:  # noqa: BLE001 -- what a driver raises is the observation
-            return f"raises {type(getattr(error, 'orig', None) or error).__name__}"
+            return f"raises {_raised(error)}"
         if edge == "NULL":
             return "" if value is None else f"MISMATCH: NULL read as {value!r}"
         if value is not None:
@@ -251,22 +257,25 @@ def _undecoded(value: object, document: list[str]) -> str | None:
 
 async def _round_trip(conn: Any, p: Probe, sql: str, value: object) -> str:  # noqa: ANN401
     """Bind ``value`` back; empty if PostgreSQL reads what it sent."""
-    base = p.type.split("[")[0]
     # JSON is compared as `jsonb`: `json` keeps the text it was given verbatim.
-    text = p.type.replace("json", "jsonb") if base == "json" else p.type
+    text = p.type.replace("json", "jsonb") if p.pg.name == "json" else p.type
     cast = sqlalchemy.text(
         f"SELECT ({sql})::{text}::text, CAST(:v AS {p.type})::{text}::text"
     )
-    pg = Pg(base, p.type.count("[]"))
-    if base in {"json", "jsonb"}:
-        cast = cast.bindparams(sqlalchemy.bindparam("v", type_=json_type(pg)))
-    elif (ranged := sqlalchemy_type(pg)) is not None:
+    if p.pg.name in {"json", "jsonb"}:
+        cast = cast.bindparams(sqlalchemy.bindparam("v", type_=json_type(p.pg)))
+    elif (ranged := sqlalchemy_type(p.pg)) is not None:
         cast = cast.bindparams(sqlalchemy.bindparam("v", type_=ranged))
     try:
         sent, back = (await aw(conn.execute(cast, {"v": value}))).one()
     except Exception as error:  # noqa: BLE001 -- what a driver raises is the observation
-        return f"binding back raises {type(getattr(error, 'orig', None) or error).__name__}"
+        return f"binding back raises {_raised(error)}"
     return "" if sent == back else f"lossy: {_short(sent)} comes back as {_short(back)}"
+
+
+def _raised(error: Exception) -> str:
+    """The driver's error under SQLAlchemy's, by name."""
+    return type(getattr(error, "orig", None) or error).__name__
 
 
 def _short(text: str | None, width: int = 32) -> str:

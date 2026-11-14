@@ -172,37 +172,32 @@ def parse_ruff(out: str) -> list[Diagnostic]:
     ]
 
 
-def pyright_findings(out: str) -> tuple[int, list[tuple[str, int, int, str]]]:
-    """Pyright's report: files analysed, and each finding's file, 0-based
-    line and column, and message.
-    """
+def parse_pyright(out: str) -> tuple[int, list[Diagnostic]]:
+    """Pyright's report: files analysed, and each finding."""
     report = json.loads(out or "{}")
     return report.get("summary", {}).get("filesAnalyzed", 0), [
-        (
-            d["file"],
-            d["range"]["start"]["line"],
-            d["range"]["start"]["character"],
+        Diagnostic(
+            Path(d["file"]).resolve(),
+            # Pyright counts lines and columns from 0.
+            f"{d['range']['start']['line'] + 1}:{d['range']['start']['character'] + 1}",
             f"{d['message']} ({d.get('rule', d['severity'])})",
         )
         for d in report.get("generalDiagnostics", [])
     ]
 
 
-def mypy_findings(out: str) -> list[tuple[str, int, int, str]]:
-    """Mypy's findings, notes aside: file, 0-based line and column, message."""
+def parse_mypy(out: str) -> list[Diagnostic]:
+    """Mypy's findings, notes aside."""
     lines = [json.loads(line) for line in out.splitlines() if line.startswith("{")]
     return [
-        (d["file"], d["line"] - 1, d["column"], f"{d['message']} [{d['code']}]")
+        Diagnostic(
+            Path(d["file"]).resolve(),
+            # Mypy counts lines from 1 and columns from 0.
+            f"{d['line']}:{d['column'] + 1}",
+            f"{d['message']} [{d['code']}]",
+        )
         for d in lines
         if d["severity"] != "note"
-    ]
-
-
-def located(findings: list[tuple[str, int, int, str]]) -> list[Diagnostic]:
-    """Findings at their 1-based line and column."""
-    return [
-        Diagnostic(Path(file).resolve(), f"{line + 1}:{column + 1}", message)
-        for file, line, column, message in findings
     ]
 
 
@@ -215,9 +210,9 @@ def pyright(env: Env, roots: list[Path], files: int) -> Run:
     analyzed: list[int] = []
 
     def parse(out: str) -> list[Diagnostic]:
-        count, findings = pyright_findings(out)
+        count, findings = parse_pyright(out)
         analyzed.append(count)
-        return located(findings)
+        return findings
 
     with tempfile.TemporaryDirectory() as tmp:
         config = Path(tmp, "pyrightconfig.json")
@@ -246,7 +241,7 @@ def mypy(env: Env, roots: list[Path]) -> Run:
     return run(
         f"mypy {env.python}",
         [*command, *map(str, roots)],
-        lambda out: located(mypy_findings(out)),
+        parse_mypy,
         MYPYPATH=os.pathsep.join(map(str, roots)),
     )
 

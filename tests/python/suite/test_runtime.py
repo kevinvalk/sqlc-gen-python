@@ -2,9 +2,9 @@
 
 One scenario drives the invoicing API end to end. It is written once and run
 through each invoicing case: SQLAlchemy's functions on psycopg, and its
-coroutines on asyncpg and psycopg; psycopg's own, sync and async. Every call is wrapped by `deep.checked`, so each argument
-and result must match its annotation exactly, and the run fails if any public
-function was never called.
+coroutines on asyncpg and psycopg; psycopg's own, sync and async. Every call is
+wrapped by `deep.checked`, so each argument and result must match its
+annotation exactly, and the run fails if any public function was never called.
 """
 
 import asyncio
@@ -105,7 +105,7 @@ async def _psycopg_async(
 
 
 def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
-    """The case's API on ``conn``, with the errors a ``:one`` raises."""
+    """The case's API on ``conn``, with a pipeline to batch calls in."""
     api = queries(case, conn, called)
     api.pipeline = lambda: _pipeline(conn)
     return api

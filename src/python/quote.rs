@@ -2,7 +2,7 @@
 //! syntax trees.
 //!
 //! A template is source this crate writes, holding no data: each `$name` in
-//! it is a hole, which [`quote`] fills with the [`Hole`] given for it after
+//! it is a hole, which [`expr`] and [`stmts`] fill with the [`Hole`] given for it after
 //! the template is parsed. Data therefore never passes through the parser,
 //! and the template still reads as the Python it produces:
 //!

@@ -1,7 +1,7 @@
 """What `cargo test` cannot check without Python.
 
 `cargo test` holds every golden case and corpus output to sqlc's request
-(`tests/rust/support/mod.rs`): names, signatures, result shapes, and SQL that
+(`tests/rust/support/`): names, signatures, result shapes, and SQL that
 round-trips byte for byte through copies of SQLAlchemy's own expressions.
 This suite pins those copies to the SQLAlchemy it runs.
 """
@@ -10,10 +10,9 @@ import re
 import sys
 import unicodedata
 
+from examples import ROOT
 from sqlalchemy.sql.compiler import BIND_PARAMS_ESC
 from sqlalchemy.sql.elements import TextClause
-
-from conftest import ROOT
 
 
 def test_the_sql_oracle_is_sqlalchemys_own() -> None:

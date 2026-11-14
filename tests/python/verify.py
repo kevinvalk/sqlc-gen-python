@@ -6,9 +6,9 @@ GENERATED is what ``cargo test`` exported (``cargo xtask verify`` fills it).
 Each layer, a row of the summary at the end, is described in
 ``docs/python-output.md`` §Proof: the static gate, pytest, the type-truth
 probe (writing ``docs/typemap.md``), the runtime sweep, pytest and the probe
-again on newer Pythons, and with ``--mutants`` planted bugs. Every layer runs on copies in a temporary
-directory, against one PostgreSQL (Docker, or ``SQLC_TEST_DATABASE_URL``) and
-one MySQL (Docker, or ``SQLC_TEST_MYSQL_URL``).
+again on newer Pythons, and with ``--mutants`` planted bugs. Every layer runs
+on copies in a temporary directory, against one PostgreSQL (Docker, or
+``SQLC_TEST_DATABASE_URL``) and one MySQL (Docker, or ``SQLC_TEST_MYSQL_URL``).
 With ``--check``, a document that would change fails the run instead of being
 written.
 """
@@ -31,7 +31,8 @@ import autoprop
 import mysql
 import postgres
 import typemap
-from gate import PYTHONS, Env
+from examples import ROOT
+from gate import PYTHONS, Env, sync
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -42,7 +43,6 @@ if TYPE_CHECKING:
     Write = Callable[[Path, str], tuple[str, bool]]
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
 SUITE = HERE / "suite"
 # The case mutants are planted in unless they name another.
 CASE = "invoicing_sqlalchemy"
@@ -139,9 +139,9 @@ class Mutant:
     golden case ``case``.
 
     ``caught_by`` is the layer that must catch it: ``GATE``, ``RUNTIME``,
-    ``MYSQL_RUNTIME``, ``TYPEMAP`` or ``SWEEP``; and what it ``says`` is a part of what that
-    layer said when it failed, so that something else failing there does not
-    count.
+    ``MYSQL_RUNTIME``, ``TYPEMAP`` or ``SWEEP``; and what it ``says`` is a part
+    of what that layer said when it failed, so that something else failing
+    there does not count.
     """
 
     caught_by: str
@@ -436,7 +436,7 @@ def types(control: Path, server: sqlalchemy.URL, write: Write) -> Row:
         f"\n{edges} edges that raise or are lossy, in docs/typemap.md"
         f" ({written})"
     )
-    return "typemap", bool(mismatches) or stale, detail
+    return TYPEMAP, bool(mismatches) or stale, detail
 
 
 def sweep(control: Path, generated: Path, server: sqlalchemy.URL) -> Row:
@@ -446,7 +446,7 @@ def sweep(control: Path, generated: Path, server: sqlalchemy.URL) -> Row:
         server, autoprop.targets(control, generated), [control, generated]
     )
     fails, totals = autoprop.summarize(reports)
-    return "autoprop", fails, "\n".join(totals)
+    return SWEEP, fails, "\n".join(totals)
 
 
 def newer_versions() -> str:
@@ -467,7 +467,7 @@ def newer(control: Path, database: str) -> Row:
     failed = []
     for version in PYTHONS[1:]:
         print(f"\nPython {version}:", flush=True)
-        python = [Env(version).bin("python"), *PYTHON_FLAGS]
+        python = [sync(Env(version)).bin("python"), *PYTHON_FLAGS]
         for layer, command in [
             ("pytest", ["-m", "pytest", "-q", str(SUITE)]),
             ("typemap", [str(HERE / "typemap.py"), str(control)]),

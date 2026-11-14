@@ -40,6 +40,9 @@ dev = [
     "sqlalchemy[asyncio]==2.1.8; python_version >= '3.11'",
     "types-pymysql==1.2.4.20261111",
     "types-pyyaml==6.0.12.20261111",
+    # `assert_type` on Python 3.10, for the usage the gate type-checks
+    # (suite/usage.py).
+    "typing-extensions==4.16.0",
 ]
 
 [tool.uv]
@@ -73,6 +76,9 @@ reportUnnecessaryTypeIgnoreComment = "error"
 [tool.mypy]
 python_version = "3.10"
 strict = true
+# Without paths, the developer scripts (`cargo xtask check`); the gate names
+# the generated packages it checks.
+files = ["$MYPY_CONFIG_FILE_DIR/*.py"]
 
 [tool.pytest.ini_options]
 # The runtime suite's tests import the shared `postgres` module from here.

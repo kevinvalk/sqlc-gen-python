@@ -88,8 +88,32 @@ fn a_left_joined_table_may_have_no_row_and_after_a_right_join_any_may() {
         joined("SELECT * FROM a JOIN ( SELECT * FROM b LEFT JOIN c ) s"),
         Some(vec![])
     );
+    assert_eq!(
+        joined("SELECT * FROM a LEFT JOIN LATERAL ( SELECT 1 ) s ON x LEFT JOIN ONLY b ON y"),
+        Some(vec!["b".to_string()])
+    );
     assert_eq!(joined("SELECT * FROM a RIGHT JOIN b ON x"), None);
     assert_eq!(joined("SELECT * FROM a FULL OUTER JOIN b ON x"), None);
+}
+
+#[test]
+fn an_outer_join_of_or_within_parentheses_may_leave_any_table_without_a_row() {
+    let joined = |sql: &str| {
+        let tokens: Vec<String> = sql.split_whitespace().map(String::from).collect();
+        outer_joined(&tokens)
+    };
+    for sql in [
+        "SELECT * FROM a LEFT JOIN ( b JOIN c ON x ) ON y",
+        "SELECT * FROM ( a LEFT JOIN b ON x ) JOIN c ON y",
+        "SELECT * FROM a JOIN ( b RIGHT JOIN c ON x ) ON y",
+    ] {
+        assert_eq!(joined(sql), None, "{sql}");
+    }
+    // An inner join in parentheses leaves none without one.
+    assert_eq!(
+        joined("SELECT * FROM a JOIN ( b JOIN c ON x ) ON y"),
+        Some(vec![])
+    );
 }
 
 #[test]
@@ -131,6 +155,9 @@ fn a_statement_of_aggregates_alone_returns_exactly_one_row() {
         "INSERT INTO t ( a ) VALUES ( $1 ) RETURNING *",
         "INSERT INTO t ( a ) VALUES ( $1 ) ON CONFLICT ( a ) DO UPDATE SET a = 1 RETURNING id",
         "INSERT INTO t DEFAULT VALUES RETURNING id",
+        "INSERT INTO t ( a ) VALUES ( $1 ) ON CONFLICT ( a ) WHERE a > 0 DO UPDATE SET a = 1 RETURNING id",
+        "INSERT OR REPLACE INTO t ( a ) VALUES ( max ( ? , 0 ) ) RETURNING id",
+        "SELECT max ( coalesce ( a , b ) ) FROM t",
     ] {
         assert!(single(sql), "{sql}");
     }
@@ -146,6 +173,11 @@ fn a_statement_of_aggregates_alone_returns_exactly_one_row() {
         "INSERT INTO t ( a ) SELECT a FROM u RETURNING id",
         "INSERT INTO t ( a ) VALUES ( 1 ) , ( 2 ) RETURNING id",
         "INSERT INTO t ( a ) VALUES ( $1 )",
+        "INSERT INTO t ( a ) VALUES ( $1 ) ON CONFLICT ( a ) DO UPDATE SET a = 1 WHERE t . b RETURNING id",
+        "INSERT OR IGNORE INTO t ( a ) VALUES ( ? ) RETURNING id",
+        // SQLite's scalar `max`, of each row.
+        "SELECT max ( a , b ) FROM t",
+        "SELECT coalesce ( min ( a , b ) , 0 ) FROM t",
     ] {
         assert!(!single(sql), "{sql}");
     }
