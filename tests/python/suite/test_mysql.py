@@ -1,21 +1,26 @@
 """Every generated function of the billing fixture, run against MySQL.
 
 One scenario drives the billing API, through `billing_pymysql` on PyMySQL,
-`billing_sqlalchemy` on `mysql+pymysql`, and `billing_sqlalchemy_async` on
-`mysql+asyncmy`, each on a fresh database of the newest
-long-term MySQL (`mysql.IMAGE`, or `SQLC_TEST_MYSQL_URL`). As in
+`billing_pymysql_async` on asyncmy, with and without the statements it
+prepares on the server, `billing_sqlalchemy` on `mysql+pymysql`, and
+`billing_sqlalchemy_async` on `mysql+asyncmy`, each on a fresh database of
+the newest long-term MySQL (`mysql.IMAGE`, or `SQLC_TEST_MYSQL_URL`). As in
 `test_runtime.py`, every call is checked against its annotations, and every
 function must be called.
 """
 
 import asyncio
 import datetime as dt
+import functools
 import json
 from collections.abc import Iterator
 from decimal import Decimal
 from typing import Any
 
+import asyncmy
+import asyncmy.cursors
 import mysql
+import pymysql
 import pytest
 import sqlalchemy
 from examples import GoldenCase
@@ -31,12 +36,25 @@ AWKWARD = 'it\'s "quoted" \\ :name %s %(x)s %% ? /*SLICE:ids*/?'
 # Ids beyond a signed BIGINT, so that an unsigned one is read as itself.
 FIRST_ID = 2**63 + 5
 
+# How many statements asyncmy keeps prepared on the server, when a connection
+# asks it to: their values then cross as binary, not as text. A caller's
+# connection may be either, so the `pymysql` backend's coroutines run on both.
+PREPARED = (0, 8)
+
 RUNS = [
-    pytest.param(case, driver, id=f"{case.name}-{driver}")
+    pytest.param(
+        case,
+        driver,
+        prepared,
+        id=f"{case.name}-{driver}" + "-prepared" * bool(prepared),
+    )
     for case in cases("billing")
     # Not `mysql+aiomysql`: aiomysql 0.3.2 cannot bind `bytes` on PyMySQL 1.2,
     # which removed the `escape_bytes_prefixed` it imports.
     for driver in (("asyncmy",) if case.is_async else ("pymysql",))
+    for prepared in (
+        PREPARED if (case.backend, driver) == ("pymysql", "asyncmy") else PREPARED[:1]
+    )
 ]
 
 
@@ -49,20 +67,21 @@ def mysql_server() -> Iterator[sqlalchemy.URL]:
         pytest.exit(str(error), returncode=1)
 
 
-@pytest.mark.parametrize(("case", "driver"), RUNS)
+@pytest.mark.parametrize(("case", "driver", "prepared"), RUNS)
 def test_every_function_against_mysql(
-    case: GoldenCase, driver: str, mysql_server: sqlalchemy.URL
+    case: GoldenCase, driver: str, prepared: int, mysql_server: sqlalchemy.URL
 ) -> None:
     called: set[str] = set()
     with mysql.database(mysql_server, SCHEMA) as database:
         _setup(database)
         url = database.set(drivername=f"mysql+{driver}")
-        if case.backend == "pymysql":
-            _pymysql(case, url, called)
-        elif case.is_async:
-            asyncio.run(_sqlalchemy_async(case, url, called))
-        else:
-            _sqlalchemy_sync(case, url, called)
+        run = {
+            ("pymysql", False): _pymysql,
+            ("pymysql", True): functools.partial(_asyncmy, prepared=prepared),
+            ("sqlalchemy", False): _sqlalchemy_sync,
+            ("sqlalchemy", True): _sqlalchemy_async,
+        }[case.backend, case.is_async]
+        asyncio.run(run(case, url, called))
     public = functions(case)
     assert called == public, f"never called: {sorted(public - called)}"
 
@@ -78,20 +97,45 @@ def _setup(url: sqlalchemy.URL) -> None:
         conn.close()
 
 
-def _pymysql(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
+async def _pymysql(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
     conn = mysql.connect(url)
+    # A cursor class of the caller's, which generated code must not read rows
+    # through.
+    conn.cursorclass = pymysql.cursors.DictCursor
     try:
-        asyncio.run(scenario(queries(case, conn, called)))
+        await scenario(queries(case, conn, called))
         conn.rollback()
     finally:
         conn.close()
 
 
-def _sqlalchemy_sync(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
+async def _asyncmy(
+    case: GoldenCase, url: sqlalchemy.URL, called: set[str], *, prepared: int
+) -> None:
+    conn = await asyncmy.connect(
+        host=url.host,
+        port=url.port,
+        user=url.username,
+        password=url.password,
+        database=url.database,
+        # As PyMySQL's above.
+        cursor_cls=asyncmy.cursors.DictCursor,
+        stmt_cache_size=prepared,
+    )
+    try:
+        await scenario(queries(case, conn, called))
+        await conn.rollback()
+    finally:
+        await conn.ensure_closed()
+
+
+async def _sqlalchemy_sync(
+    case: GoldenCase, url: sqlalchemy.URL, called: set[str]
+) -> None:
     engine = sqlalchemy.create_engine(url)
     try:
         with engine.connect() as conn:
-            asyncio.run(scenario(queries(case, conn, called)))
+            await scenario(queries(case, conn, called))
             conn.rollback()
     finally:
         engine.dispose()

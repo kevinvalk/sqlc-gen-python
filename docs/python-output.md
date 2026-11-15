@@ -2,9 +2,9 @@
 
 This is the normative definition of what the plugin emits: for PostgreSQL
 through SQLAlchemy Core 2.x or psycopg 3, for SQLite through SQLAlchemy or
-`sqlite3` and `aiosqlite`, each sync and async, and for MySQL through
-SQLAlchemy, sync and async, or PyMySQL, sync. "MUST" is a requirement on the
-generator. A rule that is not here is not a promise.
+`sqlite3` and `aiosqlite`, and for MySQL through SQLAlchemy or PyMySQL and
+asyncmy, each sync and async. "MUST" is a requirement on the generator. A
+rule that is not here is not a promise.
 
 The acceptance fixture is the example `examples/invoicing/` on PostgreSQL. Its
 byte-exact output is the generated directories beside its `sqlc.yaml`
@@ -86,7 +86,7 @@ Every rule cites the source of truth it rests on, using the ranking in
    | `Any`, `Final` | `from typing import ...` |
    | SQLAlchemy | `import sqlalchemy`, `from sqlalchemy.dialects import postgresql`, `from sqlalchemy.ext.asyncio import AsyncConnection` |
    | psycopg | `import psycopg`, `from psycopg.rows import tuple_row`, `from psycopg.types.json import Json, Jsonb`, `from psycopg.types.range import Range` |
-   | PyMySQL | `import pymysql` |
+   | PyMySQL, asyncmy | `import pymysql`, `import asyncmy.cursors` (which binds `asyncmy`, and makes its cursors known to a type checker), `import typing` (for the protocol asyncmy's cursor is called through, §6) |
    | SQLite | `import sqlite3`, `import aiosqlite`, `import contextlib` (to close a `sqlite3` cursor) |
    | the models, and the errors of `:one` | `from . import MultipleRowsError, NoRowError, models` |
 
@@ -353,11 +353,14 @@ type (any case, sqlc's spelling):
 ### MySQL
 
 PyMySQL and asyncmy read MySQL's text protocol with one set of
-conversions, which SQLAlchemy hands through. *[3]: enforced as PostgreSQL's
-map is. `examples/mysqltypes` has a column of every mapped type (a Rust spec
-fails otherwise), and `tests/python/typemap.py` stores every edge of each in
-its column and reads it back, and writes it again, through the generated
-functions on PyMySQL and on SQLAlchemy over PyMySQL and asyncmy.* sqlc
+conversions, which SQLAlchemy hands through, and asyncmy reads the binary
+protocol of the statements it prepares on the server (`stmt_cache_size`) to
+the same types. *[3]: enforced as PostgreSQL's map is. `examples/mysqltypes`
+has a column of every mapped type (a Rust spec fails otherwise), and
+`tests/python/typemap.py` stores every edge of each in its column and reads
+it back, and writes it again, through the generated functions on PyMySQL, on
+asyncmy with and without prepared statements, and on SQLAlchemy over
+either.* sqlc
 reports a type by MySQL's own lowercase name for it (`INTEGER` is `int`,
 `REAL` `double`, `NUMERIC` `decimal`), its length and its signedness apart.
 
@@ -455,10 +458,10 @@ entries; each then has its own model classes.*
    and `?N`) and parameters by position, so nothing is rewritten and the
    database runs exactly sqlc's statement. *[1], [2]* `Final` keeps the
    string a literal, which psycopg's `execute` asks for (`LiteralString`).
-   *[5]* PyMySQL formats the statement with Python's `%` operator, so on it
-   each `?` MUST be `%s` and every other `%` MUST be `%%`, unless the query
-   has no parameters, which PyMySQL then does not format: `sql % args` is
-   then exactly sqlc's text. *[3]*
+   *[5]* PyMySQL, and asyncmy as it does, formats the statement with
+   Python's `%` operator, so on them each `?` MUST be `%s` and every other
+   `%` MUST be `%%`, unless the query has no parameters, which neither then
+   formats: `sql % args` is then exactly sqlc's text. *[3]*
 2. The SQL string MUST be triple-quoted if and only if the SQL contains a
    newline, and then holds the SQL as
    written, escaping only a backslash, a `"` that would end the string early,
@@ -552,17 +555,17 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      | `sqlalchemy` | `sqlalchemy.Connection` | `AsyncConnection` |
      | `psycopg` | `psycopg.Connection[Any]` | `psycopg.AsyncConnection[Any]` |
      | `sqlite3` | `sqlite3.Connection` | `aiosqlite.Connection` |
-     | `pymysql` | `pymysql.Connection` | an error |
+     | `pymysql` | `pymysql.Connection` | `asyncmy.Connection` |
 
      PyMySQL's `Connection` is generic only in its stubs, over a cursor class
      defaulting to the plain one: subscripted, it raises at import, and so
-     would quoted, for `typing.get_type_hints`. `pymysql` has no
-     coroutines, and `async: true` on it MUST be an error naming the
-     `sqlalchemy` backend: asyncmy's stubs leave `execute` untyped, which
-     strict pyright rejects; aiomysql has no types, and cannot bind `bytes`
-     with PyMySQL 1.2; and mysql-connector's
-     prepared cursors read a negative `TIME` as positive, and its C
-     extension an unsigned `BIGINT`'s largest value as `-1`. *[3], [5]*
+     would quoted, for `typing.get_type_hints`. The `pymysql` backend's
+     coroutines are asyncmy's, which is PyMySQL's protocol and conversions
+     in Cython: it returns and binds every type as PyMySQL does. No other
+     async driver does: aiomysql has no types, and cannot bind `bytes` with
+     PyMySQL 1.2; and mysql-connector reads a `BIT` as an `int`, its
+     prepared cursors a negative `TIME` as positive, and its C extension an
+     unsigned `BIGINT`'s largest value as `-1`. *[3], [5]*
 
    - every SQL parameter follows it keyword-only, in sqlc's parameter order,
      with no defaults;
@@ -591,12 +594,41 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      `psycopg.RawCursor(conn, row_factory=tuple_row)` on psycopg,
      `contextlib.closing(conn.cursor())` then `cur.row_factory = None` on
      `sqlite3` (`conn.cursor()` on aiosqlite), and
-     `conn.cursor(pymysql.cursors.Cursor)` on PyMySQL: each makes rows tuples
+     `conn.cursor(pymysql.cursors.Cursor)` on PyMySQL
+     (`asyncmy.cursors.Cursor` on asyncmy): each makes rows tuples
      whatever the connection's row factory or cursor class, and is closed
      after, but for `:execresult`'s, which is the result. On psycopg a JSON parameter is
      `None if p is None else Jsonb(p)` (`Json` for `json`): psycopg cannot
      tell a JSON document from any other `dict` or `list`, and `None` stays
      SQL NULL. *[3]*
+   - asyncmy's stubs leave the parameters of `execute`, `executemany` and
+     `fetchmany` unannotated, and strict pyright rejects a call of a method
+     it knows only in part (`reportUnknownMemberType`). So a query module on
+     asyncmy MUST hold, between its imports and its queries, the three as a
+     protocol, typed as generated code calls them, and what views a cursor
+     as having them; and MUST call them through it, as
+     `await _typed(cur).execute(...)`:
+
+     ```python
+     class _Cursor(typing.Protocol):
+         async def execute(self, query: str, args: Sequence[Any] | None = None) -> int: ...
+
+         async def executemany(
+             self, query: str, args: Sequence[Sequence[Any]]
+         ) -> object: ...
+
+         async def fetchmany(self, size: int) -> Sequence[Sequence[Any]]: ...
+
+
+     def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:
+         return cursor
+     ```
+
+     Both are private to the module, and no part of its API. What the stubs
+     do type is used as it is: `fetchall`, `lastrowid`, and the cursor an
+     `:execresult` returns. *[5]: a type checker accepts the cursor as the
+     protocol only while its methods take what generated code passes them.
+     Planted bug "asyncmy's execute called without the bridge".*
    - **`sqlc.slice`** arrives as `/*SLICE:<name>*/?`, of a parameter
      `list[T]`. On SQLAlchemy it is `:<name>`, bound by
      `sqlalchemy.bindparam("<name>", expanding=True)`, which writes one
@@ -618,9 +650,9 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    | `:one` | `X \| None`, or `X` with `raise_on_none` | `….one_or_none()` (`….one()`), `None` or `X.from_row(row)` | `match cur.fetchmany(2):` with `case [row]: return X.from_row(row)`, `case []: return None` (`raise NoRowError`), `case _: raise MultipleRowsError` |
    | `:many` | `list[X]` | `[X.from_row(row) for row in …]` | `[X.from_row(row) for row in cur.fetchall()]` |
    | `:exec` | `None` | `….execute(…)` | `cur.execute(…)` |
-   | `:execrows` | `int` | `….rowcount` | `cur.rowcount`; on PyMySQL, what `cur.execute(…)` returns, the same count; on psycopg, the execute in a `conn.pipeline()` block of its own, as psycopg counts a statement in a pipeline only once it syncs (so does `:execresult`) |
+   | `:execrows` | `int` | `….rowcount` | `cur.rowcount`; on PyMySQL and asyncmy, what `cur.execute(…)` returns, the same count; on psycopg, the execute in a `conn.pipeline()` block of its own, as psycopg counts a statement in a pipeline only once it syncs (so does `:execresult`) |
    | `:execlastid` | `int` | `….lastrowid` | `cur.lastrowid` (MySQL only) |
-   | `:execresult` | the result | `sqlalchemy.CursorResult[Any]` | the cursor: `psycopg.RawCursor[tuple[Any, ...]]` (`AsyncRawCursor`), `sqlite3.Cursor` (`aiosqlite.Cursor`), `pymysql.cursors.Cursor` |
+   | `:execresult` | the result | `sqlalchemy.CursorResult[Any]` | the cursor: `psycopg.RawCursor[tuple[Any, ...]]` (`AsyncRawCursor`), `sqlite3.Cursor` (`aiosqlite.Cursor`), `pymysql.cursors.Cursor` (`asyncmy.cursors.Cursor`) |
    | `:copyfrom` | `None` | rule 7 | rule 7 |
 
    - `:one` returns `None` without a row, so a lookup reads as one:
@@ -778,7 +810,7 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `backend` | required | The library the generated code runs its SQL through: `sqlalchemy` (SQLAlchemy Core, any engine), `psycopg` (psycopg 3, PostgreSQL), `sqlite3` (`sqlite3` and `aiosqlite`, SQLite) or `pymysql` (PyMySQL, MySQL, without coroutines). Another pairing is an error. *[D]: no one library suits every application.* |
+| `backend` | required | The library the generated code runs its SQL through: `sqlalchemy` (SQLAlchemy Core, any engine), `psycopg` (psycopg 3, PostgreSQL), `sqlite3` (`sqlite3` and `aiosqlite`, SQLite) or `pymysql` (PyMySQL and asyncmy, MySQL). Another pairing is an error. *[D]: no one library suits every application.* |
 | `async` | required | `true` makes every function a coroutine on the backend's async connection, `false` a blocking function (§6). *[D]: required, as either is a surprise to whoever expected the other.* |
 | `omit_sqlc_version` | `false` | Leave the sqlc line out of the header. |
 | `models.exact_table_names` | `false` | Name model classes after the table verbatim, without singularising. *[4]* |
@@ -818,7 +850,6 @@ table "<table>": column "<col>" is an array of "citext", which psycopg returns a
 enum class `<Class>`: psycopg returns an array of this enum as its text, in which PostgreSQL quotes the label "<label>"; rename the label, or use the sqlalchemy backend
 the psycopg backend does not run sqlite
 the pymysql backend does not run postgresql
-async: no async MySQL driver is both typed and right, so the pymysql backend has no coroutines; use the sqlalchemy backend, on mysql+asyncmy
 engine "oracle" is not supported; only postgresql, mysql and sqlite are
 ```
 
@@ -1014,7 +1045,14 @@ sqlc reports *[2]*.
   (`'0000-00-00'`), which only a non-strict SQL mode stores, comes back as
   the text `'0000-00-00'`, against `dt.date`. Use `DOUBLE`, naive
   `datetime`s in UTC, and strict SQL mode. A `float` that is NaN or infinite
-  raises in PyMySQL.
+  raises in PyMySQL and asyncmy.
+- **asyncmy** MUST be 0.2.17 or newer, the first to bind a negative
+  `timedelta`. A coroutine cancelled while its statement runs (a timeout)
+  leaves the connection unusable: the next statement on it raises
+  `InterfaceError`, so close it. On a connection that prepares statements
+  (`stmt_cache_size`), values cross as binary: a `FLOAT` then comes back as
+  the single precision stored, `0.1` as `0.10000000149011612`, not as MySQL
+  prints it.
 - **A boolean that is an integer hides a NULL.** On MySQL and SQLite,
   `from_row` converts a boolean with `bool(...)`. Where sqlc reports NOT NULL
   a comparison that is NULL (`qty > 0` of a NULL `qty`), it reads `False`,
@@ -1104,11 +1142,15 @@ layers:
     `ledger_sqlalchemy` and `ledger_sqlalchemy_async` on SQLAlchemy's
     `sqlite` and `sqlite+aiosqlite`, in process;
   - `test_mysql.py` runs a billing scenario through every function of
-    `billing_pymysql` on PyMySQL, `billing_sqlalchemy` on `mysql+pymysql`
-    and `billing_sqlalchemy_async` on `mysql+asyncmy`, against MySQL 8.4 (in
-    Docker, or `SQLC_TEST_MYSQL_URL`), at the types' edges: an id above the
-    signed `BIGINT` range, a negative `TIME`, every byte in a `BLOB`, `%` and
-    `:` in data, and slices of several items, one and none;
+    `billing_pymysql` on PyMySQL, `billing_pymysql_async` on asyncmy, with
+    and without the statements it prepares on the server,
+    `billing_sqlalchemy` on `mysql+pymysql` and `billing_sqlalchemy_async`
+    on `mysql+asyncmy`, against MySQL 8.4 (in Docker, or
+    `SQLC_TEST_MYSQL_URL`), at the types' edges: an id above the signed
+    `BIGINT` range, a negative `TIME`, every byte in a `BLOB`, `%` and `:` in
+    data, and slices of several items, one and none. The driver's own
+    connections make cursors of dicts, which generated code must not read
+    rows through;
   - `test_contract.py` checks that the copies of SQLAlchemy's expressions
     `cargo test` uses are SQLAlchemy's.
 
@@ -1122,9 +1164,10 @@ layers:
   `examples/pgtypes/pgtypes_sqlalchemy*`, or JSON that is not the decoded
   document. MySQL's and SQLite's are stored in a column of
   `examples/mysqltypes` and `examples/sqlitetypes`, read through the
-  generated functions of each of their cases on its driver (PyMySQL, and
-  SQLAlchemy on it and on asyncmy; `sqlite3`, `aiosqlite`, and SQLAlchemy on
-  each), every value held to its annotation, and written back through them.
+  generated functions of each of their cases on its driver (PyMySQL,
+  asyncmy with and without prepared statements, and SQLAlchemy on either;
+  `sqlite3`, `aiosqlite`, and SQLAlchemy on each), every value held to its
+  annotation, and written back through them.
   What raises, or does not come back as the value it was, is recorded in
   `docs/typemap.md`.
 - **the runtime sweep** (`tests/python/autoprop.py`) applies the schema of every

@@ -1,7 +1,7 @@
 //! Specification for the import block.
 
 use super::*;
-use crate::python::vocabulary::{DATE, MODELS};
+use crate::python::vocabulary::{ASYNCMY, DATE, MODELS};
 use crate::python::{Expression, assign, name, render, tuple};
 
 /// The imports of a module whose body reads `reads`.
@@ -39,6 +39,19 @@ fn a_name_that_is_bound_is_not_read() {
 #[test]
 fn datetime_is_imported_as_dt_by_ruffs_import_conventions() {
     assert_eq!(imports_for(vec![DATE.into()]), "import datetime as dt");
+}
+
+#[test]
+fn a_submodule_is_imported_by_its_path_which_binds_its_package() {
+    // No `as`: `import asyncmy.cursors` binds `asyncmy`, the name read.
+    assert_eq!(
+        imports_for(vec![ASYNCMY.attr("cursors").attr("Cursor")]),
+        "import asyncmy.cursors"
+    );
+    assert_eq!(
+        imports_for(vec![ASYNCMY.attr("Connection")]),
+        "import asyncmy.cursors"
+    );
 }
 
 #[test]

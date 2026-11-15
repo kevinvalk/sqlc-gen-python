@@ -16,6 +16,12 @@ sql:
           backend: pymysql
           async: false
           max_params: 3
+      - out: billing_pymysql_async
+        plugin: python
+        options:
+          backend: pymysql
+          async: true
+          raise_on_none: true
       - out: billing_sqlalchemy
         plugin: python
         options:

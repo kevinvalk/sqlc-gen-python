@@ -176,6 +176,73 @@ fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
 }
 
 #[test]
+fn asyncmys_untyped_methods_are_called_through_a_protocol_of_the_modules_own() {
+    let prelude = python::render(&Backend::Pymysql.prelude(true), &[]);
+    assert_eq!(
+        prelude,
+        r"import typing
+from collections.abc import Sequence
+from typing import Any
+
+import asyncmy.cursors
+
+
+class _Cursor(typing.Protocol):
+    async def execute(self, query: str, args: Sequence[Any] | None = None) -> int: ...
+
+    async def executemany(
+        self, query: str, args: Sequence[Sequence[Any]]
+    ) -> object: ...
+
+    async def fetchmany(self, size: int) -> Sequence[Sequence[Any]]: ...
+
+
+def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:
+    return cursor
+"
+    );
+    // What a library's stubs type is called as it is.
+    for (backend, asynchronous) in [
+        (Backend::Pymysql, false),
+        (Backend::Psycopg, true),
+        (Backend::Sqlite3, true),
+        (Backend::SqlAlchemy, true),
+    ] {
+        assert!(backend.prelude(asynchronous).is_empty(), "{backend:?}");
+    }
+
+    let scalar = crate::api::queries::Shape::Scalar(field("n", Type::INT).ty);
+    let one = query(Command::One(scalar.clone()), Vec::new());
+    let body = python::unparse_stmts(&Backend::Pymysql.body(&one, true));
+    assert!(
+        body.starts_with(
+            "async with conn.cursor(asyncmy.cursors.Cursor) as cur:\n    \
+             await _typed(cur).execute(_GET)\n    \
+             match (await _typed(cur).fetchmany(2)):\n"
+        ),
+        "{body}"
+    );
+    // The stubs type the rest: what reads every row, and the last id.
+    let many = query(Command::Many(scalar), Vec::new());
+    let body = python::unparse_stmts(&Backend::Pymysql.body(&many, true));
+    assert!(body.contains("in await cur.fetchall()]"), "{body}");
+    let last_id = query(Command::ExecLastId, Vec::new());
+    let body = python::unparse_stmts(&Backend::Pymysql.body(&last_id, true));
+    assert!(body.ends_with("return cur.lastrowid"), "{body}");
+    // An `:execresult` returns the library's cursor, not the protocol.
+    let result = query(Command::ExecResult, Vec::new());
+    let returns = python::unparse(&Backend::Pymysql.returns(&result, true));
+    let body = python::unparse_stmts(&Backend::Pymysql.body(&result, true));
+    assert_eq!(returns, "asyncmy.cursors.Cursor");
+    assert_eq!(
+        body,
+        "cur = conn.cursor(asyncmy.cursors.Cursor)\n\
+         await _typed(cur).execute(_GET)\n\
+         return cur"
+    );
+}
+
+#[test]
 fn a_slice_is_one_placeholder_per_item_and_a_subquery_of_none_when_empty() {
     let mut query = query(Command::Exec, vec![field("ids", Type::INT)]);
     query.sql.0[1] = Piece::Slice {

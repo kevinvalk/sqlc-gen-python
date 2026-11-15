@@ -315,8 +315,8 @@ def wire_contract(sqlc: Path) -> None:
     )
     wire.fails(
         wire.example("billing"),
-        {"backend": "pymysql", "async": True},
-        "async: no async MySQL driver",
+        {"backend": "psycopg", "async": False},
+        "the psycopg backend does not run mysql",
     )
 
 

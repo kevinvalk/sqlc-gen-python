@@ -66,7 +66,9 @@ pub(super) fn imports(body: &[ast::Stmt], modules: &[String]) -> Vec<Vec<ast::St
             for entry in section.iter().filter(|i| reads.0.contains(i.binding())) {
                 match *entry {
                     Import::Module(module, _) => {
-                        let alias = Some(entry.binding()).filter(|alias| *alias != module);
+                        // `import a.b` binds `a`.
+                        let bound = module.split('.').next();
+                        let alias = Some(entry.binding()).filter(|alias| Some(*alias) != bound);
                         plain.push((module, import(module, alias)));
                     }
                     Import::From(module, _) => match froms.last_mut() {

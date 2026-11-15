@@ -22,7 +22,9 @@ use signature::function_follows_sqlc;
 /// Checks that the module of query file `stem` implements sqlc's queries of
 /// it (`docs/python-output.md` §6).
 ///
-/// The module holds one statement constant and one function per query, in
+/// After its bridge at `bridge`, which it has exactly on asyncmy, the pymysql
+/// backend's coroutines, whose stubs alone leave a cursor's methods untyped,
+/// the module holds one statement constant and one function per query, in
 /// sqlc's order, so they pair up without repeating any naming rule. Each pair
 /// must run exactly the SQL sqlc wrote, and its signature must say what sqlc
 /// says of NULL and arrays: a parameter, result field or bare result
@@ -32,7 +34,7 @@ use signature::function_follows_sqlc;
 pub(super) fn queries_follow_sqlc(
     request: &plugin::GenerateRequest,
     stem: &str,
-    body: &[Stmt],
+    (body, bridge): (&[Stmt], Option<usize>),
     models: &[Stmt],
     problems: &mut Vec<String>,
 ) {
@@ -40,6 +42,15 @@ pub(super) fn queries_follow_sqlc(
         return problems.push("generated from options that do not parse".into());
     };
     let (backend, asynchronous) = (config.backend, config.asynchronous);
+    match (
+        bridge.is_some(),
+        backend == Backend::Pymysql && asynchronous,
+    ) {
+        (true, false) => problems.push("bridges methods only asyncmy leaves untyped".into()),
+        (false, true) => problems.push("does not bridge the methods asyncmy leaves untyped".into()),
+        _ => {}
+    }
+    let body = &body[bridge.map_or(0, |at| at + 2)..];
     let Ok(engine) = Engine::of(request) else {
         return problems.push("generated for an engine it does not support".into());
     };

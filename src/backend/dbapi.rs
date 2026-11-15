@@ -9,24 +9,24 @@ use crate::api::models::{Enum, Field};
 use crate::api::queries::{Command, CopyInto, Query, Shape};
 use crate::engine::Piece;
 use crate::python::vocabulary::{
-    CONN, COPY, CUR, LEN, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, R, RESULT, ROW, ROWS, Symbol, VALUE,
-    VALUES,
+    ANY, CONN, COPY, CUR, CURSOR, INT, LEN, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, OBJECT, PROTOCOL, R,
+    RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPED, TYPED_CURSOR, VALUE, VALUES,
 };
 use crate::python::{
-    Each, Expression, Scope, ann_assign, assign, each, expression, for_, int, keyword, list,
-    list_of, match_, name, none, pattern, raise, return_, starred, stmts, string, true_, tuple,
-    with,
+    Each, Expression, Function, Scope, ann_assign, assign, class, each, ellipsis, expression, for_,
+    int, keyword, list, list_of, match_, name, none, parameter, pattern, raise, receiver, return_,
+    starred, stmts, string, true_, tuple, with,
 };
 
 #[cfg(test)]
 #[path = "dbapi_spec.rs"]
 mod spec;
 
-/// How a driver is written: its blocking functions, its coroutines if it has
-/// them, and what it does with a statement.
+/// How a driver is written: its blocking functions, its coroutines, and what
+/// it does with a statement.
 pub struct Driver {
     pub sync: Flavor,
-    pub asynchronous: Option<Flavor>,
+    pub asynchronous: Flavor,
     /// The driver's own placeholders, if it does not take sqlc's numbered
     /// ones.
     pub placeholders: Option<Placeholders>,
@@ -69,6 +69,11 @@ pub struct Flavor {
     pub cursor: fn() -> ast::Expr,
     pub cursor_type: fn() -> ast::Expr,
     pub setup: Option<fn() -> ast::Stmt>,
+    /// Whether the library's stubs leave untyped what a statement runs
+    /// through (`execute`, `executemany`, `fetchmany`), which strict pyright
+    /// rejects a call of: generated code then calls them through a protocol
+    /// of its own ([`prelude`]). asyncmy's do (`CLAUDE.md`, "Workarounds").
+    pub untyped: bool,
 }
 
 impl Driver {
@@ -76,10 +81,7 @@ impl Driver {
     pub fn flavor(&self, asynchronous: bool) -> &Flavor {
         match asynchronous {
             false => &self.sync,
-            true => self
-                .asynchronous
-                .as_ref()
-                .expect("checked by Backend::async_problem"),
+            true => &self.asynchronous,
         }
     }
 
@@ -142,6 +144,64 @@ fn copy(into: &CopyInto) -> String {
     };
     let columns: Vec<String> = into.columns.iter().map(|c| quote(c)).collect();
     format!("COPY {table} ({}) FROM STDIN", columns.join(", "))
+}
+
+/// What a query module defines before its queries: where the library's
+/// stubs are [`Flavor::untyped`], the methods a statement runs through as
+/// generated code calls them, and what views a cursor as having them.
+///
+/// ```python
+/// class _Cursor(typing.Protocol):
+///     async def execute(self, query: str, args: Sequence[Any] | None = None) -> int: ...
+///     async def executemany(self, query: str, args: Sequence[Sequence[Any]]) -> object: ...
+///     async def fetchmany(self, size: int) -> Sequence[Sequence[Any]]: ...
+///
+/// def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:
+///     return cursor
+/// ```
+pub fn prelude(driver: &Driver, asynchronous: bool) -> Vec<ast::Stmt> {
+    let flavor = driver.flavor(asynchronous);
+    if !flavor.untyped {
+        return Vec::new();
+    }
+    let method = |name: &str, parameters: Vec<ast::ParameterWithDefault>, returns: ast::Expr| {
+        Function {
+            parameters: std::iter::once(receiver(SELF)).chain(parameters).collect(),
+            body: vec![expression(ellipsis())],
+            is_async: asynchronous,
+            ..Function::new(name, returns)
+        }
+        .into()
+    };
+    let values = || SEQUENCE.index(ANY);
+    // Without parameters, a statement is run as written: no `args`.
+    let mut args = parameter("args", values().or_none());
+    args.default = Some(Box::new(none()));
+    let methods: [ast::Stmt; 3] = [
+        method("execute", vec![parameter("query", STR), args], INT.into()),
+        method(
+            "executemany",
+            vec![
+                parameter("query", STR),
+                parameter("args", SEQUENCE.index(values())),
+            ],
+            OBJECT.into(),
+        ),
+        method(
+            "fetchmany",
+            vec![parameter("size", INT)],
+            SEQUENCE.index(values()),
+        ),
+    ];
+    let typed = Function {
+        parameters: vec![parameter(CURSOR, (flavor.cursor_type)())],
+        body: vec![return_(CURSOR)],
+        ..Function::new(TYPED, TYPED_CURSOR)
+    };
+    vec![
+        class(TYPED_CURSOR, [], [PROTOCOL.into()], methods),
+        typed.into(),
+    ]
 }
 
 /// The body of a query's function: one execution of its statement on a
@@ -224,11 +284,20 @@ impl Body<'_> {
         self.flavor.setup.map(|setup| setup())
     }
 
+    /// `cur`, as a statement runs through it: seen as typed, where the
+    /// library's stubs are not.
+    fn typed(&self, cur: Symbol) -> ast::Expr {
+        match self.flavor.untyped {
+            true => TYPED.call([cur.into()]),
+            false => cur.into(),
+        }
+    }
+
     /// `cur.execute(statement, values)`: the statement, run once.
     fn execute(&self) -> ast::Expr {
         let binds = self.driver.binds(self.query);
         let values = (!binds.is_empty()).then(|| self.values(&binds));
-        (CUR.attr("execute"))
+        (self.typed(CUR).attr("execute"))
             .call(std::iter::once(self.statement()).chain(values))
             .awaited(self.asynchronous)
     }
@@ -238,7 +307,7 @@ impl Body<'_> {
     fn execute_many(&self, keywords: impl IntoIterator<Item = ast::Keyword>) -> ast::Expr {
         let binds = self.driver.binds(self.query);
         let rows = list_of(self.values(&binds), each(R, ROWS));
-        (CUR.attr("executemany"))
+        (self.typed(CUR).attr("executemany"))
             .call_with([name(&self.query.constant), rows], keywords)
             .awaited(self.asynchronous)
     }
@@ -342,7 +411,9 @@ impl Body<'_> {
             true => raise(NO_ROW_ERROR),
             false => emit(none()),
         };
-        let fetched = (cur.attr("fetchmany").call([int(2)])).awaited(self.asynchronous);
+        let fetched = (self.typed(cur).attr("fetchmany"))
+            .call([int(2)])
+            .awaited(self.asynchronous);
         match_(
             fetched,
             vec![

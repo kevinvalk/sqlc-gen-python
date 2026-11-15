@@ -6,5 +6,6 @@
   "sqlite3": { "backend": "sqlite3", "async": false, "max_params": 1 },
   "sqlite3_async": { "backend": "sqlite3", "async": true },
   "pymysql": { "backend": "pymysql", "async": false },
+  "pymysql_async": { "backend": "pymysql", "async": true, "max_params": 1 },
   "exact_names": { "backend": "sqlalchemy", "async": false, "max_params": 2, "models": { "exact_table_names": true } }
 }

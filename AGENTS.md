@@ -39,7 +39,7 @@ and renders it with ruff's formatter. Read `docs/development.md` for the archite
 
 - Backends: `sqlalchemy` (SQLAlchemy Core, every engine), `psycopg` (psycopg 3
   raw cursors, PostgreSQL), `sqlite3` (`sqlite3`/`aiosqlite`) and `pymysql`
-  (PyMySQL, MySQL, sync only: no async MySQL driver is typed and right).
+  (PyMySQL/asyncmy, MySQL: no other async MySQL driver is typed and right).
   `backend` and `async` are both required. Each query file is one module of
   functions taking `conn`, coroutines when `async: true`.
 - Python 3.10 minimum: `X | None`, `list[T]`, keyword-only dataclass fields,
@@ -56,6 +56,25 @@ and renders it with ruff's formatter. Read `docs/development.md` for the archite
   (every example but `authors` and `booktest`), and they fail
   loudly without it.
 - The sqlc endtoend corpus (pinned sqlc version) is committed as test input.
+
+## Workarounds
+
+Each is for someone else's bug, and goes when the bug does.
+
+- **asyncmy's stubs** leave the parameters of `Cursor.execute`, `executemany`
+  and `fetchmany` unannotated, so strict pyright rejects a call of them
+  (`reportUnknownMemberType`). A query module on asyncmy calls them through a
+  protocol of its own, `_typed(cur)` (`docs/python-output.md` §6, "Functions",
+  rule 2).
+  - Fixed upstream when, after an asyncmy upgrade, `cargo xtask verify
+    --mutants` no longer catches "asyncmy's execute called without the
+    bridge".
+  - Then remove `Flavor::untyped`, `prelude` and `Body::typed`
+    (`src/backend/dbapi.rs`), `Backend::prelude` and its call
+    (`src/render/queries.rs`), the names only they read
+    (`src/python/vocabulary.rs`), `BRIDGE` (`tests/rust/support/`), the
+    mutant, their specs and the rule; make the fixed release the minimum
+    asyncmy ("Known limitations"), and re-bless.
 
 ## Testing conventions
 

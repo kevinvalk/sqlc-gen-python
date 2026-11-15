@@ -57,6 +57,7 @@ pub const DATACLASSES: Symbol = Symbol("dataclasses");
 pub const DT: Symbol = Symbol("dt");
 pub const ENUM: Symbol = Symbol("enum");
 pub const SQLITE3: Symbol = Symbol("sqlite3");
+pub const TYPING: Symbol = Symbol("typing");
 pub const ITERABLE: Symbol = Symbol("Iterable");
 pub const SEQUENCE: Symbol = Symbol("Sequence");
 pub const DECIMAL: Symbol = Symbol("Decimal");
@@ -71,6 +72,7 @@ pub const FINAL: Symbol = Symbol("Final");
 pub const UUID: Symbol = Symbol("UUID");
 
 pub const AIOSQLITE: Symbol = Symbol("aiosqlite");
+pub const ASYNCMY: Symbol = Symbol("asyncmy");
 pub const PSYCOPG: Symbol = Symbol("psycopg");
 pub const PYMYSQL: Symbol = Symbol("pymysql");
 pub const SQLALCHEMY: Symbol = Symbol("sqlalchemy");
@@ -84,6 +86,10 @@ pub const ASYNC_CONNECTION: Symbol = Symbol("AsyncConnection");
 pub const MULTIPLE_ROWS_ERROR: Symbol = Symbol("MultipleRowsError");
 pub const NO_ROW_ERROR: Symbol = Symbol("NoRowError");
 pub const MODELS: Symbol = Symbol("models");
+
+/// Read through [`TYPING`]: imported by name, a table `protocols` could not
+/// be the class `Protocol`.
+pub const PROTOCOL: Symbol = Symbol("typing.Protocol");
 
 /// `datetime`'s classes, read through [`DT`].
 pub const DATE: Symbol = Symbol("dt.date");
@@ -103,6 +109,7 @@ pub(super) const VOCABULARY: [&[Import]; 3] = [
         Import::Module("datetime", DT),
         Import::plain(ENUM),
         Import::plain(SQLITE3),
+        Import::plain(TYPING),
         Import::From("collections.abc", ITERABLE),
         Import::From("collections.abc", SEQUENCE),
         Import::From("decimal", DECIMAL),
@@ -118,6 +125,9 @@ pub(super) const VOCABULARY: [&[Import]; 3] = [
     ],
     &[
         Import::plain(AIOSQLITE),
+        // Its cursors are no attribute of `asyncmy` to a type checker
+        // without the import of their module, which binds `asyncmy` too.
+        Import::Module("asyncmy.cursors", ASYNCMY),
         Import::plain(PSYCOPG),
         Import::plain(PYMYSQL),
         Import::plain(SQLALCHEMY),
@@ -140,7 +150,7 @@ pub(super) const VOCABULARY: [&[Import]; 3] = [
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Import {
     /// `import <module>`, bound as the symbol: `as` it, if that is not the
-    /// module's own name.
+    /// name the import binds itself, the module's first part.
     Module(&'static str, Symbol),
     /// `from <module> import <symbol>`; `<module>` may be relative, such as
     /// `.`.
@@ -198,3 +208,9 @@ pub const TEXT: Symbol = Symbol("text");
 pub const LABEL: Symbol = Symbol("label");
 /// One element of an array.
 pub const V: Symbol = Symbol("v");
+
+/// A cursor's methods as generated code calls them, where the driver's own
+/// stubs leave them untyped; what views a cursor so; and the cursor it views.
+pub const TYPED_CURSOR: Symbol = Symbol("_Cursor");
+pub const TYPED: Symbol = Symbol("_typed");
+pub const CURSOR: Symbol = Symbol("cursor");

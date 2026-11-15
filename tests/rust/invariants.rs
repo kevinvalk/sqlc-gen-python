@@ -176,6 +176,41 @@ fn only_dunders_and_module_constants_may_start_with_an_underscore() {
 }
 
 #[test]
+fn the_bridge_to_asyncmys_untyped_methods_is_private_to_the_letter_and_only_on_asyncmy() {
+    let bridged = "billing_pymysql_async";
+    assert_eq!(planted(bridged, "query.py", "", ""), Vec::<String>::new());
+    for (old, new, problem) in [
+        // The bridge, a letter off, is a private class of `Any`s like another.
+        (
+            "async def fetchmany(self, size: int)",
+            "async def fetchmany(self, size: Any)",
+            "module: `_Cursor` is private",
+        ),
+        (
+            "def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:",
+            "def _typed(cursor: Any) -> _Cursor:",
+            "parameter `cursor` of `_typed` is annotated with `Any`",
+        ),
+        // Half of it is none.
+        (
+            "def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:\n    return cursor\n\n\n",
+            "",
+            "does not bridge the methods asyncmy leaves untyped",
+        ),
+    ] {
+        let problems = planted(bridged, "query.py", old, new).join("\n");
+        assert!(problems.contains(problem), "{new:?} not caught: {problems}");
+    }
+    // PyMySQL's stubs type what a statement runs through.
+    let (_, files) = plant(bridged, "query.py", &[]);
+    let problems = support::check_output(&support::case("billing_pymysql").request(), &files);
+    assert!(
+        (problems.join("\n")).contains("bridges methods only asyncmy leaves untyped"),
+        "{problems:?}"
+    );
+}
+
+#[test]
 fn a_query_module_runs_exactly_the_sql_sqlc_wrote() {
     // `invoicing_sqlalchemy` with a planted bug, and `sql` replaced by `sqlc_sql`
     // in the query texts sqlc sent.

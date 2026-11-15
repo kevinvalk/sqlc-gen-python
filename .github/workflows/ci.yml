@@ -52,6 +52,11 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      # rust-cache takes all of target/ for cargo's. Of what is not (xtask's
+      # Python environments, generated packages and captures), it restores the
+      # directories without their files, and uv will not use such an
+      # environment.
+      - run: rm -rf target/py target/gen target/capture
       - run: cargo xtask ${{ matrix.task }}
 
   capture:
@@ -75,6 +80,8 @@ jobs:
           go-version: stable
           cache: false
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      # As above: what the cache holds of xtask's is directories alone.
+      - run: rm -rf target/py target/gen target/capture
       - run: cargo xtask capture --check
         env:
           GITHUB_TOKEN: ${{ github.token }}

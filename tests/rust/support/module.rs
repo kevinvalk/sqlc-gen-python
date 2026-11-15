@@ -22,10 +22,39 @@ pub fn check_module(source: &str) -> Vec<String> {
     }
 }
 
+/// What a query module on asyncmy holds between its imports and its queries
+/// (`docs/python-output.md` §6, "Functions", rule 2): the methods asyncmy's
+/// stubs leave untyped, as a protocol, and what views a cursor as having
+/// them. To the letter, these two statements alone may be private, annotate
+/// with an `Any` that is not the library's own, and be a class that is no
+/// record.
+const BRIDGE: [&str; 2] = [
+    "class _Cursor(typing.Protocol):
+    async def execute(self, query: str, args: Sequence[Any] | None = None) -> int: ...
+
+    async def executemany(
+        self, query: str, args: Sequence[Sequence[Any]]
+    ) -> object: ...
+
+    async def fetchmany(self, size: int) -> Sequence[Sequence[Any]]: ...",
+    "def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:
+    return cursor",
+];
+
+/// Where in `body` its bridge starts, if it has one.
+pub(super) fn bridge(body: &[Stmt], source: &str) -> Option<usize> {
+    body.windows(BRIDGE.len())
+        .position(|stmts| stmts.iter().map(|stmt| &source[stmt.range()]).eq(BRIDGE))
+}
+
 /// Every invariant of one parsed module, which each check sees as a tree as
 /// well as text.
 pub(super) fn module_problems(parsed: &Parsed<ModModule>, source: &str) -> Vec<String> {
     let module = parsed.syntax();
+    let mut own = module.body.clone();
+    if let Some(at) = bridge(&own, source) {
+        own.drain(at..at + BRIDGE.len());
+    }
     let mut problems = Vec::new();
     match format_module_source(source, PyFormatOptions::default()) {
         Ok(formatted) if formatted.as_code() == source => {}
@@ -33,10 +62,10 @@ pub(super) fn module_problems(parsed: &Parsed<ModModule>, source: &str) -> Vec<S
         Err(error) => problems.push(format!("does not format: {error}")),
     }
     comments_are_the_header(parsed, source, &mut problems);
-    scopes("module", &module.body, &mut problems);
+    scopes("module", &own, &mut problems);
     reads_resolve(&module.body, &mut problems);
-    annotations_are_precise(&module.body, &mut problems);
-    records_are_values(&module.body, &mut problems);
+    annotations_are_precise(&own, &mut problems);
+    records_are_values(&own, &mut problems);
     problems
 }
 
@@ -187,11 +216,9 @@ fn annotations_are_precise(body: &[Stmt], problems: &mut Vec<String>) {
                         if let Some(annotation) = parameter.annotation() {
                             let own = match (name.as_str(), parameter.name().as_str()) {
                                 ("from_row", "row") => &["Sequence[Any]"][..],
-                                (_, "conn") => &[
-                                    "psycopg.Connection[Any]",
-                                    "psycopg.AsyncConnection[Any]",
-                                    "pymysql.Connection[Any]",
-                                ],
+                                (_, "conn") => {
+                                    &["psycopg.Connection[Any]", "psycopg.AsyncConnection[Any]"]
+                                }
                                 _ => &[],
                             };
                             let what = format!("parameter `{}` of `{name}`", parameter.name());

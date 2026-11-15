@@ -13,6 +13,9 @@
 //! - every module parses, and ruff's formatter leaves it unchanged;
 //! - its only comments are the header it opens with;
 //! - every name a module binds is unique in its scope and public;
+//! - but a query module on asyncmy, and no other, holds the bridge to the
+//!   methods asyncmy's stubs leave untyped, to the letter: its two names are
+//!   private, its protocol is no record, and it annotates with `Any`;
 //! - every name a module reads on import is bound by then;
 //! - no annotation mentions `Any`, but a driver row's, a psycopg
 //!   connection's and `:execresult`'s;

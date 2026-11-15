@@ -135,52 +135,52 @@ Observed on PostgreSQL 18, session TimeZone Europe/Amsterdam, with psycopg 3.3.8
 
 Observed on MySQL 8.4, session time zone +05:30, with pymysql 1.2.4, asyncmy 0.2.18.
 
-| MySQL | Annotation | PyMySQL | SQLAlchemy, PyMySQL | SQLAlchemy, asyncmy | Verdict |
-|---|---|---|---|---|---|
-| `tinyint(1)` | `bool` | `bool` | `bool` | `bool` | ok |
-| `tinyint` | `int` | `int` | `int` | `int` | ok |
-| `tinyint unsigned` | `int` | `int` | `int` | `int` | ok |
-| `smallint` | `int` | `int` | `int` | `int` | ok |
-| `smallint unsigned` | `int` | `int` | `int` | `int` | ok |
-| `mediumint` | `int` | `int` | `int` | `int` | ok |
-| `mediumint unsigned` | `int` | `int` | `int` | `int` | ok |
-| `int` | `int` | `int` | `int` | `int` | ok |
-| `int unsigned` | `int` | `int` | `int` | `int` | ok |
-| `bigint` | `int` | `int` | `int` | `int` | ok |
-| `bigint unsigned` | `int` | `int` | `int` | `int` | ok |
-| `year` | `int` | `int` | `int` | `int` | ok |
-| `float` | `float` | `float` | `float` | `float` | ok |
-| `double` | `float` | `float` | `float` | `float` | ok |
-| `decimal(65,30)` | `Decimal` | `Decimal` | `Decimal` | `Decimal` | ok |
-| `char(3)` | `str` | `str` | `str` | `str` | ok |
-| `varchar(20)` | `str` | `str` | `str` | `str` | ok |
-| `tinytext` | `str` | `str` | `str` | `str` | ok |
-| `text` | `str` | `str` | `str` | `str` | ok |
-| `mediumtext` | `str` | `str` | `str` | `str` | ok |
-| `longtext` | `str` | `str` | `str` | `str` | ok |
-| `json` | `str` | `str` | `str` | `str` | ok |
-| `binary(3)` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
-| `varbinary(20)` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
-| `tinyblob` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
-| `blob` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
-| `mediumblob` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
-| `longblob` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
-| `bit(1)` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
-| `bit(64)` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
-| `date` | `date` | `date` | `date` | `date` | ok |
-| `datetime(6)` | `datetime` | `datetime` | `datetime` | `datetime` | ok |
-| `timestamp(6)` | `datetime` | `datetime` | `datetime` | `datetime` | ok |
-| `time(6)` | `timedelta` | `timedelta` | `timedelta` | `timedelta` | ok |
+| MySQL | Annotation | PyMySQL | asyncmy | asyncmy, prepared | SQLAlchemy, PyMySQL | SQLAlchemy, asyncmy | Verdict |
+|---|---|---|---|---|---|---|---|
+| `tinyint(1)` | `bool` | `bool` | `bool` | `bool` | `bool` | `bool` | ok |
+| `tinyint` | `int` | `int` | `int` | `int` | `int` | `int` | ok |
+| `tinyint unsigned` | `int` | `int` | `int` | `int` | `int` | `int` | ok |
+| `smallint` | `int` | `int` | `int` | `int` | `int` | `int` | ok |
+| `smallint unsigned` | `int` | `int` | `int` | `int` | `int` | `int` | ok |
+| `mediumint` | `int` | `int` | `int` | `int` | `int` | `int` | ok |
+| `mediumint unsigned` | `int` | `int` | `int` | `int` | `int` | `int` | ok |
+| `int` | `int` | `int` | `int` | `int` | `int` | `int` | ok |
+| `int unsigned` | `int` | `int` | `int` | `int` | `int` | `int` | ok |
+| `bigint` | `int` | `int` | `int` | `int` | `int` | `int` | ok |
+| `bigint unsigned` | `int` | `int` | `int` | `int` | `int` | `int` | ok |
+| `year` | `int` | `int` | `int` | `int` | `int` | `int` | ok |
+| `float` | `float` | `float` | `float` | `float` | `float` | `float` | ok |
+| `double` | `float` | `float` | `float` | `float` | `float` | `float` | ok |
+| `decimal(65,30)` | `Decimal` | `Decimal` | `Decimal` | `Decimal` | `Decimal` | `Decimal` | ok |
+| `char(3)` | `str` | `str` | `str` | `str` | `str` | `str` | ok |
+| `varchar(20)` | `str` | `str` | `str` | `str` | `str` | `str` | ok |
+| `tinytext` | `str` | `str` | `str` | `str` | `str` | `str` | ok |
+| `text` | `str` | `str` | `str` | `str` | `str` | `str` | ok |
+| `mediumtext` | `str` | `str` | `str` | `str` | `str` | `str` | ok |
+| `longtext` | `str` | `str` | `str` | `str` | `str` | `str` | ok |
+| `json` | `str` | `str` | `str` | `str` | `str` | `str` | ok |
+| `binary(3)` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
+| `varbinary(20)` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
+| `tinyblob` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
+| `blob` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
+| `mediumblob` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
+| `longblob` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
+| `bit(1)` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
+| `bit(64)` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
+| `date` | `date` | `date` | `date` | `date` | `date` | `date` | ok |
+| `datetime(6)` | `datetime` | `datetime` | `datetime` | `datetime` | `datetime` | `datetime` | ok |
+| `timestamp(6)` | `datetime` | `datetime` | `datetime` | `datetime` | `datetime` | `datetime` | ok |
+| `time(6)` | `timedelta` | `timedelta` | `timedelta` | `timedelta` | `timedelta` | `timedelta` | ok |
 
 ### MySQL edges that raise or are lossy
 
-| MySQL | Edge | PyMySQL | SQLAlchemy, PyMySQL | SQLAlchemy, asyncmy |
-|---|---|---|---|---|
-| `tinyint(1)` | `2` | lossy: `2` comes back as `1` | lossy: `2` comes back as `1` | lossy: `2` comes back as `1` |
-| `tinyint(1)` | `-128` | lossy: `-128` comes back as `1` | lossy: `-128` comes back as `1` | lossy: `-128` comes back as `1` |
-| `float` | `3.402823466e38` | lossy: `3.4028234663852886e38` comes back as `3.402820018375656e38` | lossy: `3.4028234663852886e38` comes back as `3.402820018375656e38` | lossy: `3.4028234663852886e38` comes back as `3.402820018375656e38` |
-| `float` | `1.175494351e-38` | lossy: `1.1754943508222875e-38` comes back as `1.1754900067970481e-38` | lossy: `1.1754943508222875e-38` comes back as `1.1754900067970481e-38` | lossy: `1.1754943508222875e-38` comes back as `1.1754900067970481e-38` |
-| `float` | `16777217` | lossy: `16777216.0` comes back as `16777200.0` | lossy: `16777216.0` comes back as `16777200.0` | lossy: `16777216.0` comes back as `16777200.0` |
+| MySQL | Edge | PyMySQL | asyncmy | asyncmy, prepared | SQLAlchemy, PyMySQL | SQLAlchemy, asyncmy |
+|---|---|---|---|---|---|---|
+| `tinyint(1)` | `2` | lossy: `2` comes back as `1` | lossy: `2` comes back as `1` | lossy: `2` comes back as `1` | lossy: `2` comes back as `1` | lossy: `2` comes back as `1` |
+| `tinyint(1)` | `-128` | lossy: `-128` comes back as `1` | lossy: `-128` comes back as `1` | lossy: `-128` comes back as `1` | lossy: `-128` comes back as `1` | lossy: `-128` comes back as `1` |
+| `float` | `3.402823466e38` | lossy: `3.4028234663852886e38` comes back as `3.402820018375656e38` | lossy: `3.4028234663852886e38` comes back as `3.402820018375656e38` |  | lossy: `3.4028234663852886e38` comes back as `3.402820018375656e38` | lossy: `3.4028234663852886e38` comes back as `3.402820018375656e38` |
+| `float` | `1.175494351e-38` | lossy: `1.1754943508222875e-38` comes back as `1.1754900067970481e-38` | lossy: `1.1754943508222875e-38` comes back as `1.1754900067970481e-38` |  | lossy: `1.1754943508222875e-38` comes back as `1.1754900067970481e-38` | lossy: `1.1754943508222875e-38` comes back as `1.1754900067970481e-38` |
+| `float` | `16777217` | lossy: `16777216.0` comes back as `16777200.0` | lossy: `16777216.0` comes back as `16777200.0` |  | lossy: `16777216.0` comes back as `16777200.0` | lossy: `16777216.0` comes back as `16777200.0` |
 
 ## SQLite
 

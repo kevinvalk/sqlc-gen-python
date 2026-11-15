@@ -42,7 +42,7 @@ pub enum Backend {
     Psycopg,
     /// `sqlite3`, and `aiosqlite` for coroutines, on SQLite.
     Sqlite3,
-    /// PyMySQL, on MySQL, without coroutines.
+    /// PyMySQL, and asyncmy for coroutines, on MySQL.
     Pymysql,
 }
 
@@ -64,17 +64,6 @@ impl Backend {
             Self::Psycopg => engine == Engine::PostgreSql,
             Self::Sqlite3 => engine == Engine::Sqlite,
             Self::Pymysql => engine == Engine::MySql,
-        }
-    }
-
-    /// Why the backend has no coroutines, if it has none.
-    pub fn async_problem(self) -> Option<&'static str> {
-        match self {
-            Self::SqlAlchemy | Self::Psycopg | Self::Sqlite3 => None,
-            Self::Pymysql => Some(
-                "no async MySQL driver is both typed and right, so the pymysql backend has no \
-                 coroutines; use the sqlalchemy backend, on mysql+asyncmy",
-            ),
         }
     }
 
@@ -143,6 +132,14 @@ impl Backend {
         match self.driver() {
             None => &[],
             Some(_) => &[MULTIPLE_ROWS_ERROR, NO_ROW_ERROR],
+        }
+    }
+
+    /// What a query module defines before its queries, if anything.
+    pub fn prelude(self, asynchronous: bool) -> Vec<ast::Stmt> {
+        match self.driver() {
+            None => Vec::new(),
+            Some(driver) => dbapi::prelude(driver, asynchronous),
         }
     }
 

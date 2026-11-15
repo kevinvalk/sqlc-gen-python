@@ -15,6 +15,11 @@ sql:
         options:
           backend: pymysql
           async: false
+      - out: mysqltypes_pymysql_async
+        plugin: python
+        options:
+          backend: pymysql
+          async: true
       - out: mysqltypes_sqlalchemy
         plugin: python
         options:

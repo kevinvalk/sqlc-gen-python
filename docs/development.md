@@ -87,7 +87,7 @@ src/
     dbapi.rs         a driver that takes sqlc's SQL as written: function bodies
     psycopg.rs       psycopg 3's raw cursors, as a `dbapi::Driver`
     sqlite3.rs       `sqlite3` and `aiosqlite`, as a `dbapi::Driver`
-    pymysql.rs       PyMySQL, as a `dbapi::Driver` that takes `%s`
+    pymysql.rs       PyMySQL and asyncmy, as a `dbapi::Driver` that takes `%s`
 ```
 
 - **engine**: the database (`engine:`): its type map, where its placeholders

@@ -21,7 +21,7 @@ pub use fixtures::{Case, case, cases, export, gen_dir, generated_files, read_jso
 pub use module::check_module;
 
 use models::models_follow_catalog;
-use module::module_problems;
+use module::{bridge, module_problems};
 use queries::{queries_follow_sqlc, stem};
 
 /// Every invariant of what `request` generated, as listed in `corpus.rs`;
@@ -58,21 +58,22 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
             Err(error) => problems.push(format!("{name}: not UTF-8: {error}")),
         }
     }
-    let body = |file: &str| -> Option<&[Stmt]> {
+    let body = |file: &str| -> Option<(&[Stmt], &str)> {
         (modules.iter())
             .find(|(name, ..)| *name == file)
-            .map(|(_, _, parsed)| &parsed.syntax().body[..])
+            .map(|(_, source, parsed)| (&parsed.syntax().body[..], *source))
     };
-    let models = body("models.py").unwrap_or_default();
+    let models = body("models.py").map_or(&[][..], |(models, _)| models);
     for (name, source, parsed) in &modules {
         let found = module_problems(parsed, source);
         problems.extend(found.into_iter().map(|p| format!("{name}: {p}")));
     }
     for stem in stems {
         let file = format!("{stem}.py");
-        if let Some(module) = body(&file) {
+        if let Some((module, source)) = body(&file) {
             let mut found = Vec::new();
-            queries_follow_sqlc(request, &stem, module, models, &mut found);
+            let bridge = bridge(module, source);
+            queries_follow_sqlc(request, &stem, (module, bridge), models, &mut found);
             problems.extend(found.into_iter().map(|p| format!("{file}: {p}")));
         }
     }

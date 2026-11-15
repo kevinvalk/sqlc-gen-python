@@ -1,7 +1,8 @@
 """MySQL's part of the type-truth probe: every type in the generator's map
 (``TYPES`` in ``src/engine/mysql/types.rs``), a column of
-``examples/mysqltypes``, at its edges, through PyMySQL as the ``pymysql``
-backend reads it and through SQLAlchemy on PyMySQL and on asyncmy
+``examples/mysqltypes``, at its edges, through PyMySQL and asyncmy as the
+``pymysql`` backend reads them, asyncmy also with the statements it prepares
+on the server when asked to, and through SQLAlchemy on either
 (``typemap_columns.py``).
 """
 
@@ -10,6 +11,8 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
+import asyncmy
+
 import mysql
 import typemap_columns
 from examples import EXAMPLES
@@ -17,9 +20,11 @@ from typemap_columns import Driver, Engine, sqlalchemy_async, sqlalchemy_sync
 from typemap_probe import Section, versions
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Callable
 
     import sqlalchemy
+
+    from typemap_columns import Session
 
 SCHEMA = EXAMPLES / "mysqltypes/schema.sql"
 # The session's time zone. Not UTC, which would hide what a driver does with it.
@@ -91,10 +96,46 @@ async def pymysql(url: sqlalchemy.URL) -> AsyncIterator[tuple[object, Any]]:
         conn.close()
 
 
+def asyncmy_(prepared: int) -> Callable[[sqlalchemy.URL], Session]:
+    """A session on an asyncmy connection, as the ``pymysql`` backend's
+    coroutines take one, which keeps up to ``prepared`` statements prepared
+    on the server: the values of one cross as binary, not as text.
+    """
+
+    @asynccontextmanager
+    async def connect(url: sqlalchemy.URL) -> AsyncIterator[tuple[object, Any]]:
+        conn = await asyncmy.connect(
+            host=url.host,
+            port=url.port,
+            user=url.username,
+            password=url.password,
+            database=url.database,
+            stmt_cache_size=prepared,
+        )
+        try:
+
+            async def run(sql: str) -> list[tuple[Any, ...]]:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql)
+                    return list(await cur.fetchall())
+
+            yield conn, run
+        finally:
+            await conn.ensure_closed()
+
+    return connect
+
+
 ENGINE = Engine(
     example="mysqltypes",
     drivers=(
         Driver("PyMySQL", "mysqltypes_pymysql", pymysql),
+        Driver("asyncmy", "mysqltypes_pymysql_async", asyncmy_(prepared=0)),
+        Driver(
+            "asyncmy, prepared",
+            "mysqltypes_pymysql_async",
+            asyncmy_(prepared=8),
+        ),
         Driver(
             "SQLAlchemy, PyMySQL",
             "mysqltypes_sqlalchemy",

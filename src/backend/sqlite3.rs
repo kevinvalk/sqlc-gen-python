@@ -16,14 +16,16 @@ pub const DRIVER: Driver = Driver {
         cursor,
         cursor_type: || SQLITE3.attr("Cursor"),
         setup: Some(plain_rows),
+        untyped: false,
     },
-    asynchronous: Some(Flavor {
+    asynchronous: Flavor {
         connection: || AIOSQLITE.attr("Connection"),
         closing: cursor,
         cursor: || cursor().awaited(true),
         cursor_type: || AIOSQLITE.attr("Cursor"),
         setup: Some(plain_rows),
-    }),
+        untyped: false,
+    },
     placeholders: Some(Placeholders {
         text: "?",
         formats: false,

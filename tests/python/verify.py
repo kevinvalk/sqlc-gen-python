@@ -372,6 +372,28 @@ MUTANTS = {
         "NOT LIKE '%:test%'",
         case="billing_pymysql",
     ),
+    # asyncmy's stubs leave what a statement runs through untyped, which
+    # strict pyright rejects a call of. Once they type it, this is no longer
+    # caught: the bridge is then to be removed (`CLAUDE.md`, "Workarounds").
+    "asyncmy's execute called without the bridge": Mutant(
+        GATE,
+        'Type of "execute" is partially unknown',
+        "query.py",
+        "await _typed(cur).execute(_GET_CUSTOMER, (id,))",
+        "await cur.execute(_GET_CUSTOMER, (id,))",
+        case="billing_pymysql_async",
+    ),
+    # The suite's connection makes cursors of dicts.
+    "asyncmy rows read through the connection's cursor class": Mutant(
+        MYSQL_RUNTIME,
+        "KeyError: 0",
+        "query.py",
+        """async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+        await _typed(cur).execute(_GET_CUSTOMER, (id,))""",
+        """async with conn.cursor() as cur:
+        await _typed(cur).execute(_GET_CUSTOMER, (id,))""",
+        case="billing_pymysql_async",
+    ),
     "unused import": Mutant(
         GATE,
         "F401",

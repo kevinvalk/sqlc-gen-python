@@ -14,8 +14,9 @@ requires-python = ">=3.10"
 dev = [
     # The async driver of the sqlite3 backend.
     "aiosqlite==0.22.1",
-    # SQLAlchemy's async MySQL driver (`mysql+asyncmy`). Not aiomysql 0.3.2,
-    # which cannot bind `bytes` on PyMySQL 1.2.
+    # The async driver of the pymysql backend, and SQLAlchemy's
+    # (`mysql+asyncmy`). Not aiomysql 0.3.2, which cannot bind `bytes` on
+    # PyMySQL 1.2.
     "asyncmy==0.2.18",
     "asyncpg==0.32.0",
     # Draws the arguments of the corpus runtime sweep (autoprop.py).

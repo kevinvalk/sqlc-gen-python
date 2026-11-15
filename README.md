@@ -46,7 +46,7 @@ The connection and its transaction are the caller's: nothing is committed.
 | `sqlalchemy` | PostgreSQL, MySQL, SQLite | yes |
 | `psycopg` | PostgreSQL | yes |
 | `sqlite3` | SQLite | yes (`aiosqlite`) |
-| `pymysql` | MySQL | no |
+| `pymysql` | MySQL | yes (asyncmy) |
 
 `backend` and `async` are required. See [`examples/`](examples/) for complete
 projects, and [`docs/python-output.md`](docs/python-output.md) for every rule
@@ -55,7 +55,7 @@ and option.
 Each release is tested under the sqlc its notes name (v1.31.1 now), and the
 generated code on Python 3.10 and the newest, with psycopg 3.3 (libpq 14 at
 least), SQLAlchemy 2.0 and 2.1 (on psycopg, asyncpg, PyMySQL, asyncmy,
-`sqlite3` and aiosqlite), PyMySQL 1.2 and aiosqlite 0.22. Every type each
+`sqlite3` and aiosqlite), PyMySQL 1.2, asyncmy 0.2 and aiosqlite 0.22. Every type each
 engine maps is read back through each of its drivers, at its edges
 ([`docs/typemap.md`](docs/typemap.md)).
 

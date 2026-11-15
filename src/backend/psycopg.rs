@@ -16,14 +16,16 @@ pub const DRIVER: Driver = Driver {
         cursor: || cursor("RawCursor"),
         cursor_type: || cursor_type("RawCursor"),
         setup: None,
+        untyped: false,
     },
-    asynchronous: Some(Flavor {
+    asynchronous: Flavor {
         connection: || PSYCOPG.attr("AsyncConnection").index(ANY),
         closing: || cursor("AsyncRawCursor"),
         cursor: || cursor("AsyncRawCursor"),
         cursor_type: || cursor_type("AsyncRawCursor"),
         setup: None,
-    }),
+        untyped: false,
+    },
     // PostgreSQL's own `$N`, as sqlc writes them.
     placeholders: None,
     execute_counts: false,

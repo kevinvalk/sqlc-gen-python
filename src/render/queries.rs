@@ -12,26 +12,27 @@ use crate::python::{
     Expression, Function, Scope, ann_assign, int, name, parameter, stmts, unless_none,
 };
 
-/// The module of one query file (§6): for each query, its statement, its
-/// class if it has one, and its function, a coroutine if asked for.
+/// The module of one query file (§6): what its backend defines before its
+/// queries, if anything, then for each query its statement, its class if it
+/// has one, and its function, a coroutine if asked for.
 pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
-    (module.queries.iter())
-        .flat_map(|query| {
-            let params = (query.takes.class()).map(|class| params_class(class, &query.params));
-            let row = match &query.command {
-                Command::One(Shape::Row(class, fields))
-                | Command::Many(Shape::Row(class, fields)) => {
-                    Some(row_class(class, fields, config.backend.text_arrays()))
-                }
-                _ => None,
-            };
-            let statement = ann_assign(&query.constant, FINAL, config.backend.statement(query));
-            let function = function(query, config);
-            std::iter::once(statement)
-                .chain(params)
-                .chain(row)
-                .chain([function])
-        })
+    let queries = (module.queries.iter()).flat_map(|query| {
+        let params = (query.takes.class()).map(|class| params_class(class, &query.params));
+        let row = match &query.command {
+            Command::One(Shape::Row(class, fields)) | Command::Many(Shape::Row(class, fields)) => {
+                Some(row_class(class, fields, config.backend.text_arrays()))
+            }
+            _ => None,
+        };
+        let statement = ann_assign(&query.constant, FINAL, config.backend.statement(query));
+        let function = function(query, config);
+        std::iter::once(statement)
+            .chain(params)
+            .chain(row)
+            .chain([function])
+    });
+    (config.backend.prelude(config.asynchronous).into_iter())
+        .chain(queries)
         .collect()
 }
 

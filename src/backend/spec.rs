@@ -4,19 +4,47 @@ use super::*;
 
 #[test]
 fn each_backend_runs_its_engines() {
-    use Engine::{PostgreSql, Sqlite};
+    use Engine::{MySql, PostgreSql, Sqlite};
     for (backend, engines) in [
-        (Backend::SqlAlchemy, &[PostgreSql, Sqlite][..]),
+        (Backend::SqlAlchemy, &[PostgreSql, MySql, Sqlite][..]),
         (Backend::Psycopg, &[PostgreSql]),
         (Backend::Sqlite3, &[Sqlite]),
+        (Backend::Pymysql, &[MySql]),
     ] {
-        for engine in [PostgreSql, Sqlite] {
+        for engine in [PostgreSql, MySql, Sqlite] {
             assert_eq!(
                 backend.runs(engine),
                 engines.contains(&engine),
                 "{backend:?}"
             );
         }
+    }
+}
+
+#[test]
+fn a_backends_coroutines_take_the_connection_of_its_async_library() {
+    let connection =
+        |backend: Backend, asynchronous| crate::python::unparse(&backend.connection(asynchronous));
+    for (backend, sync, asynchronous) in [
+        (
+            Backend::SqlAlchemy,
+            "sqlalchemy.Connection",
+            "AsyncConnection",
+        ),
+        (
+            Backend::Psycopg,
+            "psycopg.Connection[Any]",
+            "psycopg.AsyncConnection[Any]",
+        ),
+        (
+            Backend::Sqlite3,
+            "sqlite3.Connection",
+            "aiosqlite.Connection",
+        ),
+        (Backend::Pymysql, "pymysql.Connection", "asyncmy.Connection"),
+    ] {
+        assert_eq!(connection(backend, false), sync);
+        assert_eq!(connection(backend, true), asynchronous);
     }
 }
 

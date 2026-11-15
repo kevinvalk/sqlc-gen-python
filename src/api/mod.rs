@@ -44,11 +44,6 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
             resolver.engine.name()
         );
     }
-    if config.asynchronous
-        && let Some(problem) = config.backend.async_problem()
-    {
-        bail!("async: {problem}");
-    }
     let mut problems = Problems::default();
     let (enums, models) = models::resolve(&resolver, &config.models, &mut problems);
     let modules = queries::modules(&request.queries, &resolver, &models, config, &mut problems);
