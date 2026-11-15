@@ -17,8 +17,9 @@ import pytest
 import sqlalchemy
 from examples import GoldenCase
 from sqlalchemy.ext.asyncio import create_async_engine
+from suite.api import cases, functions, queries
 
-from conftest import cases, functions, no_row, queries
+from conftest import no_row
 
 SCHEMA = cases("ledger")[0].schema_sql.read_text()
 STATEMENTS = [s for s in SCHEMA.split(";") if s.strip()]

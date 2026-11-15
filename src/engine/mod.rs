@@ -217,6 +217,10 @@ impl Engine {
                 "; but SQLite stores a value of its NUMERIC affinity as whichever of an integer, \
                  a real and text it looks like, so better declare it INTEGER, REAL, TEXT or BLOB"
             }
+            // The text of one is the bytes of the other.
+            Self::MySql if data_type == "var_string" => {
+                "; it is how sqlc reports a CAST AS CHAR, a str, and a CAST AS BINARY, bytes, alike"
+            }
             Self::PostgreSql | Self::MySql => "",
         }
     }

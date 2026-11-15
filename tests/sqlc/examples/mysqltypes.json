@@ -1,0 +1,2897 @@
+{
+  "settings": {
+    "engine": "mysql"
+  },
+  "catalog": {
+    "comment": "",
+    "default_schema": "public",
+    "name": "",
+    "schemas": [
+      {
+        "comment": "",
+        "name": "public",
+        "tables": [
+          {
+            "rel": {
+              "catalog": "",
+              "schema": "",
+              "name": "scalars"
+            },
+            "columns": [
+              {
+                "name": "c_bool",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "tinyint"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_tinyint",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "tinyint"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_tinyint_unsigned",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "tinyint"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": true,
+                "array_dims": 0
+              },
+              {
+                "name": "c_smallint",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "smallint"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_smallint_unsigned",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "smallint"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": true,
+                "array_dims": 0
+              },
+              {
+                "name": "c_mediumint",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "mediumint"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_mediumint_unsigned",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "mediumint"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": true,
+                "array_dims": 0
+              },
+              {
+                "name": "c_int",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "int"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_int_unsigned",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "int"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": true,
+                "array_dims": 0
+              },
+              {
+                "name": "c_bigint",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "bigint"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_bigint_unsigned",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "bigint"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": true,
+                "array_dims": 0
+              },
+              {
+                "name": "c_year",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "year"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_float",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "float"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_double",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "double"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_decimal",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 65,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "decimal"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_char",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 3,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "char"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_varchar",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 20,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "varchar"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_tinytext",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "tinytext"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_text",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "text"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_mediumtext",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "mediumtext"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_longtext",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "longtext"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_json",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "json"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_binary",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 3,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "binary"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_varbinary",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 20,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "varbinary"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_tinyblob",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "tinyblob"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_blob",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "blob"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_mediumblob",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "mediumblob"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_longblob",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "longblob"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_bit_1",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "bit"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_bit_64",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 64,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "bit"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_date",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "date"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_datetime",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 26,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "datetime"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_timestamp",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 26,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "timestamp"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_time",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": 17,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "time"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              }
+            ],
+            "comment": ""
+          }
+        ],
+        "enums": [],
+        "composite_types": []
+      }
+    ]
+  },
+  "queries": [
+    {
+      "text": "SELECT c_bool, c_tinyint, c_tinyint_unsigned, c_smallint, c_smallint_unsigned, c_mediumint, c_mediumint_unsigned, c_int, c_int_unsigned, c_bigint, c_bigint_unsigned, c_year, c_float, c_double, c_decimal, c_char, c_varchar, c_tinytext, c_text, c_mediumtext, c_longtext, c_json, c_binary, c_varbinary, c_tinyblob, c_blob, c_mediumblob, c_longblob, c_bit_1, c_bit_64, c_date, c_datetime, c_timestamp, c_time FROM scalars LIMIT ?",
+      "name": "ListScalars",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "c_bool",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": 1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "tinyint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_bool",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_tinyint",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "tinyint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_tinyint",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_tinyint_unsigned",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "tinyint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_tinyint_unsigned",
+          "unsigned": true,
+          "array_dims": 0
+        },
+        {
+          "name": "c_smallint",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "smallint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_smallint",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_smallint_unsigned",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "smallint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_smallint_unsigned",
+          "unsigned": true,
+          "array_dims": 0
+        },
+        {
+          "name": "c_mediumint",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "mediumint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_mediumint",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_mediumint_unsigned",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "mediumint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_mediumint_unsigned",
+          "unsigned": true,
+          "array_dims": 0
+        },
+        {
+          "name": "c_int",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "int"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_int",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_int_unsigned",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "int"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_int_unsigned",
+          "unsigned": true,
+          "array_dims": 0
+        },
+        {
+          "name": "c_bigint",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_bigint",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_bigint_unsigned",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_bigint_unsigned",
+          "unsigned": true,
+          "array_dims": 0
+        },
+        {
+          "name": "c_year",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "year"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_year",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_float",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "float"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_float",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_double",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "double"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_double",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_decimal",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": 65,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "decimal"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_decimal",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_char",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": 3,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "char"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_char",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_varchar",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": 20,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "varchar"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_varchar",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_tinytext",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "tinytext"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_tinytext",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_text",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_text",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_mediumtext",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "mediumtext"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_mediumtext",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_longtext",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "longtext"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_longtext",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_json",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "json"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_json",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_binary",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": 3,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "binary"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_binary",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_varbinary",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": 20,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "varbinary"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_varbinary",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_tinyblob",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "tinyblob"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_tinyblob",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_blob",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "blob"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_blob",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_mediumblob",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "mediumblob"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_mediumblob",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_longblob",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "longblob"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_longblob",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_bit_1",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": 1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bit"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_bit_1",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_bit_64",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": 64,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bit"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_bit_64",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_date",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "date"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_date",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_datetime",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": 26,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "datetime"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_datetime",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_timestamp",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": 26,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "timestamp"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_timestamp",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_time",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": 17,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "time"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_time",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "limit",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": null,
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "integer"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "INSERT INTO scalars (\n  c_bool, c_tinyint, c_tinyint_unsigned, c_smallint, c_smallint_unsigned,\n  c_mediumint, c_mediumint_unsigned, c_int, c_int_unsigned, c_bigint,\n  c_bigint_unsigned, c_year, c_float, c_double, c_decimal, c_char, c_varchar,\n  c_tinytext, c_text, c_mediumtext, c_longtext, c_json, c_binary,\n  c_varbinary, c_tinyblob, c_blob, c_mediumblob, c_longblob, c_bit_1,\n  c_bit_64, c_date, c_datetime, c_timestamp, c_time\n) VALUES (\n  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,\n  ?, ?, ?, ?, ?, ?, ?, ?, ?\n)",
+      "name": "AddScalars",
+      "cmd": ":exec",
+      "columns": [],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "c_bool",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "tinyint"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_bool",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 2,
+          "column": {
+            "name": "c_tinyint",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "tinyint"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_tinyint",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 3,
+          "column": {
+            "name": "c_tinyint_unsigned",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "tinyint"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_tinyint_unsigned",
+            "unsigned": true,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 4,
+          "column": {
+            "name": "c_smallint",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "smallint"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_smallint",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 5,
+          "column": {
+            "name": "c_smallint_unsigned",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "smallint"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_smallint_unsigned",
+            "unsigned": true,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 6,
+          "column": {
+            "name": "c_mediumint",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "mediumint"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_mediumint",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 7,
+          "column": {
+            "name": "c_mediumint_unsigned",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "mediumint"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_mediumint_unsigned",
+            "unsigned": true,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 8,
+          "column": {
+            "name": "c_int",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "int"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_int",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 9,
+          "column": {
+            "name": "c_int_unsigned",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "int"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_int_unsigned",
+            "unsigned": true,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 10,
+          "column": {
+            "name": "c_bigint",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "bigint"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_bigint",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 11,
+          "column": {
+            "name": "c_bigint_unsigned",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "bigint"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_bigint_unsigned",
+            "unsigned": true,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 12,
+          "column": {
+            "name": "c_year",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "year"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_year",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 13,
+          "column": {
+            "name": "c_float",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "float"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_float",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 14,
+          "column": {
+            "name": "c_double",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "double"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_double",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 15,
+          "column": {
+            "name": "c_decimal",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 65,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "decimal"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_decimal",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 16,
+          "column": {
+            "name": "c_char",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 3,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "char"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_char",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 17,
+          "column": {
+            "name": "c_varchar",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 20,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "varchar"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_varchar",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 18,
+          "column": {
+            "name": "c_tinytext",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "tinytext"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_tinytext",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 19,
+          "column": {
+            "name": "c_text",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "text"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_text",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 20,
+          "column": {
+            "name": "c_mediumtext",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "mediumtext"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_mediumtext",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 21,
+          "column": {
+            "name": "c_longtext",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "longtext"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_longtext",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 22,
+          "column": {
+            "name": "c_json",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "json"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_json",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 23,
+          "column": {
+            "name": "c_binary",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 3,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "binary"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_binary",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 24,
+          "column": {
+            "name": "c_varbinary",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 20,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "varbinary"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_varbinary",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 25,
+          "column": {
+            "name": "c_tinyblob",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "tinyblob"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_tinyblob",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 26,
+          "column": {
+            "name": "c_blob",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "blob"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_blob",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 27,
+          "column": {
+            "name": "c_mediumblob",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "mediumblob"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_mediumblob",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 28,
+          "column": {
+            "name": "c_longblob",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "longblob"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_longblob",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 29,
+          "column": {
+            "name": "c_bit_1",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "bit"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_bit_1",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 30,
+          "column": {
+            "name": "c_bit_64",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 64,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "bit"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_bit_64",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 31,
+          "column": {
+            "name": "c_date",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "date"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_date",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 32,
+          "column": {
+            "name": "c_datetime",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 26,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "datetime"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_datetime",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 33,
+          "column": {
+            "name": "c_timestamp",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 26,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "timestamp"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_timestamp",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 34,
+          "column": {
+            "name": "c_time",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 17,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "time"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_time",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": {
+        "catalog": "",
+        "schema": "",
+        "name": "scalars"
+      }
+    },
+    {
+      "text": "SELECT\n  c_bigint IS NOT NULL AS filled,\n  CAST(coalesce(c_bigint, 0) AS SIGNED) AS as_signed\nFROM scalars",
+      "name": "ListDerived",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "filled",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bool"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "as_signed",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigint signed"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [
+        " What sqlc types otherwise than a column: a comparison is its `bool`, a",
+        " cast to an integer its `bigint signed`."
+      ],
+      "filename": "query.sql",
+      "insert_into_table": null
+    }
+  ],
+  "sqlc_version": "v1.31.1"
+}

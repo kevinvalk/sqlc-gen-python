@@ -23,8 +23,9 @@ import sqlalchemy
 from examples import GoldenCase
 from postgres import aw, conninfo
 from sqlalchemy.ext.asyncio import create_async_engine
+from suite.api import cases, functions, queries
 
-from conftest import cases, functions, no_row, queries
+from conftest import no_row
 
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 # Characters that SQLAlchemy, a driver or a careless generator could misread.

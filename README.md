@@ -55,8 +55,8 @@ and option.
 Each release is tested under the sqlc its notes name (v1.31.1 now), and the
 generated code on Python 3.10 and the newest, with psycopg 3.3 (libpq 14 at
 least), SQLAlchemy 2.0 and 2.1 (on psycopg, asyncpg, PyMySQL, asyncmy,
-`sqlite3` and aiosqlite), PyMySQL 1.2 and aiosqlite 0.22. PostgreSQL is
-proven furthest: every type in its map is read back through each driver
+`sqlite3` and aiosqlite), PyMySQL 1.2 and aiosqlite 0.22. Every type each
+engine maps is read back through each of its drivers, at its edges
 ([`docs/typemap.md`](docs/typemap.md)).
 
 ### Types are never guessed

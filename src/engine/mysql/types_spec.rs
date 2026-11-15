@@ -38,7 +38,7 @@ fn a_type_maps_to_what_pymysql_and_asyncmy_return() {
 
 #[test]
 fn a_boolean_is_tinyint_1_converted() {
-    for (name, length) in [("bool", -1), ("boolean", -1), ("tinyint", 1)] {
+    for (name, length) in [("bool", -1), ("tinyint", 1)] {
         assert_eq!(
             scalar_type(&column(name, length)),
             Some(Type::BOOL_FROM_INT),
@@ -49,9 +49,51 @@ fn a_boolean_is_tinyint_1_converted() {
 
 #[test]
 fn a_type_nobody_probed_is_not_mapped() {
-    for name in ["geometry", "point", "any", ""] {
+    // sqlc reports a `CAST(... AS CHAR)` and a `CAST(... AS BINARY)` alike, as
+    // `var_string`: text of one, bytes of the other.
+    for name in ["geometry", "point", "var_string", "any", ""] {
         assert_eq!(scalar_type(&column(name, -1)), None, "{name}");
     }
+}
+
+/// The fixture the runtime proof reads back through every driver
+/// (`tests/python/typemap_mysql.py`).
+#[test]
+fn every_mapped_type_has_a_column_the_runtime_proof_reads() {
+    // Where cargo runs the test from, not where it was built (a reused
+    // `target/` may come from another copy of the tree).
+    let path = std::path::Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").unwrap())
+        .join("tests/sqlc/examples/mysqltypes.json");
+    let request: plugin::GenerateRequest =
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    // The table's columns, and what its queries return and take: a
+    // comparison's `bool` and a `LIMIT`'s `integer` are no column's type.
+    let tables = (request.catalog.iter())
+        .flat_map(|catalog| &catalog.schemas)
+        .flat_map(|schema| &schema.tables)
+        .flat_map(|table| &table.columns);
+    let results = request.queries.iter().flat_map(|query| &query.columns);
+    let parameters = (request.queries.iter())
+        .flat_map(|query| &query.params)
+        .filter_map(|parameter| parameter.column.as_ref());
+    let probed: Vec<&plugin::Column> = tables.chain(results).chain(parameters).collect();
+
+    let reads = |name: &str| probed.iter().any(|column| column.data_type() == name);
+    let missing: Vec<&str> = (TYPES.iter().map(|(name, _)| *name))
+        .filter(|name| !reads(name))
+        .collect();
+    assert!(missing.is_empty(), "no column of {missing:?}");
+    let boolean = |column: &&plugin::Column| scalar_type(column) == Some(Type::BOOL_FROM_INT);
+    assert!(
+        probed
+            .iter()
+            .any(|c| c.data_type() == "tinyint" && boolean(c))
+    );
+    assert!(
+        probed
+            .iter()
+            .any(|c| c.data_type() == "tinyint" && !boolean(c))
+    );
 }
 
 #[test]

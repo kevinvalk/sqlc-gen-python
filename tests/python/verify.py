@@ -31,6 +31,7 @@ import autoprop
 import mysql
 import postgres
 import typemap
+import typemap_postgres
 from examples import ROOT
 from gate import PYTHONS, Env, sync
 
@@ -283,7 +284,25 @@ MUTANTS = {
         "models.py",
         "    price: str\n",
         "    price: Decimal\n",
-        case=typemap.PGTYPES,
+        case=typemap_postgres.PGTYPES,
+    ),
+    # MySQL's TIME is a duration, which may be negative or over a day.
+    "MySQL TIME as time": Mutant(
+        TYPEMAP,
+        ".c_time: timedelta datetime.timedelta(0) is not <class 'datetime.time'>",
+        "models.py",
+        "    c_time: dt.timedelta | None\n",
+        "    c_time: dt.time | None\n",
+        case="mysqltypes_pymysql",
+    ),
+    # SQLite has no boolean: it stores, and returns, an integer.
+    "SQLite BOOLEAN read unconverted": Mutant(
+        TYPEMAP,
+        ".c_boolean: int 1 is not <class 'bool'>",
+        "models.py",
+        "c_boolean=None if row[10] is None else bool(row[10])",
+        "c_boolean=row[10]",
+        case="sqlitetypes_sqlite3",
     ),
     "timestamptz annotated as date": Mutant(
         RUNTIME,
@@ -389,7 +408,7 @@ def main() -> int:
         control = workspace(tmp / "control", cases)
         summary = [
             static_and_pytest(control, database),
-            types(control, server, write),
+            types(control, server, mysql_server, write),
             sweep(control, generated, server),
             newer(control, database),
         ]
@@ -418,21 +437,31 @@ def static_and_pytest(control: Path, database: str) -> Row:
     return "gate+pytest", bool(fails), detail
 
 
-def types(control: Path, server: sqlalchemy.URL, write: Write) -> Row:
-    """The type-truth probe, written to ``docs/typemap.md``."""
+def types(
+    control: Path, server: sqlalchemy.URL, mysql_server: sqlalchemy.URL, write: Write
+) -> Row:
+    """The type-truth probe of every engine, written to ``docs/typemap.md``."""
     print("\ntype-truth probe:", flush=True)
     sys.path.insert(0, str(control))
-    probes = typemap.probe(server, typemap.PGTYPES)
+    sections = typemap.probe(server, mysql_server)
     written, stale = write(
-        ROOT / "docs/typemap.md",
-        typemap.render(probes, postgres.version(server), newer_versions()),
+        ROOT / "docs/typemap.md", typemap.render(sections, newer_versions())
     )
-    mismatches = [m for p in probes for m in p.mismatches]
+    mismatches = [m for section in sections for m in section.mismatches]
     for mismatch in mismatches:
         print(f"  {mismatch}")
-    edges = sum(len(by_driver) for p in probes for by_driver in p.notes.values())
+    probed = ", ".join(
+        f"{len(s.probes)} {s.engine} types on {len(s.drivers)} drivers"
+        for s in sections
+    )
+    edges = sum(
+        len(by_driver)
+        for section in sections
+        for p in section.probes
+        for by_driver in p.notes.values()
+    )
     detail = (
-        f"{len(probes)} types and arrays on {len(typemap.DRIVERS)} drivers, {len(mismatches)} mismatches"
+        f"{probed}, {len(mismatches)} mismatches"
         f"\n{edges} edges that raise or are lossy, in docs/typemap.md"
         f" ({written})"
     )

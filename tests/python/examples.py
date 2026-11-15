@@ -66,3 +66,13 @@ def golden_cases() -> tuple[GoldenCase, ...]:
             for codegen in package.get("codegen", [])
         )
     return tuple(found)
+
+
+def statements(script: str) -> list[str]:
+    """The statements of a schema script, whose comments are whole `--`
+    lines, and which holds no other `;` than between statements.
+    """
+    code = "\n".join(
+        line for line in script.splitlines() if not line.lstrip().startswith("--")
+    )
+    return [s for s in code.split(";") if s.strip()]

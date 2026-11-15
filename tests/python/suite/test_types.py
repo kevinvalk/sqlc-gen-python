@@ -17,8 +17,7 @@ import pytest
 import sqlalchemy
 from examples import GoldenCase
 from postgres import conninfo, database
-
-from conftest import cases, functions, queries
+from suite.api import cases, functions, queries
 
 # A value of each type `pgtext` maps, as PostgreSQL writes it back.
 SHAPE = {

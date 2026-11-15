@@ -18,6 +18,7 @@ import pymysql
 import sqlalchemy
 
 from containers import container
+from examples import statements
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -94,14 +95,15 @@ def database(server: sqlalchemy.URL, schema: str) -> Iterator[sqlalchemy.URL]:
         admin.close()
 
 
-def statements(script: str) -> list[str]:
-    """The statements of a schema script, whose comments are whole `--`
-    lines, and which holds no other `;` than between statements.
-    """
-    code = "\n".join(
-        line for line in script.splitlines() if not line.lstrip().startswith("--")
-    )
-    return [s for s in code.split(";") if s.strip()]
+def version(url: sqlalchemy.URL) -> str:
+    """Return the server's version, such as ``8.4.13``."""
+    conn = connect(url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT VERSION()")
+            return str(cur.fetchall()[0][0])
+    finally:
+        conn.close()
 
 
 def wait_for(url: sqlalchemy.URL) -> None:

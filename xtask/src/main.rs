@@ -216,13 +216,15 @@ fn verify(generated: &GenDir, options: &[&str]) -> Result<(), String> {
 /// The examples whose cases the runtime proof reads back: the models the
 /// type-truth probe reads every type through (`tests/python/typemap.py`), and
 /// the acceptance fixtures the runtime suite runs (`tests/python/suite/`).
-const PROVEN: [&str; 6] = [
+const PROVEN: [&str; 8] = [
     "billing",
     "custom",
     "invoicing",
     "ledger",
+    "mysqltypes",
     "pgtext",
     "pgtypes",
+    "sqlitetypes",
 ];
 
 /// Whether golden case `name` is of a [`PROVEN`] example.

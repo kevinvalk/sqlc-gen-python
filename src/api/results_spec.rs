@@ -311,6 +311,24 @@ fn an_embed_of_a_model_without_fields_is_read_past_the_list() {
 }
 
 #[test]
+fn a_mysql_cast_to_char_or_binary_says_why_it_has_no_type() {
+    let error = on(
+        "mysql",
+        plugin::Query {
+            columns: vec![column("label", "var_string", true)],
+            ..query(":one", "SELECT CAST(id AS CHAR) AS label FROM authors")
+        },
+    )
+    .unwrap_err();
+    assert!(
+        format!("{error:#}").ends_with(
+            r#"column "label" has type "var_string", which has no verified Python mapping; name its Python type with an override (db_type "var_string"); it is how sqlc reports a CAST AS CHAR, a str, and a CAST AS BINARY, bytes, alike"#
+        ),
+        "{error:#}"
+    );
+}
+
+#[test]
 fn arithmetic_on_mysql_and_sqlite_asks_for_a_cast() {
     // sqlc types `a + b` as `int`, and MySQL's `1.0` as `float`, of no table,
     // whatever the operands; a cast it spells as declared.

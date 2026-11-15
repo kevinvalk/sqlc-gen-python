@@ -20,8 +20,9 @@ import pytest
 import sqlalchemy
 from examples import GoldenCase
 from sqlalchemy.ext.asyncio import create_async_engine
+from suite.api import cases, functions, queries
 
-from conftest import cases, functions, no_row, queries
+from conftest import no_row
 
 SCHEMA = cases("billing")[0].schema_sql.read_text()
 # Characters PyMySQL's `%` formatting, SQLAlchemy's `:name` binds or a careless

@@ -74,6 +74,6 @@ and renders it with ruff's formatter. Read `docs/development.md` for the archite
   `tests/python/suite/`, and bless will not accept a change to them, or to another
   case the runtime proof reads, that it fails.
 - An unknown or unprobed type is an error, never `Any`; the tests reject an
-  `Any` field. A type joins the map in `src/engine/postgresql/types.rs` only
+  `Any` field. A type joins an engine's map (`src/engine/*/types.rs`) only
   with driver evidence, recorded in `docs/python-output.md` §5 and proven by
   `tests/python/typemap.py`.

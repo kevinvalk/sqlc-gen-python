@@ -20,7 +20,7 @@ Every rule cites the source of truth it rests on, using the ranking in
 |---|---|
 | **[1]** | the sqlc plugin contract (`protos/sqlc.proto`, sqlc's runner) |
 | **[2]** | what the pinned sqlc (`tests/sqlc/endtoend/SOURCE.toml`) puts in the request |
-| **[3]** | what PostgreSQL and the drivers return at runtime (the versions recorded at the top of `docs/typemap.md`) |
+| **[3]** | what each database and its drivers return at runtime (the versions recorded in `docs/typemap.md`) |
 | **[4]** | sqlc-gen-go and sqlc's inflection rules |
 | **[5]** | pyright strict, `mypy --strict`, ruff `ALL` (the [lint contract](#lint-contract)), all targeting Python 3.10 |
 | **[D]** | a decision recorded in `CLAUDE.md` or below, with its reason |
@@ -323,7 +323,11 @@ its edges.*
 `sqlite3` and `aiosqlite` return one Python type per storage class, and a
 column's declared type decides the class a value written to it is stored as
 (its affinity). So the annotation is what generated code, which binds that
-type, reads back. *[3]*
+type, reads back. *[3]: enforced as PostgreSQL's map is. `examples/sqlitetypes`
+has a column for each rule below (a Rust spec fails otherwise), and
+`tests/python/typemap.py` stores every edge of each in its column and reads
+it back, and writes it again, through the generated functions on `sqlite3`,
+`aiosqlite` and SQLAlchemy on each.*
 
 The affinity follows SQLite's own rules, in their order, on the declared
 type (any case, sqlc's spelling):
@@ -349,18 +353,22 @@ type (any case, sqlc's spelling):
 ### MySQL
 
 PyMySQL and asyncmy read MySQL's text protocol with one set of
-conversions, which SQLAlchemy hands through; every row below was observed on
-MySQL 8.4 through each. *[3]* sqlc reports a type by its lowercase name, its
-length and its signedness apart.
+conversions, which SQLAlchemy hands through. *[3]: enforced as PostgreSQL's
+map is. `examples/mysqltypes` has a column of every mapped type (a Rust spec
+fails otherwise), and `tests/python/typemap.py` stores every edge of each in
+its column and reads it back, and writes it again, through the generated
+functions on PyMySQL and on SQLAlchemy over PyMySQL and asyncmy.* sqlc
+reports a type by MySQL's own lowercase name for it (`INTEGER` is `int`,
+`REAL` `double`, `NUMERIC` `decimal`), its length and its signedness apart.
 
 | MySQL | Annotation | Notes |
 |---|---|---|
 | `TINYINT`, `SMALLINT`, `MEDIUMINT`, `INT`, `INTEGER`, `BIGINT`, signed or not, `YEAR` | `int` | `BIGINT UNSIGNED`'s largest value round-trips. |
-| `BOOL`, `BOOLEAN`, `TINYINT(1)` | `bool` | Stored as an integer; `from_row` converts with `bool(...)`, as sqlc-gen-go reads `TINYINT(1)` as a boolean. *[4]* |
-| `FLOAT`, `DOUBLE`, `REAL` | `float` | |
+| `BOOL`, `BOOLEAN`, `TINYINT(1)` | `bool` | Stored as an integer; `from_row` converts with `bool(...)`, as sqlc-gen-go reads `TINYINT(1)` as a boolean. *[4]* Any other value it holds (`2`) is `True`. sqlc types a comparison `bool` too. |
+| `FLOAT`, `DOUBLE`, `REAL` | `float` | MySQL prints a `FLOAT` to six significant digits: `16777217` comes back as `16777200.0`. A `DOUBLE` is exact. |
 | `DECIMAL`, `NUMERIC` | `Decimal` | Scale survives. |
-| `CHAR`, `VARCHAR`, `TEXT` and its sizes, `JSON` | `str` | A JSON document comes back as its text, undecoded. |
-| `BINARY`, `VARBINARY`, `BLOB` and its sizes, `BIT` | `bytes` | |
+| `CHAR`, `VARCHAR`, `TEXT` and its sizes, `JSON` | `str` | A `CHAR` comes back without its trailing spaces. A JSON document comes back as its text, undecoded, as MySQL normalised it (keys sorted, a number beyond a double rounded to one). |
+| `BINARY`, `VARBINARY`, `BLOB` and its sizes, `BIT` | `bytes` | A `BINARY(n)` is padded with `\x00` to its length. A `BIT(n)` is its bytes, the most significant first: a `BIT(1)` is `b'\x01'`, no `bool`. |
 | `DATE`, `DATETIME`, `TIMESTAMP`, `TIME` | `dt.date`, `dt.datetime`, `dt.datetime`, `dt.timedelta` | Naive: MySQL stores no time zone, and converts a `TIMESTAMP` to the session's. A `TIME` is a duration, negative (`'-01:02:03'`) or over a day. |
 | `ENUM(...)` | `models.X` | sqlc names it `<table>_<column>`. |
 
@@ -371,7 +379,9 @@ length and its signedness apart.
    error too. So MUST any other type (spatial types), `any` or no type, a
    result column of no table typed `int` or `float` (sqlc's report of any
    arithmetic, and `1.0`, a `DECIMAL`, as `float`; add a `CAST`), and an
-   array.
+   array. So MUST a `CAST(... AS CHAR)` and a `CAST(... AS BINARY)`, a `str`
+   and `bytes` that sqlc reports alike, as `var_string`: an override names
+   the one the queries use.
 2. `:execlastid` returns the id the `INSERT` generated, as `int`: the
    connection's `LAST_INSERT_ID()`, which MySQL reports with the statement's
    result. On PostgreSQL and SQLite it MUST be an error, as they have
@@ -997,10 +1007,25 @@ sqlc reports *[2]*.
 - **`:execlastid`** is MySQL's `LAST_INSERT_ID()`: the first id of a
   multi-row `INSERT`, and `0` for an `INSERT` that generated none.
 - **MySQL loses precision and zones.** A `FLOAT` column stores single
-  precision, so `0.1` comes back as `0.10000000149011612`; a `TIMESTAMP` is
-  converted to the session's time zone and back, naive; and a zero date
-  (`'0000-00-00'`) comes back as the text `'0000-00-00'`, against
-  `dt.date`. Use `DOUBLE`, `DATETIME` in UTC, and strict SQL mode.
+  precision, and MySQL prints it to six significant digits, so `16777217`
+  comes back as `16777200.0` (`docs/typemap.md`); a `TIMESTAMP` is converted
+  to the session's time zone and back, naive, and PyMySQL drops the zone of
+  an aware `datetime` it is given, keeping its wall time; and a zero date
+  (`'0000-00-00'`), which only a non-strict SQL mode stores, comes back as
+  the text `'0000-00-00'`, against `dt.date`. Use `DOUBLE`, naive
+  `datetime`s in UTC, and strict SQL mode. A `float` that is NaN or infinite
+  raises in PyMySQL.
+- **A boolean that is an integer hides a NULL.** On MySQL and SQLite,
+  `from_row` converts a boolean with `bool(...)`. Where sqlc reports NOT NULL
+  a comparison that is NULL (`qty > 0` of a NULL `qty`), it reads `False`,
+  where PostgreSQL's would read `None`. Compare with `IS`, or coalesce the
+  operand.
+- **SQLite's types are a column's affinity, not a constraint.** A column
+  returns the class of what it holds: a `1.5` or an `'x'` another program
+  stored in an `INTEGER` column comes back as a `float` or a `str`, against
+  `int`. The annotation is of what the generated code binds, which the
+  affinity keeps; a `STRICT` table refuses the rest. A `float` that is NaN
+  is stored as NULL.
 - **MySQL casts are NOT NULL to sqlc** too, as on PostgreSQL: coalesce what
   can be NULL before casting it.
 - **psycopg 3.3 and libpq 14** at least: a batch reads each row's result
@@ -1089,12 +1114,18 @@ layers:
 
   Every pytest run fails if it skips a test or collects an empty
   parametrization, so a layer cannot pass by running nothing.
-- **the type-truth probe** (`tests/python/typemap.py`) selects every type in the
-  map at its edges (NULL, extremes, NaN and infinities, unicode, empty and
-  two-dimensional arrays) through all three drivers, and fails on a value
-  outside the annotation the generator writes in
-  `examples/pgtypes/pgtypes_sqlalchemy*`, or JSON that is not the decoded document.
-  What raises, or does not bind back to the value it read, is recorded in
+- **the type-truth probe** (`tests/python/typemap.py`) holds every type in
+  each engine's map to its annotation, at its edges, through every driver.
+  PostgreSQL's (NULL, extremes, NaN and infinities, unicode, empty and
+  two-dimensional arrays) are selected through all three drivers, and fail on
+  a value outside the annotation the generator writes in
+  `examples/pgtypes/pgtypes_sqlalchemy*`, or JSON that is not the decoded
+  document. MySQL's and SQLite's are stored in a column of
+  `examples/mysqltypes` and `examples/sqlitetypes`, read through the
+  generated functions of each of their cases on its driver (PyMySQL, and
+  SQLAlchemy on it and on asyncmy; `sqlite3`, `aiosqlite`, and SQLAlchemy on
+  each), every value held to its annotation, and written back through them.
+  What raises, or does not come back as the value it was, is recorded in
   `docs/typemap.md`.
 - **the runtime sweep** (`tests/python/autoprop.py`) applies the schema of every
   PostgreSQL golden case and corpus request generated on SQLAlchemy or psycopg
