@@ -16,11 +16,11 @@ RETURNING id, name, archived, opened_on, settings""")
 
 
 async def open_account(
-    conn: AsyncConnection, *, name: str, opened_on: str, settings: str | None
+    connection: AsyncConnection, *, name: str, opened_on: str, settings: str | None
 ) -> models.Account:
     return models.Account.from_row(
         (
-            await conn.execute(
+            await connection.execute(
                 _OPEN_ACCOUNT,
                 {"name": name, "opened_on": opened_on, "settings": settings},
             )
@@ -33,8 +33,8 @@ _GET_ACCOUNT: Final = sqlalchemy.text(
 )
 
 
-async def get_account(conn: AsyncConnection, *, id: int) -> models.Account | None:
-    row = (await conn.execute(_GET_ACCOUNT, {"id": id})).one_or_none()
+async def get_account(connection: AsyncConnection, *, id: int) -> models.Account | None:
+    row = (await connection.execute(_GET_ACCOUNT, {"id": id})).one_or_none()
     return None if row is None else models.Account.from_row(row)
 
 
@@ -44,9 +44,9 @@ _GET_ACCOUNT_BY_NAME: Final = sqlalchemy.text(
 
 
 async def get_account_by_name(
-    conn: AsyncConnection, *, name: str
+    connection: AsyncConnection, *, name: str
 ) -> models.Account | None:
-    row = (await conn.execute(_GET_ACCOUNT_BY_NAME, {"name": name})).one_or_none()
+    row = (await connection.execute(_GET_ACCOUNT_BY_NAME, {"name": name})).one_or_none()
     return None if row is None else models.Account.from_row(row)
 
 
@@ -55,15 +55,15 @@ _ARCHIVE_ACCOUNT: Final = sqlalchemy.text(
 )
 
 
-async def archive_account(conn: AsyncConnection, *, id: int) -> int:
-    return (await conn.execute(_ARCHIVE_ACCOUNT, {"id": id})).rowcount
+async def archive_account(connection: AsyncConnection, *, id: int) -> int:
+    return (await connection.execute(_ARCHIVE_ACCOUNT, {"id": id})).rowcount
 
 
 _IS_ARCHIVED: Final = sqlalchemy.text("SELECT archived FROM accounts WHERE id = :id")
 
 
-async def is_archived(conn: AsyncConnection, *, id: int) -> bool | None:
-    value = (await conn.execute(_IS_ARCHIVED, {"id": id})).scalar_one_or_none()
+async def is_archived(connection: AsyncConnection, *, id: int) -> bool | None:
+    value = (await connection.execute(_IS_ARCHIVED, {"id": id})).scalar_one_or_none()
     return None if value is None else bool(value)
 
 
@@ -72,8 +72,10 @@ _LIST_ACCOUNTS: Final = sqlalchemy.text(
 )
 
 
-async def list_accounts(conn: AsyncConnection) -> list[models.Account]:
-    return [models.Account.from_row(row) for row in await conn.execute(_LIST_ACCOUNTS)]
+async def list_accounts(connection: AsyncConnection) -> list[models.Account]:
+    return [
+        models.Account.from_row(row) for row in await connection.execute(_LIST_ACCOUNTS)
+    ]
 
 
 _LIST_ACCOUNTS_BY_IDS: Final = sqlalchemy.text(
@@ -82,11 +84,11 @@ _LIST_ACCOUNTS_BY_IDS: Final = sqlalchemy.text(
 
 
 async def list_accounts_by_ids(
-    conn: AsyncConnection, *, ids: list[int]
+    connection: AsyncConnection, *, ids: list[int]
 ) -> list[models.Account]:
     return [
         models.Account.from_row(row)
-        for row in await conn.execute(_LIST_ACCOUNTS_BY_IDS, {"ids": ids})
+        for row in await connection.execute(_LIST_ACCOUNTS_BY_IDS, {"ids": ids})
     ]
 
 
@@ -95,7 +97,7 @@ VALUES (:account_id, :amount_cents, :rate, :memo, :receipt)""")
 
 
 async def book(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
     *,
     account_id: int,
     amount_cents: int,
@@ -103,7 +105,7 @@ async def book(
     memo: str | None,
     receipt: bytes | None,
 ) -> None:
-    await conn.execute(
+    await connection.execute(
         _BOOK,
         {
             "account_id": account_id,
@@ -127,13 +129,15 @@ class BookManyParams:
     memo: str | None
 
 
-async def book_many(conn: AsyncConnection, rows: Iterable[BookManyParams]) -> None:
+async def book_many(
+    connection: AsyncConnection, rows: Iterable[BookManyParams]
+) -> None:
     params = [
         {"account_id": r.account_id, "amount_cents": r.amount_cents, "memo": r.memo}
         for r in rows
     ]
     if params:
-        await conn.execute(_BOOK_MANY, params)
+        await connection.execute(_BOOK_MANY, params)
 
 
 _BOOK_RETURNING_ID: Final = sqlalchemy.text("""INSERT INTO entries (account_id, amount_cents, memo) VALUES (:account_id, :amount_cents, :memo)
@@ -141,10 +145,10 @@ RETURNING id""")
 
 
 async def book_returning_id(
-    conn: AsyncConnection, *, account_id: int, amount_cents: int, memo: str | None
+    connection: AsyncConnection, *, account_id: int, amount_cents: int, memo: str | None
 ) -> int:
     value: int = (
-        await conn.execute(
+        await connection.execute(
             _BOOK_RETURNING_ID,
             {"account_id": account_id, "amount_cents": amount_cents, "memo": memo},
         )
@@ -156,8 +160,10 @@ _BALANCE: Final = sqlalchemy.text("""SELECT CAST(coalesce(sum(amount_cents), 0) 
 FROM entries WHERE account_id = :account_id""")
 
 
-async def balance(conn: AsyncConnection, *, account_id: int) -> int:
-    value: int = (await conn.execute(_BALANCE, {"account_id": account_id})).scalar_one()
+async def balance(connection: AsyncConnection, *, account_id: int) -> int:
+    value: int = (
+        await connection.execute(_BALANCE, {"account_id": account_id})
+    ).scalar_one()
     return value
 
 
@@ -175,12 +181,14 @@ class CountEntriesRow:
         return cls(entries=row[0], debits=row[1])
 
 
-async def count_entries(conn: AsyncConnection, *, account_id: int) -> CountEntriesRow:
+async def count_entries(
+    connection: AsyncConnection, *, account_id: int
+) -> CountEntriesRow:
     """How many entries the account has, and how many of them are debits: a count
     of the rows a filter keeps is as much a count.
     """
     return CountEntriesRow.from_row(
-        (await conn.execute(_COUNT_ENTRIES, {"account_id": account_id})).one()
+        (await connection.execute(_COUNT_ENTRIES, {"account_id": account_id})).one()
     )
 
 
@@ -199,14 +207,14 @@ class ListAmountsRow:
 
 
 async def list_amounts(
-    conn: AsyncConnection, *, account_id: int
+    connection: AsyncConnection, *, account_id: int
 ) -> list[ListAmountsRow]:
     """The account's amounts, each beside how many there are: a count over a
     window.
     """
     return [
         ListAmountsRow.from_row(row)
-        for row in await conn.execute(_LIST_AMOUNTS, {"account_id": account_id})
+        for row in await connection.execute(_LIST_AMOUNTS, {"account_id": account_id})
     ]
 
 
@@ -230,12 +238,14 @@ class ListSharesRow:
         return cls(name=row[0], amount_cents=row[1], total_cents=row[2])
 
 
-async def list_shares(conn: AsyncConnection) -> list[ListSharesRow]:
+async def list_shares(connection: AsyncConnection) -> list[ListSharesRow]:
     """Each account's amounts beside the ledger's total. An account without
     entries has no amount, though sqlc reports it NOT NULL once a JOIN follows
     the LEFT JOIN.
     """
-    return [ListSharesRow.from_row(row) for row in await conn.execute(_LIST_SHARES)]
+    return [
+        ListSharesRow.from_row(row) for row in await connection.execute(_LIST_SHARES)
+    ]
 
 
 _LIST_ENTRIES: Final = sqlalchemy.text(
@@ -243,10 +253,12 @@ _LIST_ENTRIES: Final = sqlalchemy.text(
 )
 
 
-async def list_entries(conn: AsyncConnection, *, account_id: int) -> list[models.Entry]:
+async def list_entries(
+    connection: AsyncConnection, *, account_id: int
+) -> list[models.Entry]:
     return [
         models.Entry.from_row(row)
-        for row in await conn.execute(_LIST_ENTRIES, {"account_id": account_id})
+        for row in await connection.execute(_LIST_ENTRIES, {"account_id": account_id})
     ]
 
 
@@ -256,12 +268,14 @@ ORDER BY id""").bindparams(sqlalchemy.bindparam("ids", expanding=True))
 
 
 async def list_entry_ids(
-    conn: AsyncConnection, *, ids: list[int], account_id: int
+    connection: AsyncConnection, *, ids: list[int], account_id: int
 ) -> list[int]:
     """The entries of the account among the ids: a slice, then a numbered parameter."""
     return list(
         (
-            await conn.execute(_LIST_ENTRY_IDS, {"ids": ids, "account_id": account_id})
+            await connection.execute(
+                _LIST_ENTRY_IDS, {"ids": ids, "account_id": account_id}
+            )
         ).scalars()
     )
 
@@ -272,12 +286,12 @@ ORDER BY id""")
 
 
 async def list_memos(
-    conn: AsyncConnection, *, pattern: str | None, account_id: int
+    connection: AsyncConnection, *, pattern: str | None, account_id: int
 ) -> list[str | None]:
     """Entries with a memo matching the pattern, in the account or every account."""
     return list(
         (
-            await conn.execute(
+            await connection.execute(
                 _LIST_MEMOS, {"pattern": pattern, "account_id": account_id}
             )
         ).scalars()
@@ -303,11 +317,11 @@ class ListEntriesWithAccountRow:
 
 
 async def list_entries_with_account(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
 ) -> list[ListEntriesWithAccountRow]:
     return [
         ListEntriesWithAccountRow.from_row(row)
-        for row in await conn.execute(_LIST_ENTRIES_WITH_ACCOUNT)
+        for row in await connection.execute(_LIST_ENTRIES_WITH_ACCOUNT)
     ]
 
 
@@ -330,12 +344,12 @@ class ListAccountsWithEntriesRow:
 
 
 async def list_accounts_with_entries(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
 ) -> list[ListAccountsWithEntriesRow]:
     """Each account with each of its entries: one without any once, its entry None."""
     return [
         ListAccountsWithEntriesRow.from_row(row)
-        for row in await conn.execute(_LIST_ACCOUNTS_WITH_ENTRIES)
+        for row in await connection.execute(_LIST_ACCOUNTS_WITH_ENTRIES)
     ]
 
 
@@ -355,9 +369,11 @@ class GetLastAmountRow:
         return cls(name=row[0], last_amount_cents=row[1])
 
 
-async def get_last_amount(conn: AsyncConnection, *, id: int) -> GetLastAmountRow | None:
+async def get_last_amount(
+    connection: AsyncConnection, *, id: int
+) -> GetLastAmountRow | None:
     """The account's last entry's amount: a subquery, so None without entries."""
-    row = (await conn.execute(_GET_LAST_AMOUNT, {"id": id})).one_or_none()
+    row = (await connection.execute(_GET_LAST_AMOUNT, {"id": id})).one_or_none()
     return None if row is None else GetLastAmountRow.from_row(row)
 
 
@@ -367,6 +383,6 @@ _DELETE_ENTRIES: Final = sqlalchemy.text(
 
 
 async def delete_entries(
-    conn: AsyncConnection, *, account_id: int
+    connection: AsyncConnection, *, account_id: int
 ) -> sqlalchemy.CursorResult[Any]:
-    return await conn.execute(_DELETE_ENTRIES, {"account_id": account_id})
+    return await connection.execute(_DELETE_ENTRIES, {"account_id": account_id})

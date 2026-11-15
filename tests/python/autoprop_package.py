@@ -1,10 +1,4 @@
-"""The runtime sweep of one generated package (see ``autoprop``).
-
-``run`` sweeps a ``Target`` in a database of its own and returns a ``Report``;
-it is what each worker process of ``autoprop.sweep`` runs. ``Sweep`` is the
-Hypothesis test behind it: each example seeds every table and calls every
-function, in a transaction it rolls back.
-"""
+"""The runtime sweep of one generated package (see ``autoprop``), which each worker of ``autoprop.sweep`` runs."""
 
 from __future__ import annotations
 
@@ -41,47 +35,38 @@ EXAMPLES = 100
 
 @dataclass(frozen=True)
 class Target:
-    """A generated package, the request it came from, and that request's schema."""
-
     package: str
     request: Path
     schema: Path
-    # What the failures listed for it in `autoprop.KNOWN` say.
-    known: tuple[str, ...] = ()
-    # Whether its functions are coroutines.
+    known: tuple[str, ...] = ()  # What the failures listed for it in `autoprop.KNOWN` say
     asynchronous: bool = False
-    # Whether its functions take a psycopg connection (the psycopg backend).
-    raw: bool = False
+    raw: bool = False  # Whether its functions take a psycopg connection (the psycopg backend)
 
 
 @dataclass
 class Report:
-    """What sweeping one package found."""
-
     target: Target
-    # Why it failed, or could not run at all (a schema PostgreSQL rejects:
-    # perhaps not the generator's fault, but nothing proven).
+
+    # Why it failed, or could not run at all. A schema PostgreSQL rejects is perhaps not the generator's fault, but it
+    # proves nothing either.
     failure: str = ""
+
     calls: dict[str, Counter[str]] = field(default_factory=dict)
-    # The functions whose query returns rows, so an empty result checks nothing.
-    returning: set[str] = field(default_factory=set)
-    # How often each of the target's known failures happened.
-    known: Counter[str] = field(default_factory=Counter)
-    # The calls that returned what sqlc's own SQL, run directly, did.
-    same: int = 0
+    returning: set[str] = field(default_factory=set)  # Functions whose query returns rows, so empty checks nothing
+    known: Counter[str] = field(default_factory=Counter)  # How often each of the target's known failures happened
+    same: int = 0  # The calls that returned what sqlc's own SQL, run directly, did
 
     @property
     def exercised(self) -> list[str]:
         """The functions a call checked everything of (see ``autoprop``)."""
         return [
-            n
-            for n, c in self.calls.items()
-            if c["rows"] or (n not in self.returning and c["empty"] + c["ran"])
+            name
+            for name, outcomes in self.calls.items()
+            if outcomes["rows"] > 0 or (name not in self.returning and outcomes["empty"] + outcomes["ran"] > 0)
         ]
 
 
 def run(server: sqlalchemy.URL, target: Target) -> Report:
-    """Sweep one target; a failure is reported, never raised."""
     report = Report(target)
     try:
         package = importlib.import_module(target.package)
@@ -97,16 +82,16 @@ def run(server: sqlalchemy.URL, target: Target) -> Report:
 
 def describe(error: BaseException) -> str:
     """An error, and the draws of the example Hypothesis found, in a few lines."""
-    if group := getattr(error, "exceptions", None):  # several distinct failures
-        return "\n  ".join(describe(e) for e in group)
+    group = getattr(error, "exceptions", None)  # Hypothesis found several distinct failures
+    if group is not None:
+        return "\n  ".join(describe(member) for member in group)
+
     first = f"{type(error).__name__}: {error}".splitlines()[0]
-    notes = [n for n in getattr(error, "__notes__", []) if n.startswith("Draw ")]
+    notes = [note for note in getattr(error, "__notes__", []) if note.startswith("Draw ")]
     return "\n    ".join([first, *notes])
 
 
 class Sweep:
-    """Hypothesis over one package in one database."""
-
     def __init__(
         self,
         package: ModuleType,
@@ -119,68 +104,56 @@ class Sweep:
         self.asynchronous, self.raw = target.asynchronous, target.raw
         self.conninfo = conninfo(url)
         stems = {path.stem for path in Path(package.__path__[0]).glob("*.py")}
-        modules = {
-            stem: importlib.import_module(f"{package.__name__}.{stem}")
-            for stem in sorted(stems - {"__init__"})
-        }
+        modules = {stem: importlib.import_module(f"{package.__name__}.{stem}") for stem in sorted(stems - {"__init__"})}
         models = modules.pop("models", None)
 
         def queries(stem: str) -> list[Json]:
-            return [q for q in request["queries"] if module_of(q["filename"]) == stem]
+            return [query for query in request["queries"] if module_of(query["filename"]) == stem]
 
-        oracle = sqlalchemy.create_engine(
-            url.set(drivername="postgresql+psycopg"), isolation_level="AUTOCOMMIT"
-        )
+        oracle = sqlalchemy.create_engine(url.set(drivername="postgresql+psycopg"), isolation_level="AUTOCOMMIT")
         try:
-            with oracle.connect() as conn:
-                self.tables = tables(conn, models)
+            with oracle.connect() as connection:
+                self.tables = tables(connection, models)
                 self.enums = [
-                    labels(driver(conn), schema["name"], e["name"])
+                    labels(driver(connection), schema["name"], enum["name"])
                     for schema in request["catalog"]["schemas"]
-                    # An enum without labels has no value to read.
-                    for e in schema.get("enums", [])
-                    if e["vals"]
+                    for enum in schema.get("enums", [])
+                    if len(enum["vals"]) > 0  # An enum without labels has no value to read
                 ]
                 self.calls = [
-                    call
-                    for stem, module in modules.items()
-                    for call in calls(conn, module, queries(stem))
+                    call for stem, module in modules.items() for call in calls(connection, module, queries(stem))
                 ]
         finally:
             oracle.dispose()
-        if missing := {module_of(q["filename"]) for q in request["queries"]} - set(
-            modules
-        ):
+
+        missing = {module_of(query["filename"]) for query in request["queries"]} - set(modules)
+        if len(missing) > 0:
             message = f"no module for {', '.join(sorted(missing))}"
             raise AssertionError(message)
+
         report.calls = {call.name: Counter() for call in self.calls}
-        report.returning = {
-            call.name for call in self.calls if call.query["cmd"] in {":one", ":many"}
-        }
+        report.returning = {call.name for call in self.calls if call.query["cmd"] in {":one", ":many"}}
         # A psycopg package's coroutines take psycopg's own async connection.
         asyncpg = self.asynchronous and not self.raw
-        self.url = url.set(
-            drivername="postgresql+asyncpg" if asyncpg else "postgresql+psycopg"
-        )
+        self.url = url.set(drivername="postgresql+asyncpg" if asyncpg else "postgresql+psycopg")
 
     def run(self) -> None:
         """Run the examples on one connection, each in its own transaction."""
         loop = asyncio.new_event_loop()
-        # SQLAlchemy would register psycopg's `hstore` loader on the very
-        # connection a psycopg package reads from.
+
+        # SQLAlchemy would otherwise register psycopg's `hstore` loader on the very connection a psycopg package reads
+        # from.
         native = {"use_native_hstore": False} if self.raw else {}
         engine: Any = (
             create_async_engine(self.url, **native)
             if self.asynchronous
             else sqlalchemy.create_engine(self.url, **native)
         )
-        conn = loop.run_until_complete(aw(engine.connect()))
-        callee = self.callee = conn
+        connection = loop.run_until_complete(aw(engine.connect()))
+        callee = self.callee = connection
         if self.raw:
             fairy = (
-                loop.run_until_complete(conn.get_raw_connection())
-                if self.asynchronous
-                else conn.connection
+                loop.run_until_complete(connection.get_raw_connection()) if self.asynchronous else connection.connection
             )
             callee = self.callee = fairy.driver_connection
 
@@ -194,35 +167,34 @@ class Sweep:
         )
         @given(st.data())
         def examples(data: st.DataObject) -> None:
-            loop.run_until_complete(self.example(conn, callee, data))
+            loop.run_until_complete(self.example(connection, callee, data))
 
         try:
             examples()
         finally:
-            loop.run_until_complete(aw(conn.close()))
+            loop.run_until_complete(aw(connection.close()))
             loop.run_until_complete(aw(engine.dispose()))
             loop.close()
 
     async def example(
         self,
-        conn: Any,
+        connection: Any,
         callee: Any,
         data: st.DataObject,
     ) -> None:
-        """Seed every table, call every function on ``callee``, roll back."""
-        transaction = await aw(conn.begin())
+        """Seed every table and call every function on ``callee``, then roll back."""
+        transaction = await aw(connection.begin())
         try:
-            pool = Pool({t.model: t.name for t in self.tables if t.model})
+            pool = Pool({table.model: table.name for table in self.tables if table.model is not None})
             for table in self.tables:
                 for _ in range(data.draw(st.integers(0, 2), label=table.sql)):
-                    await self.seed(conn, data, table, pool)
+                    await self.seed(connection, data, table, pool)
+
             for call in self.calls:
-                # Only functions' calls are compared (see ``autoprop``).
+                # We only compare the calls of functions, as a coroutine runs the same SQL (see ``autoprop``).
                 enums = None if self.asynchronous else self.enums
                 try:
-                    outcome, same = await call.run(
-                        conn, callee, data, pool=pool, url=self.conninfo, enums=enums
-                    )
+                    outcome, same = await call.run(connection, callee, data, pool=pool, url=self.conninfo, enums=enums)
                 except AssertionError as error:
                     if not self.expected(error):
                         raise
@@ -234,36 +206,38 @@ class Sweep:
 
     async def seed(
         self,
-        conn: Any,
+        connection: Any,
         data: st.DataObject,
         table: Table,
         pool: Pool,
     ) -> None:
         """Insert one row, read it back through its model, and pool its values."""
         raw = self.raw
-        statement, params = insert(table, draw_row(data, table, pool), ctid=raw)
-        nested = await aw(conn.begin_nested())
+        statement, parameters = insert(table, draw_row(data, table, pool), ctid=raw)
+        nested = await aw(connection.begin_nested())
         try:
-            row = (await aw(conn.execute(statement, params))).one()
+            row = (await aw(connection.execute(statement, parameters))).one()
         except (sqlalchemy.exc.DBAPIError, OverflowError) as error:
-            # A value PostgreSQL holds and Python cannot (a date before year
-            # 1) is refused too.
+            # We refuse a value PostgreSQL holds and Python cannot (a date before year 1) too.
             await aw(nested.rollback())
             if not refused(error):
                 raise
             return
         await aw(nested.commit())
+
+        # A psycopg package reads what psycopg itself returns, so we read the row again through psycopg.
         if raw:
-            # A psycopg package reads what psycopg itself returns.
-            cursor = psycopg.AsyncRawCursor if self.asynchronous else psycopg.RawCursor
-            cur = cursor(self.callee)
+            cursor_class = psycopg.AsyncRawCursor if self.asynchronous else psycopg.RawCursor
+            cursor = cursor_class(self.callee)
             select = f"SELECT * FROM {table.sql} WHERE ctid = $1::tid"  # noqa: S608
-            await aw(cur.execute(select, [row[-1]]))
-            row = await aw(cur.fetchone())
-        names = [c.name for c in table.columns]
+            await aw(cursor.execute(select, [row[-1]]))
+            row = await aw(cursor.fetchone())
+
+        names = [column.name for column in table.columns]
         pool.rows[table.sql].append(dict(zip(names, row, strict=True)))
         if table.model is None:
             return
+
         try:
             record = read(table, row)
         except AssertionError as error:
@@ -273,13 +247,13 @@ class Sweep:
         pool.harvest(record)
 
     def expected(self, error: AssertionError) -> bool:
-        """Count ``error``, a value outside its annotation, if it is one of the
-        target's known failures. Which item of a list does not matter: ``[3]``
-        is matched as ``[]``.
+        """Count ``error``, a value outside its annotation, when it is one of the target's known failures.
+
+        Which item of a list does not matter, so we match ``[3]`` as ``[]``.
         """
         text = re.sub(r"\[\d+\]", "[]", str(error))
-        known = next((k for k in self.report.target.known if k in text), None)
-        if known:
+        known = next((known for known in self.report.target.known if known in text), None)
+        if known is not None:
             self.report.known[known] += 1
         return known is not None
 

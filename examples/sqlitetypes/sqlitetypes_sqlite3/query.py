@@ -13,8 +13,8 @@ from . import models
 _LIST_SCALARS: Final = "SELECT c_integer, c_bigint, c_text, c_varchar, c_clob, c_blob, c_real, c_float, c_double, c_bool, c_boolean FROM scalars LIMIT ?"
 
 
-def list_scalars(conn: sqlite3.Connection, *, limit: int) -> list[models.Scalar]:
-    with contextlib.closing(conn.cursor()) as cur:
+def list_scalars(connection: sqlite3.Connection, *, limit: int) -> list[models.Scalar]:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_LIST_SCALARS, (limit,))
         return [models.Scalar.from_row(row) for row in cur.fetchall()]
@@ -29,7 +29,7 @@ _ADD_SCALARS: Final = """INSERT INTO scalars (
 
 
 def add_scalars(
-    conn: sqlite3.Connection,
+    connection: sqlite3.Connection,
     *,
     c_integer: int | None,
     c_bigint: int | None,
@@ -43,7 +43,7 @@ def add_scalars(
     c_bool: bool | None,
     c_boolean: bool | None,
 ) -> None:
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.execute(
             _ADD_SCALARS,
             (
@@ -90,11 +90,11 @@ class ListDerivedRow:
         )
 
 
-def list_derived(conn: sqlite3.Connection) -> list[ListDerivedRow]:
+def list_derived(connection: sqlite3.Connection) -> list[ListDerivedRow]:
     """What sqlc types otherwise than a column: a comparison is its `bool`, a
     cast its type in lowercase.
     """
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_LIST_DERIVED)
         return [ListDerivedRow.from_row(row) for row in cur.fetchall()]

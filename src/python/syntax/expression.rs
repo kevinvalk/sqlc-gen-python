@@ -1,17 +1,13 @@
-//! Expressions: names, literals, and what one grows into ([`Expression`]).
-
 use ruff_python_ast as ast;
 use ruff_text_size::TextRange;
 
 use super::{identifier, unparse};
 
-/// A bare name that is read, such as a class's or a parameter's.
 pub fn name(id: impl AsRef<str>) -> ast::Expr {
     named(id.as_ref(), ast::ExprContext::Load)
 }
 
-/// A bare name that is bound: what an assignment or a loop binds is no read,
-/// so it asks for no import ([`crate::python::imports`]).
+/// A name that is bound rather than read, so it asks for no import ([`crate::python::imports`]).
 pub(super) fn target(id: impl AsRef<str>) -> ast::Expr {
     named(id.as_ref(), ast::ExprContext::Store)
 }
@@ -24,22 +20,18 @@ fn named(id: &str, ctx: ast::ExprContext) -> ast::Expr {
     .into()
 }
 
-/// `None`.
 pub fn none() -> ast::Expr {
     node!(ast::ExprNoneLiteral {}).into()
 }
 
-/// `True`.
 pub fn true_() -> ast::Expr {
     node!(ast::ExprBooleanLiteral { value: true }).into()
 }
 
-/// `...`.
 pub fn ellipsis() -> ast::Expr {
     node!(ast::ExprEllipsisLiteral {}).into()
 }
 
-/// An integer literal, such as an index.
 pub fn int(value: usize) -> ast::Expr {
     node!(ast::ExprNumberLiteral {
         value: ast::Number::Int(ast::Int::from(value as u64)),
@@ -47,7 +39,6 @@ pub fn int(value: usize) -> ast::Expr {
     .into()
 }
 
-/// A string literal.
 pub fn string(value: &str) -> ast::Expr {
     node!(ast::ExprStringLiteral {
         value: ast::StringLiteralValue::single(node!(ast::StringLiteral {
@@ -58,13 +49,11 @@ pub fn string(value: &str) -> ast::Expr {
     .into()
 }
 
-/// A forward reference: `annotation` as the string Python reads once the
-/// class it names, which is still being defined, exists.
+/// A forward reference, as a string, for a class that is still being defined.
 pub fn forward(annotation: impl Into<ast::Expr>) -> ast::Expr {
     string(&unparse(&annotation.into()))
 }
 
-/// A tuple, such as a statement's values: `(id,)`, `(a, b)`.
 pub fn tuple(items: Vec<ast::Expr>) -> ast::Expr {
     node!(ast::ExprTuple {
         elts: items,
@@ -74,7 +63,6 @@ pub fn tuple(items: Vec<ast::Expr>) -> ast::Expr {
     .into()
 }
 
-/// A list, such as `[]` or `["?"]`.
 pub fn list(items: Vec<ast::Expr>) -> ast::Expr {
     node!(ast::ExprList {
         elts: items,
@@ -83,20 +71,15 @@ pub fn list(items: Vec<ast::Expr>) -> ast::Expr {
     .into()
 }
 
-/// A dict, such as a statement's named values: `{"id": id}`.
 pub fn dict(items: Vec<(ast::Expr, ast::Expr)>) -> ast::Expr {
     node!(ast::ExprDict {
         items: (items.into_iter())
-            .map(|(key, value)| ast::DictItem {
-                key: Some(key),
-                value,
-            })
+            .map(|(key, value)| ast::DictItem { key: Some(key), value })
             .collect(),
     })
     .into()
 }
 
-/// `*value`: a list's items, each a value of its own.
 pub fn starred(value: impl Into<ast::Expr>) -> ast::Expr {
     node!(ast::ExprStarred {
         value: Box::new(value.into()),
@@ -105,7 +88,6 @@ pub fn starred(value: impl Into<ast::Expr>) -> ast::Expr {
     .into()
 }
 
-/// `-value`.
 pub fn minus(value: impl Into<ast::Expr>) -> ast::Expr {
     node!(ast::ExprUnaryOp {
         op: ast::UnaryOp::USub,
@@ -114,7 +96,6 @@ pub fn minus(value: impl Into<ast::Expr>) -> ast::Expr {
     .into()
 }
 
-/// A keyword argument, such as `id=row[0]`.
 pub fn keyword(name: impl AsRef<str>, value: impl Into<ast::Expr>) -> ast::Keyword {
     node!(ast::Keyword {
         arg: Some(identifier(name)),
@@ -122,8 +103,7 @@ pub fn keyword(name: impl AsRef<str>, value: impl Into<ast::Expr>) -> ast::Keywo
     })
 }
 
-/// `None if value is None else then`: `then` reads a `value` that may be
-/// NULL.
+/// `None if value is None else then`, for a `then` that reads a nullable `value`.
 pub fn unless_none(value: impl Into<ast::Expr>, then: impl Into<ast::Expr>) -> ast::Expr {
     node!(ast::ExprIf {
         test: Box::new(value.absent()),
@@ -147,8 +127,7 @@ pub fn list_of(item: impl Into<ast::Expr>, each: Each) -> ast::Expr {
     .into()
 }
 
-/// `for target in iter`, of a comprehension ([`list_of`]) or a loop
-/// ([`super::for_`]).
+/// `for target in iter`, of a comprehension ([`list_of`]) or a loop ([`super::for_`]).
 pub struct Each {
     pub(super) target: String,
     pub(super) iter: ast::Expr,
@@ -156,7 +135,6 @@ pub struct Each {
     pub(super) is_async: bool,
 }
 
-/// `for target in iter`.
 pub fn each(target: impl AsRef<str>, iter: impl Into<ast::Expr>) -> Each {
     Each {
         target: target.as_ref().into(),
@@ -175,16 +153,15 @@ impl Each {
         }
     }
 
-    /// `async for`, in a coroutine whose `iter` is asynchronous.
+    /// `async for`, for a coroutine whose `iter` is asynchronous.
     pub fn asynchronous(self, is_async: bool) -> Self {
         Self { is_async, ..self }
     }
 }
 
-/// What an expression grows into, written as Python reads: of an expression,
-/// or of a name that is one ([`crate::python::vocabulary::Symbol`]).
+/// Builds on an expression in the order Python reads it, so `CUR.attr("execute").call([statement])` is
+/// `cur.execute(statement)`.
 pub trait Expression: Into<ast::Expr> {
-    /// `self.name`.
     fn attr(self, name: impl AsRef<str>) -> ast::Expr {
         node!(ast::ExprAttribute {
             value: Box::new(self.into()),
@@ -194,7 +171,6 @@ pub trait Expression: Into<ast::Expr> {
         .into()
     }
 
-    /// `self(*args, **keywords)`.
     fn call_with(
         self,
         args: impl IntoIterator<Item = ast::Expr>,
@@ -212,12 +188,10 @@ pub trait Expression: Into<ast::Expr> {
         .into()
     }
 
-    /// `self(*args)`.
     fn call(self, args: impl IntoIterator<Item = ast::Expr>) -> ast::Expr {
         self.call_with(args, [])
     }
 
-    /// `self[index]`.
     fn index(self, index: impl Into<ast::Expr>) -> ast::Expr {
         node!(ast::ExprSubscript {
             value: Box::new(self.into()),
@@ -227,7 +201,7 @@ pub trait Expression: Into<ast::Expr> {
         .into()
     }
 
-    /// `self[a, b]`, such as `dict[str, int]`.
+    /// `self[a, b]`, such as `dict[str, int]`, rather than an index by a tuple.
     fn index_each(self, indexes: Vec<ast::Expr>) -> ast::Expr {
         self.index(node!(ast::ExprTuple {
             elts: indexes,
@@ -236,7 +210,6 @@ pub trait Expression: Into<ast::Expr> {
         }))
     }
 
-    /// `self[lower:upper]`.
     fn slice(self, lower: impl Into<ast::Expr>, upper: impl Into<ast::Expr>) -> ast::Expr {
         self.index(node!(ast::ExprSlice {
             lower: Some(Box::new(lower.into())),
@@ -245,18 +218,17 @@ pub trait Expression: Into<ast::Expr> {
         }))
     }
 
-    /// `self | other`, of types.
     fn union(self, other: impl Into<ast::Expr>) -> ast::Expr {
         binary(self, ast::Operator::BitOr, other)
     }
 
-    /// `self | None`, unless it is a union that has `None`: an override's
-    /// type may, as a JSON column's value is `None` for `null`.
+    /// `self | None`, unless it already is a union with `None`, as an override's type of a JSON column can be (a JSON
+    /// `null` is `None`).
     fn or_none(self) -> ast::Expr {
         fn has_none(annotation: &ast::Expr) -> bool {
             match annotation {
                 ast::Expr::NoneLiteral(_) => true,
-                ast::Expr::BinOp(op) => has_none(&op.left) || has_none(&op.right),
+                ast::Expr::BinOp(union) => has_none(&union.left) || has_none(&union.right),
                 _ => false,
             }
         }
@@ -267,12 +239,10 @@ pub trait Expression: Into<ast::Expr> {
         }
     }
 
-    /// `self * other`.
     fn times(self, other: impl Into<ast::Expr>) -> ast::Expr {
         binary(self, ast::Operator::Mult, other)
     }
 
-    /// `self or other`.
     fn or(self, other: impl Into<ast::Expr>) -> ast::Expr {
         node!(ast::ExprBoolOp {
             op: ast::BoolOp::Or,
@@ -290,8 +260,7 @@ pub trait Expression: Into<ast::Expr> {
         .into()
     }
 
-    /// `await self` in a coroutine; `self` in a blocking function, whose
-    /// library returns the value itself.
+    /// `await self` in a coroutine and just `self` in a blocking function.
     fn awaited(self, asynchronous: bool) -> ast::Expr {
         match asynchronous {
             true => node!(ast::ExprAwait {
@@ -321,7 +290,6 @@ pub trait Expression: Into<ast::Expr> {
 
 impl<T: Into<ast::Expr>> Expression for T {}
 
-/// `left <op> right`.
 fn binary(left: impl Into<ast::Expr>, op: ast::Operator, right: impl Into<ast::Expr>) -> ast::Expr {
     node!(ast::ExprBinOp {
         left: Box::new(left.into()),

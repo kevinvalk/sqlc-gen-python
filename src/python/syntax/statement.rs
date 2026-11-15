@@ -1,5 +1,3 @@
-//! Statements: what a module, a class and a function are made of.
-
 use ruff_python_ast as ast;
 use ruff_text_size::TextRange;
 use thin_vec::ThinVec;
@@ -7,8 +5,7 @@ use thin_vec::ThinVec;
 use super::expression::{Each, string, target};
 use super::identifier;
 
-/// What a body is put together from: a statement, one that may be absent,
-/// or several ([`stmts!`]).
+/// What [`stmts!`] puts a body together from: a statement, an optional one, or several.
 pub trait Statements {
     fn append_to(self, body: &mut Vec<ast::Stmt>);
 }
@@ -37,8 +34,6 @@ impl Statements for Option<Vec<ast::Stmt>> {
     }
 }
 
-/// A body: its parts in order, each a statement, an optional one, or
-/// several.
 macro_rules! stmts {
     ($($part:expr),* $(,)?) => {{
         let mut body: Vec<ruff_python_ast::Stmt> = Vec::new();
@@ -48,7 +43,6 @@ macro_rules! stmts {
 }
 pub(crate) use stmts;
 
-/// An expression statement, such as a call made for its effect.
 pub fn expression(value: impl Into<ast::Expr>) -> ast::Stmt {
     node!(ast::StmtExpr {
         value: Box::new(value.into()),
@@ -56,17 +50,12 @@ pub fn expression(value: impl Into<ast::Expr>) -> ast::Stmt {
     .into()
 }
 
-/// A docstring: first in a class or function body, or directly under the
-/// attribute it documents. [`crate::python::render()`] spells it.
-///
-/// This is how generated code carries documentation: ruff's AST has nowhere to
-/// put a `#` comment, but a docstring is an ordinary string expression, and
-/// tooling reads it where it would ignore a comment.
+/// Generated code carries its documentation as docstrings because ruff's AST has nowhere to put a `#` comment, and
+/// tooling reads a docstring where it would ignore a comment. [`crate::python::render()`] spells it.
 pub fn docstring(text: &str) -> ast::Stmt {
     expression(string(text))
 }
 
-/// `return value`.
 pub fn return_(value: impl Into<ast::Expr>) -> ast::Stmt {
     node!(ast::StmtReturn {
         value: Some(Box::new(value.into())),
@@ -74,7 +63,6 @@ pub fn return_(value: impl Into<ast::Expr>) -> ast::Stmt {
     .into()
 }
 
-/// `raise error`.
 pub fn raise(error: impl Into<ast::Expr>) -> ast::Stmt {
     node!(ast::StmtRaise {
         exc: Some(Box::new(error.into())),
@@ -83,13 +71,11 @@ pub fn raise(error: impl Into<ast::Expr>) -> ast::Stmt {
     .into()
 }
 
-/// `name = value`, such as `OPEN = "open"`.
 pub fn assign(name: impl AsRef<str>, value: impl Into<ast::Expr>) -> ast::Stmt {
     assign_to(target(name), value)
 }
 
-/// `target = value`, of a target that is no bare name, such as
-/// `cur.row_factory = None`.
+/// For a target that is not a bare name, such as `cur.row_factory = None`.
 pub fn assign_to(target: ast::Expr, value: impl Into<ast::Expr>) -> ast::Stmt {
     node!(ast::StmtAssign {
         targets: vec![target],
@@ -98,17 +84,11 @@ pub fn assign_to(target: ast::Expr, value: impl Into<ast::Expr>) -> ast::Stmt {
     .into()
 }
 
-/// `name: annotation`: a declaration, such as a record's field.
 pub fn annotate(name: impl AsRef<str>, annotation: impl Into<ast::Expr>) -> ast::Stmt {
     annotated(name, annotation.into(), None)
 }
 
-/// `name: annotation = value`, such as `value: int = row[0]`.
-pub fn ann_assign(
-    name: impl AsRef<str>,
-    annotation: impl Into<ast::Expr>,
-    value: impl Into<ast::Expr>,
-) -> ast::Stmt {
+pub fn ann_assign(name: impl AsRef<str>, annotation: impl Into<ast::Expr>, value: impl Into<ast::Expr>) -> ast::Stmt {
     annotated(name, annotation.into(), Some(value.into()))
 }
 
@@ -122,7 +102,6 @@ fn annotated(name: impl AsRef<str>, annotation: ast::Expr, value: Option<ast::Ex
     .into()
 }
 
-/// `if test:` and its body.
 pub fn if_(test: impl Into<ast::Expr>, body: Vec<ast::Stmt>) -> ast::Stmt {
     node!(ast::StmtIf {
         test: Box::new(test.into()),
@@ -132,12 +111,7 @@ pub fn if_(test: impl Into<ast::Expr>, body: Vec<ast::Stmt>) -> ast::Stmt {
     .into()
 }
 
-/// `if test:` and its body, then `else:` and `orelse`.
-pub fn if_else(
-    test: impl Into<ast::Expr>,
-    body: Vec<ast::Stmt>,
-    orelse: Vec<ast::Stmt>,
-) -> ast::Stmt {
+pub fn if_else(test: impl Into<ast::Expr>, body: Vec<ast::Stmt>, orelse: Vec<ast::Stmt>) -> ast::Stmt {
     node!(ast::StmtIf {
         test: Box::new(test.into()),
         body: body.into(),
@@ -149,7 +123,6 @@ pub fn if_else(
     .into()
 }
 
-/// `for <each>:` and its body.
 pub fn for_(each: Each, body: Vec<ast::Stmt>) -> ast::Stmt {
     node!(ast::StmtFor {
         is_async: each.is_async,
@@ -161,8 +134,6 @@ pub fn for_(each: Each, body: Vec<ast::Stmt>) -> ast::Stmt {
     .into()
 }
 
-/// `with <items>:` and its body; `async with` in a coroutine whose library
-/// enters them asynchronously.
 pub fn with(asynchronous: bool, items: Vec<ast::WithItem>, body: Vec<ast::Stmt>) -> ast::Stmt {
     node!(ast::StmtWith {
         is_async: asynchronous,
@@ -172,11 +143,7 @@ pub fn with(asynchronous: bool, items: Vec<ast::WithItem>, body: Vec<ast::Stmt>)
     .into()
 }
 
-/// `match subject:`, with each case's pattern ([`pattern`]) and body.
-pub fn match_(
-    subject: impl Into<ast::Expr>,
-    cases: Vec<(ast::Pattern, Vec<ast::Stmt>)>,
-) -> ast::Stmt {
+pub fn match_(subject: impl Into<ast::Expr>, cases: Vec<(ast::Pattern, Vec<ast::Stmt>)>) -> ast::Stmt {
     node!(ast::StmtMatch {
         subject: Box::new(subject.into()),
         cases: (cases.into_iter())
@@ -190,16 +157,13 @@ pub fn match_(
     .into()
 }
 
-/// The patterns of a [`match_`].
 pub mod pattern {
     use super::*;
 
-    /// `[a, b]`: a sequence of exactly these.
     pub fn sequence(patterns: Vec<ast::Pattern>) -> ast::Pattern {
         node!(ast::PatternMatchSequence { patterns: patterns }).into()
     }
 
-    /// `name`: anything, bound to `name`.
     pub fn capture(name: impl AsRef<str>) -> ast::Pattern {
         node!(ast::PatternMatchAs {
             pattern: None,
@@ -208,7 +172,6 @@ pub mod pattern {
         .into()
     }
 
-    /// `_`: anything.
     pub fn wildcard() -> ast::Pattern {
         node!(ast::PatternMatchAs {
             pattern: None,
@@ -218,11 +181,7 @@ pub mod pattern {
     }
 }
 
-/// A parameter without a default, such as `id: int`.
-pub fn parameter(
-    name: impl AsRef<str>,
-    annotation: impl Into<ast::Expr>,
-) -> ast::ParameterWithDefault {
+pub fn parameter(name: impl AsRef<str>, annotation: impl Into<ast::Expr>) -> ast::ParameterWithDefault {
     node!(ast::ParameterWithDefault {
         parameter: node!(ast::Parameter {
             name: identifier(name),
@@ -232,8 +191,7 @@ pub fn parameter(
     })
 }
 
-/// The parameter a method is called on, which needs no annotation: `self`,
-/// `cls`.
+/// `self` or `cls`, which needs no annotation.
 pub fn receiver(name: impl AsRef<str>) -> ast::ParameterWithDefault {
     node!(ast::ParameterWithDefault {
         parameter: node!(ast::Parameter {
@@ -244,8 +202,6 @@ pub fn receiver(name: impl AsRef<str>) -> ast::ParameterWithDefault {
     })
 }
 
-/// A function definition: `def name(*parameters, *, *keyword_only) ->
-/// returns`, with its decorators above and its body below.
 pub struct Function {
     pub name: String,
     pub decorators: Vec<ast::Expr>,
@@ -257,7 +213,6 @@ pub struct Function {
 }
 
 impl Function {
-    /// `def name() -> returns`, to fill in.
     pub fn new(name: impl AsRef<str>, returns: impl Into<ast::Expr>) -> Self {
         Self {
             name: name.as_ref().into(),
@@ -292,10 +247,8 @@ impl From<Function> for ast::Stmt {
     }
 }
 
-/// A class definition.
-///
-/// An empty base list omits the parentheses, and an empty body becomes `pass`,
-/// since neither is valid Python written out literally.
+/// An empty base list omits the parentheses and an empty body becomes `pass`, as neither is valid Python written out
+/// literally.
 pub fn class(
     name: impl AsRef<str>,
     decorated: impl IntoIterator<Item = ast::Expr>,
@@ -325,15 +278,10 @@ pub fn class(
 
 fn decorators(expressions: impl IntoIterator<Item = ast::Expr>) -> ThinVec<ast::Decorator> {
     (expressions.into_iter())
-        .map(|expression| {
-            node!(ast::Decorator {
-                expression: expression
-            })
-        })
+        .map(|expression| node!(ast::Decorator { expression: expression }))
         .collect()
 }
 
-/// `import module`, bound as `alias` if it has one.
 pub fn import(module: &str, alias: Option<&str>) -> ast::Stmt {
     node!(ast::StmtImport {
         names: vec![node!(ast::Alias {
@@ -345,7 +293,7 @@ pub fn import(module: &str, alias: Option<&str>) -> ast::Stmt {
     .into()
 }
 
-/// `from module import names`; `module` may be relative, such as `.`.
+/// The module may be relative, such as `.`.
 pub fn import_from(module: &str, names: &[&str]) -> ast::Stmt {
     let level = module.chars().take_while(|c| *c == '.').count();
     let module = &module[level..];

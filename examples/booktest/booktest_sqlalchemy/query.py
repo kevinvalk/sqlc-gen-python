@@ -15,8 +15,10 @@ _GET_AUTHOR: Final = sqlalchemy.text("""SELECT author_id, name FROM authors
 WHERE author_id = :author_id""")
 
 
-def get_author(conn: sqlalchemy.Connection, *, author_id: int) -> models.Author | None:
-    row = conn.execute(_GET_AUTHOR, {"author_id": author_id}).one_or_none()
+def get_author(
+    connection: sqlalchemy.Connection, *, author_id: int
+) -> models.Author | None:
+    row = connection.execute(_GET_AUTHOR, {"author_id": author_id}).one_or_none()
     return None if row is None else models.Author.from_row(row)
 
 
@@ -24,8 +26,8 @@ _GET_BOOK: Final = sqlalchemy.text("""SELECT book_id, author_id, isbn, book_type
 WHERE book_id = :book_id""")
 
 
-def get_book(conn: sqlalchemy.Connection, *, book_id: int) -> models.Book | None:
-    row = conn.execute(_GET_BOOK, {"book_id": book_id}).one_or_none()
+def get_book(connection: sqlalchemy.Connection, *, book_id: int) -> models.Book | None:
+    row = connection.execute(_GET_BOOK, {"book_id": book_id}).one_or_none()
     return None if row is None else models.Book.from_row(row)
 
 
@@ -33,8 +35,8 @@ _DELETE_BOOK: Final = sqlalchemy.text("""DELETE FROM books
 WHERE book_id = :book_id""")
 
 
-def delete_book(conn: sqlalchemy.Connection, *, book_id: int) -> None:
-    conn.execute(_DELETE_BOOK, {"book_id": book_id})
+def delete_book(connection: sqlalchemy.Connection, *, book_id: int) -> None:
+    connection.execute(_DELETE_BOOK, {"book_id": book_id})
 
 
 _BOOKS_BY_TITLE_YEAR: Final = sqlalchemy.text("""SELECT book_id, author_id, isbn, book_type, title, year, available, tags FROM books
@@ -42,11 +44,13 @@ WHERE title = :title AND year = :year""")
 
 
 def books_by_title_year(
-    conn: sqlalchemy.Connection, *, title: str, year: int
+    connection: sqlalchemy.Connection, *, title: str, year: int
 ) -> list[models.Book]:
     return [
         models.Book.from_row(row)
-        for row in conn.execute(_BOOKS_BY_TITLE_YEAR, {"title": title, "year": year})
+        for row in connection.execute(
+            _BOOKS_BY_TITLE_YEAR, {"title": title, "year": year}
+        )
     ]
 
 
@@ -75,11 +79,11 @@ class BooksByTagsRow:
 
 
 def books_by_tags(
-    conn: sqlalchemy.Connection, *, column_1: list[str]
+    connection: sqlalchemy.Connection, *, column_1: list[str]
 ) -> list[BooksByTagsRow]:
     return [
         BooksByTagsRow.from_row(row)
-        for row in conn.execute(_BOOKS_BY_TAGS, {"column_1": column_1})
+        for row in connection.execute(_BOOKS_BY_TAGS, {"column_1": column_1})
     ]
 
 
@@ -87,8 +91,10 @@ _CREATE_AUTHOR: Final = sqlalchemy.text("""INSERT INTO authors (name) VALUES (:n
 RETURNING author_id, name""")
 
 
-def create_author(conn: sqlalchemy.Connection, *, name: str) -> models.Author:
-    return models.Author.from_row(conn.execute(_CREATE_AUTHOR, {"name": name}).one())
+def create_author(connection: sqlalchemy.Connection, *, name: str) -> models.Author:
+    return models.Author.from_row(
+        connection.execute(_CREATE_AUTHOR, {"name": name}).one()
+    )
 
 
 _CREATE_BOOK: Final = sqlalchemy.text("""INSERT INTO books (
@@ -112,7 +118,7 @@ RETURNING book_id, author_id, isbn, book_type, title, year, available, tags""")
 
 
 def create_book(
-    conn: sqlalchemy.Connection,
+    connection: sqlalchemy.Connection,
     *,
     author_id: int,
     isbn: str,
@@ -123,7 +129,7 @@ def create_book(
     tags: list[str],
 ) -> models.Book:
     return models.Book.from_row(
-        conn.execute(
+        connection.execute(
             _CREATE_BOOK,
             {
                 "author_id": author_id,
@@ -144,9 +150,9 @@ WHERE book_id = :book_id""")
 
 
 def update_book(
-    conn: sqlalchemy.Connection, *, title: str, tags: list[str], book_id: int
+    connection: sqlalchemy.Connection, *, title: str, tags: list[str], book_id: int
 ) -> None:
-    conn.execute(_UPDATE_BOOK, {"title": title, "tags": tags, "book_id": book_id})
+    connection.execute(_UPDATE_BOOK, {"title": title, "tags": tags, "book_id": book_id})
 
 
 _UPDATE_BOOK_ISBN: Final = sqlalchemy.text("""UPDATE books
@@ -155,9 +161,14 @@ WHERE book_id = :book_id""")
 
 
 def update_book_isbn(
-    conn: sqlalchemy.Connection, *, title: str, tags: list[str], book_id: int, isbn: str
+    connection: sqlalchemy.Connection,
+    *,
+    title: str,
+    tags: list[str],
+    book_id: int,
+    isbn: str,
 ) -> None:
-    conn.execute(
+    connection.execute(
         _UPDATE_BOOK_ISBN,
         {"title": title, "tags": tags, "book_id": book_id, "isbn": isbn},
     )

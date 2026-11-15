@@ -1,14 +1,10 @@
-//! Specification for finding sqlc's placeholders as SQLite's tokenizer does.
-
 use super::*;
 use crate::engine::{Piece, binds};
 
-/// What `sql` binds where, with `$N` named `pN`.
+/// What `sql` binds where, with parameter `n` named `pn`.
 fn cut(sql: &str, params: &[i32]) -> Result<Vec<Piece>> {
     let names: Vec<String> = params.iter().map(|n| format!("p{n}")).collect();
-    let params: Vec<(i32, &str)> = (params.iter().copied())
-        .zip(names.iter().map(String::as_str))
-        .collect();
+    let params: Vec<(i32, &str)> = (params.iter().copied()).zip(names.iter().map(String::as_str)).collect();
     super::sql(sql, &binds(&params)).map(|sql| sql.0)
 }
 
@@ -27,7 +23,7 @@ fn a_bare_placeholder_takes_the_number_after_the_largest_before_it() {
     assert_eq!(bound("SELECT ?, ?", &[1, 2]), ["p1", "p2"]);
     assert_eq!(bound("SELECT ?2, ?1, ?", &[1, 2, 3]), ["p2", "p1", "p3"]);
     assert_eq!(bound("WHERE a = ?1 OR b = ?1", &[1]), ["p1", "p1"]);
-    // There is no number after the largest there is.
+    // There is no number after the largest there is
     let error = cut("SELECT ?2147483647, ?", &[1]).unwrap_err();
     assert!(error.to_string().contains("no placeholder"), "{error}");
 }
@@ -64,11 +60,7 @@ fn a_mismatch_with_sqlcs_parameters_is_an_error() {
 
 #[test]
 fn a_named_parameter_sqlc_left_as_written_is_an_error() {
-    for (sql, param) in [
-        ("SELECT :a", ":a"),
-        ("SELECT @b", "@b"),
-        ("SELECT $c", "$c"),
-    ] {
+    for (sql, param) in [("SELECT :a", ":a"), ("SELECT @b", "@b"), ("SELECT $c", "$c")] {
         let error = format!("{:#}", cut(sql, &[]).unwrap_err());
         assert!(
             error.contains(&format!("sqlc did not rewrite {param} into")),

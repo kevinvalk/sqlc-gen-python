@@ -1,6 +1,5 @@
-//! A DB-API driver (PEP 249), which takes parameters by position: psycopg's
-//! raw cursors, which take sqlc's SQL as written, `$N` and all; and `sqlite3`
-//! and PyMySQL, which take one placeholder per value, in the text's order.
+//! A DB-API driver (PEP 249) takes parameters by position. psycopg's raw cursors take sqlc's SQL as written, `$N` and
+//! all, while `sqlite3` and PyMySQL take one placeholder per value in the text's order.
 
 use anyhow::{Result, bail};
 use ruff_python_ast as ast;
@@ -9,94 +8,78 @@ use crate::api::models::{Enum, Field};
 use crate::api::queries::{Command, CopyInto, Query, Shape};
 use crate::engine::Piece;
 use crate::python::vocabulary::{
-    ANY, CONN, CONNECTION, COPY, CUR, CURSOR, INT, LEN, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, OBJECT,
-    PROTOCOL, R, RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPE_CHECKING, TYPED,
-    TYPED_CURSOR, VALUE, VALUES,
+    ANY, CONNECTION, CONNECTION_TYPE, COPY, CUR, CURSOR, INT, LEN, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, OBJECT, PROTOCOL,
+    R, RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPE_CHECKING, TYPED, TYPED_CURSOR, VALUE, VALUES,
 };
 use crate::python::{
-    Each, Expression, Function, Scope, ann_assign, assign, class, each, ellipsis, expression, for_,
-    if_else, int, keyword, list, list_of, match_, name, none, parameter, pattern, raise, receiver,
-    return_, starred, stmts, string, true_, tuple, with,
+    Each, Expression, Function, Scope, ann_assign, assign, class, each, ellipsis, expression, for_, if_else, int,
+    keyword, list, list_of, match_, name, none, parameter, pattern, raise, receiver, return_, starred, stmts, string,
+    true_, tuple, with,
 };
 
 #[cfg(test)]
 #[path = "dbapi_spec.rs"]
 mod spec;
 
-/// How a driver is written: its blocking functions, its coroutines, and what
-/// it does with a statement.
 pub struct Driver {
     pub sync: Flavor,
     pub asynchronous: Flavor,
-    /// The driver's own placeholders, if it does not take sqlc's numbered
-    /// ones.
+    /// The driver's own placeholders, if it does not take sqlc's numbered ones.
     pub placeholders: Option<Placeholders>,
-    /// Whether `execute` returns the rows it affected, which is then the
-    /// count: the cursor's `rowcount` is not typed as one.
+    /// Whether `execute` returns the count of rows it affected, which we prefer as the cursor's `rowcount` is not typed
+    /// as one.
     pub execute_counts: bool,
-    /// Whether a count must be read in a pipeline of its own: psycopg counts
-    /// a statement in a pipeline only once the pipeline syncs.
+    /// Whether a count must be read in a pipeline of its own, as psycopg only counts a statement in a pipeline once the
+    /// pipeline syncs.
     pub pipelines: bool,
     /// A parameter's value, from the expression holding it.
     pub bind: fn(&Field, ast::Expr) -> ast::Expr,
     /// Whether an array of enums comes back as the array's text.
     pub text_arrays: bool,
-    /// Whether a `:copyfrom` runs PostgreSQL's `COPY`, through the cursor's
-    /// `copy()`, rather than one `INSERT` per row.
+    /// Whether a `:copyfrom` runs PostgreSQL's `COPY` through the cursor's `copy()` rather than one `INSERT` per row.
     pub copies: bool,
-    /// What makes the rows of the cursor tuples, where making the cursor
-    /// does not.
+    /// What makes the cursor's rows tuples, for a driver where making the cursor does not.
     pub plain_rows: Option<fn() -> ast::Stmt>,
 }
 
-/// A driver's own placeholders: one per value, in the text's order.
+/// One placeholder per value, in the text's order.
 pub struct Placeholders {
-    /// The placeholder of every value.
     pub text: &'static str,
-    /// Whether the driver formats a statement with parameters with `%`, so
-    /// that every other `%` is doubled.
+    /// Whether the driver formats a statement that has parameters with `%`, so every other `%` must be doubled.
     pub formats: bool,
-    /// A subquery of no rows, for a `sqlc.slice` of none: `x IN (...)` is
-    /// then false, and `x NOT IN (...)` true, as of an empty list.
+    /// A subquery of no rows for a `sqlc.slice` of none, so `x IN (...)` is false and `x NOT IN (...)` true, as of an
+    /// empty list.
     pub no_rows: &'static str,
 }
 
-/// A driver's blocking functions, or its coroutines: how each part of a
-/// query's function is written with them.
+/// A driver's blocking functions, or its coroutines.
 pub struct Flavor {
-    /// The connection's class.
     pub connection: fn() -> ast::Expr,
-    /// Whether that class is generic in the library's stubs alone, over the
-    /// class of its cursors: bare, it is to a type checker a connection of
-    /// the default one only, and subscripted it raises when imported, or
-    /// when its annotation is read. Generated code then names it for both
-    /// ([`prelude`]). PyMySQL's is.
+    /// Whether the connection's class is only generic in the library's stubs, over the class of its cursors (PyMySQL).
+    /// Bare, a type checker takes it for a connection of the default cursor only, and subscripted it raises at runtime
+    /// once imported or once its annotation is read. So generated code names it for both ([`prelude`]).
     pub generic: bool,
-    /// The cursor a statement runs on, from `conn`, as `with` enters it,
-    /// which closes it after; and as `:execresult` returns it, open, and its
-    /// type.
+    /// The cursor a statement runs on, as `with` enters it to close it after, as an `:execresult` returns it (open),
+    /// and its type.
     pub closing: fn() -> ast::Expr,
     pub cursor: fn() -> ast::Expr,
     pub cursor_type: fn() -> ast::Expr,
-    /// Whether the library's stubs leave untyped what a statement runs
-    /// through (`execute`, `executemany`, `fetchmany`), which strict pyright
-    /// rejects a call of: generated code then calls them through a protocol
-    /// of its own ([`prelude`]). asyncmy's do (`AGENTS.md`, "Workarounds").
+    /// Whether the library's stubs leave `execute`, `executemany` and `fetchmany` untyped, so strict pyright rejects a
+    /// call of them and generated code calls them through a protocol of its own ([`prelude`]). asyncmy's do, see
+    /// "Workarounds" in AGENTS.md.
     pub untyped: bool,
 }
 
 impl Flavor {
-    /// The annotation of the connection.
     pub fn connection_type(&self) -> ast::Expr {
         match self.generic {
-            true => CONNECTION.into(),
+            true => CONNECTION_TYPE.into(),
             false => (self.connection)(),
         }
     }
 }
 
 impl Driver {
-    /// How blocking functions are written, or coroutines.
     pub fn flavor(&self, asynchronous: bool) -> &Flavor {
         match asynchronous {
             false => &self.sync,
@@ -104,71 +87,64 @@ impl Driver {
         }
     }
 
-    /// The parameter of each value a statement of `query` binds, in order:
-    /// one per placeholder in the text's order for a driver that takes its
-    /// own, or one per `$N`, by `N`.
+    /// The parameter of each value a statement binds, in order: one per placeholder in the text's order for a driver
+    /// with its own placeholders, or else one per `$N`, by `N`.
     fn binds<'q>(&self, query: &'q Query) -> Vec<&'q Field> {
         let mut binds: Vec<(i32, &Field)> = Vec::new();
-        for (at, piece) in query.sql.0.iter().enumerate() {
-            let (Piece::Param { number, name, .. } | Piece::Slice { number, name, .. }) = piece
-            else {
+        for (index, piece) in query.sql.0.iter().enumerate() {
+            let (Piece::Param { number, name, .. } | Piece::Slice { number, name, .. }) = piece else {
                 continue;
             };
             let number = match self.placeholders {
-                Some(_) => at as i32,
+                Some(_) => index as i32,
                 None => *number,
             };
-            if !binds.iter().any(|&(n, _)| n == number) {
-                let param = query.params.iter().find(|param| param.name == *name);
-                binds.push((number, param.expect("a placeholder is a parameter's")));
+            if !binds.iter().any(|&(bound, _)| bound == number) {
+                let parameter = query.params.iter().find(|parameter| parameter.name == *name);
+                binds.push((number, parameter.expect("a placeholder is a parameter's")));
             }
         }
         binds.sort_by_key(|&(number, _)| number);
-        binds.into_iter().map(|(_, param)| param).collect()
+        binds.into_iter().map(|(_, parameter)| parameter).collect()
     }
 }
 
-/// sqlc's statement, as the driver takes it: as written, or with its
-/// placeholders the driver's, and each `%` doubled if it formats with `%`.
-/// Without parameters, a driver formats nothing, so `%` stays as written.
+/// sqlc's statement as written, or with the driver's own placeholders and each `%` doubled if it formats with `%`.
 pub fn statement(driver: &Driver, query: &Query) -> ast::Expr {
     if driver.copies
         && let Some(into) = &query.copy_into
     {
         return string(&copy(into));
     }
-    let Some(own) = &driver.placeholders else {
+    let Some(placeholders) = &driver.placeholders else {
         return string(&query.sql.text());
     };
-    let formats = own.formats && !query.params.is_empty();
+    let formats = placeholders.formats && !query.params.is_empty(); // Without parameters a driver formats nothing
     let text: String = (query.sql.0.iter())
         .map(|piece| match piece {
             Piece::Text(text) if formats => text.replace('%', "%%"),
             Piece::Text(text) => text.clone(),
-            // A slice keeps its marker, which the function replaces.
-            Piece::Param { .. } => own.text.into(),
-            Piece::Slice { marker, .. } => format!("{marker}{}", own.text),
+            Piece::Param { .. } => placeholders.text.into(),
+            // A slice keeps its marker, which the function replaces
+            Piece::Slice { marker, .. } => format!("{marker}{}", placeholders.text),
         })
         .collect();
     string(&text)
 }
 
-/// The `COPY` that writes rows into `into`'s table and columns, every name
-/// quoted: as sqlc reports it, it is the name PostgreSQL stores.
+/// We quote every name, as sqlc reports the name PostgreSQL stores.
 fn copy(into: &CopyInto) -> String {
     let quote = |name: &str| format!("\"{}\"", name.replace('"', "\"\""));
     let table = match into.schema.as_str() {
         "" => quote(&into.table),
         schema => format!("{}.{}", quote(schema), quote(&into.table)),
     };
-    let columns: Vec<String> = into.columns.iter().map(|c| quote(c)).collect();
+    let columns: Vec<String> = into.columns.iter().map(|column| quote(column)).collect();
     format!("COPY {table} ({}) FROM STDIN", columns.join(", "))
 }
 
-/// What a query module defines before its queries, for a library whose
-/// stubs need it. Where the connection's class is [`Flavor::generic`], its
-/// name for a type checker, a connection of any cursor class, and for
-/// Python, the class:
+/// What a query module defines before its queries, for a library whose stubs need it. Where the connection's class is
+/// [`Flavor::generic`]:
 ///
 /// ```python
 /// if typing.TYPE_CHECKING:
@@ -177,8 +153,7 @@ fn copy(into: &CopyInto) -> String {
 ///     _Connection = pymysql.Connection
 /// ```
 ///
-/// Where they are [`Flavor::untyped`], the methods a statement runs through
-/// as generated code calls them, and what views a cursor as having them:
+/// Where the cursor's methods are [`Flavor::untyped`]:
 ///
 /// ```python
 /// class _Cursor(typing.Protocol):
@@ -195,18 +170,13 @@ pub fn prelude(driver: &Driver, asynchronous: bool) -> Vec<ast::Stmt> {
         let class = (flavor.connection)();
         if_else(
             TYPE_CHECKING,
-            vec![assign(CONNECTION, class.clone().index(ANY))],
-            vec![assign(CONNECTION, class)],
+            vec![assign(CONNECTION_TYPE, class.clone().index(ANY))],
+            vec![assign(CONNECTION_TYPE, class)],
         )
     });
-    stmts![
-        connection,
-        (flavor.untyped).then(|| bridge(flavor, asynchronous)),
-    ]
+    stmts![connection, (flavor.untyped).then(|| bridge(flavor, asynchronous)),]
 }
 
-/// A protocol of the methods of a cursor that `flavor`'s stubs leave untyped,
-/// and the function that views its cursor as one.
 fn bridge(flavor: &Flavor, asynchronous: bool) -> Vec<ast::Stmt> {
     let method = |name: &str, parameters: Vec<ast::ParameterWithDefault>, returns: ast::Expr| {
         Function {
@@ -218,40 +188,28 @@ fn bridge(flavor: &Flavor, asynchronous: bool) -> Vec<ast::Stmt> {
         .into()
     };
     let values = || SEQUENCE.index(ANY);
-    // Without parameters, a statement is run as written: no `args`.
+    // Without parameters a statement runs as written, so `args` is optional
     let mut args = parameter("args", values().or_none());
     args.default = Some(Box::new(none()));
     let methods: [ast::Stmt; 3] = [
         method("execute", vec![parameter("query", STR), args], INT.into()),
         method(
             "executemany",
-            vec![
-                parameter("query", STR),
-                parameter("args", SEQUENCE.index(values())),
-            ],
+            vec![parameter("query", STR), parameter("args", SEQUENCE.index(values()))],
             OBJECT.into(),
         ),
-        method(
-            "fetchmany",
-            vec![parameter("size", INT)],
-            SEQUENCE.index(values()),
-        ),
+        method("fetchmany", vec![parameter("size", INT)], SEQUENCE.index(values())),
     ];
     let typed = Function {
         parameters: vec![parameter(CURSOR, (flavor.cursor_type)())],
         body: vec![return_(CURSOR)],
         ..Function::new(TYPED, TYPED_CURSOR)
     };
-    vec![
-        class(TYPED_CURSOR, [], [PROTOCOL.into()], methods),
-        typed.into(),
-    ]
+    vec![class(TYPED_CURSOR, [], [PROTOCOL.into()], methods), typed.into()]
 }
 
-/// The body of a query's function: one execution of its statement on a
-/// cursor of its own, closed after, the result shaped by its command
-/// (`docs/python-output.md` §6, "Functions"). A coroutine awaits what the
-/// driver's coroutines return, and enters its cursor with `async with`.
+/// One execution of the statement on a cursor of its own, which is closed after, with the result shaped by the command
+/// (`docs/python-output.md` §6, "Functions").
 pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
     let body = Body {
         driver,
@@ -262,7 +220,7 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt
     let returning = || [keyword("returning", true_())];
     let on_cursor = match (&query.command, query.takes.rows()) {
         (Command::Exec, true) if driver.copies && query.copy_into.is_some() => return body.copy(),
-        // The cursor is the result, so it stays open.
+        // The cursor is the result, so it stays open
         (Command::ExecResult, _) => {
             return stmts![
                 assign(CUR, (body.flavor.cursor)()),
@@ -272,15 +230,10 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt
             ];
         }
         (Command::Exec, true) => vec![expression(body.execute_many([]))],
-        // A batch: every row's statement sent at once (psycopg pipelines
-        // `executemany`), then each one's result read in turn.
+        // We send every row's statement at once (psycopg pipelines `executemany`), then read each one's result in turn
         (Command::One(shape), true) => stmts![
             expression(body.execute_many(returning())),
-            ann_assign(
-                VALUES,
-                super::returns(query, body.flavor.cursor_type),
-                list(vec![]),
-            ),
+            ann_assign(VALUES, super::returns(query, body.flavor.cursor_type), list(vec![]),),
             for_(
                 body.results(),
                 vec![body.one(shape, RESULT, |value| {
@@ -307,14 +260,9 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt
         }
     };
     let cursor = (body.flavor.closing)().entered_as(CUR);
-    vec![with(
-        asynchronous,
-        vec![cursor],
-        stmts![body.plain_rows(), on_cursor],
-    )]
+    vec![with(asynchronous, vec![cursor], stmts![body.plain_rows(), on_cursor])]
 }
 
-/// What the body of one query's function is made of, on its driver.
 struct Body<'a> {
     driver: &'a Driver,
     flavor: &'a Flavor,
@@ -323,8 +271,7 @@ struct Body<'a> {
 }
 
 impl Body<'_> {
-    /// What makes the cursor's rows tuples, if the driver needs it said and
-    /// the rows are read: by the function, or from the cursor it returns.
+    /// Only when the driver needs it and the rows are read, by the function or from the cursor it returns.
     fn plain_rows(&self) -> Option<ast::Stmt> {
         let read = matches!(
             self.query.command,
@@ -333,8 +280,7 @@ impl Body<'_> {
         self.driver.plain_rows.filter(|_| read).map(|rows| rows())
     }
 
-    /// `cur`, as a statement runs through it: seen as typed, where the
-    /// library's stubs are not.
+    /// The cursor viewed as typed, where the library's stubs are not.
     fn typed(&self, cur: Symbol) -> ast::Expr {
         match self.flavor.untyped {
             true => TYPED.call([cur.into()]),
@@ -342,7 +288,7 @@ impl Body<'_> {
         }
     }
 
-    /// `cur.execute(statement, values)`: the statement, run once.
+    /// `cur.execute(statement, values)`
     fn execute(&self) -> ast::Expr {
         let binds = self.driver.binds(self.query);
         let values = (!binds.is_empty()).then(|| self.values(&binds));
@@ -351,8 +297,7 @@ impl Body<'_> {
             .awaited(self.asynchronous)
     }
 
-    /// `cur.executemany(statement, [values for r in rows])`: the statement,
-    /// run for each row.
+    /// `cur.executemany(statement, [values for r in rows])`
     fn execute_many(&self, keywords: impl IntoIterator<Item = ast::Keyword>) -> ast::Expr {
         let binds = self.driver.binds(self.query);
         let rows = list_of(self.values(&binds), each(R, ROWS));
@@ -361,21 +306,19 @@ impl Body<'_> {
             .awaited(self.asynchronous)
     }
 
-    /// [`Self::execute`], in a pipeline of its own if the driver counts a
-    /// statement of a pipeline only once it syncs.
+    /// [`Self::execute`], in a pipeline of its own if the driver only counts a statement of a pipeline once it syncs.
     fn counted(&self) -> ast::Stmt {
         let execute = expression(self.execute());
         match self.driver.pipelines {
             true => {
-                let pipeline = CONN.attr("pipeline").call([]).entered();
+                let pipeline = CONNECTION.attr("pipeline").call([]).entered();
                 with(self.asynchronous, vec![pipeline], vec![execute])
             }
             false => execute,
         }
     }
 
-    /// PostgreSQL's `COPY` of the rows: its cursor and the copy entered in
-    /// one `with` (ruff's SIM117).
+    /// We enter the cursor and the copy in one `with`, as ruff's SIM117 wants.
     fn copy(&self) -> Vec<ast::Stmt> {
         let columns: Vec<&Field> = self.query.params.iter().collect();
         let write = (COPY.attr("write_row"))
@@ -384,20 +327,17 @@ impl Body<'_> {
         let copy = CUR.attr("copy").call([name(&self.query.constant)]);
         vec![with(
             self.asynchronous,
-            vec![
-                (self.flavor.closing)().entered_as(CUR),
-                copy.entered_as(COPY),
-            ],
+            vec![(self.flavor.closing)().entered_as(CUR), copy.entered_as(COPY)],
             vec![for_(each(R, ROWS), vec![expression(write)])],
         )]
     }
 
-    /// The statement, each slice's placeholder made one per item:
-    /// `.replace(marker, ", ".join([placeholder] * len(items)) or no_rows)`.
+    /// The statement with each slice's placeholder made one per item:
+    /// `.replace(marker, ", ".join([placeholder] * len(items)) or no_rows)`
     fn statement(&self) -> ast::Expr {
         let mut statement = name(&self.query.constant);
-        // Only an engine whose driver has its own placeholders has slices.
-        let Some(own) = &self.driver.placeholders else {
+        // Only an engine whose driver has its own placeholders has slices
+        let Some(placeholders) = &self.driver.placeholders else {
             return statement;
         };
         let mut sliced: Vec<&str> = Vec::new();
@@ -408,48 +348,44 @@ impl Body<'_> {
                 sliced.push(name);
                 let count = LEN.call([super::value(self.query, name)]);
                 let places = (string(", ").attr("join"))
-                    .call([list(vec![string(own.text)]).times(count)])
-                    .or(string(own.no_rows));
-                let marker = string(&format!("{marker}{}", own.text));
+                    .call([list(vec![string(placeholders.text)]).times(count)])
+                    .or(string(placeholders.no_rows));
+                let marker = string(&format!("{marker}{}", placeholders.text));
                 statement = statement.attr("replace").call([marker, places]);
             }
         }
         statement
     }
 
-    /// The values of `params`, as the tuple a statement binds, each read as
-    /// the function takes it: a slice's items each a value of its own.
-    fn values(&self, params: &[&Field]) -> ast::Expr {
-        let values = (params.iter())
-            .map(|param| {
-                let value = super::value(self.query, &param.name);
-                match self.query.sql.is_slice(&param.name) {
+    /// The tuple a statement binds, where a slice's items are each a value of their own.
+    fn values(&self, parameters: &[&Field]) -> ast::Expr {
+        let values = (parameters.iter())
+            .map(|parameter| {
+                let value = super::value(self.query, &parameter.name);
+                match self.query.sql.is_slice(&parameter.name) {
                     true => starred(value),
-                    false => (self.driver.bind)(param, value),
+                    false => (self.driver.bind)(parameter, value),
                 }
             })
             .collect();
         tuple(values)
     }
 
-    /// `for result in cur.results()`: each row's result of a batch.
+    /// `for result in cur.results()`
     fn results(&self) -> Each {
         each(RESULT, CUR.attr("results").call([])).asynchronous(self.asynchronous)
     }
 
-    /// Every row of the result `cur` holds, as a list.
     fn many(&self, shape: &Shape, cur: Symbol) -> ast::Expr {
         let fetched = (cur.attr("fetchall").call([])).awaited(self.asynchronous);
         list_of(shape.read(ROW), each(ROW, fetched))
     }
 
-    /// The only row of the result `cur` holds, handed to `emit` (`return x`,
-    /// `values.append(x)`): the first two rows tell one row from none, which
-    /// is `None` or raises, and from several, which raise.
+    /// The only row, handed to `emit` (`return x`, `values.append(x)`). We fetch two rows to tell one from none, which
+    /// is `None` or raises, and from several, which always raise.
     fn one(&self, shape: &Shape, cur: Symbol, emit: fn(ast::Expr) -> ast::Stmt) -> ast::Stmt {
         let found = match shape {
-            // A row's value is `Any`: the annotated local states the type the
-            // value would leak.
+            // A row's value is `Any`, so we annotate a local to state the type instead of leaking `Any`
             Shape::Scalar(ty) if !ty.converts() => vec![
                 ann_assign(VALUE, ty.annotation(Scope::Queries), ROW.index(int(0))),
                 emit(VALUE.into()),
@@ -474,18 +410,15 @@ impl Body<'_> {
     }
 }
 
-/// An error if `sql_enum` has a label PostgreSQL quotes in an array's text,
-/// which `from_array` reads, for a driver of [`Driver::text_arrays`], by
-/// splitting it at its commas: an empty label,
-/// `NULL`, or one holding whitespace, a quote, a backslash, a brace or a
-/// comma.
+/// `from_array` splits an array's text at its commas, so for a driver of [`Driver::text_arrays`] we refuse a label that
+/// PostgreSQL quotes there: an empty one, `NULL`, or one holding whitespace, a quote, a backslash, a brace or a comma.
 pub fn check_text_array(sql_enum: &Enum) -> Result<()> {
     let quoted = |label: &str| {
         label.is_empty()
             || label.eq_ignore_ascii_case("null")
             || (label.chars()).any(|c| "{},\"\\ \t\n\r\x0b\x0c".contains(c))
     };
-    if let Some(member) = sql_enum.members.iter().find(|m| quoted(&m.value)) {
+    if let Some(member) = sql_enum.members.iter().find(|member| quoted(&member.value)) {
         bail!(
             "psycopg returns an array of this enum as its text, in which PostgreSQL quotes the \
              label {:?}; rename the label, or use the sqlalchemy backend",

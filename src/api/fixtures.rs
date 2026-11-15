@@ -1,6 +1,3 @@
-//! The requests the specs of this module resolve: a catalog's parts, and
-//! queries against the `authors` table.
-
 use std::fmt::Debug;
 
 use anyhow::Result;
@@ -23,11 +20,7 @@ pub fn column(name: &str, data_type: &str, not_null: bool) -> plugin::Column {
     }
 }
 
-pub fn sql_schema(
-    name: &str,
-    tables: Vec<plugin::Table>,
-    enums: Vec<plugin::Enum>,
-) -> plugin::Schema {
+pub fn sql_schema(name: &str, tables: Vec<plugin::Table>, enums: Vec<plugin::Enum>) -> plugin::Schema {
     plugin::Schema {
         name: name.into(),
         tables,
@@ -59,12 +52,7 @@ pub fn error_of<T: Debug>(result: Result<T>) -> String {
     format!("{:#}", result.unwrap_err())
 }
 
-/// A request for `engine`, of `schemas` and `queries`.
-pub fn request(
-    engine: &str,
-    schemas: Vec<plugin::Schema>,
-    queries: Vec<plugin::Query>,
-) -> plugin::GenerateRequest {
+pub fn request(engine: &str, schemas: Vec<plugin::Schema>, queries: Vec<plugin::Query>) -> plugin::GenerateRequest {
     plugin::GenerateRequest {
         settings: Some(plugin::Settings {
             engine: engine.into(),
@@ -80,7 +68,6 @@ pub fn request(
     }
 }
 
-/// PostgreSQL catalogs, resolved.
 pub mod catalog {
     use super::*;
 
@@ -105,7 +92,6 @@ pub mod catalog {
     }
 }
 
-/// Queries against the `authors` catalog, resolved.
 pub mod authors {
     use super::*;
 
@@ -158,18 +144,12 @@ pub mod authors {
         try_resolve_on("postgresql", queries)
     }
 
-    /// `queries`, resolved on `engine` against the `authors` catalog.
     pub fn try_resolve_on(engine: &str, queries: Vec<plugin::Query>) -> Result<Vec<Module>> {
         try_resolve_with(engine, queries, &Config::of(Backend::SqlAlchemy))
     }
 
-    /// The same, as `config` asks.
-    pub fn try_resolve_with(
-        engine: &str,
-        queries: Vec<plugin::Query>,
-        config: &Config,
-    ) -> Result<Vec<Module>> {
-        // The catalog's types are PostgreSQL's.
+    pub fn try_resolve_with(engine: &str, queries: Vec<plugin::Query>, config: &Config) -> Result<Vec<Module>> {
+        // The catalog's types are PostgreSQL's, so only PostgreSQL gets one
         let schemas = (engine == "postgresql")
             .then(|| {
                 let mood = plugin::Enum {
@@ -192,7 +172,6 @@ pub mod authors {
         try_resolve(query).unwrap()
     }
 
-    /// `query` on `engine`, its only query.
     pub fn on(engine: &str, query: plugin::Query) -> Result<Query> {
         try_resolve_on(engine, vec![query]).map(|mut modules| modules.remove(0).queries.remove(0))
     }
@@ -201,8 +180,7 @@ pub mod authors {
         error_of(try_resolve(query))
     }
 
-    /// A statement that selects `columns`, each a name: one whose list is
-    /// not an item per column would leave every column optional.
+    /// A statement with an item per column, as one whose list we cannot read leaves every column optional.
     pub fn selecting(columns: &[plugin::Column]) -> String {
         let list: Vec<&str> = columns.iter().map(|_| "x").collect();
         format!("SELECT {} FROM authors", list.join(", "))

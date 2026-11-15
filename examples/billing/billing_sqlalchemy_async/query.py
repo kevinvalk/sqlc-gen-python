@@ -19,7 +19,7 @@ _CREATE_CUSTOMER: Final = sqlalchemy.text(
 
 
 async def create_customer(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
     *,
     name: str,
     email: str | None,
@@ -28,7 +28,7 @@ async def create_customer(
     metadata: str | None,
 ) -> int:
     return (
-        await conn.execute(
+        await connection.execute(
             _CREATE_CUSTOMER,
             {
                 "name": name,
@@ -46,8 +46,10 @@ _GET_CUSTOMER: Final = sqlalchemy.text(
 )
 
 
-async def get_customer(conn: AsyncConnection, *, id: int) -> models.Customer | None:
-    row = (await conn.execute(_GET_CUSTOMER, {"id": id})).one_or_none()
+async def get_customer(
+    connection: AsyncConnection, *, id: int
+) -> models.Customer | None:
+    row = (await connection.execute(_GET_CUSTOMER, {"id": id})).one_or_none()
     return None if row is None else models.Customer.from_row(row)
 
 
@@ -57,10 +59,12 @@ _FIND_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
 
 
 async def find_customer_by_name(
-    conn: AsyncConnection, *, name: str
+    connection: AsyncConnection, *, name: str
 ) -> models.Customer | None:
     """Names are not unique: more than one match is an error, never a guess."""
-    row = (await conn.execute(_FIND_CUSTOMER_BY_NAME, {"name": name})).one_or_none()
+    row = (
+        await connection.execute(_FIND_CUSTOMER_BY_NAME, {"name": name})
+    ).one_or_none()
     return None if row is None else models.Customer.from_row(row)
 
 
@@ -80,12 +84,12 @@ class SearchCustomersRow:
 
 
 async def search_customers(
-    conn: AsyncConnection, *, pattern: str | None
+    connection: AsyncConnection, *, pattern: str | None
 ) -> list[SearchCustomersRow]:
     """A name or email matching the pattern, but no test account: `%` and `:` stay literal."""
     return [
         SearchCustomersRow.from_row(row)
-        for row in await conn.execute(_SEARCH_CUSTOMERS, {"pattern": pattern})
+        for row in await connection.execute(_SEARCH_CUSTOMERS, {"pattern": pattern})
     ]
 
 
@@ -95,11 +99,11 @@ _LIST_CUSTOMERS_BY_IDS: Final = sqlalchemy.text(
 
 
 async def list_customers_by_ids(
-    conn: AsyncConnection, *, ids: list[int]
+    connection: AsyncConnection, *, ids: list[int]
 ) -> list[models.Customer]:
     return [
         models.Customer.from_row(row)
-        for row in await conn.execute(_LIST_CUSTOMERS_BY_IDS, {"ids": ids})
+        for row in await connection.execute(_LIST_CUSTOMERS_BY_IDS, {"ids": ids})
     ]
 
 
@@ -108,7 +112,7 @@ VALUES (:customer_id, :number, :issued_on, :notes, :attachment, :pay_within)""")
 
 
 async def create_invoice(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
     *,
     customer_id: int,
     number: str,
@@ -118,7 +122,7 @@ async def create_invoice(
     pay_within: dt.timedelta | None,
 ) -> int:
     return (
-        await conn.execute(
+        await connection.execute(
             _CREATE_INVOICE,
             {
                 "customer_id": customer_id,
@@ -137,8 +141,8 @@ _GET_INVOICE: Final = sqlalchemy.text(
 )
 
 
-async def get_invoice(conn: AsyncConnection, *, id: int) -> models.Invoice | None:
-    row = (await conn.execute(_GET_INVOICE, {"id": id})).one_or_none()
+async def get_invoice(connection: AsyncConnection, *, id: int) -> models.Invoice | None:
+    row = (await connection.execute(_GET_INVOICE, {"id": id})).one_or_none()
     return None if row is None else models.Invoice.from_row(row)
 
 
@@ -148,9 +152,11 @@ _GET_INVOICE_STATUS: Final = sqlalchemy.text(
 
 
 async def get_invoice_status(
-    conn: AsyncConnection, *, id: int
+    connection: AsyncConnection, *, id: int
 ) -> models.InvoicesStatus | None:
-    value = (await conn.execute(_GET_INVOICE_STATUS, {"id": id})).scalar_one_or_none()
+    value = (
+        await connection.execute(_GET_INVOICE_STATUS, {"id": id})
+    ).scalar_one_or_none()
     return None if value is None else models.InvoicesStatus(value)
 
 
@@ -173,9 +179,11 @@ class GetInvoiceWithCustomerRow:
 
 
 async def get_invoice_with_customer(
-    conn: AsyncConnection, *, id: int
+    connection: AsyncConnection, *, id: int
 ) -> GetInvoiceWithCustomerRow | None:
-    row = (await conn.execute(_GET_INVOICE_WITH_CUSTOMER, {"id": id})).one_or_none()
+    row = (
+        await connection.execute(_GET_INVOICE_WITH_CUSTOMER, {"id": id})
+    ).one_or_none()
     return None if row is None else GetInvoiceWithCustomerRow.from_row(row)
 
 
@@ -185,11 +193,14 @@ ORDER BY number""").bindparams(sqlalchemy.bindparam("statuses", expanding=True))
 
 
 async def list_invoices_by_status(
-    conn: AsyncConnection, *, statuses: list[models.InvoicesStatus], customer_id: int
+    connection: AsyncConnection,
+    *,
+    statuses: list[models.InvoicesStatus],
+    customer_id: int,
 ) -> list[models.Invoice]:
     return [
         models.Invoice.from_row(row)
-        for row in await conn.execute(
+        for row in await connection.execute(
             _LIST_INVOICES_BY_STATUS, {"statuses": statuses, "customer_id": customer_id}
         )
     ]
@@ -200,9 +211,9 @@ _COUNT_INVOICES: Final = sqlalchemy.text(
 )
 
 
-async def count_invoices(conn: AsyncConnection, *, customer_id: int) -> int:
+async def count_invoices(connection: AsyncConnection, *, customer_id: int) -> int:
     value: int = (
-        await conn.execute(_COUNT_INVOICES, {"customer_id": customer_id})
+        await connection.execute(_COUNT_INVOICES, {"customer_id": customer_id})
     ).scalar_one()
     return value
 
@@ -213,10 +224,10 @@ _ISSUE_INVOICE: Final = sqlalchemy.text(
 
 
 async def issue_invoice(
-    conn: AsyncConnection, *, issued_on: dt.date | None, id: int
+    connection: AsyncConnection, *, issued_on: dt.date | None, id: int
 ) -> int:
     return (
-        await conn.execute(_ISSUE_INVOICE, {"issued_on": issued_on, "id": id})
+        await connection.execute(_ISSUE_INVOICE, {"issued_on": issued_on, "id": id})
     ).rowcount
 
 
@@ -235,7 +246,7 @@ class AddLineItemsParams:
 
 
 async def add_line_items(
-    conn: AsyncConnection, rows: Iterable[AddLineItemsParams]
+    connection: AsyncConnection, rows: Iterable[AddLineItemsParams]
 ) -> None:
     params = [
         {
@@ -248,7 +259,7 @@ async def add_line_items(
         for r in rows
     ]
     if params:
-        await conn.execute(_ADD_LINE_ITEMS, params)
+        await connection.execute(_ADD_LINE_ITEMS, params)
 
 
 _LIST_LINE_ITEMS: Final = sqlalchemy.text(
@@ -257,11 +268,13 @@ _LIST_LINE_ITEMS: Final = sqlalchemy.text(
 
 
 async def list_line_items(
-    conn: AsyncConnection, *, invoice_id: int
+    connection: AsyncConnection, *, invoice_id: int
 ) -> list[models.LineItem]:
     return [
         models.LineItem.from_row(row)
-        for row in await conn.execute(_LIST_LINE_ITEMS, {"invoice_id": invoice_id})
+        for row in await connection.execute(
+            _LIST_LINE_ITEMS, {"invoice_id": invoice_id}
+        )
     ]
 
 
@@ -283,14 +296,16 @@ class ListCustomerLinesRow:
         return cls(id=row[0], number=row[1], description=row[2])
 
 
-async def list_customer_lines(conn: AsyncConnection) -> list[ListCustomerLinesRow]:
+async def list_customer_lines(
+    connection: AsyncConnection,
+) -> list[ListCustomerLinesRow]:
     """Every customer, with each line of an invoice of theirs, or none: what
     stands left of the RIGHT JOIN may be without a row, though sqlc reports
     the columns of a join there NOT NULL.
     """
     return [
         ListCustomerLinesRow.from_row(row)
-        for row in await conn.execute(_LIST_CUSTOMER_LINES)
+        for row in await connection.execute(_LIST_CUSTOMER_LINES)
     ]
 
 
@@ -299,8 +314,8 @@ SET total = (SELECT CAST(COALESCE(SUM(quantity * unit_price), 0) AS DECIMAL(12, 
 WHERE id = :id""")
 
 
-async def recalculate_total(conn: AsyncConnection, *, id: int) -> None:
-    await conn.execute(_RECALCULATE_TOTAL, {"id": id})
+async def recalculate_total(connection: AsyncConnection, *, id: int) -> None:
+    await connection.execute(_RECALCULATE_TOTAL, {"id": id})
 
 
 _DELETE_DRAFT_INVOICES: Final = sqlalchemy.text(
@@ -309,6 +324,8 @@ _DELETE_DRAFT_INVOICES: Final = sqlalchemy.text(
 
 
 async def delete_draft_invoices(
-    conn: AsyncConnection, *, customer_id: int
+    connection: AsyncConnection, *, customer_id: int
 ) -> sqlalchemy.CursorResult[Any]:
-    return await conn.execute(_DELETE_DRAFT_INVOICES, {"customer_id": customer_id})
+    return await connection.execute(
+        _DELETE_DRAFT_INVOICES, {"customer_id": customer_id}
+    )

@@ -1,23 +1,13 @@
-"""PostgreSQL's part of the type-truth probe: each mapped type, at its edges,
-per driver.
+"""PostgreSQL's part of the type-truth probe.
 
-Every type in the generator's map (``TYPES`` in
-``src/engine/postgresql/types.rs``) has a column in ``examples/pgtypes``,
-and an array column unless arrays of
-it are an error (a Rust spec holds this), and that schema has no column of a
-type outside the map, or it would not generate. So its columns are the map:
-each type, at each array depth a column has, is probed with the annotation
-the generator wrote for it. Then each of ``EDGES`` (NULL, the extremes, NaN and
-infinities, empty and unicode values) is selected through psycopg, psycopg
-async and asyncpg, alone and inside arrays as deep as a column has, and:
-
-- the value must inhabit the annotation exactly (``deep.check``), or the
-  driver must raise: a value outside the annotation is a **mismatch**, and
-  fails ``cargo xtask verify``. JSON, annotated ``object``, which every value
-  inhabits, must also be the decoded document;
-- the value is bound back through the same driver, and PostgreSQL must read it
-  as the value it sent; when not, the edge is **lossy** (``'1 mon'`` comes back
-  as 30 days), a property of the driver worth knowing, not a wrong annotation.
+Every type in the generator's map (``TYPES`` in ``src/engine/postgresql/types.rs``) has a column in
+``examples/pgtypes``, and an array column unless arrays of it are an error (a Rust spec holds this), and that schema
+cannot have a column of a type outside the map or it would not generate. So its columns are the map. We select each of
+``EDGES`` through psycopg, psycopg async and asyncpg, alone and inside arrays as deep as a column has, and the value must
+inhabit the annotation exactly (``deep.check``) or the driver must raise. JSON is annotated ``object``, which every value inhabits, so it must
+also be the decoded document. We then bind the value back through the same driver, and when PostgreSQL does not read it
+as the value it sent, the edge is **lossy** (``'1 mon'`` comes back as 30 days): a property of the driver worth knowing,
+not a wrong annotation.
 """
 
 from __future__ import annotations
@@ -39,14 +29,12 @@ from suite.deep import failure, strip_none
 from typemap_probe import Probe, Section, describe, raised, short, versions
 
 SCHEMA = EXAMPLES / "pgtypes/schema.sql"
-# The generated models of that schema, which the probe reads every type through.
-PGTYPES = "pgtypes_sqlalchemy"
+PGTYPES = "pgtypes_sqlalchemy"  # The generated models of that schema, which we read every type through
 # Each driver as the document names it, and as SQLAlchemy does.
 DRIVERS = {"psycopg": "psycopg", "psycopg async": "psycopg_async", "asyncpg": "asyncpg"}
-# The session's TimeZone. Not UTC, which would hide what a driver does with it.
-TIMEZONE = "Europe/Amsterdam"
+TIMEZONE = "Europe/Amsterdam"  # Not UTC, as that would hide what a driver does with the session's TimeZone
 
-# SQL expressions at the edges of each type's domain.
+# NULL, the extremes, NaN and infinities, empty and unicode values of each type, as SQL expressions.
 EDGES: dict[str, tuple[str, ...]] = {
     "bool": ("true", "false"),
     "int2": ("-32768", "32767"),
@@ -110,32 +98,33 @@ Typed = tuple[Pg, Probe]
 
 
 def spelt(pg: Pg) -> str:
-    """The type as SQL names it: ``int4[]``."""
+    """Spell the type as SQL names it: ``int4[]``."""
     return pg.name + "[]" * pg.dims
 
 
 def probe(server: sqlalchemy.URL) -> Section:
-    """Probe every type of a column of the generated pgtypes models, at every
-    array depth a column has. Enums are the runtime suite's.
+    """Probe every type of a column of the generated pgtypes models, at every array depth a column has.
+
+    We leave enums out, as the runtime suite proves those.
     """
     models = importlib.import_module(f"{PGTYPES}.models")
     with database(server, SCHEMA.read_text()) as url:
         engine = sqlalchemy.create_engine(url.set(drivername="postgresql+psycopg"))
-        with engine.connect() as conn:
-            # For every connection after this one.
-            conn.exec_driver_sql(
-                f"ALTER DATABASE {url.database} SET timezone = '{TIMEZONE}'"
-            )
-            conn.commit()
+        with engine.connect() as connection:
+            # On the database, so that every connection after this one has it too.
+            connection.exec_driver_sql(f"ALTER DATABASE {url.database} SET timezone = '{TIMEZONE}'")
+            connection.commit()
+
             annotations: dict[tuple[str, int], object] = {}
-            for t in tables(conn, models):
-                if t.model is None:
-                    # Its types would otherwise go unprobed, and the verdict stay ok.
-                    message = f"{PGTYPES}: no one model reads the table {t.sql}"
+            for table in tables(connection, models):
+                # Its types would otherwise go unprobed, and the verdict would stay ok!
+                if table.model is None:
+                    message = f"{PGTYPES}: no one model reads the table {table.sql}"
                     raise LookupError(message)
-                hints = typing.get_type_hints(t.model).values()
-                for column, hint in zip(t.columns, hints, strict=True):
-                    if column.pg.labels:
+
+                hints = typing.get_type_hints(table.model).values()
+                for column, hint in zip(table.columns, hints, strict=True):
+                    if len(column.pg.labels) > 0:
                         continue
                     key = (column.pg.name, column.pg.dims)
                     annotation = strip_none(hint)[0]
@@ -143,51 +132,48 @@ def probe(server: sqlalchemy.URL) -> Section:
                         message = f"{PGTYPES}: {column.pg.name} is annotated two ways"
                         raise LookupError(message)
         engine.dispose()
+
         probes = [
             (pg, Probe(spelt(pg), annotation))
             for pg, annotation in (
-                (Pg(name, dims), annotation)
-                for (name, dims), annotation in sorted(annotations.items())
+                (Pg(name, dims), annotation) for (name, dims), annotation in sorted(annotations.items())
             )
         ]
         for driver in DRIVERS:
             asyncio.run(_drive(url, driver, probes))
-        # Only the server's major version, so that a patch release of the
-        # image does not change the document.
+
+        # Only the server's major version, so that a patch release of the image does not change the document.
         major = postgres.version(server).split(".", maxsplit=1)[0]
         return Section(
             "PostgreSQL",
-            f"PostgreSQL {major}, session TimeZone {TIMEZONE}, with"
-            f" {versions('psycopg', 'asyncpg')}",
+            f"PostgreSQL {major}, session TimeZone {TIMEZONE}, with {versions('psycopg', 'asyncpg')}",
             tuple(DRIVERS),
-            [p for _, p in probes],
+            [probe for _, probe in probes],
         )
 
 
 async def _drive(url: sqlalchemy.URL, driver: str, probes: list[Typed]) -> None:
     url = url.set(drivername=f"postgresql+{DRIVERS[driver]}")
     is_async = url.drivername != "postgresql+psycopg"
-    engine: Any = (
-        create_async_engine(url) if is_async else sqlalchemy.create_engine(url)
-    )
+    engine: Any = create_async_engine(url) if is_async else sqlalchemy.create_engine(url)
     try:
-        conn = await aw(engine.connect())
-        for pg, p in probes:
-            p.seen[driver] = set()
+        connection = await aw(engine.connect())
+        for pg, probe in probes:
+            probe.seen[driver] = set()
             if pg.name not in EDGES:
-                p.notes["-"][driver] = "MISMATCH: no edge values to probe"
+                probe.notes["-"][driver] = "MISMATCH: no edge values to probe"
             for edge, sql in expressions(pg):
-                if note := await _edge(conn, (pg, p), driver, edge, sql):
-                    p.notes[edge][driver] = note
-        await aw(conn.close())
+                if (note := await _edge(connection, (pg, probe), driver, edge, sql)) != "":
+                    probe.notes[edge][driver] = note
+        await aw(connection.close())
     finally:
         await aw(engine.dispose())
 
 
 def expressions(pg: Pg) -> list[tuple[str, str]]:
-    """Each edge of a type, and the SQL that selects it: alone, or in an
-    array as deep as the type's (NULL and empty arrays too, but never a NULL
-    item: see "Known limitations" in docs/python-output.md).
+    """Each edge of a type and the SQL that selects it, alone or in an array as deep as the type's.
+
+    That includes NULL and empty arrays, but never a NULL item (see "Known limitations" in docs/python-output.md).
     """
 
     def nested(sql: str) -> str:
@@ -196,68 +182,64 @@ def expressions(pg: Pg) -> list[tuple[str, str]]:
         return sql
 
     # A `\:` keeps SQLAlchemy from reading a colon in a literal as a bind.
-    edges = [
-        (edge, nested(f"({edge.replace(':', chr(92) + ':')})::{pg.name}"))
-        for edge in EDGES.get(pg.name, ())
-    ]
-    empty = [("{}", f"'{{}}'::{spelt(pg)}")] if pg.dims else []
+    edges = [(edge, nested(f"({edge.replace(':', chr(92) + ':')})::{pg.name}")) for edge in EDGES.get(pg.name, ())]
+    empty = [("{}", f"'{{}}'::{spelt(pg)}")] if pg.dims > 0 else []
     return [("NULL", f"NULL::{spelt(pg)}"), *empty, *edges]
 
 
-async def _edge(conn: Any, probed: Typed, driver: str, edge: str, sql: str) -> str:
-    """Select one edge, check it, bind it back; say what was notable."""
-    pg, p = probed
-    # JSON is also selected as the text of the document it holds.
+async def _edge(connection: Any, probed: Typed, driver: str, edge: str, sql: str) -> str:
+    """Select one edge, check it and bind it back, and return what was notable (empty when nothing was)."""
+    pg, probe = probed
+
+    # We also select JSON as the text of the document it holds.
     is_json = pg.name in {"json", "jsonb"}
     columns = f"{sql}, to_json({sql})::text" if is_json else sql
-    transaction = await aw(conn.begin())
+    transaction = await aw(connection.begin())
     try:
-        # A range is read through SQLAlchemy's type, as the generated code
-        # does (§6, typed statements).
+        # We read a range through SQLAlchemy's type, as the generated code does (§6, typed statements).
         text = sqlalchemy.text(f"SELECT {columns}")
         ranged = sqlalchemy_type(pg)
         typed = text if ranged is None else text.columns(sqlalchemy.column("v", ranged))
         try:
-            result = await aw(conn.execute(typed))
+            result = await aw(connection.execute(typed))
             value, *document = result.one()
         except Exception as error:  # noqa: BLE001 -- what a driver raises is the observation
             return f"raises {raised(error)}"
         if edge == "NULL":
             return "" if value is None else f"MISMATCH: NULL read as {value!r}"
         if value is not None:
-            p.seen[driver].add(describe(value))
-        if wrong := failure(value, p.annotation) or _undecoded(value, document):
+            probe.seen[driver].add(describe(value))
+        if wrong := failure(value, probe.annotation) or _undecoded(value, document):
             return f"MISMATCH: {wrong}"
-        return await _round_trip(conn, pg, sql, value)
+        return await _round_trip(connection, pg, sql, value)
     finally:
         await aw(transaction.rollback())
 
 
 def _undecoded(value: object, document: list[str]) -> str | None:
-    """Say how a JSON value is not the ``document`` it holds, if it is not:
-    ``object`` admits undecoded text as readily as the decoded document.
+    """Say how a JSON value is not the ``document`` it holds, as ``object`` admits undecoded text as readily as the
+    decoded document.
     """
-    if not document:
+    if len(document) <= 0:
         return None
+
     decoded = json.loads(document[0])
-    # `1e400` decodes as infinity, which is equal by `repr` only.
+    # `1e400` decodes as infinity, which is only equal by `repr`!
     return None if repr(value) == repr(decoded) else f"{value!r} is not {decoded!r}"
 
 
-async def _round_trip(conn: Any, pg: Pg, sql: str, value: object) -> str:
-    """Bind ``value`` back; empty if PostgreSQL reads what it sent."""
-    # JSON is compared as `jsonb`: `json` keeps the text it was given verbatim.
+async def _round_trip(connection: Any, pg: Pg, sql: str, value: object) -> str:
+    """Bind ``value`` back, and return empty when PostgreSQL reads what it sent."""
+    # We compare JSON as `jsonb`, as `json` keeps the text it was given verbatim.
     own = spelt(pg)
     text = own.replace("json", "jsonb") if pg.name == "json" else own
-    cast = sqlalchemy.text(
-        f"SELECT ({sql})::{text}::text, CAST(:v AS {own})::{text}::text"
-    )
+    cast = sqlalchemy.text(f"SELECT ({sql})::{text}::text, CAST(:v AS {own})::{text}::text")
     if pg.name in {"json", "jsonb"}:
         cast = cast.bindparams(sqlalchemy.bindparam("v", type_=json_type(pg)))
     elif (ranged := sqlalchemy_type(pg)) is not None:
         cast = cast.bindparams(sqlalchemy.bindparam("v", type_=ranged))
     try:
-        sent, back = (await aw(conn.execute(cast, {"v": value}))).one()
+        sent, back = (await aw(connection.execute(cast, {"v": value}))).one()
     except Exception as error:  # noqa: BLE001 -- what a driver raises is the observation
         return f"binding back raises {raised(error)}"
     return "" if sent == back else f"lossy: {short(sent)} comes back as {short(back)}"

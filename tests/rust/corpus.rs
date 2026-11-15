@@ -1,58 +1,41 @@
-//! The corpus sweep: every request sqlc's own test suite produces, under every
-//! option profile, must either generate sound Python or fail cleanly.
+//! The corpus sweep: every request sqlc's own test suite produces (`tests/sqlc/endtoend/`, from `cargo xtask capture`),
+//! under every profile of its `profiles.json`, must either generate sound Python or fail cleanly. Nothing here knows
+//! what the output should be, the golden tests pin that for a few curated cases. Instead every output must hold what
+//! any correct output holds:
 //!
-//! The requests are `tests/sqlc/endtoend/` (`cargo xtask capture`) and the
-//! profiles `tests/sqlc/endtoend/profiles.json`. Nothing here knows what the output
-//! *should* be — the golden tests pin that for a few curated cases. Instead
-//! every output must satisfy properties that hold of any correct output:
-//!
-//! - generating never panics, and generating twice gives identical results;
-//! - the files are exactly `__init__.py`, `models.py` and one module per
-//!   query file, each a distinct path inside the output
-//!   directory, and each module UTF-8;
+//! - generating never panics, and generating twice gives the same result;
+//! - the files are exactly `__init__.py`, `models.py` and one module per query file, each a distinct path inside the
+//!   output directory, and each valid UTF-8;
 //! - every module parses, and ruff's formatter leaves it unchanged;
 //! - its only comments are the header it opens with;
-//! - every name a module binds is unique in its scope and public;
-//! - but for the prelude a query module holds, to the letter, where its
-//!   library's stubs need one, and nowhere else: PyMySQL's connection, by a
-//!   private name, and asyncmy's untyped methods, as a private protocol
-//!   that annotates with `Any`;
+//! - every name a module binds is unique in its scope and public, except for the prelude a query module holds where
+//!   its library's stubs need one, to the letter and nowhere else: PyMySQL's connection under a private name, and
+//!   asyncmy's untyped methods as a private protocol that annotates with `Any`;
 //! - every name a module reads on import is bound by then;
-//! - no annotation mentions `Any`, but a driver row's, a psycopg
-//!   connection's and `:execresult`'s;
-//! - every class but an enum and an error is exactly a frozen,
-//!   slotted, keyword-only dataclass, and no field has a default;
-//! - the models are one enum per catalog enum, its members its labels in
-//!   order, each named after its label, and one dataclass per table, its
-//!   fields its columns' names in order, optional exactly when the column
-//!   admits NULL and lists exactly as deep; its `from_row` reads each from
-//!   its own position;
-//! - each query module holds one statement and one function per query, in
-//!   sqlc's order. Each function takes `conn`, annotated as the backend's
-//!   connection, first, then every SQL parameter keyword-only, nothing with a
-//!   default, and is `async def` exactly when asked; its parameters and
-//!   result fields are named after sqlc's, and they, or its bare result, are
-//!   optional exactly when sqlc says, and lists exactly as deep; it executes
-//!   its own statement once, binding each parameter as itself (under its
-//!   name, or in its placeholder's place), and does nothing else with `conn`;
-//!   a `Row`'s `from_row` reads each field from its own place, an embed from
-//!   a contiguous slice; it returns a model exactly when the result is that
-//!   table's columns; and its statement is exactly sqlc's SQL, as written for
-//!   a driver, or once through SQLAlchemy's own expressions;
-//! - every docstring is the comment of what it documents, and every comment
-//!   is one: a table's, column's, enum's or query's.
+//! - no annotation mentions `Any`, except a driver row's, a psycopg connection's and `:execresult`'s;
+//! - every class but an enum and an error is exactly a frozen, slotted, keyword-only dataclass, and no field has a
+//!   default;
+//! - the models are one enum per catalog enum, with its labels as members in order and each named after its label,
+//!   and one dataclass per table, with its columns as fields in order, each optional exactly when the column admits
+//!   NULL and a list exactly as deep as its array, and a `from_row` that reads each field from its own position;
+//! - each query module holds one statement and one function per query, in sqlc's order. Each function takes
+//!   `connection` first, annotated as the backend's connection, then every SQL parameter keyword-only, none with a
+//!   default, and is `async def` exactly when asked. Its parameters and result fields are named after sqlc's, and
+//!   they (or its bare result) are optional exactly when sqlc says and lists exactly as deep. It executes its own
+//!   statement once, binding each parameter as itself (by name, or in its placeholder's place), and does nothing else
+//!   with `connection`. A `Row`'s `from_row` reads each field from its own place, an embed from a contiguous slice.
+//!   It returns a model exactly when the result is that table's columns, and its statement is exactly sqlc's SQL, as
+//!   written for a driver, or after one pass through SQLAlchemy's own bind expressions;
+//! - every docstring is the comment of what it documents, and every comment (a table's, column's, enum's or
+//!   query's) is a docstring.
 //!
-//! [`support::check_output`] checks all but the first, each of which
-//! `invariants.rs` specifies with a planted bug; the first is checked here.
+//! [`support::check_output`] checks all but the first, which is checked here, and `invariants.rs` plants a bug for
+//! each of them.
 //!
-//! An error is an allowed outcome — sqlc accepts features we do not support yet —
-//! as long as it is an `Err`, not a panic. Which requests generate and which do
-//! not is recorded in `tests/sqlc/endtoend/ledger.tsv`, with a hash of the output, so a
-//! change in either shows up in review: the test fails until the ledger is
-//! re-blessed with `cargo xtask bless`.
-//!
-//! Every distinct output is also handed to `cargo xtask check`, which runs the
-//! Python toolchain over it (see [`support::export`]).
+//! An error is an allowed outcome, as sqlc accepts features we do not support yet, as long as it is an `Err` and not
+//! a panic. `tests/sqlc/endtoend/ledger.tsv` records which requests generate and which do not, with a hash of the
+//! output, so a change in either shows up in review: this test fails until `cargo xtask bless` rewrites the ledger.
+//! Every distinct output is also handed to `cargo xtask check`, which runs the Python toolchain over it.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -65,20 +48,20 @@ use sqlc_gen_python::{generate, plugin};
 
 use crate::support;
 
-/// One ledger row's key: a request (relative to `tests/sqlc/endtoend`) and a profile.
+/// A request, relative to `tests/sqlc/endtoend`, and a profile.
 type Key = (String, String);
 
 #[test]
 fn every_request_generates_sound_python_or_fails_cleanly() {
     let corpus = support::root().join("tests/sqlc/endtoend");
-    let profiles: BTreeMap<String, serde_json::Value> =
-        support::read_json(&corpus.join("profiles.json"));
+    let profiles: BTreeMap<String, serde_json::Value> = support::read_json(&corpus.join("profiles.json"));
 
-    // Sequential: the whole sweep takes about half a second in a debug build.
+    // We sweep sequentially as the whole corpus takes about half a second in a debug build.
     let mut ledger = BTreeMap::new();
     let mut violations = String::new();
-    // Many requests generate the same output: each is exported once, as the
-    // package of the first row with it, which `packages` lists for every row.
+
+    // Many requests generate the same output, so we export each output once, as the package of the first row that
+    // has it, and `packages` maps every row to that package.
     let mut exported = BTreeMap::new();
     let mut packages = String::from("request\tprofile\tpackage\n");
     for path in requests(&corpus) {
@@ -108,31 +91,22 @@ fn every_request_generates_sound_python_or_fails_cleanly() {
     }
     assert!(violations.is_empty(), "\n{violations}");
 
-    if let Some(dir) = support::gen_dir() {
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("packages.tsv"), packages).unwrap();
+    if let Some(directory) = support::gen_dir() {
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("packages.tsv"), packages).unwrap();
     }
     check_ledger(&corpus.join("ledger.tsv"), &ledger);
 }
 
 /// What generating one request under one profile did, breaking no invariant.
 enum Outcome {
-    /// It generated `files`, which hash to `sha8`.
-    Generated {
-        sha8: String,
-        files: Vec<plugin::File>,
-    },
-    /// It failed cleanly, for this reason.
+    Generated { sha8: String, files: Vec<plugin::File> },
     Failed(String),
 }
 
-/// Generates one request under one profile: its outcome, or every invariant
-/// it broke.
-fn sweep(
-    request: &plugin::GenerateRequest,
-    options: &serde_json::Value,
-) -> Result<Outcome, Vec<String>> {
-    // What sqlc itself sends: the options, and the codegen entry they came from.
+/// Generates `request` under one profile's options, and returns every invariant it broke as the error.
+fn sweep(request: &plugin::GenerateRequest, options: &serde_json::Value) -> Result<Outcome, Vec<String>> {
+    // We build the request the way sqlc itself sends it: the options, plus the codegen entry they came from.
     let request = plugin::GenerateRequest {
         plugin_options: serde_json::to_vec(options).unwrap(),
         settings: Some(plugin::Settings {
@@ -169,6 +143,7 @@ fn sweep(
     if !problems.is_empty() {
         return Err(problems);
     }
+
     let mut digest = Sha256::new();
     for file in &files {
         digest.update(format!("{}\0{}\0", file.name, file.contents.len()));
@@ -180,12 +155,10 @@ fn sweep(
     })
 }
 
-/// Fails if the outcomes differ from the committed ledger, listing every
-/// transition and counting them by kind (`ok -> error`, ...).
-///
-/// For `cargo xtask bless`, the new ledger goes to `GEN_DIR/ledger.tsv`, and the
-/// transitions that lose output (`ok -> error`, `... -> (none)`) to
-/// `GEN_DIR/regressions`, which bless refuses unless told otherwise.
+/// Fails if the outcomes differ from the committed ledger, listing every transition and counting them by kind
+/// (`ok -> error`, ...). For `cargo xtask bless` we write the new ledger to `GEN_DIR/ledger.tsv`, and the transitions
+/// that lose output (`ok -> error`, `... -> (none)`) to `GEN_DIR/regressions`, which bless refuses unless told
+/// otherwise.
 fn check_ledger(path: &Path, outcomes: &BTreeMap<Key, String>) {
     let rendered: String = std::iter::once("request\tprofile\toutcome\tsha8\n".to_string())
         .chain(
@@ -213,25 +186,23 @@ fn check_ledger(path: &Path, outcomes: &BTreeMap<Key, String>) {
         if before == after {
             continue;
         }
-        let show =
-            |outcome: Option<&String>| outcome.map_or("(none)".into(), |o| o.replace('\t', " "));
+        let show = |outcome: Option<&String>| outcome.map_or("(none)".into(), |o| o.replace('\t', " "));
         let row = format!("{request} [{profile}]: {} -> {}", show(before), show(after));
         let (from, to) = (kind(before), kind(after));
         if (from == "ok" && to != "ok") || to == "(none)" {
             writeln!(regressions, "{row}").unwrap();
         }
         let changed = if from == to { " (output changed)" } else { "" };
-        *by_kind
-            .entry(format!("{from} -> {to}{changed}"))
-            .or_default() += 1;
+        *by_kind.entry(format!("{from} -> {to}{changed}")).or_default() += 1;
         transitions.push(row);
     }
 
-    if let Some(dir) = support::gen_dir() {
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("ledger.tsv"), &rendered).unwrap();
-        fs::write(dir.join("regressions"), &regressions).unwrap();
+    if let Some(directory) = support::gen_dir() {
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("ledger.tsv"), &rendered).unwrap();
+        fs::write(directory.join("regressions"), &regressions).unwrap();
     }
+
     let counts: Vec<String> = (by_kind.iter())
         .map(|(kind, count)| format!("{count:>6}  {kind}"))
         .collect();
@@ -245,7 +216,6 @@ fn check_ledger(path: &Path, outcomes: &BTreeMap<Key, String>) {
     );
 }
 
-/// What a ledger outcome amounts to: `ok`, `error` or `(none)`.
 fn kind(outcome: Option<&String>) -> &'static str {
     match outcome {
         None => "(none)",
@@ -254,7 +224,6 @@ fn kind(outcome: Option<&String>) -> &'static str {
     }
 }
 
-/// Every distinct request `MANIFEST.tsv` names.
 fn requests(corpus: &Path) -> Vec<String> {
     let manifest = fs::read_to_string(corpus.join("MANIFEST.tsv")).expect("reading MANIFEST.tsv");
     let requests: BTreeSet<String> = (manifest.lines().skip(1))
@@ -266,9 +235,8 @@ fn requests(corpus: &Path) -> Vec<String> {
     requests.into_iter().collect()
 }
 
-/// The package an output is checked as: its request and profile, spelled as a
-/// Python identifier (`a/b/request.managed-db.json`, `async` becomes
-/// `corpus__a__b__request_managed_db__async`).
+/// The package an output is checked as: its request and profile spelled as a Python identifier, so
+/// `a/b/request.managed-db.json` under `async` becomes `corpus__a__b__request_managed_db__async`.
 fn package(request: &str, profile: &str) -> String {
     let request = request.trim_end_matches(".json").replace('/', "__");
     format!("corpus__{request}__{profile}").replace(['.', '-'], "_")

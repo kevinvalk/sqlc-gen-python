@@ -9,9 +9,7 @@ cargo xtask capture  # re-capture tests/sqlc/ from the pinned sqlc (network)
 cargo wasm           # build the plugin
 ```
 
-`cargo xtask` is the [xtask convention](https://github.com/matklad/cargo-xtask):
-these commands are the Rust program in `xtask/`. The Python side runs through
-[uv](https://docs.astral.sh/uv/).
+`cargo xtask` is the [xtask convention](https://github.com/matklad/cargo-xtask): these commands are the Rust program in `xtask/`. The Python side runs through [uv](https://docs.astral.sh/uv/).
 
 | Path | |
 |---|---|
@@ -22,8 +20,7 @@ these commands are the Rust program in `xtask/`. The Python side runs through
 | `tests/python/` | type-checks and runs the generated code |
 | `docs/python-output.md` | what the plugin generates, rule by rule |
 
-To see what the plugin makes of one statement, have sqlc write the request
-it sends, with its own `json` codegen, and run the plugin on it:
+To see what the plugin makes of one statement, let sqlc write the request it sends with its own `json` codegen, and run the plugin on that:
 
 ```yaml
 # sqlc.yaml, beside a schema.sql and a query.sql
@@ -90,64 +87,30 @@ src/
     pymysql.rs       PyMySQL and asyncmy, as a `dbapi::Driver` that takes `%s`
 ```
 
-- **engine**: the database (`engine:`): its type map, where its placeholders
-  are, and what its SQL says of a result that sqlc does not report.
-- **backend**: the Python library (`backend:`): how a statement is written and
-  run, and the few types its drivers disagree on.
-- **api**: everything else, decided once. It asks the engine and the backend
-  what only they know, and fails there for whatever they cannot do; `render`
-  after it only writes, and cannot fail.
+- **engine**: the database (`engine:`): its type map, where its placeholders are, and what its SQL says of a result that sqlc does not report.
+- **backend**: the Python library (`backend:`): how a statement is written and run, and the few types its drivers disagree on.
+- **api**: everything else, decided once. It asks the engine and the backend what only they know and fails there for whatever they cannot do, so `render` after it only writes and cannot fail.
 
-Where sqlc's report is not enough (`engine/select.rs`), the plugin reads the
-SQL's tokens, and answers only what they prove: what it cannot read is the
-answer that widens a type (a column that may be NULL, a row that may be
-missing), never the one that narrows it. A change there is tried against
-real statements first: sqlc's request for one, as above, shows what the
-plugin makes of it.
+Where sqlc's report is not enough (`engine/select.rs`), we read the SQL's tokens and answer only what they prove. Whatever we cannot read gets the answer that widens a type (a column that may be NULL, a row that may be missing), never the one that narrows it. Try a change there on real statements first: sqlc's request for one, as above, shows what the plugin makes of it.
 
-Generated Python is never written as text: every expression and statement is
-built as a ruff AST node (`python/syntax.rs`), so a construct that is not
-Python does not compile, and schema data can only ever be a name or a string.
-A name generated code reads or binds itself (`cur`, `Sequence`, `from_row`)
-is a constant of `python/vocabulary.rs`, which reads as the name it is:
-`CUR.attr("execute").call([statement])`. What is still spelt where it is used
-is a library's own member (`"execute"`), in the backend that calls it.
-What is text is what a tree cannot hold: the comments that open a file (the
-header, and `# ruff: noqa: S105` where a statement's name would trip it), the
-blank line between import sections, and how a docstring or a multi-line SQL
-string is spelt. The plugin parses Python in two places: an override's
-`python_type`, which is the user's, and each module it has unparsed, to find
-those strings and for ruff to format.
+We never write generated Python as text. Every expression and statement is a ruff AST node (`python/syntax.rs`), so a construct that is not Python does not compile, and schema data can only ever end up as a name or a string. A name the generated code reads or binds itself (`cur`, `Sequence`, `from_row`) is a constant in `python/vocabulary.rs`, so it reads as the name it is: `CUR.attr("execute").call([statement])`. Only a library's own member (`"execute"`) is spelled where it is used, in the backend that calls it.
 
-`Engine` and `Backend` answer each question with a `match` that names every
-variant, so a new one makes the compiler list what it must answer. Each
-module's rules are specified in a `_spec.rs` beside it.
+What a tree cannot hold is the one part that is text: the comments that open a file (the header, and `# ruff: noqa: S105` where a statement's name would trip it), the blank line between import sections, and how a docstring or a multi-line SQL string is spelled. We parse Python in two places only: an override's `python_type`, which is the user's, and each module we unparsed, to find those strings and for ruff to format.
+
+`Engine` and `Backend` answer each question with a `match` that names every variant, so adding one makes the compiler list everything it has to answer. The rules of each module are specified in a `_spec.rs` beside it.
 
 ## Releasing
 
-Every commit on `main` that passes CI is published as the `unstable`
-prerelease, which moves with `main`. A version:
+Every commit on `main` that passes CI is published as the `unstable` prerelease, which moves with `main`. To release a version:
 
-1. Set `version` in `Cargo.toml`, run `cargo xtask bless` (every generated
-   file's header names the version), and get it all onto `main` with CI
-   green.
+1. Set `version` in `Cargo.toml`, run `cargo xtask bless` (the header of every generated file names the version), and get it all onto `main` with CI green.
 2. `git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z`
 
-`release.yml` reruns CI on the tag and publishes the WASM, `SHA256SUMS`, a
-build attestation and the notes in `.github/release-notes.md`.
+`release.yml` reruns CI on the tag and publishes the WASM, `SHA256SUMS`, a build attestation and the notes in `.github/release-notes.md`.
 
-Renovate (`.github/renovate.json5`) bumps what is pinned by name: the
-actions, the crates of `Cargo.toml`, the toolchain, the packages of
-`tests/python`, the uv CI runs, ruff (the crates' tag and the Python pin
-together), sqlc and the databases. What only a lock file names (a dependency's
-own dependencies) moves when what needs it does. Each release waits a week,
-then is merged into `main` once CI passes on its branch, and so into
-`unstable`. One that fails becomes a pull request, to finish by hand:
+Renovate (`.github/renovate.json5`) bumps what is pinned by name: the actions, the crates of `Cargo.toml`, the toolchain, the packages of `tests/python`, the uv CI runs, ruff (the crates' tag and the Python pin together), sqlc and the databases. What only a lock file names (a dependency's own dependencies) moves when what needs it does. Each release waits a week, then is merged into `main` once CI passes on its branch, and so into `unstable`. One that fails becomes a pull request, to finish by hand:
 
-- sqlc: `cargo xtask capture`, and `POSTGRES` in `tests/python/capture.py` to
-  the version sqlc's own tests run;
-- ruff: `cargo update` for the crates' new tag, then `cargo xtask bless` if
-  the formatter writes anything differently;
-- PostgreSQL or MySQL, or a driver's minor release (the document names
-  each to its minor): `cargo xtask verify` to rewrite `docs/typemap.md`;
+- sqlc: `cargo xtask capture`, and `POSTGRES` in `tests/python/capture.py` to the version sqlc's own tests run;
+- ruff: `cargo update` for the crates' new tag, then `cargo xtask bless` if the formatter writes anything differently;
+- PostgreSQL or MySQL, or a driver's minor release (the document names each to its minor): `cargo xtask verify` to rewrite `docs/typemap.md`;
 - a uv minor: widen `required-version` in `tests/python/pyproject.toml`.

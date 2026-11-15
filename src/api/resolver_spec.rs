@@ -1,5 +1,3 @@
-//! Specification for overrides and renames.
-
 use super::*;
 use crate::api::Api;
 use crate::api::fixtures::catalog::*;
@@ -8,8 +6,7 @@ use crate::api::fixtures::*;
 /// The options `{"backend": "sqlalchemy", "async": false, ...json}`.
 fn options(json: &str) -> Config {
     let request = plugin::GenerateRequest {
-        plugin_options: format!(r#"{{"backend": "sqlalchemy", "async": false, {json}}}"#)
-            .into_bytes(),
+        plugin_options: format!(r#"{{"backend": "sqlalchemy", "async": false, {json}}}"#).into_bytes(),
         ..plugin::GenerateRequest::default()
     };
     Config::from_request(&request).unwrap()
@@ -39,11 +36,7 @@ fn an_override_names_the_type_of_a_column_or_of_every_column_of_a_type() {
             "public",
             vec![table(
                 "items",
-                vec![
-                    column("id", "pg_catalog.int8", true),
-                    path.clone(),
-                    label.clone(),
-                ],
+                vec![column("id", "pg_catalog.int8", true), path.clone(), label.clone()],
             )],
             vec![],
         )]
@@ -83,15 +76,11 @@ fn an_override_is_an_annotation_whose_every_name_can_be_imported() {
     }
     let both = r#""overrides": [{"db_type": "x", "column": "t.c", "python_type": "str"}]"#;
     let request = plugin::GenerateRequest {
-        plugin_options: format!(r#"{{"backend": "sqlalchemy", "async": false, {both}}}"#)
-            .into_bytes(),
+        plugin_options: format!(r#"{{"backend": "sqlalchemy", "async": false, {both}}}"#).into_bytes(),
         ..plugin::GenerateRequest::default()
     };
     let error = format!("{:#}", Config::from_request(&request).unwrap_err());
-    assert!(
-        error.contains("exactly one of db_type and column"),
-        "{error}"
-    );
+    assert!(error.contains("exactly one of db_type and column"), "{error}");
 }
 
 #[test]
@@ -113,11 +102,7 @@ fn a_rename_names_a_class_or_a_field() {
     )
     .unwrap();
     assert_eq!(api.models[0].name, "Media");
-    let names: Vec<&str> = api.models[0]
-        .fields
-        .iter()
-        .map(|f| f.name.as_str())
-        .collect();
+    let names: Vec<&str> = api.models[0].fields.iter().map(|f| f.name.as_str()).collect();
     assert_eq!(names, ["id", "spotify_link"]);
 }
 
@@ -139,16 +124,12 @@ fn an_override_is_written_as_ruff_writes_it() {
 #[test]
 fn an_override_that_has_none_is_optional_once() {
     // A JSON column holds `null` whether or not it is nullable.
-    let config =
-        options(r#""overrides": [{"db_type": "jsonb", "python_type": "dict[str, int] | None"}]"#);
+    let config = options(r#""overrides": [{"db_type": "jsonb", "python_type": "dict[str, int] | None"}]"#);
     let nullable = plugin::Column {
         not_null: false,
         ..column("maybe", "jsonb", true)
     };
-    let schemas = public(vec![table(
-        "items",
-        vec![column("always", "jsonb", true), nullable],
-    )]);
+    let schemas = public(vec![table("items", vec![column("always", "jsonb", true), nullable])]);
     let api = resolve_options(schemas, &config).unwrap();
     assert_eq!(
         annotations(&api),
@@ -169,9 +150,7 @@ fn an_override_names_only_types_generated_code_can_import_as_written() {
             .into_bytes(),
             ..plugin::GenerateRequest::default()
         };
-        Config::from_request(&request)
-            .err()
-            .map(|e| format!("{e:#}"))
+        Config::from_request(&request).err().map(|e| format!("{e:#}"))
     };
     for (bad, problem) in [
         ("numpy.typing.NDArray[numpy.float64]", "ICN001"),
@@ -201,12 +180,7 @@ fn an_override_names_only_types_generated_code_can_import_as_written() {
 
 #[test]
 fn an_override_or_rename_that_matches_nothing_is_an_error() {
-    let schemas = || {
-        public(vec![table(
-            "items",
-            vec![column("id", "pg_catalog.int8", true)],
-        )])
-    };
+    let schemas = || public(vec![table("items", vec![column("id", "pg_catalog.int8", true)])]);
     for (json, problem) in [
         (
             r#""overrides": [{"db_type": "vectr", "python_type": "str"}]"#,
@@ -218,10 +192,7 @@ fn an_override_or_rename_that_matches_nothing_is_an_error() {
         ),
         (r#""rename": {"itms": "Thing"}"#, "rename: \"itms\""),
     ] {
-        let error = format!(
-            "{:#}",
-            resolve_options(schemas(), &options(json)).unwrap_err()
-        );
+        let error = format!("{:#}", resolve_options(schemas(), &options(json)).unwrap_err());
         assert!(error.contains(problem), "{json}: {error}");
     }
 }
@@ -265,23 +236,12 @@ fn an_override_replaces_no_array_of_enums() {
 #[test]
 fn a_class_is_capwords_and_hides_no_builtin() {
     let error = |schemas: Vec<plugin::Schema>, json: &str| {
-        format!(
-            "{:#}",
-            resolve_options(schemas, &options(json)).unwrap_err()
-        )
+        format!("{:#}", resolve_options(schemas, &options(json)).unwrap_err())
     };
-    let warnings = || {
-        public(vec![table(
-            "warnings",
-            vec![column("id", "pg_catalog.int8", true)],
-        )])
-    };
+    let warnings = || public(vec![table("warnings", vec![column("id", "pg_catalog.int8", true)])]);
     assert!(error(warnings(), r#""rename": {}"#).contains("`Warning` is not a usable"));
     let renamed = error(warnings(), r#""rename": {"warnings": "warning_row"}"#);
-    assert!(
-        renamed.contains("`warning_row` is not a usable"),
-        "{renamed}"
-    );
+    assert!(renamed.contains("`warning_row` is not a usable"), "{renamed}");
 }
 
 #[test]
@@ -330,10 +290,7 @@ fn a_rows_field_hides_an_overrides_module_as_a_models_does_and_a_lone_column_doe
 #[test]
 fn a_bare_db_type_override_names_the_default_schemas_type_too() {
     // sqlc reports an extension's type created in `public` as `public.vector`.
-    let schemas = public(vec![table(
-        "items",
-        vec![column("v", "public.vector", true)],
-    )]);
+    let schemas = public(vec![table("items", vec![column("v", "public.vector", true)])]);
     let config = options(r#""overrides": [{"db_type": "vector", "python_type": "str"}]"#);
     let api = resolve_options(schemas, &config).unwrap();
     assert_eq!(annotations(&api), [("v".into(), "str".into())]);
@@ -344,17 +301,10 @@ fn a_rename_of_a_tables_singular_is_no_rename_of_the_table() {
     // `author` names a column; the table `authors` keeps its class.
     let schemas = public(vec![table(
         "authors",
-        vec![
-            column("id", "pg_catalog.int8", true),
-            column("author", "text", true),
-        ],
+        vec![column("id", "pg_catalog.int8", true), column("author", "text", true)],
     )]);
     let api = resolve_options(schemas, &options(r#""rename": {"author": "writer"}"#)).unwrap();
     assert_eq!(api.models[0].name, "Author");
-    let fields: Vec<&str> = api.models[0]
-        .fields
-        .iter()
-        .map(|f| f.name.as_str())
-        .collect();
+    let fields: Vec<&str> = api.models[0].fields.iter().map(|f| f.name.as_str()).collect();
     assert_eq!(fields, ["id", "writer"]);
 }

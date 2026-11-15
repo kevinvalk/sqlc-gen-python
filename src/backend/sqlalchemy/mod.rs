@@ -1,7 +1,3 @@
-//! SQLAlchemy Core: each statement a `sqlalchemy.text()` constant, run on a
-//! `sqlalchemy.Connection` or an `AsyncConnection` (`docs/python-output.md`
-//! §6).
-
 pub mod text;
 
 use anyhow::{Result, bail};
@@ -11,53 +7,47 @@ use crate::api::models::{Field, FieldType};
 use crate::api::queries::{Command, Query, Shape};
 use crate::engine::Engine;
 use crate::python::vocabulary::{
-    ANY, ASYNC_CONNECTION, CONN, DICT, LIST, MODELS, PARAMS, POSTGRESQL, R, ROW, ROWS, SQLALCHEMY,
-    STR, VALUE, VALUES,
+    ANY, ASYNC_CONNECTION, CONNECTION, DICT, LIST, MODELS, PARAMS, POSTGRESQL, R, ROW, ROWS, SQLALCHEMY, STR, VALUE,
+    VALUES,
 };
 use crate::python::{
-    Expression, Json, Scope, Type, ann_assign, assign, dict, each, expression, for_, if_, keyword,
-    list, list_of, name, return_, starred, stmts, string, true_, unless_none,
+    Expression, Json, Scope, Type, ann_assign, assign, dict, each, expression, for_, if_, keyword, list, list_of, name,
+    return_, starred, stmts, string, true_, unless_none,
 };
 
-/// An error for what SQLAlchemy cannot run faithfully: a placeholder `text()`
-/// would not bind ([`text::check`]), and a count of a MERGE. SQLAlchemy reads
-/// asyncpg's row count off the command tag, with an expression that knows no
-/// `MERGE n`, so it would be -1 there and the real count on psycopg.
 pub fn check(engine: Engine, query: &Query) -> Result<()> {
     text::check(&query.sql)?;
-    let cmd = match query.command {
+
+    // SQLAlchemy reads asyncpg's row count off the command tag, with an expression that knows no `MERGE n`. So a count
+    // of a MERGE would be -1 on asyncpg and the real count on psycopg!
+    let command = match query.command {
         Command::ExecRows => ":execrows",
         Command::ExecResult => ":execresult",
         _ => return Ok(()),
     };
     if engine.merges(&query.sql.text()) {
         bail!(
-            "{cmd} counts -1 rows for a MERGE on asyncpg, whose row count SQLAlchemy cannot read, \
+            "{command} counts -1 rows for a MERGE on asyncpg, whose row count SQLAlchemy cannot read, \
              and the real count on psycopg; use :exec"
         );
     }
     Ok(())
 }
 
-/// `sqlalchemy.text(...)`, typed only where a driver needs it (§6, "On SQLAlchemy",
-/// rule 4):
-/// each JSON parameter binds through SQLAlchemy's JSON type, each
-/// `sqlc.slice` expands to a placeholder per item, and each column of enum
-/// arrays loads through an `ARRAY` of the enum, without which psycopg returns
-/// the array's text.
+/// `sqlalchemy.text(...)`, typed only where a driver needs it (`docs/python-output.md` §6, "On SQLAlchemy", rule 4): a
+/// JSON parameter binds through SQLAlchemy's JSON type, a `sqlc.slice` expands to a placeholder per item, and a column
+/// of enum arrays loads through an `ARRAY` of the enum, as psycopg would return the array's text.
 ///
-/// The columns are typed by position, every one of them, as SQLAlchemy matches
-/// a positional list: by name, it would miss a column PostgreSQL names
-/// differently from sqlc (`coalesce`), and cannot compile an empty one. The
-/// names are the fields', which SQLAlchemy then ignores.
+/// We type the columns by position, every one of them, as SQLAlchemy then matches a positional list. By name it would
+/// miss a column PostgreSQL names differently from sqlc (`coalesce`), and it cannot compile an empty name. The names we
+/// pass are the fields', which SQLAlchemy ignores.
 pub fn statement(query: &Query) -> ast::Expr {
     let mut statement = (SQLALCHEMY.attr("text")).call([string(&text::text(&query.sql))]);
-    let json =
-        |class: &str| (POSTGRESQL.attr(class)).call_with([], [keyword("none_as_null", true_())]);
+    let json = |class: &str| (POSTGRESQL.attr(class)).call_with([], [keyword("none_as_null", true_())]);
     let binds: Vec<ast::Expr> = (query.params.iter())
-        .filter_map(|param| {
-            let how = match (&param.ty.element, param.ty.element.json()) {
-                _ if query.sql.is_slice(&param.name) => keyword("expanding", true_()),
+        .filter_map(|parameter| {
+            let how = match (&parameter.ty.element, parameter.ty.element.json()) {
+                _ if query.sql.is_slice(&parameter.name) => keyword("expanding", true_()),
                 (_, Some(Json::Json)) => keyword("type_", json("JSON")),
                 (_, Some(Json::Jsonb)) => keyword("type_", json("JSONB")),
                 (
@@ -69,7 +59,7 @@ pub fn statement(query: &Query) -> ast::Expr {
                 ) => keyword("type_", POSTGRESQL.attr(sql_type)),
                 _ => return None,
             };
-            Some((SQLALCHEMY.attr("bindparam")).call_with([string(&param.name)], [how]))
+            Some((SQLALCHEMY.attr("bindparam")).call_with([string(&parameter.name)], [how]))
         })
         .collect();
     if !binds.is_empty() {
@@ -79,18 +69,14 @@ pub fn statement(query: &Query) -> ast::Expr {
     if types.iter().all(Option::is_none) {
         return statement;
     }
-    let columns = (query.columns.iter().zip(types)).map(|(column, ty)| {
-        (SQLALCHEMY.attr("column")).call(std::iter::once(string(&column.name)).chain(ty))
-    });
+    let columns = (query.columns.iter().zip(types))
+        .map(|(column, ty)| (SQLALCHEMY.attr("column")).call(std::iter::once(string(&column.name)).chain(ty)));
     statement.attr("columns").call(columns)
 }
 
-/// The Python type of a column of PostgreSQL's `pg_type` that SQLAlchemy decides,
-/// whatever the driver: a range, as SQLAlchemy's `Range`; an `hstore`, as a
-/// `dict`.
+/// The types SQLAlchemy decides whatever the driver: a range as SQLAlchemy's `Range`, and an `hstore` as a `dict`.
 pub fn scalar_type(pg_type: &str) -> Option<Type> {
-    // SQLAlchemy registers psycopg's `hstore` codec, and parses asyncpg's
-    // text, through its own type.
+    // SQLAlchemy registers psycopg's `hstore` codec and parses asyncpg's text through its own type
     if pg_type == "hstore" {
         return Some(Type::Library {
             annotation: DICT.index_each(vec![STR.into(), STR.or_none()]),
@@ -104,9 +90,8 @@ pub fn scalar_type(pg_type: &str) -> Option<Type> {
     })
 }
 
-/// The SQLAlchemy type a column loads through, if a driver needs one: an
-/// array of enums, or a type of SQLAlchemy's own class, as the class, which
-/// SQLAlchemy instantiates (SQLAlchemy 2.0's `HSTORE()` is untyped).
+/// The SQLAlchemy type a column loads through, if a driver needs one. We pass a type of SQLAlchemy's own class as the
+/// class, which SQLAlchemy instantiates, as SQLAlchemy 2.0's `HSTORE()` is untyped.
 fn column_type(column: &Field) -> Option<ast::Expr> {
     match (&column.ty.element, column.ty.array_dims) {
         (Type::Enum(class), 1..) => {
@@ -124,7 +109,6 @@ fn column_type(column: &Field) -> Option<ast::Expr> {
     }
 }
 
-/// The annotation of the connection the queries run on.
 pub fn connection(asynchronous: bool) -> ast::Expr {
     match asynchronous {
         true => ASYNC_CONNECTION.into(),
@@ -132,30 +116,28 @@ pub fn connection(asynchronous: bool) -> ast::Expr {
     }
 }
 
-/// `sqlalchemy.CursorResult[Any]`: what an `:execresult` returns.
+/// What an `:execresult` returns.
 pub fn result() -> ast::Expr {
     SQLALCHEMY.attr("CursorResult").index(ANY)
 }
 
-/// The body of a query's function: one execution of its statement, the
-/// result shaped by its command (§6, "Functions"). A batch executes once per
-/// row, collecting each result.
+/// One execution of the statement, with the result shaped by the command (`docs/python-output.md` §6, "Functions"). A
+/// batch executes once per row and collects each result.
 pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
     let rows = query.takes.rows();
-    // A batch binds each row's values, `r.p`; at once, as `params`, if it
-    // returns nothing.
+
+    // A batch binds each row's values (`r.p`), but all at once as `params` if it returns nothing
     let values = match (rows, &query.command, query.params.is_empty()) {
         (true, Command::Exec, _) => Some(PARAMS.into()),
         (false, _, true) => None,
         _ => Some(named(query)),
     };
-    let executed = (CONN.attr("execute"))
+    let executed = (CONNECTION.attr("execute"))
         .call(std::iter::once(name(&query.constant)).chain(values))
         .awaited(asynchronous);
 
-    // What a run returns: the statements that compute it, and the value.
     let (lines, value) = match &query.command {
-        // Nothing to execute for no rows.
+        // We execute nothing for no rows, as SQLAlchemy raises on an empty list (`docs/python-output.md` §6)
         Command::Exec if rows => {
             return stmts![
                 assign(PARAMS, list_of(named(query), each(R, ROWS))),
@@ -167,7 +149,7 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
         Command::ExecLastId => (vec![], executed.attr("lastrowid")),
         Command::ExecResult => (vec![], executed),
         Command::One(Shape::Scalar(ty)) => {
-            // Without a row, `None`: the value then may be one.
+            // Without a row the value is `None`
             let (ty, method) = match query.raises {
                 true => (ty.clone(), "scalar_one"),
                 false => (
@@ -179,8 +161,7 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
                 ),
             };
             let one = executed.attr(method).call([]);
-            // The row's value is `Any`: the annotated local states the type
-            // the value would leak, unless it is converted.
+            // The row's value is `Any`, so we annotate a local to state the type, unless we convert it anyway
             let line = match ty.converts() {
                 false => ann_assign(VALUE, ty.annotation(Scope::Queries), one),
                 true => assign(VALUE, one),
@@ -210,19 +191,16 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
         true => vec![return_(list_of(value, per_row))],
         false => stmts![
             ann_assign(VALUES, super::returns(query, result), list(vec![])),
-            for_(
-                per_row,
-                stmts![lines, expression(VALUES.attr("append").call([value]))],
-            ),
+            for_(per_row, stmts![lines, expression(VALUES.attr("append").call([value]))],),
             return_(VALUES),
         ],
     }
 }
 
-/// The parameters by name, each read as the function takes it: `{"id": id}`.
+/// `{"id": id}`
 fn named(query: &Query) -> ast::Expr {
     let items = (query.params.iter())
-        .map(|p| (string(&p.name), super::value(query, &p.name)))
+        .map(|parameter| (string(&parameter.name), super::value(query, &parameter.name)))
         .collect();
     dict(items)
 }

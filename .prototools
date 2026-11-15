@@ -1,6 +1,5 @@
 sqlc = "1.31.1"
 
-# At a commit, not a branch: what a plugin says decides which binary is
-# downloaded and run.
+# Pinned to a commit and not a branch, as the plugin decides which binary is downloaded and run
 [plugins.tools]
 sqlc = "https://raw.githubusercontent.com/jamesukiyo/proto-plugins/27f04f3299b6aaf44863f01869f358f7661b44e9/sqlc.toml"

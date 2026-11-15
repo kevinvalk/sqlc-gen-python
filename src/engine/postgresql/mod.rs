@@ -1,6 +1,3 @@
-//! PostgreSQL: the Python type each of its column types maps to, and how its
-//! lexer reads a statement.
-
 mod lexer;
 mod types;
 

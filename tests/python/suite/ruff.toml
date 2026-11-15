@@ -1,9 +1,13 @@
-# Test code: the developer scripts' rules, plus what pytest idiom needs.
+# Test code follows the developer scripts' rules, plus what pytest idiom needs.
 extend = "../ruff.toml"
 
 [lint]
 extend-ignore = [
-  "INP001",  # a pytest directory, not a package
-  "PLR2004", # expected values are literals on purpose
-  "S101",    # pytest asserts
+  "INP001",  # A pytest directory, not a package
+  "PLR2004", # Expected values are literals on purpose
+  "S101",    # Pytest asserts
 ]
+
+[format]
+# The gate holds usage.py to the generated code's contract, whose width is the formatter's default.
+exclude = ["usage.py"]

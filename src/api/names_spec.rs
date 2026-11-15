@@ -1,5 +1,3 @@
-//! Specification for the Python names of SQL names in one scope.
-
 use super::*;
 use crate::api::fixtures::catalog::*;
 use crate::api::fixtures::*;
@@ -8,14 +6,9 @@ use crate::config::Config;
 use crate::plugin;
 
 fn try_field_names(columns: &[&str]) -> Result<Vec<String>> {
-    let columns = columns
-        .iter()
-        .map(|name| column(name, "text", true))
-        .collect();
+    let columns = columns.iter().map(|name| column(name, "text", true)).collect();
     let resolved = try_resolve(public(vec![table("t", columns)]))?;
-    Ok((resolved.models[0].fields.iter())
-        .map(|f| f.name.clone())
-        .collect())
+    Ok((resolved.models[0].fields.iter()).map(|f| f.name.clone()).collect())
 }
 
 fn field_names(columns: &[&str]) -> Vec<String> {
@@ -29,9 +22,7 @@ fn try_member_names(values: &[&str]) -> Result<Vec<String>> {
         comment: String::new(),
     };
     let resolved = try_resolve(vec![sql_schema("public", vec![], vec![sql_enum])])?;
-    Ok((resolved.enums[0].members.iter())
-        .map(|m| m.name.clone())
-        .collect())
+    Ok((resolved.enums[0].members.iter()).map(|m| m.name.clone()).collect())
 }
 
 #[test]
@@ -45,20 +36,15 @@ fn a_field_is_the_snake_case_spelling_of_its_column() {
 #[test]
 fn a_column_named_like_a_keyword_takes_a_trailing_underscore() {
     // PEP 8's convention; `class: str` would not parse.
-    assert_eq!(
-        field_names(&["class", "if", "None"]),
-        ["class_", "if_", "none"]
-    );
+    assert_eq!(field_names(&["class", "if", "None"]), ["class_", "if_", "none"]);
 }
 
 #[test]
 fn a_column_named_like_a_name_generated_code_reads_takes_a_trailing_underscore() {
-    // docs/python-output.md §3, rule 1, written out rather than read from
-    // `RESERVED`, so a name dropped from it fails here. In a class body,
-    // `str: str` makes every later `str` annotation mean the field to mypy and
-    // pyright, and `classmethod` the decorator of `from_row`; every module the
-    // generated code imports is a name it reads, and `conn`, `row` and `value`
-    // are its locals.
+    // We write out docs/python-output.md §3, rule 1 here instead of reading `RESERVED`, so a name dropped from it
+    // fails. In a class body `str: str` makes every later `str` annotation mean the field to mypy and pyright (and
+    // `classmethod` the decorator of `from_row`), every module the generated code imports is a name it reads, and
+    // `connection`, `row` and `value` are its locals.
     let reserved = [
         "dataclasses",
         "dt",
@@ -69,7 +55,7 @@ fn a_column_named_like_a_name_generated_code_reads_takes_a_trailing_underscore()
         "bool",
         "bytes",
         "classmethod",
-        "conn",
+        "connection",
         "float",
         "from_row",
         "int",
@@ -81,10 +67,9 @@ fn a_column_named_like_a_name_generated_code_reads_takes_a_trailing_underscore()
     ];
     let renamed: Vec<String> = reserved.iter().map(|name| format!("{name}_")).collect();
     assert_eq!(field_names(&reserved), renamed);
-    // Classes are imported by their PascalCase name, which a snake_case field
-    // cannot take, so `uuid` and `decimal` are free; `id` is §3, rule 2.
-    // And `rows` is a parameter only of a function whose others are a
-    // record's fields.
+    // Classes are imported by their PascalCase name, which a snake_case field cannot take, so `uuid` and `decimal` are
+    // free; `id` is §3, rule 2. And `rows` is only a parameter of a function whose other parameters are a record's
+    // fields.
     assert_eq!(
         field_names(&["uuid", "decimal", "datetime", "id", "rows"]),
         ["uuid", "decimal", "datetime", "id", "rows"]
@@ -101,10 +86,7 @@ fn a_column_sqlc_left_unnamed_is_named_by_position_as_sqlc_does() {
 fn a_column_with_no_usable_spelling_is_an_error_naming_it() {
     for name in ["?!", "1st", "größe", "ﬁle"] {
         let error = error_of(try_field_names(&["id", name, "file"]));
-        assert!(
-            error.contains(&format!("\"{name}\" does not become")),
-            "{error}"
-        );
+        assert!(error.contains(&format!("\"{name}\" does not become")), "{error}");
     }
 }
 
@@ -123,23 +105,8 @@ fn columns_that_spell_alike_are_an_error_not_a_silent_rename() {
 #[test]
 fn an_enum_member_is_its_labels_words_in_upper_snake_case() {
     assert_eq!(
-        try_member_names(&[
-            "direct-debit",
-            "a/b:c",
-            "inProgress",
-            "in shock",
-            "x.y",
-            "v1"
-        ])
-        .unwrap(),
-        [
-            "DIRECT_DEBIT",
-            "A_B_C",
-            "IN_PROGRESS",
-            "IN_SHOCK",
-            "X_Y",
-            "V1"
-        ]
+        try_member_names(&["direct-debit", "a/b:c", "inProgress", "in shock", "x.y", "v1"]).unwrap(),
+        ["DIRECT_DEBIT", "A_B_C", "IN_PROGRESS", "IN_SHOCK", "X_Y", "V1"]
     );
     // A separator at either end separates nothing.
     assert_eq!(try_member_names(&["_x_", "-a"]).unwrap(), ["X", "A"]);

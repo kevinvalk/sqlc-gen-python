@@ -1,7 +1,3 @@
-//! SQLite's tokenizer (`tokenize.c`), as far as finding sqlc's placeholders
-//! needs it: what is code and what is a string, a quoted identifier or a
-//! comment.
-
 use anyhow::{Result, bail};
 
 use crate::engine::{Bind, Engine, Sql, cut};
@@ -10,11 +6,9 @@ use crate::engine::{Bind, Engine, Sql, cut};
 #[path = "lexer_spec.rs"]
 mod spec;
 
-/// `text` cut at its placeholders, as [`cut`] names them. sqlc writes a
-/// parameter as `?`, or `?N` where one is used again; SQLite numbers a `?`
-/// one past the largest number before it. A named parameter (`:name`,
-/// `@name`, `$name`) is an error: sqlc rewrites each one it reads, and a
-/// driver binds positions.
+/// sqlc writes a parameter as `?`, or as `?N` where one is used again, and SQLite numbers a `?` one past the largest
+/// number before it. A named parameter (`:name`, `@name`, `$name`) is an error, as sqlc rewrites each one it reads and
+/// a driver binds positions.
 pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
     let chars: Vec<char> = text.chars().collect();
     let mut placeholders = Vec::new();
@@ -27,7 +21,7 @@ pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
             }
             ['?', ref digits @ ..] => {
                 let digits: String = digits.iter().collect();
-                // sqlc numbers parameters from 1, far below `i32::MAX`.
+                // sqlc numbers parameters from 1, so an overflow is no parameter of its and `cut` reports it
                 let number = digits.parse().unwrap_or(i32::MAX);
                 largest = largest.max(number);
                 placeholders.push((start..end, number));
@@ -42,43 +36,36 @@ pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
     cut(&chars, placeholders.into_iter(), params, Engine::Sqlite)
 }
 
-/// Whether `name` is one identifier to SQLite, unquoted.
 pub fn is_identifier(name: &str) -> bool {
     let mut chars = name.chars();
     chars.next().is_some_and(starts_identifier) && chars.all(continues_identifier)
 }
 
-/// A character SQLite starts an identifier with: an ASCII letter, `_`, or
-/// any character outside ASCII.
 fn starts_identifier(c: char) -> bool {
     c.is_ascii_alphabetic() || c == '_' || !c.is_ascii()
 }
 
-/// A character SQLite continues an identifier with: one it starts one with,
-/// a digit, or `$`.
 fn continues_identifier(c: char) -> bool {
     starts_identifier(c) || c.is_ascii_digit() || c == '$'
 }
 
-/// The text of each token of `sql`, as [`tokens`] scans it.
 pub fn words(sql: &[char]) -> Vec<String> {
     (tokens(sql).into_iter())
         .map(|(start, end)| sql[start..end].iter().collect())
         .collect()
 }
 
-/// The start and end of each token of `sql`, scanned as SQLite's tokenizer
-/// does, leaving out whitespace and comments: `--` to the end of the line, and
-/// `/* ... */`, which does not nest. A string `'...'` and a quoted identifier
-/// (`"..."`, `` `...` ``, `[...]`) are one token, a quote doubled inside
-/// continuing one. A word or a number is read whole, and so is a placeholder
-/// or a variable: `?` and its digits, or `:`, `@` or `$` and an identifier's
+/// The start and end of each token of `sql` as SQLite's tokenizer (`tokenize.c`) scans them, without whitespace and
+/// comments. We only need enough of it to tell code from strings, quoted identifiers and comments.
+///
+/// A comment is `--` to the end of the line, or a `/* ... */` that does not nest. A string (`'...'`) and a quoted
+/// identifier (`"..."`, `` `...` ``, `[...]`) are one token, a quote doubled inside continuing one. A word or a number
+/// is read whole, and so is a placeholder or a variable: `?` and its digits, or `:`, `@` or `$` and an identifier's
 /// characters.
 fn tokens(sql: &[char]) -> Vec<(usize, usize)> {
-    let run = |from: usize, continues: fn(char) -> bool| {
-        from + sql[from..].iter().take_while(|&&c| continues(c)).count()
-    };
-    // Just past the quote that closes the one at `i`, a doubled one continuing.
+    let run =
+        |from: usize, continues: fn(char) -> bool| from + sql[from..].iter().take_while(|&&c| continues(c)).count();
+    // Just past the quote that closes the one at `i`, a doubled one continuing (but never a doubled `]`)
     let quoted = |i: usize, close: char| {
         let mut j = i + 1;
         loop {
@@ -106,9 +93,7 @@ fn tokens(sql: &[char]) -> Vec<(usize, usize)> {
             [quote @ ('\'' | '"' | '`'), ..] => (quoted(i, quote), true),
             ['[', ..] => (quoted(i, ']'), true),
             ['?', ..] => (run(i + 1, |c| c.is_ascii_digit()), true),
-            [':' | '@' | '$', c, ..] if continues_identifier(c) => {
-                (run(i + 1, continues_identifier), true)
-            }
+            [':' | '@' | '$', c, ..] if continues_identifier(c) => (run(i + 1, continues_identifier), true),
             [c, ..] if continues_identifier(c) => (run(i, continues_identifier), true),
             _ => (i + 1, true),
         };

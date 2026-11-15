@@ -1,5 +1,3 @@
-//! Specification for singularising table names.
-
 use super::*;
 
 #[test]

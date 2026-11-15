@@ -16,9 +16,9 @@ _LIST_SCALARS: Final = "SELECT c_hstore, c_bit, c_varbit, c_point, c_line, c_lse
 
 
 async def list_scalars(
-    conn: psycopg.AsyncConnection[Any], *, limit: int
+    connection: psycopg.AsyncConnection[Any], *, limit: int
 ) -> list[models.Scalar]:
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_SCALARS, (limit,))
         return [models.Scalar.from_row(row) for row in await cur.fetchall()]
 
@@ -35,7 +35,7 @@ _ADD_SCALARS: Final = """INSERT INTO scalars (
 
 
 async def add_scalars(
-    conn: psycopg.AsyncConnection[Any],
+    connection: psycopg.AsyncConnection[Any],
     *,
     c_hstore: str | None,
     c_bit: str | None,
@@ -59,7 +59,7 @@ async def add_scalars(
     c_tsrange: Range[dt.datetime] | None,
     c_tstzrange: Range[dt.datetime] | None,
 ) -> None:
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(
             _ADD_SCALARS,
             (

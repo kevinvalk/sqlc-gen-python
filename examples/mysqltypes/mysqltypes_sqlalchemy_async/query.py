@@ -18,10 +18,12 @@ _LIST_SCALARS: Final = sqlalchemy.text(
 )
 
 
-async def list_scalars(conn: AsyncConnection, *, limit: int) -> list[models.Scalar]:
+async def list_scalars(
+    connection: AsyncConnection, *, limit: int
+) -> list[models.Scalar]:
     return [
         models.Scalar.from_row(row)
-        for row in await conn.execute(_LIST_SCALARS, {"limit": limit})
+        for row in await connection.execute(_LIST_SCALARS, {"limit": limit})
     ]
 
 
@@ -39,7 +41,7 @@ _ADD_SCALARS: Final = sqlalchemy.text("""INSERT INTO scalars (
 
 
 async def add_scalars(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
     *,
     c_bool: bool | None,
     c_tinyint: int | None,
@@ -76,7 +78,7 @@ async def add_scalars(
     c_timestamp: dt.datetime | None,
     c_time: dt.timedelta | None,
 ) -> None:
-    await conn.execute(
+    await connection.execute(
         _ADD_SCALARS,
         {
             "c_bool": c_bool,
@@ -133,8 +135,10 @@ class ListDerivedRow:
         return cls(filled=bool(row[0]), as_signed=row[1])
 
 
-async def list_derived(conn: AsyncConnection) -> list[ListDerivedRow]:
+async def list_derived(connection: AsyncConnection) -> list[ListDerivedRow]:
     """What sqlc types otherwise than a column: a comparison is its `bool`, a
     cast to an integer its `bigint signed`.
     """
-    return [ListDerivedRow.from_row(row) for row in await conn.execute(_LIST_DERIVED)]
+    return [
+        ListDerivedRow.from_row(row) for row in await connection.execute(_LIST_DERIVED)
+    ]

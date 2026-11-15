@@ -19,7 +19,7 @@ RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, c
 
 
 def create_customer(
-    conn: psycopg.Connection[Any],
+    connection: psycopg.Connection[Any],
     *,
     name: str,
     email: str | None,
@@ -28,7 +28,7 @@ def create_customer(
     accepted_methods: list[models.BillingPaymentMethod],
     metadata: object | None,
 ) -> models.Customer:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(
             _CREATE_CUSTOMER,
             (
@@ -52,8 +52,8 @@ def create_customer(
 _GET_CUSTOMER: Final = "SELECT id, name, email, tags, preferred_method, accepted_methods, metadata, created_at FROM customers WHERE id = $1"
 
 
-def get_customer(conn: psycopg.Connection[Any], *, id: UUID) -> models.Customer:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+def get_customer(connection: psycopg.Connection[Any], *, id: UUID) -> models.Customer:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_CUSTOMER, (id,))
         match cur.fetchmany(2):
             case [row]:
@@ -68,10 +68,10 @@ _GET_CUSTOMER_BY_NAME: Final = "SELECT id, name, email, tags, preferred_method, 
 
 
 def get_customer_by_name(
-    conn: psycopg.Connection[Any], *, name: str
+    connection: psycopg.Connection[Any], *, name: str
 ) -> models.Customer:
     """Names are not unique: more than one match is an error, never a guess."""
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_CUSTOMER_BY_NAME, (name,))
         match cur.fetchmany(2):
             case [row]:
@@ -86,9 +86,9 @@ _GET_CUSTOMER_ID_BY_EMAIL: Final = "SELECT id FROM customers WHERE email = $1"
 
 
 def get_customer_id_by_email(
-    conn: psycopg.Connection[Any], *, email: str | None
+    connection: psycopg.Connection[Any], *, email: str | None
 ) -> UUID:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_CUSTOMER_ID_BY_EMAIL, (email,))
         match cur.fetchmany(2):
             case [row]:
@@ -106,10 +106,10 @@ _GET_ACCEPTED_METHODS: Final = (
 
 
 def get_accepted_methods(
-    conn: psycopg.Connection[Any], *, id: UUID
+    connection: psycopg.Connection[Any], *, id: UUID
 ) -> list[models.BillingPaymentMethod]:
     """PostgreSQL names this column `coalesce`, and sqlc `accepted_methods`."""
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_ACCEPTED_METHODS, (id,))
         match cur.fetchmany(2):
             case [row]:
@@ -139,10 +139,10 @@ class CompareAcceptedMethodsRow:
 
 
 def compare_accepted_methods(
-    conn: psycopg.Connection[Any], *, first: UUID, second: UUID
+    connection: psycopg.Connection[Any], *, first: UUID, second: UUID
 ) -> CompareAcceptedMethodsRow:
     """Two columns of one name, as when merging two customers."""
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_COMPARE_ACCEPTED_METHODS, (first, second))
         match cur.fetchmany(2):
             case [row]:
@@ -157,10 +157,10 @@ _UPDATE_CUSTOMER_EMAIL: Final = "UPDATE customers SET email = $1 WHERE id = $2"
 
 
 def update_customer_email(
-    conn: psycopg.Connection[Any], *, email: str | None, id: UUID
+    connection: psycopg.Connection[Any], *, email: str | None, id: UUID
 ) -> int:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
-        with conn.pipeline():
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
+        with connection.pipeline():
             cur.execute(_UPDATE_CUSTOMER_EMAIL, (email, id))
         return cur.rowcount
 
@@ -171,10 +171,10 @@ ORDER BY name"""
 
 
 def search_customers(
-    conn: psycopg.Connection[Any], *, query: str
+    connection: psycopg.Connection[Any], *, query: str
 ) -> list[models.Customer]:
     """Case-insensitive search on name or email."""
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_SEARCH_CUSTOMERS, (query,))
         return [models.Customer.from_row(row) for row in cur.fetchall()]
 
@@ -184,8 +184,10 @@ _LIST_CUSTOMER_NAMES_BY_TAG: Final = (
 )
 
 
-def list_customer_names_by_tag(conn: psycopg.Connection[Any], *, tag: str) -> list[str]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+def list_customer_names_by_tag(
+    connection: psycopg.Connection[Any], *, tag: str
+) -> list[str]:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_CUSTOMER_NAMES_BY_TAG, (tag,))
         return [row[0] for row in cur.fetchall()]
 
@@ -204,8 +206,10 @@ class ListVipCustomersRow:
         return cls(id=row[0], name=row[1], email=row[2])
 
 
-def list_vip_customers(conn: psycopg.Connection[Any]) -> list[ListVipCustomersRow]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+def list_vip_customers(
+    connection: psycopg.Connection[Any],
+) -> list[ListVipCustomersRow]:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_VIP_CUSTOMERS)
         return [ListVipCustomersRow.from_row(row) for row in cur.fetchall()]
 
@@ -214,9 +218,9 @@ _LIST_PREFERRED_METHODS: Final = "SELECT preferred_method FROM customers ORDER B
 
 
 def list_preferred_methods(
-    conn: psycopg.Connection[Any],
+    connection: psycopg.Connection[Any],
 ) -> list[models.BillingPaymentMethod | None]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_PREFERRED_METHODS)
         return [
             None if row[0] is None else models.BillingPaymentMethod(row[0])

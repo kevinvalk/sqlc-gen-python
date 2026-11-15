@@ -20,7 +20,7 @@ RETURNING id, invoice_id, method, amount, "from", received_at""")
 
 
 def record_payment(
-    conn: sqlalchemy.Connection,
+    connection: sqlalchemy.Connection,
     *,
     invoice_id: UUID,
     method: models.BillingPaymentMethod,
@@ -29,7 +29,7 @@ def record_payment(
     received_at: dt.datetime,
 ) -> models.BillingPayment:
     return models.BillingPayment.from_row(
-        conn.execute(
+        connection.execute(
             _RECORD_PAYMENT,
             {
                 "invoice_id": invoice_id,
@@ -48,11 +48,11 @@ ORDER BY received_at""")
 
 
 def list_payments_by_methods(
-    conn: sqlalchemy.Connection, *, methods: list[models.BillingPaymentMethod]
+    connection: sqlalchemy.Connection, *, methods: list[models.BillingPaymentMethod]
 ) -> list[models.BillingPayment]:
     return [
         models.BillingPayment.from_row(row)
-        for row in conn.execute(_LIST_PAYMENTS_BY_METHODS, {"methods": methods})
+        for row in connection.execute(_LIST_PAYMENTS_BY_METHODS, {"methods": methods})
     ]
 
 
@@ -66,10 +66,10 @@ _LIST_INVOICE_PAYMENT_METHODS: Final = sqlalchemy.text("""SELECT ARRAY(
 
 
 def list_invoice_payment_methods(
-    conn: sqlalchemy.Connection, *, invoice_id: UUID
+    connection: sqlalchemy.Connection, *, invoice_id: UUID
 ) -> list[models.BillingPaymentMethod]:
     """An unnamed column: PostgreSQL names it `array`, and sqlc nothing."""
-    value = conn.execute(
+    value = connection.execute(
         _LIST_INVOICE_PAYMENT_METHODS, {"invoice_id": invoice_id}
     ).scalar_one()
     return [models.BillingPaymentMethod(v) for v in value]
@@ -81,11 +81,13 @@ _LIST_INVOICE_BALANCES: Final = sqlalchemy.text(
 
 
 def list_invoice_balances(
-    conn: sqlalchemy.Connection, *, customer_id: UUID
+    connection: sqlalchemy.Connection, *, customer_id: UUID
 ) -> list[models.InvoiceBalance]:
     return [
         models.InvoiceBalance.from_row(row)
-        for row in conn.execute(_LIST_INVOICE_BALANCES, {"customer_id": customer_id})
+        for row in connection.execute(
+            _LIST_INVOICE_BALANCES, {"customer_id": customer_id}
+        )
     ]
 
 
@@ -108,7 +110,7 @@ class ListCustomerPaymentsRow:
 
 
 def list_customer_payments(
-    conn: sqlalchemy.Connection,
+    connection: sqlalchemy.Connection,
 ) -> list[ListCustomerPaymentsRow]:
     """Every customer, with each payment of an invoice of theirs, or none: what
     stands left of the RIGHT JOIN may be without a row, though sqlc reports
@@ -116,7 +118,7 @@ def list_customer_payments(
     """
     return [
         ListCustomerPaymentsRow.from_row(row)
-        for row in conn.execute(_LIST_CUSTOMER_PAYMENTS)
+        for row in connection.execute(_LIST_CUSTOMER_PAYMENTS)
     ]
 
 
@@ -137,11 +139,13 @@ class ListCustomersIssuedRow:
         return cls(name=row[0], number=row[1])
 
 
-def list_customers_issued(conn: sqlalchemy.Connection) -> list[ListCustomersIssuedRow]:
+def list_customers_issued(
+    connection: sqlalchemy.Connection,
+) -> list[ListCustomersIssuedRow]:
     """Every customer, with the number of each issued invoice of theirs, or none:
     sqlc reports the column of a subquery NOT NULL, as its table's.
     """
     return [
         ListCustomersIssuedRow.from_row(row)
-        for row in conn.execute(_LIST_CUSTOMERS_ISSUED)
+        for row in connection.execute(_LIST_CUSTOMERS_ISSUED)
     ]

@@ -15,8 +15,10 @@ from . import models
 _LIST_SCALARS: Final = "SELECT c_hstore, c_bit, c_varbit, c_point, c_line, c_lseg, c_box, c_path, c_polygon, c_circle, c_cid, c_xid, c_xid8, c_tid, c_pg_lsn, c_int4range, c_int8range, c_numrange, c_daterange, c_tsrange, c_tstzrange FROM scalars LIMIT $1"
 
 
-def list_scalars(conn: psycopg.Connection[Any], *, limit: int) -> list[models.Scalar]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+def list_scalars(
+    connection: psycopg.Connection[Any], *, limit: int
+) -> list[models.Scalar]:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_SCALARS, (limit,))
         return [models.Scalar.from_row(row) for row in cur.fetchall()]
 
@@ -33,7 +35,7 @@ _ADD_SCALARS: Final = """INSERT INTO scalars (
 
 
 def add_scalars(
-    conn: psycopg.Connection[Any],
+    connection: psycopg.Connection[Any],
     *,
     c_hstore: str | None,
     c_bit: str | None,
@@ -57,7 +59,7 @@ def add_scalars(
     c_tsrange: Range[dt.datetime] | None,
     c_tstzrange: Range[dt.datetime] | None,
 ) -> None:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(
             _ADD_SCALARS,
             (

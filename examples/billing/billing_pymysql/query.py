@@ -30,8 +30,8 @@ class CreateCustomerParams:
     metadata: str | None
 
 
-def create_customer(conn: _Connection, params: CreateCustomerParams) -> int:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+def create_customer(connection: _Connection, params: CreateCustomerParams) -> int:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(
             _CREATE_CUSTOMER,
             (
@@ -48,8 +48,8 @@ def create_customer(conn: _Connection, params: CreateCustomerParams) -> int:
 _GET_CUSTOMER: Final = "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE id = %s"
 
 
-def get_customer(conn: _Connection, *, id: int) -> models.Customer | None:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+def get_customer(connection: _Connection, *, id: int) -> models.Customer | None:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_GET_CUSTOMER, (id,))
         match cur.fetchmany(2):
             case [row]:
@@ -63,9 +63,11 @@ def get_customer(conn: _Connection, *, id: int) -> models.Customer | None:
 _FIND_CUSTOMER_BY_NAME: Final = "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE name = %s"
 
 
-def find_customer_by_name(conn: _Connection, *, name: str) -> models.Customer | None:
+def find_customer_by_name(
+    connection: _Connection, *, name: str
+) -> models.Customer | None:
     """Names are not unique: more than one match is an error, never a guess."""
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_FIND_CUSTOMER_BY_NAME, (name,))
         match cur.fetchmany(2):
             case [row]:
@@ -92,10 +94,10 @@ class SearchCustomersRow:
 
 
 def search_customers(
-    conn: _Connection, *, pattern: str | None
+    connection: _Connection, *, pattern: str | None
 ) -> list[SearchCustomersRow]:
     """A name or email matching the pattern, but no test account: `%` and `:` stay literal."""
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_SEARCH_CUSTOMERS, (pattern, pattern))
         return [SearchCustomersRow.from_row(row) for row in cur.fetchall()]
 
@@ -104,9 +106,9 @@ _LIST_CUSTOMERS_BY_IDS: Final = "SELECT id, name, email, vip, preferred_method, 
 
 
 def list_customers_by_ids(
-    conn: _Connection, *, ids: list[int]
+    connection: _Connection, *, ids: list[int]
 ) -> list[models.Customer]:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(
             _LIST_CUSTOMERS_BY_IDS.replace(
                 "/*SLICE:ids*/%s",
@@ -131,8 +133,8 @@ class CreateInvoiceParams:
     pay_within: dt.timedelta | None
 
 
-def create_invoice(conn: _Connection, params: CreateInvoiceParams) -> int:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+def create_invoice(connection: _Connection, params: CreateInvoiceParams) -> int:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(
             _CREATE_INVOICE,
             (
@@ -150,8 +152,8 @@ def create_invoice(conn: _Connection, params: CreateInvoiceParams) -> int:
 _GET_INVOICE: Final = "SELECT id, customer_id, number, status, total, issued_on, notes, attachment, pay_within, created_at FROM invoices WHERE id = %s"
 
 
-def get_invoice(conn: _Connection, *, id: int) -> models.Invoice | None:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+def get_invoice(connection: _Connection, *, id: int) -> models.Invoice | None:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_GET_INVOICE, (id,))
         match cur.fetchmany(2):
             case [row]:
@@ -165,8 +167,10 @@ def get_invoice(conn: _Connection, *, id: int) -> models.Invoice | None:
 _GET_INVOICE_STATUS: Final = "SELECT status FROM invoices WHERE id = %s"
 
 
-def get_invoice_status(conn: _Connection, *, id: int) -> models.InvoicesStatus | None:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+def get_invoice_status(
+    connection: _Connection, *, id: int
+) -> models.InvoicesStatus | None:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_GET_INVOICE_STATUS, (id,))
         match cur.fetchmany(2):
             case [row]:
@@ -196,9 +200,9 @@ class GetInvoiceWithCustomerRow:
 
 
 def get_invoice_with_customer(
-    conn: _Connection, *, id: int
+    connection: _Connection, *, id: int
 ) -> GetInvoiceWithCustomerRow | None:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_GET_INVOICE_WITH_CUSTOMER, (id,))
         match cur.fetchmany(2):
             case [row]:
@@ -215,9 +219,9 @@ ORDER BY number"""
 
 
 def list_invoices_by_status(
-    conn: _Connection, *, statuses: list[models.InvoicesStatus], customer_id: int
+    connection: _Connection, *, statuses: list[models.InvoicesStatus], customer_id: int
 ) -> list[models.Invoice]:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(
             _LIST_INVOICES_BY_STATUS.replace(
                 "/*SLICE:statuses*/%s",
@@ -232,8 +236,8 @@ def list_invoices_by_status(
 _COUNT_INVOICES: Final = "SELECT CAST(COUNT(*) AS SIGNED) AS invoice_count FROM invoices WHERE customer_id = %s"
 
 
-def count_invoices(conn: _Connection, *, customer_id: int) -> int:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+def count_invoices(connection: _Connection, *, customer_id: int) -> int:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_COUNT_INVOICES, (customer_id,))
         match cur.fetchmany(2):
             case [row]:
@@ -248,8 +252,10 @@ def count_invoices(conn: _Connection, *, customer_id: int) -> int:
 _ISSUE_INVOICE: Final = "UPDATE invoices SET status = 'issued', issued_on = %s WHERE id = %s AND status = 'draft'"
 
 
-def issue_invoice(conn: _Connection, *, issued_on: dt.date | None, id: int) -> int:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+def issue_invoice(
+    connection: _Connection, *, issued_on: dt.date | None, id: int
+) -> int:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         return cur.execute(_ISSUE_INVOICE, (issued_on, id))
 
 
@@ -265,8 +271,8 @@ class AddLineItemsParams:
     unit_price: Decimal
 
 
-def add_line_items(conn: _Connection, rows: Iterable[AddLineItemsParams]) -> None:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+def add_line_items(connection: _Connection, rows: Iterable[AddLineItemsParams]) -> None:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.executemany(
             _ADD_LINE_ITEMS,
             [
@@ -279,8 +285,10 @@ def add_line_items(conn: _Connection, rows: Iterable[AddLineItemsParams]) -> Non
 _LIST_LINE_ITEMS: Final = "SELECT invoice_id, position, description, quantity, unit_price FROM line_items WHERE invoice_id = %s ORDER BY position"
 
 
-def list_line_items(conn: _Connection, *, invoice_id: int) -> list[models.LineItem]:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+def list_line_items(
+    connection: _Connection, *, invoice_id: int
+) -> list[models.LineItem]:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_LIST_LINE_ITEMS, (invoice_id,))
         return [models.LineItem.from_row(row) for row in cur.fetchall()]
 
@@ -303,12 +311,12 @@ class ListCustomerLinesRow:
         return cls(id=row[0], number=row[1], description=row[2])
 
 
-def list_customer_lines(conn: _Connection) -> list[ListCustomerLinesRow]:
+def list_customer_lines(connection: _Connection) -> list[ListCustomerLinesRow]:
     """Every customer, with each line of an invoice of theirs, or none: what
     stands left of the RIGHT JOIN may be without a row, though sqlc reports
     the columns of a join there NOT NULL.
     """
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_LIST_CUSTOMER_LINES)
         return [ListCustomerLinesRow.from_row(row) for row in cur.fetchall()]
 
@@ -318,8 +326,8 @@ SET total = (SELECT CAST(COALESCE(SUM(quantity * unit_price), 0) AS DECIMAL(12, 
 WHERE id = %s"""
 
 
-def recalculate_total(conn: _Connection, *, id: int) -> None:
-    with conn.cursor(pymysql.cursors.Cursor) as cur:
+def recalculate_total(connection: _Connection, *, id: int) -> None:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_RECALCULATE_TOTAL, (id, id))
 
 
@@ -329,8 +337,8 @@ _DELETE_DRAFT_INVOICES: Final = (
 
 
 def delete_draft_invoices(
-    conn: _Connection, *, customer_id: int
+    connection: _Connection, *, customer_id: int
 ) -> pymysql.cursors.Cursor:
-    cur = conn.cursor(pymysql.cursors.Cursor)
+    cur = connection.cursor(pymysql.cursors.Cursor)
     cur.execute(_DELETE_DRAFT_INVOICES, (customer_id,))
     return cur

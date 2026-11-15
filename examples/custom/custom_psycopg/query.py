@@ -16,13 +16,13 @@ _ADD_DEVICE: Final = "INSERT INTO devices (ip, location, budget) VALUES ($1, $2,
 
 
 def add_device(
-    conn: psycopg.Connection[Any],
+    connection: psycopg.Connection[Any],
     *,
     address: ipaddress.IPv4Address,
     location: str | None,
     budget: Decimal,
 ) -> models.Machine:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_ADD_DEVICE, (address, location, budget))
         match cur.fetchmany(2):
             case [row]:
@@ -37,9 +37,9 @@ _LIST_DEVICES_UNDER: Final = "SELECT id, ip, location, budget, sign_in FROM devi
 
 
 def list_devices_under(
-    conn: psycopg.Connection[Any], *, location: str
+    connection: psycopg.Connection[Any], *, location: str
 ) -> list[models.Machine]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_DEVICES_UNDER, (location,))
         return [models.Machine.from_row(row) for row in cur.fetchall()]
 
@@ -47,7 +47,7 @@ def list_devices_under(
 _LIST_DEVICES_BY_TOKEN: Final = "SELECT id, ip, location, budget, sign_in FROM devices WHERE sign_in = 'token' ORDER BY id"
 
 
-def list_devices_by_token(conn: psycopg.Connection[Any]) -> list[models.Machine]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+def list_devices_by_token(connection: psycopg.Connection[Any]) -> list[models.Machine]:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_DEVICES_BY_TOKEN)
         return [models.Machine.from_row(row) for row in cur.fetchall()]

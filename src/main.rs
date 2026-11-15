@@ -1,9 +1,5 @@
-//! The sqlc plugin entrypoint.
-//!
-//! sqlc invokes a WASM plugin as a one-shot process: the `GenerateRequest`
-//! arrives on stdin as protobuf and the `GenerateResponse` goes back on stdout.
-//! Everything else lives in the library so it can be tested without a WASM
-//! runtime.
+//! sqlc runs a WASM plugin as a one-shot process with the `GenerateRequest` on stdin and the `GenerateResponse` on
+//! stdout. Everything else lives in the library, so we can test it without a WASM runtime.
 
 use std::io::{self, Read, Write};
 use std::process::ExitCode;
@@ -30,8 +26,7 @@ fn run() -> Result<()> {
         .lock()
         .read_to_end(&mut request)
         .context("reading the request from stdin")?;
-    let request =
-        plugin::GenerateRequest::decode(&*request).context("decoding the GenerateRequest")?;
+    let request = plugin::GenerateRequest::decode(&*request).context("decoding the GenerateRequest")?;
 
     let response = plugin::GenerateResponse {
         files: generate(&request)?,
@@ -42,9 +37,8 @@ fn run() -> Result<()> {
         .context("writing the response to stdout")
 }
 
-/// `text` with every control character but a line break escaped. An error
-/// quotes the schema's names and the SQL's strings, and sqlc prints it to a
-/// terminal, which would obey an escape sequence one of them spells.
+/// An error quotes the schema's names and the SQL's strings, and sqlc prints it to a terminal, which would obey an
+/// escape sequence one of them spells. So we escape every control character but a line break.
 fn printable(text: &str) -> String {
     let mut printable = String::with_capacity(text.len());
     for c in text.chars() {

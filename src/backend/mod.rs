@@ -1,14 +1,8 @@
-//! The Python libraries generated code runs its SQL through. A backend says
-//! which engines it runs, how a statement is written and executed, and what a
-//! connection is; what a query takes and returns is sqlc's and the engine's to
-//! say.
+//! A backend only decides how a statement is written and executed and what a connection is, as what a query takes and
+//! returns is sqlc's and the engine's to say. SQLAlchemy rewrites sqlc's SQL for its `text()`, while every other
+//! backend is a [`Driver`] that takes it as written ([`dbapi`]).
 //!
-//! SQLAlchemy rewrites sqlc's SQL for its `text()`. Every other backend is a
-//! driver that takes it as written ([`dbapi`]), and is only a [`Driver`]:
-//! how its connection, its cursor and a parameter are written.
-//!
-//! Each method is an exhaustive `match`, so a new backend is a new variant
-//! and the compiler lists everything it has to answer.
+//! Every method is an exhaustive `match`, so for a new backend the compiler lists everything it has to answer.
 
 mod dbapi;
 mod psycopg;
@@ -30,7 +24,6 @@ use crate::python::vocabulary::{DATE, DATETIME, DECIMAL, INT, LIST, PARAMS, R, S
 use crate::python::{Expression, Type, name, none};
 use dbapi::Driver;
 
-/// A library generated code runs its SQL through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Backend {
@@ -45,7 +38,6 @@ pub enum Backend {
 }
 
 impl Backend {
-    /// The backend's name, as the `backend` option spells it.
     pub fn name(self) -> &'static str {
         match self {
             Self::SqlAlchemy => "sqlalchemy",
@@ -55,7 +47,6 @@ impl Backend {
         }
     }
 
-    /// Whether the backend runs SQL on `engine`.
     pub fn runs(self, engine: Engine) -> bool {
         match self {
             Self::SqlAlchemy => true,
@@ -65,9 +56,8 @@ impl Backend {
         }
     }
 
-    /// The Python type of a column of the type the engine names `type_name`
-    /// ([`Engine::type_name`]) that only the backend's driver decides: a
-    /// class of its own, or text where drivers disagree.
+    /// The Python type only the backend's driver decides for a type ([`Engine::type_name`]): a class of its own, or
+    /// text where drivers disagree.
     pub fn scalar_type(self, engine: Engine, type_name: &str) -> Option<Type> {
         match (self, engine) {
             (Self::SqlAlchemy, Engine::PostgreSql) => sqlalchemy::scalar_type(type_name),
@@ -76,7 +66,6 @@ impl Backend {
         }
     }
 
-    /// The driver the backend is, unless it is SQLAlchemy.
     fn driver(self) -> Option<&'static Driver> {
         match self {
             Self::SqlAlchemy => None,
@@ -86,18 +75,12 @@ impl Backend {
         }
     }
 
-    /// An error for what the backend cannot represent or run faithfully,
-    /// asked while the API is decided, so that generation fails.
-    ///
-    /// A MySQL driver's `executemany` rewrites an `INSERT` into one statement
-    /// of many rows, and formats what follows its `VALUES` list in some
-    /// versions only (PyMySQL from 1.2.4, not mysqlclient): a `%` there,
-    /// doubled for the driver, would reach MySQL doubled, in a string too.
+    /// Fails generation for what the backend cannot represent or run faithfully.
     pub fn check(self, engine: Engine, query: &Query) -> Result<()> {
-        if engine == Engine::MySql
-            && matches!(query.takes, Takes::Rows(_))
-            && query.sql.text().contains('%')
-        {
+        // A MySQL driver's `executemany` rewrites an `INSERT` into one statement of many rows, and only some versions
+        // format what follows its `VALUES` list (PyMySQL from 1.2.4, not mysqlclient). So a `%` there, doubled for the
+        // driver, could reach MySQL doubled, in a string too!
+        if engine == Engine::MySql && matches!(query.takes, Takes::Rows(_)) && query.sql.text().contains('%') {
             bail!(
                 ":copyfrom has a % in its statement, which a MySQL driver's executemany doubles \
                  or not by its version; write it without one, as MOD(a, b) for a % b"
@@ -109,7 +92,6 @@ impl Backend {
         }
     }
 
-    /// An error if the backend cannot read an array of `sql_enum`.
     pub fn check_array_enum(self, sql_enum: &Enum) -> Result<()> {
         match self.text_arrays() {
             true => dbapi::check_text_array(sql_enum),
@@ -117,20 +99,18 @@ impl Backend {
         }
     }
 
-    /// Whether the library returns an array of enums as the array's text,
-    /// which the enum's class then parses (`from_array`).
+    /// Whether the library returns an array of enums as the array's text, which the enum's class then parses
+    /// (`from_array`).
     pub fn text_arrays(self) -> bool {
         self.driver().is_some_and(|driver| driver.text_arrays)
     }
 
-    /// Whether the package defines the errors a `:one` raises itself, as a
-    /// driver has none: always both, so that what a package exports does not
-    /// change with its queries.
+    /// A driver has no errors for a `:one` to raise, so the package defines its own. We always define both, so what a
+    /// package exports does not change with its queries.
     pub fn defines_errors(self) -> bool {
         self.driver().is_some()
     }
 
-    /// What a query module defines before its queries, if anything.
     pub fn prelude(self, asynchronous: bool) -> Vec<ast::Stmt> {
         match self.driver() {
             None => Vec::new(),
@@ -138,7 +118,6 @@ impl Backend {
         }
     }
 
-    /// The value of a query's statement constant.
     pub fn statement(self, query: &Query) -> ast::Expr {
         match self.driver() {
             None => sqlalchemy::statement(query),
@@ -154,7 +133,6 @@ impl Backend {
         }
     }
 
-    /// What a query's function returns.
     pub fn returns(self, query: &Query, asynchronous: bool) -> ast::Expr {
         match self.driver() {
             None => returns(query, sqlalchemy::result),
@@ -162,7 +140,6 @@ impl Backend {
         }
     }
 
-    /// The body of a query's function.
     pub fn body(self, query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
         match self.driver() {
             None => sqlalchemy::body(query, asynchronous),
@@ -171,10 +148,8 @@ impl Backend {
     }
 }
 
-/// What `query`'s function returns: what one run of its command does, or for
-/// rows that each return something, a list of that. What a query returns is
-/// sqlc's to say, but for an `:execresult`, which returns the library's own
-/// `result`.
+/// What one run of the query's command returns, or a list of that for a batch of rows. sqlc decides it, except for an
+/// `:execresult`, which returns the library's own `result`.
 fn returns(query: &Query, result: fn() -> ast::Expr) -> ast::Expr {
     let run = match &query.command {
         Command::Exec => return none(),
@@ -189,9 +164,8 @@ fn returns(query: &Query, result: fn() -> ast::Expr) -> ast::Expr {
     }
 }
 
-/// PostgreSQL's range types, each with the type of its bounds and
-/// SQLAlchemy's PostgreSQL type for it, which turns each driver's range into
-/// SQLAlchemy's `Range`; psycopg returns its own `Range`.
+/// PostgreSQL's range types with the type of their bounds and SQLAlchemy's PostgreSQL type, which turns each driver's
+/// range into SQLAlchemy's `Range`. psycopg returns its own `Range`.
 const RANGES: &[(&str, Symbol, &str)] = &[
     ("int4range", INT, "INT4RANGE"),
     ("int8range", INT, "INT8RANGE"),
@@ -201,14 +175,12 @@ const RANGES: &[(&str, Symbol, &str)] = &[
     ("tstzrange", DATETIME, "TSTZRANGE"),
 ];
 
-/// The range type `name`'s bounds' type and SQLAlchemy type, if it is one.
 fn range(name: &str) -> Option<(Symbol, &'static str)> {
     let (_, bound, sql_type) = RANGES.iter().find(|(range, ..)| *range == name)?;
     Some((*bound, sql_type))
 }
 
-/// A parameter's value, as `query`'s function reads it: itself, its field of
-/// the one record, or the row's.
+/// A parameter as the function reads it: itself, a field of the one record, or of the row.
 fn value(query: &Query, parameter: &str) -> ast::Expr {
     match query.takes {
         Takes::Keywords => name(parameter),

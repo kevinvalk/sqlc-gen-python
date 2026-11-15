@@ -1,5 +1,3 @@
-//! A query's parameters, as its function takes them.
-
 use std::collections::HashMap;
 
 use anyhow::{Result, bail};
@@ -16,22 +14,19 @@ use crate::python::Type;
 #[path = "params_spec.rs"]
 mod spec;
 
-/// A query's parameters, in sqlc's order, one per placeholder: a name the
-/// user chose names one parameter wherever it is used, which on MySQL sqlc
-/// reports once per use.
-pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field>> {
-    let columns: Vec<plugin::Column> = (params.iter())
-        .map(|param| param.column.clone().unwrap_or_default())
+/// A query's parameters in sqlc's order, one per placeholder. A name the user chose stays one parameter wherever it is
+/// used, also on MySQL where sqlc reports it once per use.
+pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field>> {
+    let columns: Vec<plugin::Column> = (parameters.iter())
+        .map(|parameter| parameter.column.clone().unwrap_or_default())
         .collect();
-    // A name the user chose is the identifier after `@`. sqlc names the
-    // operand of `@` after its parts when it is an expression, which `@`
-    // takes when an operator binds tighter (`@day::date AT TIME ZONE 'UTC'`
-    // is `@(pg_catalog.timezone('UTC', day::date))`), and may then have
-    // replaced all of it with the placeholder.
-    if let Some(column) = (columns.iter()).find(|c| {
-        c.is_named_param
-            && (!resolver.engine.is_identifier(&c.name) || c.name.starts_with("pg_catalog"))
-    }) {
+
+    // A name the user chose is the identifier after `@`. When an operator binds tighter (`@day::date AT TIME ZONE
+    // 'UTC'` is `@(pg_catalog.timezone('UTC', day::date))`), `@` takes an expression, which sqlc names after its parts
+    // and may then have replaced as a whole with the placeholder.
+    if let Some(column) = (columns.iter())
+        .find(|c| c.is_named_param && (!resolver.engine.is_identifier(&c.name) || c.name.starts_with("pg_catalog")))
+    {
         bail!(
             "sqlc named a parameter \"{}\", which is no name: sqlc.arg was given one that is \
              no identifier, or an operator that binds tighter than @, such as AT TIME ZONE or +, \
@@ -40,23 +35,23 @@ pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Resul
             column.name
         );
     }
-    // sqlc's Go codegen numbers parameters that spell one name, but a name
-    // the user chose (`sqlc.arg`, `@name`) must bind the placeholder it was
-    // written at, not take, or give another, a suffix. Each use of one after
-    // the first: which use it repeats.
+
+    // sqlc's Go codegen numbers parameters that spell one name, but a name the user chose (`sqlc.arg`, `@name`) must
+    // bind the placeholder it was written at, so it never takes or gives a suffix. Every later use of such a name holds
+    // the index of its first use.
     let mut chosen: HashMap<String, usize> = HashMap::new();
     let repeats: Vec<Option<usize>> = (columns.iter().enumerate())
-        .map(|(i, c)| {
-            if !c.is_named_param || c.name.is_empty() {
+        .map(|(i, column)| {
+            if !column.is_named_param || column.name.is_empty() {
                 return None;
             }
-            let first = *chosen.entry(c.name.clone()).or_insert(i);
+            let first = *chosen.entry(column.name.clone()).or_insert(i);
             (first != i).then_some(first)
         })
         .collect();
     let mut seen: HashMap<String, &plugin::Column> = HashMap::new();
     for (column, _) in
-        (columns.iter().zip(&repeats)).filter(|(c, r)| !c.name.is_empty() && r.is_none())
+        (columns.iter().zip(&repeats)).filter(|(column, repeat)| !column.name.is_empty() && repeat.is_none())
     {
         let name = resolver.spelling(&column.name).to_snake_case();
         if let Some(first) = seen.insert(name.clone(), column)
@@ -69,16 +64,14 @@ pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Resul
             );
         }
     }
+
     let firsts: Vec<(usize, &str)> = (columns.iter().zip(&repeats).enumerate())
         .filter(|(_, (_, repeat))| repeat.is_none())
-        .map(|(i, (c, _))| (i, resolver.spelling(&c.name)))
+        .map(|(i, (column, _))| (i, resolver.spelling(&column.name)))
         .collect();
     let spellings: Vec<&str> = firsts.iter().map(|&(_, spelling)| spelling).collect();
     let mut names: Vec<String> = vec![String::new(); columns.len()];
-    for ((i, _), name) in firsts
-        .iter()
-        .zip(names::names(&spellings, Repeats::Numbered)?)
-    {
+    for ((i, _), name) in firsts.iter().zip(names::names(&spellings, Repeats::Numbered)?) {
         names[*i] = name;
     }
     for (i, repeat) in repeats.iter().enumerate() {
@@ -88,17 +81,16 @@ pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Resul
     }
 
     let mut fields: Vec<Field> = Vec::new();
-    for (((name, column), param), repeat) in
-        names.into_iter().zip(columns).zip(params).zip(&repeats)
-    {
+    for (((name, column), parameter), repeat) in names.into_iter().zip(columns).zip(parameters).zip(&repeats) {
         let what = format!(
             "parameter {} (\"{name}\")",
-            resolver.engine.placeholder(param.number)
+            resolver.engine.placeholder(parameter.number)
         );
         if column.is_sqlc_slice && resolver.engine == Engine::PostgreSql {
             bail!("sqlc.slice is MySQL/SQLite only; on PostgreSQL use = ANY(@{name}::type[])")
         }
-        // The cast goes on the placeholder: a parameter cannot be coalesced.
+
+        // We suggest the cast on the placeholder, as a parameter cannot be coalesced
         let cast = format!(
             "{}, or {} if it can be NULL",
             resolver.engine.cast(&match resolver.engine {
@@ -109,13 +101,14 @@ pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Resul
         );
         let mut ty = resolver.field_type(&column, true, &what, &cast)?;
         if column.is_sqlc_slice {
-            // A list, never NULL: its items are each bound. No engine with
-            // slices has arrays, so it is a list of no lists.
+            // A slice is a list and never NULL, as we bind each of its items. No engine with slices has arrays, so it
+            // is never a list of lists.
             ty.array_dims = 1;
             ty.optional = false;
         }
-        // Every use must take one type; one that admits NULL makes it
-        // optional, as sqlc reports each use's own column.
+
+        // Every use must take one type, and one use that admits NULL makes the parameter optional, as sqlc reports each
+        // use's own column.
         if let Some(first) = repeat.map(|first| &mut fields[first]) {
             if (&first.ty.element, first.ty.array_dims) != (&ty.element, ty.array_dims) {
                 bail!(

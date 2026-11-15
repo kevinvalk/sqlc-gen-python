@@ -1,11 +1,7 @@
-//! Specification for reading what sqlc's report of a statement's result is
-//! not enough for.
-
 use super::*;
 use crate::engine::Engine;
 
-/// An engine where an aggregate is one whatever its arguments, and no column
-/// stands beside one ungrouped: PostgreSQL.
+/// PostgreSQL's: an aggregate whatever its arguments, and no column beside an ungrouped one.
 const AGGREGATES: Aggregates = Aggregates {
     nullable: &["sum", "avg", "min", "max", "string_agg"],
     never_null: &["count", "total"],
@@ -13,45 +9,36 @@ const AGGREGATES: Aggregates = Aggregates {
     bare_columns: false,
 };
 
-/// SQLite.
 const SQLITE: Aggregates = Aggregates {
     scalar_of_several: &["min", "max"],
     bare_columns: true,
     ..AGGREGATES
 };
 
-/// `sql` as a lexer reads it: a reader proven on tokens made by hand is
-/// proven on none a statement has.
+/// We take tokens from a real lexer, as a reader proven on tokens made by hand proves nothing of real statements.
 fn tokens(sql: &str) -> Vec<String> {
     Engine::PostgreSql.words(sql)
 }
 
-/// The items of `sql`'s list, each of `columns` one sqlc reports of no table.
+/// The items of `sql`'s list, sqlc reporting each of the `columns` as of no table.
 fn read(sql: &str, columns: usize) -> Option<Vec<Item>> {
     items(&tokens(sql), &vec![""; columns], &AGGREGATES)
 }
 
-/// Whether each item of `sql`'s list is a count.
 fn counts(sql: &str, columns: usize) -> Vec<bool> {
     let items = read(sql, columns).expect(sql);
     items.into_iter().map(|item| item.count).collect()
 }
 
-/// Whether each item of `sql`'s list is NULL whatever sqlc reports.
 fn nullable(sql: &str, columns: usize) -> Vec<bool> {
     let items = read(sql, columns).expect(sql);
     items.into_iter().map(|item| item.nullable).collect()
 }
 
-// -- The result list ----------------------------------------------------------
-
 #[test]
 fn an_item_is_a_count_where_it_is_a_bare_call_of_it() {
     assert_eq!(
-        counts(
-            "SELECT id , COUNT ( * ) , count ( x ) AS n , sum ( y ) total FROM t",
-            4
-        ),
+        counts("SELECT id , COUNT ( * ) , count ( x ) AS n , sum ( y ) total FROM t", 4),
         [false, true, true, false]
     );
     assert_eq!(
@@ -60,17 +47,11 @@ fn an_item_is_a_count_where_it_is_a_bare_call_of_it() {
     );
     // The main statement's list, after a CTE's own.
     assert_eq!(
-        counts(
-            "WITH c AS ( SELECT sum ( x ) FROM t ) SELECT count ( * ) FROM c",
-            1
-        ),
+        counts("WITH c AS ( SELECT sum ( x ) FROM t ) SELECT count ( * ) FROM c", 1),
         [true]
     );
     assert_eq!(
-        counts(
-            "INSERT INTO t ( a ) VALUES ( 1 ) RETURNING id , count ( * )",
-            2
-        ),
+        counts("INSERT INTO t ( a ) VALUES ( 1 ) RETURNING id , count ( * )", 2),
         [false, true]
     );
     // And behind a scalar subquery's parentheses, alone.
@@ -89,8 +70,7 @@ fn a_count_is_one_of_the_rows_a_filter_keeps_or_a_window_holds() {
     ] {
         assert_eq!(counts(sql, 1), [true], "{sql}");
     }
-    // Neither is NULL: but a window's rows are not one row, so a subquery of
-    // a count over one may have none.
+    // Neither is NULL, but a window's rows are not one row, so a subquery of a count over one may have no row
     assert_eq!(
         nullable(
             "SELECT count(*) FILTER (WHERE x), count(*) OVER (), \
@@ -100,8 +80,7 @@ fn a_count_is_one_of_the_rows_a_filter_keeps_or_a_window_holds() {
         ),
         [false, false, false, true]
     );
-    // SQLite reads either word, with nothing of its own after it, as an
-    // alias: the call is then the aggregate it was.
+    // SQLite reads either word with nothing of its own after it as an alias, so the call stays an aggregate
     let sqlite = |sql: &str| items(&Engine::Sqlite.words(sql), &[""], &SQLITE).expect(sql);
     for alias in ["over", "filter"] {
         let sql = format!("SELECT max(x) {alias} FROM t");
@@ -129,13 +108,10 @@ fn a_call_with_more_after_it_is_no_count() {
 fn a_list_that_is_not_an_item_per_column_is_not_read() {
     assert_eq!(read("SELECT a , count ( * ) FROM t", 3), None);
     assert_eq!(read("UPDATE t SET a = 1", 1), None);
-    // One branch of a set operation is enough, as one without a list.
+    // One such branch of a set operation is enough, as is one without a list
     assert_eq!(read("SELECT a FROM t UNION SELECT a , b FROM u", 1), None);
     assert_eq!(
-        read(
-            "SELECT ( SELECT a FROM t LIMIT 1 ) UNION ALL VALUES ( 'x' )",
-            1
-        ),
+        read("SELECT ( SELECT a FROM t LIMIT 1 ) UNION ALL VALUES ( 'x' )", 1),
         None
     );
 }
@@ -156,10 +132,7 @@ fn a_word_after_a_dot_or_an_as_is_a_name_and_ends_no_clause() {
             "SELECT k . id AS limit , ( SELECT a FROM t LIMIT 1 ) AS n FROM k",
             &[false, true],
         ),
-        (
-            "SELECT ( SELECT a FROM t LIMIT 1 ) AS within FROM k",
-            &[true],
-        ),
+        ("SELECT ( SELECT a FROM t LIMIT 1 ) AS within FROM k", &[true]),
     ] {
         assert_eq!(nullable(sql, expected.len()), expected, "{sql}");
     }
@@ -198,16 +171,10 @@ fn is_distinct_from_and_within_group_end_no_list() {
 #[test]
 fn a_set_operation_is_read_branch_by_branch() {
     assert_eq!(
-        counts(
-            "SELECT count ( * ) FROM a UNION ALL SELECT count ( * ) FROM b",
-            1
-        ),
+        counts("SELECT count ( * ) FROM a UNION ALL SELECT count ( * ) FROM b", 1),
         [true]
     );
-    assert_eq!(
-        counts("SELECT count ( * ) FROM a UNION SELECT 1 FROM b", 1),
-        [false]
-    );
+    assert_eq!(counts("SELECT count ( * ) FROM a UNION SELECT 1 FROM b", 1), [false]);
     // NULL in any branch is NULL in the result, a branch in parentheses too.
     for sql in [
         "SELECT a FROM t UNION ALL SELECT ( SELECT b FROM u LIMIT 1 ) FROM t",
@@ -215,8 +182,7 @@ fn a_set_operation_is_read_branch_by_branch() {
     ] {
         assert_eq!(nullable(sql, 1), [true], "{sql}");
     }
-    // What an `INSERT` selects is no branch of it: its list is what it
-    // returns.
+    // What an `INSERT` selects is no branch of it, as its list is what it returns
     assert_eq!(
         nullable(
             "INSERT INTO a ( x ) SELECT x FROM b UNION ALL SELECT x FROM c \
@@ -252,8 +218,6 @@ fn parentheses_and_casts_are_read_through_however_deep() {
     );
     assert_eq!(nullable(&casts, 1), [true]);
 }
-
-// -- What is NULL though sqlc reports it NOT NULL -----------------------------
 
 #[test]
 fn a_scalar_subquery_is_null_without_a_row_unless_it_counts_them_all() {
@@ -303,8 +267,7 @@ fn an_ungrouped_aggregate_but_a_count_is_null_of_no_rows() {
         ),
         [true, false, true, false, true, true, true]
     );
-    // A group has a row, and a window function is of each row: sqlc's report
-    // stands.
+    // A group has a row, and a window function is of each row, so sqlc's report stands
     for sql in [
         "SELECT sum ( x ) :: int FROM t GROUP BY a",
         "SELECT sum ( x ) OVER ( ) FROM t",
@@ -312,9 +275,8 @@ fn an_ungrouped_aggregate_but_a_count_is_null_of_no_rows() {
     ] {
         assert_eq!(nullable(sql, 1), [false], "{sql}");
     }
-    // What groups no rows into a row leaves none: the empty grouping set, a
-    // `HAVING` or a `WINDOW` alone; nor does another call's `OVER`, or a
-    // column's name.
+    // These still make a row of no rows: the empty grouping set, a `HAVING` or a `WINDOW` alone, another call's
+    // `OVER`, or a column named `over`
     for sql in [
         "SELECT sum ( x ) :: int FROM t GROUP BY ( )",
         "SELECT sum(x)::int FROM t GROUP BY DISTINCT ()",
@@ -332,7 +294,7 @@ fn an_ungrouped_aggregate_but_a_count_is_null_of_no_rows() {
 
 #[test]
 fn a_case_is_null_where_it_may_take_no_branch_or_a_null_one() {
-    // sqlc reports a `CASE` by its `ELSE`, and every cast, NOT NULL.
+    // sqlc types a `CASE` by its `ELSE`, and reports every cast NOT NULL
     for sql in [
         "SELECT CASE WHEN a THEN b END FROM t",
         "SELECT (CASE WHEN a THEN b END)::int AS n FROM t",
@@ -353,7 +315,7 @@ fn a_case_is_null_where_it_may_take_no_branch_or_a_null_one() {
         // A name, whatever it spells; and a default guards it.
         "SELECT CASE WHEN t.end THEN t.case ELSE 0 END AS end FROM t",
         "SELECT coalesce(CASE WHEN a THEN b END, 0) FROM t",
-        // What a count counts is no part of what it is.
+        // What a count counts does not make the count NULL
         "SELECT count(CASE WHEN a THEN 1 END) FROM t",
         "SELECT count(DISTINCT CASE WHEN a THEN b ELSE NULL END) AS n FROM t GROUP BY k",
         "SELECT sum(CASE WHEN a THEN 1 ELSE 0 END)::int FROM t GROUP BY k",
@@ -362,16 +324,10 @@ fn a_case_is_null_where_it_may_take_no_branch_or_a_null_one() {
     }
     // A sum of a group none of whose rows takes a branch is NULL.
     assert_eq!(
-        nullable(
-            "SELECT sum(CASE WHEN a THEN 1 END)::int FROM t GROUP BY k",
-            1
-        ),
+        nullable("SELECT sum(CASE WHEN a THEN 1 END)::int FROM t GROUP BY k", 1),
         [true]
     );
-    assert_eq!(
-        counts("SELECT count(CASE WHEN a THEN 1 END) FROM t", 1),
-        [true]
-    );
+    assert_eq!(counts("SELECT count(CASE WHEN a THEN 1 END) FROM t", 1), [true]);
 }
 
 #[test]
@@ -384,10 +340,7 @@ fn the_literal_null_is_null_whatever_its_cast() {
         [true; 5]
     );
     // In any branch of a set operation.
-    assert_eq!(
-        nullable("SELECT name FROM a UNION ALL SELECT NULL", 1),
-        [true]
-    );
+    assert_eq!(nullable("SELECT name FROM a UNION ALL SELECT NULL", 1), [true]);
     assert_eq!(
         nullable("SELECT NULL IS NULL, 'NULL', nullable, t.null FROM t", 4),
         [false; 4]
@@ -435,7 +388,7 @@ fn a_column_beside_an_ungrouped_aggregate_is_null_of_no_rows_where_one_may_stand
     assert_eq!(read(bare, &AGGREGATES), [false, true, false]);
     let grouped = "SELECT id , CAST ( max ( x ) AS INTEGER ) AS m , count ( * ) FROM k GROUP BY id";
     assert_eq!(read(grouped, &SQLITE), [false, false, false]);
-    // SQLite's `max` of several arguments is no aggregate, but of each row.
+    // SQLite's `max` of several arguments is a function of each row, not an aggregate
     let scalar = "SELECT id , max ( a , b ) , min ( a , b ) FROM k";
     assert_eq!(read(scalar, &SQLITE), [false, false, false]);
     // A `HAVING` alone aggregates the rows too, as MySQL lets it.
@@ -443,8 +396,6 @@ fn a_column_beside_an_ungrouped_aggregate_is_null_of_no_rows_where_one_may_stand
     assert_eq!(read(having, &SQLITE), [true, true, true]);
     assert!(present(&tokens(having), &SQLITE).is_empty());
 }
-
-// -- One row, whatever the data -----------------------------------------------
 
 fn single(sql: &str) -> bool {
     single_row(&tokens(sql), &AGGREGATES)
@@ -493,7 +444,7 @@ fn a_select_that_aggregates_its_rows_returns_exactly_one() {
     ] {
         assert!(!single_row(&tokens(sql), &SQLITE), "{sql}");
     }
-    // A schema's own function of an aggregate's name is none.
+    // A schema's own function named like an aggregate is not one
     assert!(!single("SELECT app . max ( a , b ) FROM t"));
     assert!(single("SELECT pg_catalog . max ( a ) FROM t"));
 }
@@ -539,8 +490,6 @@ fn an_insert_of_one_row_of_values_returns_it_unless_something_may_skip_it() {
     }
 }
 
-// -- The tables every row has a row of ----------------------------------------
-
 fn proven(sql: &str) -> Vec<String> {
     present(&tokens(sql), &AGGREGATES)
 }
@@ -558,8 +507,7 @@ fn a_table_named_outright_or_inner_joined_is_present() {
 
 #[test]
 fn a_join_after_what_ended_the_from_proves_it_was_no_end() {
-    // MySQL and SQLite have columns named as a clause is: the outer join
-    // after this one would go unread.
+    // MySQL and SQLite allow a column named as a clause, and we would miss the outer join after it
     let sql = "SELECT a.id FROM a JOIN b ON offset = 1 RIGHT JOIN c ON c.id = a.id";
     assert!(present(&Engine::MySql.words(sql), &AGGREGATES).is_empty());
     assert_eq!(
@@ -586,8 +534,8 @@ fn a_table_an_outer_join_may_leave_without_a_row_is_not() {
     );
     // Named twice, either may be the one that is missing.
     assert!(proven("SELECT * FROM a x LEFT JOIN a y ON z").is_empty());
-    // A right join leaves what stands before it without a row, back to the
-    // last comma, and a full one what it brings too.
+    // A right join may leave what stands before it (back to the last comma) without a row, and a full one what it
+    // brings too
     assert_eq!(proven("SELECT * FROM a RIGHT JOIN b ON x"), ["b"]);
     assert_eq!(
         proven("SELECT * FROM k, a JOIN b ON x RIGHT OUTER JOIN c ON y JOIN d ON z"),
@@ -599,10 +547,8 @@ fn a_table_an_outer_join_may_leave_without_a_row_is_not() {
     );
 }
 
-// -- The columns an outer join may leave NULL ---------------------------------
-
-/// Whether an outer join of `sql` may leave each item of its list NULL, the
-/// column sqlc reports as each of `tables`'.
+/// Whether an outer join may leave each item of `sql`'s list NULL, sqlc reporting each as a column of its table in
+/// `tables`.
 fn outer_of(sql: &str, tables: &[&str]) -> Vec<bool> {
     let items = items(&tokens(sql), tables, &AGGREGATES).expect(sql);
     items.into_iter().map(|item| item.nullable).collect()
@@ -621,17 +567,10 @@ fn a_column_is_null_where_every_source_it_may_be_of_may_be_without_a_row() {
     // And on SQLite and MySQL, those of `b` here.
     for join in ["JOIN", "NATURAL JOIN", "STRAIGHT_JOIN"] {
         let sql = format!("SELECT x, v, z FROM a LEFT JOIN public.\"B\" ON y {join} c");
-        assert_eq!(
-            outer_of(&sql, &["a", "b", "c"]),
-            [false, true, false],
-            "{sql}"
-        );
+        assert_eq!(outer_of(&sql, &["a", "b", "c"]), [false, true, false], "{sql}");
     }
     assert_eq!(
-        outer_of(
-            "SELECT x, y, z FROM a FULL JOIN b ON x, c",
-            &["a", "b", "c"]
-        ),
+        outer_of("SELECT x, y, z FROM a FULL JOIN b ON x, c", &["a", "b", "c"]),
         [true, true, false]
     );
     // An `UPDATE`'s own table has its row.
@@ -646,27 +585,16 @@ fn a_column_is_null_where_every_source_it_may_be_of_may_be_without_a_row() {
 
 #[test]
 fn a_qualified_column_is_its_qualifiers_source_and_a_bare_one_its_tables() {
-    // sqlc names the table, whatever its alias: a qualifier tells which of
-    // two sources of one table.
-    let boss =
-        "SELECT e.name, m.name AS boss, name FROM staff e LEFT JOIN staff m ON m.id = e.boss";
+    // sqlc names the table whatever its alias, so only a qualifier tells which of two sources of one table it is
+    let boss = "SELECT e.name, m.name AS boss, name FROM staff e LEFT JOIN staff m ON m.id = e.boss";
+    assert_eq!(outer_of(boss, &["staff", "staff", "staff"]), [false, true, false]);
     assert_eq!(
-        outer_of(boss, &["staff", "staff", "staff"]),
-        [false, true, false]
-    );
-    assert_eq!(
-        outer_of(
-            "SELECT public.b.v, b.v FROM a x LEFT JOIN b ON z",
-            &["b", "b"]
-        ),
+        outer_of("SELECT public.b.v, b.v FROM a x LEFT JOIN b ON z", &["b", "b"]),
         [true, true]
     );
     // Under an alias, a table's own name is not its source's.
     assert_eq!(
-        outer_of(
-            "SELECT y.v, b.v FROM a x LEFT JOIN b AS y ON z",
-            &["b", "b"]
-        ),
+        outer_of("SELECT y.v, b.v FROM a x LEFT JOIN b AS y ON z", &["b", "b"]),
         [true, false]
     );
     // Without a qualifier, both sources of its table must be without a row.
@@ -740,8 +668,7 @@ fn a_from_that_is_not_read_leaves_each_column_as_sqlc_reports_it() {
 #[test]
 fn a_name_that_may_be_anothers_proves_no_table_present() {
     for sql in [
-        // An alias that spells a table's name: of a table, a subquery, a
-        // function.
+        // An alias that spells a table's name: of a table, a subquery, a function
         "SELECT * FROM b AS x LEFT JOIN c AS b ON y",
         "SELECT * FROM b x LEFT JOIN ( SELECT * FROM b ) AS b ON y",
         "SELECT * FROM b AS x JOIN ( SELECT * FROM b ) AS b ON true",
@@ -753,10 +680,7 @@ fn a_name_that_may_be_anothers_proves_no_table_present() {
     }
     // A table under its own name, or beside a CTE, is itself.
     assert_eq!(proven("SELECT * FROM a AS a JOIN b b ON x"), ["a", "b"]);
-    assert_eq!(
-        proven("WITH v AS ( SELECT 1 ) SELECT * FROM a JOIN v ON x"),
-        ["a"]
-    );
+    assert_eq!(proven("WITH v AS ( SELECT 1 ) SELECT * FROM a JOIN v ON x"), ["a"]);
     // A subquery is no table, nor is a function called for its rows.
     assert_eq!(
         proven("SELECT * FROM a LEFT JOIN LATERAL ( SELECT * FROM b LIMIT 1 ) b ON true"),
@@ -796,8 +720,7 @@ fn a_statement_that_returns_the_rows_it_writes_has_its_table() {
         assert_eq!(proven(sql), ["t"], "{sql}");
     }
     assert!(proven("UPDATE t SET a = 1").is_empty());
-    // An `UPDATE` reads its `FROM` beside the table it writes, which that
-    // may name again.
+    // An `UPDATE` reads its `FROM` beside the table it writes, which that `FROM` may name again
     assert_eq!(
         proven("UPDATE t SET a = u . a FROM u LEFT JOIN v ON x WHERE t . id = u . id RETURNING *"),
         ["t", "u"]

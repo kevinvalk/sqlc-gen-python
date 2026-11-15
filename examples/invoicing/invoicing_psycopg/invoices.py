@@ -20,7 +20,7 @@ RETURNING id, customer_id, number, status, currency, issued_on, due_on, notes, c
 
 
 def create_invoice(
-    conn: psycopg.Connection[Any],
+    connection: psycopg.Connection[Any],
     *,
     customer_id: UUID,
     number: str,
@@ -29,7 +29,7 @@ def create_invoice(
     due_on: dt.date | None,
     notes: str | None,
 ) -> models.Invoice:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(
             _CREATE_INVOICE, (customer_id, number, currency, issued_on, due_on, notes)
         )
@@ -45,8 +45,8 @@ def create_invoice(
 _GET_INVOICE: Final = "SELECT id, customer_id, number, status, currency, issued_on, due_on, notes, created_at, paid_at FROM invoices WHERE id = $1"
 
 
-def get_invoice(conn: psycopg.Connection[Any], *, id: UUID) -> models.Invoice:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+def get_invoice(connection: psycopg.Connection[Any], *, id: UUID) -> models.Invoice:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_INVOICE, (id,))
         match cur.fetchmany(2):
             case [row]:
@@ -61,9 +61,9 @@ _GET_INVOICE_STATUS: Final = "SELECT status FROM invoices WHERE id = $1"
 
 
 def get_invoice_status(
-    conn: psycopg.Connection[Any], *, id: UUID
+    connection: psycopg.Connection[Any], *, id: UUID
 ) -> models.InvoiceStatus:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_INVOICE_STATUS, (id,))
         match cur.fetchmany(2):
             case [row]:
@@ -77,8 +77,10 @@ def get_invoice_status(
 _GET_INVOICE_DUE_DATE: Final = "SELECT due_on FROM invoices WHERE id = $1"
 
 
-def get_invoice_due_date(conn: psycopg.Connection[Any], *, id: UUID) -> dt.date | None:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+def get_invoice_due_date(
+    connection: psycopg.Connection[Any], *, id: UUID
+) -> dt.date | None:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_INVOICE_DUE_DATE, (id,))
         match cur.fetchmany(2):
             case [row]:
@@ -109,9 +111,9 @@ class GetInvoiceWithCustomerRow:
 
 
 def get_invoice_with_customer(
-    conn: psycopg.Connection[Any], *, id: UUID
+    connection: psycopg.Connection[Any], *, id: UUID
 ) -> GetInvoiceWithCustomerRow:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_INVOICE_WITH_CUSTOMER, (id,))
         match cur.fetchmany(2):
             case [row]:
@@ -126,9 +128,9 @@ _LIST_INVOICES_BY_IDS: Final = "SELECT id, customer_id, number, status, currency
 
 
 def list_invoices_by_ids(
-    conn: psycopg.Connection[Any], *, ids: list[UUID]
+    connection: psycopg.Connection[Any], *, ids: list[UUID]
 ) -> list[models.Invoice]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_INVOICES_BY_IDS, (ids,))
         return [models.Invoice.from_row(row) for row in cur.fetchall()]
 
@@ -137,9 +139,9 @@ _LIST_INVOICES_BY_STATUS: Final = "SELECT id, customer_id, number, status, curre
 
 
 def list_invoices_by_status(
-    conn: psycopg.Connection[Any], *, statuses: list[models.InvoiceStatus]
+    connection: psycopg.Connection[Any], *, statuses: list[models.InvoiceStatus]
 ) -> list[models.Invoice]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_INVOICES_BY_STATUS, (statuses,))
         return [models.Invoice.from_row(row) for row in cur.fetchall()]
 
@@ -148,12 +150,12 @@ _LIST_INVOICES_ISSUED_BETWEEN: Final = "SELECT id, customer_id, number, status, 
 
 
 def list_invoices_issued_between(
-    conn: psycopg.Connection[Any],
+    connection: psycopg.Connection[Any],
     *,
     issued_on: dt.date | None,
     issued_on_2: dt.date | None,
 ) -> list[models.Invoice]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_INVOICES_ISSUED_BETWEEN, (issued_on, issued_on_2))
         return [models.Invoice.from_row(row) for row in cur.fetchall()]
 
@@ -164,14 +166,14 @@ _LIST_INVOICE_NUMBERS: Final = (
 
 
 def list_invoice_numbers(
-    conn: psycopg.Connection[Any], *, customer_id: UUID
+    connection: psycopg.Connection[Any], *, customer_id: UUID
 ) -> list[str]:
     """invoice numbers of one customer – in order, as printed on a statement.
 
     Returns:
         the numbers, never reused
     """
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_INVOICE_NUMBERS, (customer_id,))
         return [row[0] for row in cur.fetchall()]
 
@@ -198,14 +200,14 @@ class SearchInvoicesRow:
 
 
 def search_invoices(
-    conn: psycopg.Connection[Any],
+    connection: psycopg.Connection[Any],
     *,
     customer_id: UUID,
     status: models.InvoiceStatus | None,
     due_before: dt.date | None,
 ) -> list[SearchInvoicesRow]:
     """Filters are optional: a NULL filter matches every invoice."""
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_SEARCH_INVOICES, (customer_id, status, due_before))
         return [SearchInvoicesRow.from_row(row) for row in cur.fetchall()]
 
@@ -237,13 +239,13 @@ class GetInvoiceTotalsRow:
 
 
 def get_invoice_totals(
-    conn: psycopg.Connection[Any], *, id: UUID
+    connection: psycopg.Connection[Any], *, id: UUID
 ) -> GetInvoiceTotalsRow:
     """Totals are computed in SQL, so rounding matches the database exactly.
     Every aggregate is cast, since sqlc only guesses the type of a function call,
     and coalesced where it can be NULL, since sqlc reports every cast NOT NULL.
     """
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_INVOICE_TOTALS, (id,))
         match cur.fetchmany(2):
             case [row]:
@@ -276,9 +278,9 @@ class ListOverdueInvoicesRow:
 
 
 def list_overdue_invoices(
-    conn: psycopg.Connection[Any], *, as_of: dt.date | None
+    connection: psycopg.Connection[Any], *, as_of: dt.date | None
 ) -> list[ListOverdueInvoicesRow]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_OVERDUE_INVOICES, (as_of,))
         return [ListOverdueInvoicesRow.from_row(row) for row in cur.fetchall()]
 
@@ -297,9 +299,9 @@ class CountInvoicesByStatusRow:
 
 
 def count_invoices_by_status(
-    conn: psycopg.Connection[Any],
+    connection: psycopg.Connection[Any],
 ) -> list[CountInvoicesByStatusRow]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_COUNT_INVOICES_BY_STATUS)
         return [CountInvoicesByStatusRow.from_row(row) for row in cur.fetchall()]
 
@@ -307,8 +309,8 @@ def count_invoices_by_status(
 _COUNT_INVOICES: Final = "SELECT count(*)::bigint FROM invoices WHERE customer_id = $1"
 
 
-def count_invoices(conn: psycopg.Connection[Any], *, customer_id: UUID) -> int:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+def count_invoices(connection: psycopg.Connection[Any], *, customer_id: UUID) -> int:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_COUNT_INVOICES, (customer_id,))
         match cur.fetchmany(2):
             case [row]:
@@ -335,12 +337,12 @@ class CountInvoicesIssuedRow:
 
 
 def count_invoices_issued(
-    conn: psycopg.Connection[Any], *, customer_id: UUID
+    connection: psycopg.Connection[Any], *, customer_id: UUID
 ) -> CountInvoicesIssuedRow:
     """How many invoices the customer has, and how many of them are issued: a
     count of the rows a filter keeps is as much a count.
     """
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_COUNT_INVOICES_ISSUED, (customer_id,))
         match cur.fetchmany(2):
             case [row]:
@@ -366,13 +368,13 @@ class ListIssuedNumbersRow:
 
 
 def list_issued_numbers(
-    conn: psycopg.Connection[Any], *, customer_id: UUID
+    connection: psycopg.Connection[Any], *, customer_id: UUID
 ) -> list[ListIssuedNumbersRow]:
     """Each of the customer's invoices, with its number once it has an issue
     date: a CASE without an ELSE is NULL where no WHEN holds, though sqlc
     reports its cast NOT NULL.
     """
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_ISSUED_NUMBERS, (customer_id,))
         return [ListIssuedNumbersRow.from_row(row) for row in cur.fetchall()]
 
@@ -392,12 +394,12 @@ class ListInvoiceNumbersPageRow:
 
 
 def list_invoice_numbers_page(
-    conn: psycopg.Connection[Any], *, customer_id: UUID, limit: int
+    connection: psycopg.Connection[Any], *, customer_id: UUID, limit: int
 ) -> list[ListInvoiceNumbersPageRow]:
     """A page of the customer's invoice numbers, each beside how many there are
     in all: a count over a window.
     """
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_INVOICE_NUMBERS_PAGE, (customer_id, limit))
         return [ListInvoiceNumbersPageRow.from_row(row) for row in cur.fetchall()]
 
@@ -406,10 +408,10 @@ _ISSUE_INVOICE: Final = "UPDATE invoices SET status = 'issued', issued_on = $1 W
 
 
 def issue_invoice(
-    conn: psycopg.Connection[Any], *, issued_on: dt.date | None, id: UUID
+    connection: psycopg.Connection[Any], *, issued_on: dt.date | None, id: UUID
 ) -> int:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
-        with conn.pipeline():
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
+        with connection.pipeline():
             cur.execute(_ISSUE_INVOICE, (issued_on, id))
         return cur.rowcount
 
@@ -420,9 +422,9 @@ _MARK_INVOICE_PAID: Final = (
 
 
 def mark_invoice_paid(
-    conn: psycopg.Connection[Any], *, paid_at: dt.datetime | None, id: UUID
+    connection: psycopg.Connection[Any], *, paid_at: dt.datetime | None, id: UUID
 ) -> None:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_MARK_INVOICE_PAID, (paid_at, id))
 
 
@@ -432,10 +434,10 @@ _VOID_INVOICE: Final = (
 
 
 def void_invoice(
-    conn: psycopg.Connection[Any], *, id: UUID
+    connection: psycopg.Connection[Any], *, id: UUID
 ) -> psycopg.RawCursor[tuple[Any, ...]]:
-    cur = psycopg.RawCursor(conn, row_factory=tuple_row)
-    with conn.pipeline():
+    cur = psycopg.RawCursor(connection, row_factory=tuple_row)
+    with connection.pipeline():
         cur.execute(_VOID_INVOICE, (id,))
     return cur
 
@@ -446,10 +448,10 @@ _DELETE_DRAFT_INVOICES: Final = (
 
 
 def delete_draft_invoices(
-    conn: psycopg.Connection[Any], *, created_before: dt.datetime
+    connection: psycopg.Connection[Any], *, created_before: dt.datetime
 ) -> int:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
-        with conn.pipeline():
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
+        with connection.pipeline():
             cur.execute(_DELETE_DRAFT_INVOICES, (created_before,))
         return cur.rowcount
 
@@ -460,9 +462,13 @@ RETURNING id, invoice_id, filename, content, uploaded_at"""
 
 
 def attach_medium(
-    conn: psycopg.Connection[Any], *, invoice_id: UUID, filename: str, content: bytes
+    connection: psycopg.Connection[Any],
+    *,
+    invoice_id: UUID,
+    filename: str,
+    content: bytes,
 ) -> models.Medium:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_ATTACH_MEDIUM, (invoice_id, filename, content))
         match cur.fetchmany(2):
             case [row]:
@@ -488,9 +494,9 @@ class ListMediaRow:
 
 
 def list_media(
-    conn: psycopg.Connection[Any], *, invoice_id: UUID
+    connection: psycopg.Connection[Any], *, invoice_id: UUID
 ) -> list[ListMediaRow]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_MEDIA, (invoice_id,))
         return [ListMediaRow.from_row(row) for row in cur.fetchall()]
 
@@ -498,8 +504,10 @@ def list_media(
 _LIST_INVOICE_STATUSES: Final = "SELECT DISTINCT status FROM invoices ORDER BY status"
 
 
-def list_invoice_statuses(conn: psycopg.Connection[Any]) -> list[models.InvoiceStatus]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+def list_invoice_statuses(
+    connection: psycopg.Connection[Any],
+) -> list[models.InvoiceStatus]:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_INVOICE_STATUSES)
         return [models.InvoiceStatus(row[0]) for row in cur.fetchall()]
 
@@ -513,10 +521,10 @@ class GetInvoicesBatchParams:
 
 
 def get_invoices_batch(
-    conn: psycopg.Connection[Any], rows: Iterable[GetInvoicesBatchParams]
+    connection: psycopg.Connection[Any], rows: Iterable[GetInvoicesBatchParams]
 ) -> list[models.Invoice]:
     """Several invoices at once, each in the place of its id."""
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.executemany(_GET_INVOICES_BATCH, [(r.id,) for r in rows], returning=True)
         values: list[models.Invoice] = []
         for result in cur.results():
@@ -541,9 +549,9 @@ class ListInvoiceNumbersBatchParams:
 
 
 def list_invoice_numbers_batch(
-    conn: psycopg.Connection[Any], rows: Iterable[ListInvoiceNumbersBatchParams]
+    connection: psycopg.Connection[Any], rows: Iterable[ListInvoiceNumbersBatchParams]
 ) -> list[list[str]]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.executemany(
             _LIST_INVOICE_NUMBERS_BATCH,
             [(r.customer_id,) for r in rows],
@@ -563,7 +571,7 @@ class VoidInvoicesBatchParams:
 
 
 def void_invoices_batch(
-    conn: psycopg.Connection[Any], rows: Iterable[VoidInvoicesBatchParams]
+    connection: psycopg.Connection[Any], rows: Iterable[VoidInvoicesBatchParams]
 ) -> None:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.executemany(_VOID_INVOICES_BATCH, [(r.id,) for r in rows])

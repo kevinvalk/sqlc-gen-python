@@ -37,7 +37,7 @@ RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, c
 
 
 async def create_customer(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
     *,
     name: str,
     email: str | None,
@@ -48,7 +48,7 @@ async def create_customer(
 ) -> models.Customer:
     return models.Customer.from_row(
         (
-            await conn.execute(
+            await connection.execute(
                 _CREATE_CUSTOMER,
                 {
                     "name": name,
@@ -80,8 +80,10 @@ _GET_CUSTOMER: Final = sqlalchemy.text(
 )
 
 
-async def get_customer(conn: AsyncConnection, *, id: UUID) -> models.Customer | None:
-    row = (await conn.execute(_GET_CUSTOMER, {"id": id})).one_or_none()
+async def get_customer(
+    connection: AsyncConnection, *, id: UUID
+) -> models.Customer | None:
+    row = (await connection.execute(_GET_CUSTOMER, {"id": id})).one_or_none()
     return None if row is None else models.Customer.from_row(row)
 
 
@@ -103,10 +105,12 @@ _GET_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
 
 
 async def get_customer_by_name(
-    conn: AsyncConnection, *, name: str
+    connection: AsyncConnection, *, name: str
 ) -> models.Customer | None:
     """Names are not unique: more than one match is an error, never a guess."""
-    row = (await conn.execute(_GET_CUSTOMER_BY_NAME, {"name": name})).one_or_none()
+    row = (
+        await connection.execute(_GET_CUSTOMER_BY_NAME, {"name": name})
+    ).one_or_none()
     return None if row is None else models.Customer.from_row(row)
 
 
@@ -116,10 +120,10 @@ _GET_CUSTOMER_ID_BY_EMAIL: Final = sqlalchemy.text(
 
 
 async def get_customer_id_by_email(
-    conn: AsyncConnection, *, email: str | None
+    connection: AsyncConnection, *, email: str | None
 ) -> UUID | None:
     value: UUID | None = (
-        await conn.execute(_GET_CUSTOMER_ID_BY_EMAIL, {"email": email})
+        await connection.execute(_GET_CUSTOMER_ID_BY_EMAIL, {"email": email})
     ).scalar_one_or_none()
     return value
 
@@ -135,10 +139,12 @@ _GET_ACCEPTED_METHODS: Final = sqlalchemy.text(
 
 
 async def get_accepted_methods(
-    conn: AsyncConnection, *, id: UUID
+    connection: AsyncConnection, *, id: UUID
 ) -> list[models.BillingPaymentMethod] | None:
     """PostgreSQL names this column `coalesce`, and sqlc `accepted_methods`."""
-    value = (await conn.execute(_GET_ACCEPTED_METHODS, {"id": id})).scalar_one_or_none()
+    value = (
+        await connection.execute(_GET_ACCEPTED_METHODS, {"id": id})
+    ).scalar_one_or_none()
     return None if value is None else [models.BillingPaymentMethod(v) for v in value]
 
 
@@ -170,11 +176,11 @@ class CompareAcceptedMethodsRow:
 
 
 async def compare_accepted_methods(
-    conn: AsyncConnection, *, first: UUID, second: UUID
+    connection: AsyncConnection, *, first: UUID, second: UUID
 ) -> CompareAcceptedMethodsRow | None:
     """Two columns of one name, as when merging two customers."""
     row = (
-        await conn.execute(
+        await connection.execute(
             _COMPARE_ACCEPTED_METHODS, {"first": first, "second": second}
         )
     ).one_or_none()
@@ -187,10 +193,10 @@ _UPDATE_CUSTOMER_EMAIL: Final = sqlalchemy.text(
 
 
 async def update_customer_email(
-    conn: AsyncConnection, *, email: str | None, id: UUID
+    connection: AsyncConnection, *, email: str | None, id: UUID
 ) -> int:
     return (
-        await conn.execute(_UPDATE_CUSTOMER_EMAIL, {"email": email, "id": id})
+        await connection.execute(_UPDATE_CUSTOMER_EMAIL, {"email": email, "id": id})
     ).rowcount
 
 
@@ -212,12 +218,12 @@ ORDER BY name""").columns(
 
 
 async def search_customers(
-    conn: AsyncConnection, *, query: str
+    connection: AsyncConnection, *, query: str
 ) -> list[models.Customer]:
     """Case-insensitive search on name or email."""
     return [
         models.Customer.from_row(row)
-        for row in await conn.execute(_SEARCH_CUSTOMERS, {"query": query})
+        for row in await connection.execute(_SEARCH_CUSTOMERS, {"query": query})
     ]
 
 
@@ -226,9 +232,11 @@ _LIST_CUSTOMER_NAMES_BY_TAG: Final = sqlalchemy.text(
 )
 
 
-async def list_customer_names_by_tag(conn: AsyncConnection, *, tag: str) -> list[str]:
+async def list_customer_names_by_tag(
+    connection: AsyncConnection, *, tag: str
+) -> list[str]:
     return list(
-        (await conn.execute(_LIST_CUSTOMER_NAMES_BY_TAG, {"tag": tag})).scalars()
+        (await connection.execute(_LIST_CUSTOMER_NAMES_BY_TAG, {"tag": tag})).scalars()
     )
 
 
@@ -248,10 +256,10 @@ class ListVipCustomersRow:
         return cls(id=row[0], name=row[1], email=row[2])
 
 
-async def list_vip_customers(conn: AsyncConnection) -> list[ListVipCustomersRow]:
+async def list_vip_customers(connection: AsyncConnection) -> list[ListVipCustomersRow]:
     return [
         ListVipCustomersRow.from_row(row)
-        for row in await conn.execute(_LIST_VIP_CUSTOMERS)
+        for row in await connection.execute(_LIST_VIP_CUSTOMERS)
     ]
 
 
@@ -261,9 +269,9 @@ _LIST_PREFERRED_METHODS: Final = sqlalchemy.text(
 
 
 async def list_preferred_methods(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
 ) -> list[models.BillingPaymentMethod | None]:
     return [
         None if value is None else models.BillingPaymentMethod(value)
-        for value in (await conn.execute(_LIST_PREFERRED_METHODS)).scalars()
+        for value in (await connection.execute(_LIST_PREFERRED_METHODS)).scalars()
     ]

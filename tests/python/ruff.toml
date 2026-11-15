@@ -1,11 +1,13 @@
-# The developer scripts: the generated-code contract in pyproject.toml, plus
-# what tools that report on stdout and run sqlc, git, docker and uv need.
+# The developer scripts follow the generated-code contract in pyproject.toml, plus what tools that report on stdout
+# and run sqlc, git, docker and uv need.
 extend = "pyproject.toml"
+# The generated code keeps the formatter's default width, as that is the users' code and not ours.
+line-length = 120
 
 [lint]
 extend-ignore = [
-  "ANN401", # what a driver takes and returns is `Any`, and so is a case's API
-  "S603",   # subprocess with arguments the script built
-  "S607",   # executables found on PATH: uv, git, docker, sqlc
-  "T201",   # reporting is what these scripts do
+  "ANN401", # What a driver takes and returns is `Any`, and so is a case's API
+  "S603",   # Subprocesses with arguments the script built itself
+  "S607",   # We find uv, git, docker and sqlc on PATH
+  "T201",   # Reporting is what these scripts do
 ]

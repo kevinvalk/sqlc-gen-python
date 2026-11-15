@@ -1,7 +1,3 @@
-//! The invariants a model and a query's record or parameters share: named
-//! after sqlc's names, documented by sqlc's comments, and built from a row in
-//! its columns' order.
-
 use std::collections::BTreeSet;
 
 use ruff_python_ast::visitor::{Visitor, walk_expr};
@@ -10,17 +6,11 @@ use sqlc_gen_python::api::names::{self, Repeats};
 
 use super::python::{docstring, fields, is_name, unparse, words};
 
-/// Checks that a record's `from_row` builds its fields, in order, each from
-/// its own place in the row: a column from `row[i]` (inside an enum's
-/// conversion, if any), and an embed of `width` columns from `row[a:b]`,
-/// starting where the field before it ended, an outer join's perhaps `None`
-/// as told by one of those columns. `widths` gives each field's: `None` for
-/// a column.
-pub(super) fn reads_in_order(
-    class: &StmtClassDef,
-    widths: &[Option<usize>],
-    problems: &mut Vec<String>,
-) {
+/// A record's `from_row` builds its fields in order, each from its own place in the row: a column from `row[i]`
+/// (inside an enum's conversion, if any), and an embed of `width` columns from `row[a:b]`, starting where the field
+/// before it ended. `widths` holds `None` for a column, and an outer join's embed may be `None` as one of its own
+/// columns tells.
+pub(super) fn reads_in_order(class: &StmtClassDef, widths: &[Option<usize>], problems: &mut Vec<String>) {
     #[derive(Default)]
     struct Reads(BTreeSet<String>);
     impl<'a> Visitor<'a> for Reads {
@@ -38,6 +28,7 @@ pub(super) fn reads_in_order(
         .find(|method| method.name.as_str() == "from_row")
         .and_then(|method| method.body.last()?.as_return_stmt()?.value.as_deref())
         .and_then(Expr::as_call_expr);
+
     let names: Vec<&str> = fields(class).into_iter().map(|(name, _)| name).collect();
     let Some(built) = built else {
         // A table without columns has no row to read.
@@ -46,6 +37,7 @@ pub(super) fn reads_in_order(
         }
         return;
     };
+
     let keywords: Vec<&str> = (built.arguments.keywords.iter())
         .filter_map(|keyword| Some(keyword.arg.as_ref()?.as_str()))
         .collect();
@@ -55,6 +47,7 @@ pub(super) fn reads_in_order(
             class.name
         ));
     }
+
     let mut start = 0;
     for (keyword, width) in built.arguments.keywords.iter().zip(widths) {
         let expected = match width {
@@ -64,12 +57,12 @@ pub(super) fn reads_in_order(
         start += width.unwrap_or(1);
         let mut reads = Reads::default();
         reads.visit_expr(&keyword.value);
-        // An embed's own columns, each, may tell whether it has a row.
-        let own: BTreeSet<String> = match width {
+        // Any of an embed's own columns may tell whether an outer join found its row.
+        let own_columns: BTreeSet<String> = match width {
             None => BTreeSet::new(),
             Some(width) => (start - width..start).map(|i| i.to_string()).collect(),
         };
-        let extra: BTreeSet<&String> = reads.0.difference(&own).collect();
+        let extra: BTreeSet<&String> = reads.0.difference(&own_columns).collect();
         if !reads.0.contains(&expected) || extra != BTreeSet::from([&expected]) {
             problems.push(format!(
                 "class `{}`: `from_row` reads row[{}] into `{}`, not row[{expected}]",
@@ -81,10 +74,8 @@ pub(super) fn reads_in_order(
     }
 }
 
-/// Checks that `fields`, which `what` describes, are named as the generator
-/// names `spellings` (`docs/python-output.md` §3), in order. Two of one type
-/// swapped consistently, in the SQL, the signature and `from_row` at once,
-/// would pass every other check, and run.
+/// `fields` are named as the generator names `spellings` (`docs/python-output.md` §3), in order. We need this as two
+/// fields of one type, swapped in the SQL, the signature and `from_row` at once, pass every other check and even run.
 pub(super) fn named_after(
     what: &str,
     fields: &[(&str, &Expr)],
@@ -95,15 +86,12 @@ pub(super) fn named_after(
     let found: Vec<&str> = fields.iter().map(|(name, _)| *name).collect();
     let expected = names::names(spellings, repeats).unwrap_or_default();
     if found != expected {
-        problems.push(format!(
-            "{what}: {found:?} are not named after sqlc's {spellings:?}"
-        ));
+        problems.push(format!("{what}: {found:?} are not named after sqlc's {spellings:?}"));
     }
 }
 
-/// Checks that a record's docstrings are exactly its comments (§4, rule 5):
-/// the class's `comment`, and each field's its own. Only the words are
-/// compared; how they are laid out is the golden tests' to pin.
+/// A record's docstrings are exactly its comments (§4, rule 5): the class's `comment`, then each field's own. We only
+/// compare the words, as the layout is for the golden tests to pin.
 pub(super) fn documented<'a>(
     what: &str,
     class: &StmtClassDef,
@@ -116,9 +104,7 @@ pub(super) fn documented<'a>(
     let attributes = (body.iter().enumerate())
         .filter(|(_, stmt)| stmt.is_ann_assign_stmt())
         .map(|(i, _)| docstring(body.get(i + 1)));
-    let found: Vec<String> = std::iter::once(docstring(body.first()))
-        .chain(attributes)
-        .collect();
+    let found: Vec<String> = std::iter::once(docstring(body.first())).chain(attributes).collect();
     if found.iter().map(|d| words(d)).collect::<Vec<_>>() != expected {
         problems.push(format!("{what}: docstrings {found:?} are not its comments"));
     }

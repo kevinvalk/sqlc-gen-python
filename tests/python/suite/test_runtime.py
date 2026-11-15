@@ -1,10 +1,7 @@
-"""Every generated function, run against PostgreSQL through every driver.
+"""Every generated function of the invoicing example, run against PostgreSQL through every driver.
 
-One scenario drives the invoicing API end to end. It is written once and run
-through each invoicing case: SQLAlchemy's functions on psycopg, and its
-coroutines on asyncpg and psycopg; psycopg's own, sync and async. Every call is
-wrapped by `deep.checked`, so each argument and result must match its
-annotation exactly, and the run fails if any public function was never called.
+Every call is wrapped by `deep.checked`, so each argument and result must match its annotation exactly, and the run
+fails if any public function was never called.
 """
 
 import asyncio
@@ -29,7 +26,6 @@ AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 # Characters that SQLAlchemy, a driver or a careless generator could misread.
 AWKWARD = 'it\'s "quoted" \\ :name $1 %s %(x)s ::text {}'
 
-# The drivers each case runs on: a backend's, sync or async.
 DRIVERS = {
     ("sqlalchemy", False): ["psycopg"],
     ("sqlalchemy", True): ["asyncpg", "psycopg"],
@@ -44,9 +40,7 @@ RUNS = [
 
 
 @pytest.mark.parametrize(("case", "driver"), RUNS)
-def test_every_function_against_postgres(
-    case: GoldenCase, driver: str, database: sqlalchemy.URL
-) -> None:
+def test_every_function_against_postgres(case: GoldenCase, driver: str, database: sqlalchemy.URL) -> None:
     called: set[str] = set()
     run = {
         ("sqlalchemy", False): _sqlalchemy_sync,
@@ -59,96 +53,88 @@ def test_every_function_against_postgres(
     assert called == public, f"never called: {sorted(public - called)}"
 
 
-async def _sqlalchemy_sync(
-    case: GoldenCase, url: sqlalchemy.URL, called: set[str]
-) -> None:
+async def _sqlalchemy_sync(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
     engine = sqlalchemy.create_engine(url)
     try:
-        with engine.connect() as conn:
-            conn.begin()
-            api = _api(case, conn, called)
-            await scenario(api, _sqlalchemy_sql(conn))
-            conn.rollback()
+        with engine.connect() as connection:
+            connection.begin()
+            api = _api(case, connection, called)
+            await scenario(api, _sqlalchemy_sql(connection))
+            connection.rollback()
     finally:
         engine.dispose()
 
 
-async def _sqlalchemy_async(
-    case: GoldenCase, url: sqlalchemy.URL, called: set[str]
-) -> None:
+async def _sqlalchemy_async(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
     engine = create_async_engine(url)
     try:
-        async with engine.connect() as conn:
-            await conn.begin()
-            api = _api(case, conn, called)
-            await scenario(api, _sqlalchemy_sql(conn))
-            await conn.rollback()
+        async with engine.connect() as connection:
+            await connection.begin()
+            api = _api(case, connection, called)
+            await scenario(api, _sqlalchemy_sql(connection))
+            await connection.rollback()
     finally:
         await engine.dispose()
 
 
-async def _psycopg_sync(
-    case: GoldenCase, url: sqlalchemy.URL, called: set[str]
-) -> None:
-    with psycopg.connect(conninfo(url)) as conn:
-        await scenario(_api(case, conn, called), _psycopg_sql(conn))
-        conn.rollback()
+async def _psycopg_sync(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
+    with psycopg.connect(conninfo(url)) as connection:
+        await scenario(_api(case, connection, called), _psycopg_sql(connection))
+        connection.rollback()
 
 
-async def _psycopg_async(
-    case: GoldenCase, url: sqlalchemy.URL, called: set[str]
-) -> None:
-    async with await psycopg.AsyncConnection.connect(conninfo(url)) as conn:
-        await scenario(_api(case, conn, called), _psycopg_sql(conn))
-        await conn.rollback()
+async def _psycopg_async(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
+    async with await psycopg.AsyncConnection.connect(conninfo(url)) as connection:
+        await scenario(_api(case, connection, called), _psycopg_sql(connection))
+        await connection.rollback()
 
 
-def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:
-    """The case's API on ``conn``, with a pipeline to batch calls in."""
-    api = queries(case, conn, called)
-    api.pipeline = lambda: _pipeline(conn)
+def _api(case: GoldenCase, connection: object, called: set[str]) -> Any:
+    """The case's API on ``connection``, with a pipeline to batch calls in."""
+    api = queries(case, connection, called)
+    api.pipeline = lambda: _pipeline(connection)
     return api
 
 
 @contextlib.asynccontextmanager
-async def _pipeline(conn: object) -> AsyncIterator[None]:
-    """A pipeline of the caller's, on psycopg: a count read in it must be the
-    statement's, though psycopg counts one only once the pipeline syncs.
+async def _pipeline(connection: object) -> AsyncIterator[None]:
+    """A pipeline of the caller's on psycopg, as a count read in it must still be the statement's, though psycopg only
+    counts one once the pipeline syncs.
     """
-    if isinstance(conn, psycopg.AsyncConnection):
-        async with conn.pipeline():
+    if isinstance(connection, psycopg.AsyncConnection):
+        async with connection.pipeline():
             yield
-    elif isinstance(conn, psycopg.Connection):
-        with conn.pipeline():
+    elif isinstance(connection, psycopg.Connection):
+        with connection.pipeline():
             yield
     else:
         yield
 
 
-def _sqlalchemy_sql(conn: Any) -> Callable[..., Awaitable[Any]]:
-    """Raw SQL for looking behind the API, e.g. at SQL NULL versus JSON null."""
+def _sqlalchemy_sql(connection: Any) -> Callable[..., Awaitable[Any]]:
+    """Raw SQL so we can look behind the API, at SQL NULL versus JSON null for example."""
 
-    async def scalar(statement: str, **params: object) -> object:
-        result = await aw(conn.execute(sqlalchemy.text(statement), params))
+    async def scalar(statement: str, **parameters: object) -> object:
+        result = await aw(connection.execute(sqlalchemy.text(statement), parameters))
         return result.scalar_one()
 
     return scalar
 
 
-def _psycopg_sql(conn: Any) -> Callable[..., Awaitable[Any]]:
-    """The same, on a psycopg connection: ``:name`` becomes ``%(name)s``."""
+def _psycopg_sql(connection: Any) -> Callable[..., Awaitable[Any]]:
+    """The same on a psycopg connection, where ``:name`` becomes ``%(name)s``."""
 
-    async def scalar(statement: str, **params: object) -> object:
+    async def scalar(statement: str, **parameters: object) -> object:
         query = re.sub(r":(\w+)", r"%(\1)s", statement)
-        cur = await aw(conn.execute(query, params))
-        (row,) = await aw(cur.fetchall())
+        cursor = await aw(connection.execute(query, parameters))
+        (row,) = await aw(cursor.fetchall())
         return row[0]
 
     return scalar
 
 
 async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noqa: PLR0915
-    m = api.models
+    models = api.models
     today = dt.date(2026, 11, 11)
     now = dt.datetime(2026, 11, 11, 9, 30, 15, 123456, tzinfo=AMSTERDAM)
 
@@ -164,19 +150,19 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         name="Ada",
         email=None,
         tags=["vip", "b2b", 'quote"d', "comma,", ""],
-        preferred_method=m.BillingPaymentMethod.DIRECT_DEBIT,
+        preferred_method=models.BillingPaymentMethod.DIRECT_DEBIT,
         accepted_methods=[
-            m.BillingPaymentMethod.CARD,
-            m.BillingPaymentMethod.DIRECT_DEBIT,
+            models.BillingPaymentMethod.CARD,
+            models.BillingPaymentMethod.DIRECT_DEBIT,
         ],
         metadata=metadata,
     )
     assert ada.email is None
     assert ada.tags == ["vip", "b2b", 'quote"d', "comma,", ""]
-    assert ada.preferred_method is m.BillingPaymentMethod.DIRECT_DEBIT
+    assert ada.preferred_method is models.BillingPaymentMethod.DIRECT_DEBIT
     assert ada.accepted_methods == [
-        m.BillingPaymentMethod.CARD,
-        m.BillingPaymentMethod.DIRECT_DEBIT,
+        models.BillingPaymentMethod.CARD,
+        models.BillingPaymentMethod.DIRECT_DEBIT,
     ]
     assert ada.metadata == metadata
     assert ada.created_at.utcoffset() is not None
@@ -190,13 +176,11 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         metadata=None,
     )
     assert (bob.tags, bob.accepted_methods, bob.metadata) == ([], [], None)
-    stored = await sql(
-        "SELECT metadata IS NULL FROM customers WHERE id = :id", id=bob.id
-    )
+    stored = await sql("SELECT metadata IS NULL FROM customers WHERE id = :id", id=bob.id)
     assert stored, "metadata=None is stored as JSON null"
     # Bare enums, converted one by one, NULL kept as `None`.
     assert await api.customers.list_preferred_methods() == [
-        m.BillingPaymentMethod.DIRECT_DEBIT,
+        models.BillingPaymentMethod.DIRECT_DEBIT,
         None,
     ]
 
@@ -204,12 +188,7 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     await no_row(api, api.customers.get_customer(id=uuid4()))
 
     async with api.pipeline():
-        assert (
-            await api.customers.update_customer_email(
-                email="ada@example.com", id=ada.id
-            )
-            == 1
-        )
+        assert await api.customers.update_customer_email(email="ada@example.com", id=ada.id) == 1
         assert await api.customers.update_customer_email(email=None, id=uuid4()) == 0
     ada = await api.customers.get_customer(id=ada.id)
     assert ada.email == "ada@example.com"
@@ -230,9 +209,7 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     assert await api.customers.list_customer_names_by_tag(tag="b2b") == ["Ada"]
     assert await api.customers.list_customer_names_by_tag(tag="none") == []
     vips = await api.customers.list_vip_customers()
-    assert [(v.id, v.name, v.email) for v in vips] == [
-        (ada.id, "Ada", "ada@example.com")
-    ]
+    assert [(v.id, v.name, v.email) for v in vips] == [(ada.id, "Ada", "ada@example.com")]
 
     # Invoices: char(n) padding, nullable dates, text that looks like SQL.
     first = await api.invoices.create_invoice(
@@ -243,9 +220,9 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         due_on=dt.date(2026, 11, 1),
         notes=AWKWARD,
     )
-    assert first.currency == "EU "  # char(3) pads; the driver returns it as is
+    assert first.currency == "EU "  # char(3) pads and the driver returns it as is
     assert first.notes == AWKWARD
-    assert first.status is m.InvoiceStatus.DRAFT
+    assert first.status is models.InvoiceStatus.DRAFT
     assert (first.issued_on, first.paid_at) == (None, None)
     second = await api.invoices.create_invoice(
         customer_id=ada.id,
@@ -272,7 +249,7 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         (first.id, None),
         (second.id, "2026-0002"),
     ]
-    assert await api.invoices.get_invoice_status(id=first.id) is m.InvoiceStatus.DRAFT
+    assert await api.invoices.get_invoice_status(id=first.id) is models.InvoiceStatus.DRAFT
     await no_row(api, api.invoices.get_invoice_status(id=uuid4()))
 
     # A nullable single column is bare: NULL is `None`, a missing row raises.
@@ -288,9 +265,7 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     by_ids = await api.invoices.list_invoices_by_ids(ids=[second.id, first.id, uuid4()])
     assert by_ids == [first, second]
     assert await api.invoices.list_invoices_by_ids(ids=[]) == []
-    drafts = await api.invoices.list_invoices_by_status(
-        statuses=[m.InvoiceStatus.DRAFT]
-    )
+    drafts = await api.invoices.list_invoices_by_status(statuses=[models.InvoiceStatus.DRAFT])
     assert drafts == [first, second, for_bob]
     assert await api.invoices.list_invoices_by_status(statuses=[]) == []
     assert await api.invoices.list_invoice_numbers(customer_id=ada.id) == [
@@ -301,14 +276,10 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
 
     # Batches: each row's result in order, a missing row raising as `:one`'s.
     batch_get = api.invoices.GetInvoicesBatchParams
-    assert await api.invoices.get_invoices_batch(
-        [batch_get(id=second.id), batch_get(id=first.id)]
-    ) == [second, first]
+    assert await api.invoices.get_invoices_batch([batch_get(id=second.id), batch_get(id=first.id)]) == [second, first]
     assert await api.invoices.get_invoices_batch([]) == []
     # A row without its result is `None` in the list, or raises.
-    missing = api.invoices.get_invoices_batch(
-        [batch_get(id=first.id), batch_get(id=uuid4())]
-    )
+    missing = api.invoices.get_invoices_batch([batch_get(id=first.id), batch_get(id=uuid4())])
     if api.raises:
         await no_row(api, missing)
     else:
@@ -365,54 +336,37 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     await no_row(api, api.invoices.get_invoice_totals(id=uuid4()))
 
     # Lifecycle: :execrows counts, optional filters, :execresult.
-    assert (
-        await api.invoices.issue_invoice(issued_on=dt.date(2026, 10, 1), id=first.id)
-        == 1
-    )
+    assert await api.invoices.issue_invoice(issued_on=dt.date(2026, 10, 1), id=first.id) == 1
     assert await api.invoices.issue_invoice(issued_on=today, id=first.id) == 0
-    between = await api.invoices.list_invoices_issued_between(
-        issued_on=dt.date(2026, 10, 1), issued_on_2=today
-    )
+    between = await api.invoices.list_invoices_issued_between(issued_on=dt.date(2026, 10, 1), issued_on_2=today)
     assert [invoice.id for invoice in between] == [first.id]
-    assert (
-        await api.invoices.list_invoices_issued_between(
-            issued_on=None, issued_on_2=today
-        )
-        == []
-    )
+    assert await api.invoices.list_invoices_issued_between(issued_on=None, issued_on_2=today) == []
 
-    everything = await api.invoices.search_invoices(
-        customer_id=ada.id, status=None, due_before=None
-    )
+    everything = await api.invoices.search_invoices(customer_id=ada.id, status=None, due_before=None)
     assert [(row.number, row.status) for row in everything] == [
-        ("2026-0001", m.InvoiceStatus.ISSUED),
-        ("2026-0002", m.InvoiceStatus.DRAFT),
+        ("2026-0001", models.InvoiceStatus.ISSUED),
+        ("2026-0002", models.InvoiceStatus.DRAFT),
     ]
     issued = await api.invoices.search_invoices(
-        customer_id=ada.id, status=m.InvoiceStatus.ISSUED, due_before=today
+        customer_id=ada.id, status=models.InvoiceStatus.ISSUED, due_before=today
     )
     assert [row.id for row in issued] == [first.id]
     assert (
-        await api.invoices.search_invoices(
-            customer_id=ada.id, status=m.InvoiceStatus.PAID, due_before=None
-        )
-        == []
+        await api.invoices.search_invoices(customer_id=ada.id, status=models.InvoiceStatus.PAID, due_before=None) == []
     )
 
     overdue = await api.invoices.list_overdue_invoices(as_of=today)
-    assert [(row.number, row.customer_name, row.email) for row in overdue] == [
-        ("2026-0001", "Ada", "ada@example.com")
-    ]
+    assert [(row.number, row.customer_name, row.email) for row in overdue] == [("2026-0001", "Ada", "ada@example.com")]
     assert await api.invoices.list_overdue_invoices(as_of=None) == []
 
     assert await api.invoices.list_invoice_statuses() == [
-        m.InvoiceStatus.DRAFT,
-        m.InvoiceStatus.ISSUED,
+        models.InvoiceStatus.DRAFT,
+        models.InvoiceStatus.ISSUED,
     ]
     counts = await api.invoices.count_invoices_by_status()
     assert [(row.status, row.count) for row in counts] == [
-        (m.InvoiceStatus.DRAFT, 2),
-        (m.InvoiceStatus.ISSUED, 1),
+        (models.InvoiceStatus.DRAFT, 2),
+        (models.InvoiceStatus.ISSUED, 1),
     ]
     assert await api.invoices.count_invoices(customer_id=ada.id) == 2
     assert await api.invoices.count_invoices(customer_id=uuid4()) == 0
@@ -423,11 +377,8 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     assert (none.total, none.issued) == (0, 0)
     page = await api.invoices.list_invoice_numbers_page(customer_id=ada.id, limit=1)
     assert [(row.number, row.total) for row in page] == [("2026-0001", 2)]
-    assert (
-        await api.invoices.list_invoice_numbers_page(customer_id=uuid4(), limit=1) == []
-    )
-    # A subquery an outer join leaves without a row: its column is None,
-    # though sqlc says NOT NULL.
+    assert await api.invoices.list_invoice_numbers_page(customer_id=uuid4(), limit=1) == []
+    # A subquery an outer join leaves without a row has its column None, though sqlc says NOT NULL.
     issued_numbers = await api.payments.list_customers_issued()
     assert [(row.name, row.number) for row in issued_numbers] == [
         ("Ada", "2026-0001"),
@@ -437,7 +388,7 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     # Payments: a keyword column, a non-public enum array parameter.
     payment = await api.payments.record_payment(
         invoice_id=first.id,
-        method=m.BillingPaymentMethod.DIRECT_DEBIT,
+        method=models.BillingPaymentMethod.DIRECT_DEBIT,
         amount=Decimal("169.47"),
         from_="NL91 ABNA 0417 1643 00",
         received_at=now,
@@ -451,23 +402,17 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         (first.id, "2026-0001", "169.47"),
         (second.id, "2026-0002", "0.00"),
     ]
-    assert type(balances[0]) is m.InvoiceBalance
+    assert type(balances[0]) is models.InvoiceBalance
     assert await api.payments.list_invoice_payment_methods(invoice_id=first.id) == [
-        m.BillingPaymentMethod.DIRECT_DEBIT
+        models.BillingPaymentMethod.DIRECT_DEBIT
     ]
     assert await api.payments.list_invoice_payment_methods(invoice_id=second.id) == []
     debits = await api.payments.list_payments_by_methods(
-        methods=[m.BillingPaymentMethod.DIRECT_DEBIT, m.BillingPaymentMethod.CARD]
+        methods=[models.BillingPaymentMethod.DIRECT_DEBIT, models.BillingPaymentMethod.CARD]
     )
     assert debits == [payment]
-    assert (
-        await api.payments.list_payments_by_methods(
-            methods=[m.BillingPaymentMethod.CARD]
-        )
-        == []
-    )
-    # What stands left of a RIGHT JOIN is None for a customer without
-    # payments, though sqlc says NOT NULL.
+    assert await api.payments.list_payments_by_methods(methods=[models.BillingPaymentMethod.CARD]) == []
+    # What stands left of a RIGHT JOIN is None for a customer without payments, though sqlc says NOT NULL.
     paid_by = await api.payments.list_customer_payments()
     assert [(row.name, row.number, row.amount) for row in paid_by] == [
         ("Ada", "2026-0001", Decimal("169.47")),
@@ -476,25 +421,21 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
 
     assert await api.invoices.mark_invoice_paid(paid_at=now, id=first.id) is None
     paid = await api.invoices.get_invoice(id=first.id)
-    assert (paid.status, paid.paid_at) == (m.InvoiceStatus.PAID, now)
+    assert (paid.status, paid.paid_at) == (models.InvoiceStatus.PAID, now)
     async with api.pipeline():
         assert (await api.invoices.void_invoice(id=first.id)).rowcount == 0
         assert (await api.invoices.void_invoice(id=second.id)).rowcount == 1
 
     # Media: binary content and a table whose model name is singularised.
     content = bytes(range(256))
-    medium = await api.invoices.attach_medium(
-        invoice_id=first.id, filename="scan.pdf", content=content
-    )
-    assert type(medium) is m.Medium
+    medium = await api.invoices.attach_medium(invoice_id=first.id, filename="scan.pdf", content=content)
+    assert type(medium) is models.Medium
     assert medium.content == content
     listed = await api.invoices.list_media(invoice_id=first.id)
     assert [(row.id, row.filename) for row in listed] == [(medium.id, "scan.pdf")]
 
     assert (
-        await api.invoices.delete_draft_invoices(
-            created_before=dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)
-        )
+        await api.invoices.delete_draft_invoices(created_before=dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1))
         == 1
     )
 
@@ -528,18 +469,13 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         notes=None,
     )
     assert await api.invoices.issue_invoice(issued_on=today, id=fourth.id) == 1
-    assert (
-        await api.invoices.void_invoices_batch(
-            [batch_void(id=fourth.id), batch_void(id=first.id)]
-        )
-        is None
-    )
+    assert await api.invoices.void_invoices_batch([batch_void(id=fourth.id), batch_void(id=first.id)]) is None
     assert await api.invoices.void_invoices_batch([]) is None
-    assert await api.invoices.get_invoice_status(id=fourth.id) is m.InvoiceStatus.VOID
-    assert await api.invoices.get_invoice_status(id=first.id) is m.InvoiceStatus.PAID
+    assert await api.invoices.get_invoice_status(id=fourth.id) is models.InvoiceStatus.VOID
+    assert await api.invoices.get_invoice_status(id=first.id) is models.InvoiceStatus.PAID
 
     # Enums print as their database label on every Python version.
-    assert (str(m.InvoiceStatus.PAID), f"{m.BillingPaymentMethod.DIRECT_DEBIT}") == (
+    assert (str(models.InvoiceStatus.PAID), f"{models.BillingPaymentMethod.DIRECT_DEBIT}") == (
         "paid",
         "direct-debit",
     )

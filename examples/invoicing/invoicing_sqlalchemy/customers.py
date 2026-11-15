@@ -36,7 +36,7 @@ RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, c
 
 
 def create_customer(
-    conn: sqlalchemy.Connection,
+    connection: sqlalchemy.Connection,
     *,
     name: str,
     email: str | None,
@@ -46,7 +46,7 @@ def create_customer(
     metadata: object | None,
 ) -> models.Customer:
     return models.Customer.from_row(
-        conn.execute(
+        connection.execute(
             _CREATE_CUSTOMER,
             {
                 "name": name,
@@ -77,8 +77,8 @@ _GET_CUSTOMER: Final = sqlalchemy.text(
 )
 
 
-def get_customer(conn: sqlalchemy.Connection, *, id: UUID) -> models.Customer:
-    return models.Customer.from_row(conn.execute(_GET_CUSTOMER, {"id": id}).one())
+def get_customer(connection: sqlalchemy.Connection, *, id: UUID) -> models.Customer:
+    return models.Customer.from_row(connection.execute(_GET_CUSTOMER, {"id": id}).one())
 
 
 _GET_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
@@ -98,10 +98,12 @@ _GET_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
 )
 
 
-def get_customer_by_name(conn: sqlalchemy.Connection, *, name: str) -> models.Customer:
+def get_customer_by_name(
+    connection: sqlalchemy.Connection, *, name: str
+) -> models.Customer:
     """Names are not unique: more than one match is an error, never a guess."""
     return models.Customer.from_row(
-        conn.execute(_GET_CUSTOMER_BY_NAME, {"name": name}).one()
+        connection.execute(_GET_CUSTOMER_BY_NAME, {"name": name}).one()
     )
 
 
@@ -110,8 +112,12 @@ _GET_CUSTOMER_ID_BY_EMAIL: Final = sqlalchemy.text(
 )
 
 
-def get_customer_id_by_email(conn: sqlalchemy.Connection, *, email: str | None) -> UUID:
-    value: UUID = conn.execute(_GET_CUSTOMER_ID_BY_EMAIL, {"email": email}).scalar_one()
+def get_customer_id_by_email(
+    connection: sqlalchemy.Connection, *, email: str | None
+) -> UUID:
+    value: UUID = connection.execute(
+        _GET_CUSTOMER_ID_BY_EMAIL, {"email": email}
+    ).scalar_one()
     return value
 
 
@@ -126,10 +132,10 @@ _GET_ACCEPTED_METHODS: Final = sqlalchemy.text(
 
 
 def get_accepted_methods(
-    conn: sqlalchemy.Connection, *, id: UUID
+    connection: sqlalchemy.Connection, *, id: UUID
 ) -> list[models.BillingPaymentMethod]:
     """PostgreSQL names this column `coalesce`, and sqlc `accepted_methods`."""
-    value = conn.execute(_GET_ACCEPTED_METHODS, {"id": id}).scalar_one()
+    value = connection.execute(_GET_ACCEPTED_METHODS, {"id": id}).scalar_one()
     return [models.BillingPaymentMethod(v) for v in value]
 
 
@@ -161,11 +167,11 @@ class CompareAcceptedMethodsRow:
 
 
 def compare_accepted_methods(
-    conn: sqlalchemy.Connection, *, first: UUID, second: UUID
+    connection: sqlalchemy.Connection, *, first: UUID, second: UUID
 ) -> CompareAcceptedMethodsRow:
     """Two columns of one name, as when merging two customers."""
     return CompareAcceptedMethodsRow.from_row(
-        conn.execute(
+        connection.execute(
             _COMPARE_ACCEPTED_METHODS, {"first": first, "second": second}
         ).one()
     )
@@ -177,9 +183,11 @@ _UPDATE_CUSTOMER_EMAIL: Final = sqlalchemy.text(
 
 
 def update_customer_email(
-    conn: sqlalchemy.Connection, *, email: str | None, id: UUID
+    connection: sqlalchemy.Connection, *, email: str | None, id: UUID
 ) -> int:
-    return conn.execute(_UPDATE_CUSTOMER_EMAIL, {"email": email, "id": id}).rowcount
+    return connection.execute(
+        _UPDATE_CUSTOMER_EMAIL, {"email": email, "id": id}
+    ).rowcount
 
 
 _SEARCH_CUSTOMERS: Final = sqlalchemy.text("""SELECT id, name, email, tags, preferred_method, accepted_methods, metadata, created_at FROM customers
@@ -200,12 +208,12 @@ ORDER BY name""").columns(
 
 
 def search_customers(
-    conn: sqlalchemy.Connection, *, query: str
+    connection: sqlalchemy.Connection, *, query: str
 ) -> list[models.Customer]:
     """Case-insensitive search on name or email."""
     return [
         models.Customer.from_row(row)
-        for row in conn.execute(_SEARCH_CUSTOMERS, {"query": query})
+        for row in connection.execute(_SEARCH_CUSTOMERS, {"query": query})
     ]
 
 
@@ -214,8 +222,10 @@ _LIST_CUSTOMER_NAMES_BY_TAG: Final = sqlalchemy.text(
 )
 
 
-def list_customer_names_by_tag(conn: sqlalchemy.Connection, *, tag: str) -> list[str]:
-    return list(conn.execute(_LIST_CUSTOMER_NAMES_BY_TAG, {"tag": tag}).scalars())
+def list_customer_names_by_tag(
+    connection: sqlalchemy.Connection, *, tag: str
+) -> list[str]:
+    return list(connection.execute(_LIST_CUSTOMER_NAMES_BY_TAG, {"tag": tag}).scalars())
 
 
 _LIST_VIP_CUSTOMERS: Final = sqlalchemy.text(
@@ -234,9 +244,10 @@ class ListVipCustomersRow:
         return cls(id=row[0], name=row[1], email=row[2])
 
 
-def list_vip_customers(conn: sqlalchemy.Connection) -> list[ListVipCustomersRow]:
+def list_vip_customers(connection: sqlalchemy.Connection) -> list[ListVipCustomersRow]:
     return [
-        ListVipCustomersRow.from_row(row) for row in conn.execute(_LIST_VIP_CUSTOMERS)
+        ListVipCustomersRow.from_row(row)
+        for row in connection.execute(_LIST_VIP_CUSTOMERS)
     ]
 
 
@@ -246,9 +257,9 @@ _LIST_PREFERRED_METHODS: Final = sqlalchemy.text(
 
 
 def list_preferred_methods(
-    conn: sqlalchemy.Connection,
+    connection: sqlalchemy.Connection,
 ) -> list[models.BillingPaymentMethod | None]:
     return [
         None if value is None else models.BillingPaymentMethod(value)
-        for value in conn.execute(_LIST_PREFERRED_METHODS).scalars()
+        for value in connection.execute(_LIST_PREFERRED_METHODS).scalars()
     ]

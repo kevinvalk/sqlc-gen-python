@@ -1,5 +1,5 @@
 [workspace]
-# `xtask` holds the developer commands (`cargo xtask ...`); it is never shipped.
+# xtask holds our developer commands (`cargo xtask ...`) and is never shipped
 members = ["xtask"]
 
 [package]
@@ -9,8 +9,7 @@ edition = "2024"
 license = "AGPL-3.0-or-later OR LicenseRef-KevinValk-Commercial"
 description = "A sqlc codegen plugin that generates Python"
 repository = "https://github.com/kevinvalk/sqlc-gen-python"
-# `examples/` holds sqlc projects, not Rust programs.
-autoexamples = false
+autoexamples = false # examples/ holds sqlc projects, not Rust programs
 
 [dependencies]
 anyhow = "1.0.104"
@@ -18,8 +17,9 @@ prost = "0.14.5"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 
-# Ruff supplies both halves of the emit pipeline: a typed Python AST to build
-# against, and the Black-compatible formatter that decides the final layout.
+# Ruff supplies both halves of the emit pipeline: a typed Python AST to build against, and the formatter that decides
+# the final layout. IMPORTANT: Keep the tag equal to the ruff that tests/python/pyproject.toml pins, as the static gate
+# formats with that one (tests/rust/golden.rs fails otherwise).
 ruff_python_ast = { git = "https://github.com/astral-sh/ruff.git", tag = "0.17.4" }
 ruff_python_codegen = { git = "https://github.com/astral-sh/ruff.git", tag = "0.17.4" }
 ruff_python_formatter = { git = "https://github.com/astral-sh/ruff.git", tag = "0.17.4" }
@@ -30,17 +30,16 @@ ruff_text_size = { git = "https://github.com/astral-sh/ruff.git", tag = "0.17.4"
 thin-vec = "0.2.21"
 heck = "0.5.0"
 regex = "1.13.1"
-# What Python's `str.isprintable()` rejects, by general category; ruff's own
-# unparser already depends on it for the same question.
+# We need what Python's `str.isprintable()` rejects, by general category, and ruff's own unparser already depends on
+# this crate for the same question.
 icu_properties = "2.4.0"
 
 [build-dependencies]
 prost-build = "0.14.5"
-# Ships a `protoc` binary so building needs nothing installed system-wide.
 protoc-bin-vendored = "3.3.0"
 
 [dev-dependencies]
-# SQLAlchemy's bind expressions use look-around, which `regex` does not have.
+# SQLAlchemy's bind expressions use look-around, which `regex` does not have
 fancy-regex = "0.19.0"
 serde_yaml_ng = "0.10.0"
 sha2 = "0.11.1"
@@ -53,7 +52,7 @@ strip = true
 codegen-units = 1
 panic = "abort"
 
-# Optimised dependencies make generating through ruff ~5x faster in tests, at the
-# cost of a slower first build only; our own crate stays quick to recompile.
+# Optimised dependencies make generating through ruff about 5x faster in tests, at the cost of a slower first build
+# only, while our own crate stays quick to recompile.
 [profile.dev.package."*"]
 opt-level = 2

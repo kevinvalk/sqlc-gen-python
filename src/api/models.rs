@@ -1,10 +1,3 @@
-//! The catalog sqlc resolved, as the classes we will generate.
-//!
-//! Naming, singularisation and type resolution all happen here, exactly once
-//! ([`super::resolver`], [`super::names`]), so [`crate::render`] only has to
-//! lay the classes out. [`super::queries`] resolves the queries the same
-//! way, against these classes.
-
 use anyhow::{Result, anyhow, bail};
 use ruff_python_ast as ast;
 
@@ -20,7 +13,6 @@ use crate::python::{self, Expression, Scope, Type, each, list_of, unless_none};
 #[path = "models_spec.rs"]
 mod spec;
 
-/// A SQL enum type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Enum {
     pub name: String,
@@ -28,7 +20,6 @@ pub struct Enum {
     pub members: Vec<Member>,
 }
 
-/// One label of a SQL enum.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Member {
     /// The Python identifier, e.g. `NOT_STARTED`.
@@ -37,18 +28,15 @@ pub struct Member {
     pub value: String,
 }
 
-/// A table, as a Python class.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Model {
-    /// The table this models, used to match `sqlc.embed` and to reuse a model
-    /// as a query's return type.
+    /// We match `sqlc.embed` by this table, and reuse the model as a query's row type by it.
     pub table: plugin::Identifier,
     pub name: String,
     pub comment: String,
     pub fields: Vec<Field>,
 }
 
-/// One column, as a class attribute.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Field {
     pub name: String,
@@ -56,31 +44,20 @@ pub struct Field {
     pub ty: FieldType,
 }
 
-/// A column's Python type.
-///
-/// The element type is kept apart from the generics wrapping it, because
-/// nullability and array depth are properties of the *column* while the element
-/// type is a property of the column's database type.
+/// A column's Python type. We keep the element type apart from the generics around it, as nullability and array depth
+/// belong to the column while the element type belongs to the column's database type.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldType {
     pub element: Type,
-    /// Nesting depth of a SQL array; zero for a scalar column.
     pub array_dims: usize,
-    /// Whether the column admits NULL.
     pub optional: bool,
-    /// Whether the backend returns the array, of enums, as its text, which
-    /// the enum's class then parses (`from_array`).
+    /// The backend returns this array of enums as its text, which the enum's class then parses (`from_array`).
     pub as_text: bool,
 }
 
-/// The enums and models of the catalog `resolver` reads: the classes of the
-/// models module. A table with a problem is a model without the fields that
-/// have one, so that the queries of it are still checked.
-pub fn resolve(
-    resolver: &Resolver,
-    config: &ModelConfig,
-    problems: &mut Problems,
-) -> (Vec<Enum>, Vec<Model>) {
+/// The classes of the models module. A table with a problem still becomes a model, without the fields that have one, so
+/// we still check the queries against it.
+pub fn resolve(resolver: &Resolver, config: &ModelConfig, problems: &mut Problems) -> (Vec<Enum>, Vec<Model>) {
     let mut enums = Vec::new();
     let mut models = Vec::new();
     for schema in resolver.catalog.user_schemas() {
@@ -92,7 +69,7 @@ pub fn resolve(
                 name,
                 comment: sql_enum.comment.clone(),
                 members: problems
-                    .take(&what, members(&sql_enum.vals, |l| resolver.spelling(l)))
+                    .take(&what, members(&sql_enum.vals, |label| resolver.spelling(label)))
                     .unwrap_or_default(),
             });
         }
@@ -114,18 +91,18 @@ pub fn resolve(
         }
     }
 
-    // Sorting by name keeps output stable across catalog orderings, so a
-    // regenerated file only differs when the schema actually changed.
+    // We sort by name so the output does not depend on the catalog's order, and a regenerated file only differs when
+    // the schema did.
     enums.sort_by(|a, b| a.name.cmp(&b.name));
     models.sort_by(|a, b| a.name.cmp(&b.name));
 
-    // Classes share the module's one namespace. Two objects that would take
-    // one name are an error, as in sqlc's Go codegen: renaming either would
-    // be a guess about which one the user means.
+    // All classes share the module's one namespace. Two that would take one name are an error, as in sqlc's Go codegen,
+    // because renaming either would be a guess about which one the user means.
     let mut classes: Vec<&str> = (enums.iter().map(|e| e.name.as_str()))
         .chain(models.iter().map(|m| m.name.as_str()))
         .collect();
     classes.sort_unstable();
+
     // A class called `Decimal` would replace the import every `Decimal`
     // annotation means.
     for name in classes.iter().filter(|name| python::is_imported(name)) {
@@ -144,8 +121,7 @@ pub fn resolve(
     (enums, models)
 }
 
-/// An error for a class name Python cannot take: the singular of a table
-/// `s` is no name at all.
+/// Fails for a class name Python cannot take, as the singular of a table `s`, for one, is no name at all.
 fn usable(name: &str) -> Result<()> {
     if !python::is_class_name(name) {
         bail!(
@@ -157,10 +133,8 @@ fn usable(name: &str) -> Result<()> {
 }
 
 impl FieldType {
-    /// The annotation as written from within `scope`, e.g. `list[int] | None`.
-    ///
-    /// `None` goes outermost because a nullable array column is a list that may
-    /// be absent, not a list of independently absent elements.
+    /// The annotation as written in `scope`, such as `list[int] | None`. `None` goes outermost because a nullable array
+    /// column is a list that may be absent, not a list of independently absent elements.
     pub fn annotation(&self, scope: Scope) -> ast::Expr {
         let element = self.element.annotation(scope);
         let list = (0..self.array_dims).fold(element, |inner, _| LIST.index(inner));
@@ -170,7 +144,7 @@ impl FieldType {
         }
     }
 
-    /// The annotation, as written, for an error to show.
+    /// The annotation as text, for an error to show.
     pub fn describe(&self, scope: Scope) -> String {
         python::unparse(&self.annotation(scope))
     }
@@ -180,10 +154,9 @@ impl FieldType {
         matches!(self.element, Type::Enum(_) | Type::Converted(_))
     }
 
-    /// The expression that turns `value`, as a driver returns it, into this
-    /// type (`docs/python-output.md` §4, rule 4): the value itself, except
-    /// that an enum's labels, which drivers return as `str`, become members,
-    /// and a [`Type::Converted`] value its type.
+    /// The expression that turns `value`, as a driver returns it, into this type (`docs/python-output.md` §4, rule 4).
+    /// Drivers return an enum's labels as `str`, so those become members, and a [`Type::Converted`] value becomes its
+    /// type; anything else is the value itself.
     pub fn read(&self, value: impl Into<ast::Expr>, scope: Scope) -> ast::Expr {
         let value = value.into();
         if !self.converts() {

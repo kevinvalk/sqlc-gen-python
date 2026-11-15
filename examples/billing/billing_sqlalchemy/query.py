@@ -18,7 +18,7 @@ _CREATE_CUSTOMER: Final = sqlalchemy.text(
 
 
 def create_customer(
-    conn: sqlalchemy.Connection,
+    connection: sqlalchemy.Connection,
     *,
     name: str,
     email: str | None,
@@ -26,7 +26,7 @@ def create_customer(
     preferred_method: models.CustomersPreferredMethod | None,
     metadata: str | None,
 ) -> int:
-    return conn.execute(
+    return connection.execute(
         _CREATE_CUSTOMER,
         {
             "name": name,
@@ -43,8 +43,8 @@ _GET_CUSTOMER: Final = sqlalchemy.text(
 )
 
 
-def get_customer(conn: sqlalchemy.Connection, *, id: int) -> models.Customer:
-    return models.Customer.from_row(conn.execute(_GET_CUSTOMER, {"id": id}).one())
+def get_customer(connection: sqlalchemy.Connection, *, id: int) -> models.Customer:
+    return models.Customer.from_row(connection.execute(_GET_CUSTOMER, {"id": id}).one())
 
 
 _FIND_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
@@ -52,10 +52,12 @@ _FIND_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
 )
 
 
-def find_customer_by_name(conn: sqlalchemy.Connection, *, name: str) -> models.Customer:
+def find_customer_by_name(
+    connection: sqlalchemy.Connection, *, name: str
+) -> models.Customer:
     """Names are not unique: more than one match is an error, never a guess."""
     return models.Customer.from_row(
-        conn.execute(_FIND_CUSTOMER_BY_NAME, {"name": name}).one()
+        connection.execute(_FIND_CUSTOMER_BY_NAME, {"name": name}).one()
     )
 
 
@@ -75,12 +77,12 @@ class SearchCustomersRow:
 
 
 def search_customers(
-    conn: sqlalchemy.Connection, *, pattern: str | None
+    connection: sqlalchemy.Connection, *, pattern: str | None
 ) -> list[SearchCustomersRow]:
     """A name or email matching the pattern, but no test account: `%` and `:` stay literal."""
     return [
         SearchCustomersRow.from_row(row)
-        for row in conn.execute(_SEARCH_CUSTOMERS, {"pattern": pattern})
+        for row in connection.execute(_SEARCH_CUSTOMERS, {"pattern": pattern})
     ]
 
 
@@ -90,11 +92,11 @@ _LIST_CUSTOMERS_BY_IDS: Final = sqlalchemy.text(
 
 
 def list_customers_by_ids(
-    conn: sqlalchemy.Connection, *, ids: list[int]
+    connection: sqlalchemy.Connection, *, ids: list[int]
 ) -> list[models.Customer]:
     return [
         models.Customer.from_row(row)
-        for row in conn.execute(_LIST_CUSTOMERS_BY_IDS, {"ids": ids})
+        for row in connection.execute(_LIST_CUSTOMERS_BY_IDS, {"ids": ids})
     ]
 
 
@@ -103,7 +105,7 @@ VALUES (:customer_id, :number, :issued_on, :notes, :attachment, :pay_within)""")
 
 
 def create_invoice(
-    conn: sqlalchemy.Connection,
+    connection: sqlalchemy.Connection,
     *,
     customer_id: int,
     number: str,
@@ -112,7 +114,7 @@ def create_invoice(
     attachment: bytes | None,
     pay_within: dt.timedelta | None,
 ) -> int:
-    return conn.execute(
+    return connection.execute(
         _CREATE_INVOICE,
         {
             "customer_id": customer_id,
@@ -130,8 +132,8 @@ _GET_INVOICE: Final = sqlalchemy.text(
 )
 
 
-def get_invoice(conn: sqlalchemy.Connection, *, id: int) -> models.Invoice:
-    return models.Invoice.from_row(conn.execute(_GET_INVOICE, {"id": id}).one())
+def get_invoice(connection: sqlalchemy.Connection, *, id: int) -> models.Invoice:
+    return models.Invoice.from_row(connection.execute(_GET_INVOICE, {"id": id}).one())
 
 
 _GET_INVOICE_STATUS: Final = sqlalchemy.text(
@@ -140,9 +142,9 @@ _GET_INVOICE_STATUS: Final = sqlalchemy.text(
 
 
 def get_invoice_status(
-    conn: sqlalchemy.Connection, *, id: int
+    connection: sqlalchemy.Connection, *, id: int
 ) -> models.InvoicesStatus:
-    value = conn.execute(_GET_INVOICE_STATUS, {"id": id}).scalar_one()
+    value = connection.execute(_GET_INVOICE_STATUS, {"id": id}).scalar_one()
     return models.InvoicesStatus(value)
 
 
@@ -165,10 +167,10 @@ class GetInvoiceWithCustomerRow:
 
 
 def get_invoice_with_customer(
-    conn: sqlalchemy.Connection, *, id: int
+    connection: sqlalchemy.Connection, *, id: int
 ) -> GetInvoiceWithCustomerRow:
     return GetInvoiceWithCustomerRow.from_row(
-        conn.execute(_GET_INVOICE_WITH_CUSTOMER, {"id": id}).one()
+        connection.execute(_GET_INVOICE_WITH_CUSTOMER, {"id": id}).one()
     )
 
 
@@ -178,14 +180,14 @@ ORDER BY number""").bindparams(sqlalchemy.bindparam("statuses", expanding=True))
 
 
 def list_invoices_by_status(
-    conn: sqlalchemy.Connection,
+    connection: sqlalchemy.Connection,
     *,
     statuses: list[models.InvoicesStatus],
     customer_id: int,
 ) -> list[models.Invoice]:
     return [
         models.Invoice.from_row(row)
-        for row in conn.execute(
+        for row in connection.execute(
             _LIST_INVOICES_BY_STATUS, {"statuses": statuses, "customer_id": customer_id}
         )
     ]
@@ -196,8 +198,8 @@ _COUNT_INVOICES: Final = sqlalchemy.text(
 )
 
 
-def count_invoices(conn: sqlalchemy.Connection, *, customer_id: int) -> int:
-    value: int = conn.execute(
+def count_invoices(connection: sqlalchemy.Connection, *, customer_id: int) -> int:
+    value: int = connection.execute(
         _COUNT_INVOICES, {"customer_id": customer_id}
     ).scalar_one()
     return value
@@ -209,9 +211,11 @@ _ISSUE_INVOICE: Final = sqlalchemy.text(
 
 
 def issue_invoice(
-    conn: sqlalchemy.Connection, *, issued_on: dt.date | None, id: int
+    connection: sqlalchemy.Connection, *, issued_on: dt.date | None, id: int
 ) -> int:
-    return conn.execute(_ISSUE_INVOICE, {"issued_on": issued_on, "id": id}).rowcount
+    return connection.execute(
+        _ISSUE_INVOICE, {"issued_on": issued_on, "id": id}
+    ).rowcount
 
 
 _ADD_LINE_ITEMS: Final = sqlalchemy.text(
@@ -229,7 +233,7 @@ class AddLineItemsParams:
 
 
 def add_line_items(
-    conn: sqlalchemy.Connection, rows: Iterable[AddLineItemsParams]
+    connection: sqlalchemy.Connection, rows: Iterable[AddLineItemsParams]
 ) -> None:
     params = [
         {
@@ -242,7 +246,7 @@ def add_line_items(
         for r in rows
     ]
     if params:
-        conn.execute(_ADD_LINE_ITEMS, params)
+        connection.execute(_ADD_LINE_ITEMS, params)
 
 
 _LIST_LINE_ITEMS: Final = sqlalchemy.text(
@@ -251,11 +255,11 @@ _LIST_LINE_ITEMS: Final = sqlalchemy.text(
 
 
 def list_line_items(
-    conn: sqlalchemy.Connection, *, invoice_id: int
+    connection: sqlalchemy.Connection, *, invoice_id: int
 ) -> list[models.LineItem]:
     return [
         models.LineItem.from_row(row)
-        for row in conn.execute(_LIST_LINE_ITEMS, {"invoice_id": invoice_id})
+        for row in connection.execute(_LIST_LINE_ITEMS, {"invoice_id": invoice_id})
     ]
 
 
@@ -277,13 +281,16 @@ class ListCustomerLinesRow:
         return cls(id=row[0], number=row[1], description=row[2])
 
 
-def list_customer_lines(conn: sqlalchemy.Connection) -> list[ListCustomerLinesRow]:
+def list_customer_lines(
+    connection: sqlalchemy.Connection,
+) -> list[ListCustomerLinesRow]:
     """Every customer, with each line of an invoice of theirs, or none: what
     stands left of the RIGHT JOIN may be without a row, though sqlc reports
     the columns of a join there NOT NULL.
     """
     return [
-        ListCustomerLinesRow.from_row(row) for row in conn.execute(_LIST_CUSTOMER_LINES)
+        ListCustomerLinesRow.from_row(row)
+        for row in connection.execute(_LIST_CUSTOMER_LINES)
     ]
 
 
@@ -292,8 +299,8 @@ SET total = (SELECT CAST(COALESCE(SUM(quantity * unit_price), 0) AS DECIMAL(12, 
 WHERE id = :id""")
 
 
-def recalculate_total(conn: sqlalchemy.Connection, *, id: int) -> None:
-    conn.execute(_RECALCULATE_TOTAL, {"id": id})
+def recalculate_total(connection: sqlalchemy.Connection, *, id: int) -> None:
+    connection.execute(_RECALCULATE_TOTAL, {"id": id})
 
 
 _DELETE_DRAFT_INVOICES: Final = sqlalchemy.text(
@@ -302,6 +309,6 @@ _DELETE_DRAFT_INVOICES: Final = sqlalchemy.text(
 
 
 def delete_draft_invoices(
-    conn: sqlalchemy.Connection, *, customer_id: int
+    connection: sqlalchemy.Connection, *, customer_id: int
 ) -> sqlalchemy.CursorResult[Any]:
-    return conn.execute(_DELETE_DRAFT_INVOICES, {"customer_id": customer_id})
+    return connection.execute(_DELETE_DRAFT_INVOICES, {"customer_id": customer_id})

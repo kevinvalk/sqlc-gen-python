@@ -1,5 +1,3 @@
-//! Specification for what a query's rows become.
-
 use super::*;
 use crate::api::fixtures::authors::*;
 use crate::api::fixtures::*;
@@ -36,10 +34,7 @@ fn a_single_column_is_returned_bare() {
     );
     assert_eq!(
         returning(":many", vec![column("bio", "int8", false)]),
-        Command::Many(Shape::Scalar(FieldType {
-            optional: true,
-            ..id
-        }))
+        Command::Many(Shape::Scalar(FieldType { optional: true, ..id }))
     );
 }
 
@@ -67,15 +62,9 @@ fn a_result_that_differs_from_the_table_in_any_way_gets_its_own_row() {
         authors().into_iter().rev().collect(),
     ] {
         let columns: Vec<_> = columns.into_iter().map(of_authors).collect();
-        assert!(matches!(
-            returning(":one", columns),
-            Command::One(Shape::Row(..))
-        ));
+        assert!(matches!(returning(":one", columns), Command::One(Shape::Row(..))));
     }
-    assert!(matches!(
-        returning(":one", unowned),
-        Command::One(Shape::Row(..))
-    ));
+    assert!(matches!(returning(":one", unowned), Command::One(Shape::Row(..))));
 }
 
 #[test]
@@ -156,11 +145,9 @@ fn an_embed_an_outer_join_may_leave_without_a_row_is_none_then() {
         }
     };
     // `authors.id` is NOT NULL: NULL only where the join found no author.
-    let inner =
-        "SELECT b.id, authors.id, authors.name, authors.bio FROM books b JOIN authors ON true";
+    let inner = "SELECT b.id, authors.id, authors.name, authors.bio FROM books b JOIN authors ON true";
     assert_eq!(embedded(inner), None);
-    let left =
-        "SELECT b.id, authors.id, authors.name, authors.bio FROM books b LEFT JOIN authors ON true";
+    let left = "SELECT b.id, authors.id, authors.name, authors.bio FROM books b LEFT JOIN authors ON true";
     assert_eq!(embedded(left), Some(0));
     // Nor is a row of it proven by what is not read: a subquery under its
     // name, a join in parentheses.
@@ -200,8 +187,7 @@ fn a_column_after_an_embed_is_read_at_its_place_in_the_statements_list() {
 
 #[test]
 fn a_list_that_is_not_read_leaves_every_column_optional() {
-    // Which item is which column is not known: to trust sqlc's NOT NULL of
-    // any would be a guess.
+    // We do not know which item is which column, so trusting sqlc's NOT NULL of any would be a guess
     let query = resolve(plugin::Query {
         columns: vec![column("id", "int8", true), column("title", "text", true)],
         ..query(
@@ -268,9 +254,8 @@ fn an_embed_of_a_table_the_catalog_lacks_is_an_error() {
 
 #[test]
 fn an_embed_of_a_model_without_fields_is_read_past_the_list() {
-    // Every column of the table has a problem, so its model has no field,
-    // and the embed, last, stands where the list has no item left: the
-    // table's problem is the error, not a panic.
+    // Every column of the table has a problem, so its model has no field, and the embed comes last, where the list has
+    // no item left. The table's problem must be the error, not a panic!
     let pairs = table("pairs", vec![column("p", "pair", true)]);
     let embed = plugin::Column {
         name: "pairs".into(),
@@ -317,9 +302,8 @@ fn a_mysql_cast_to_char_or_binary_says_why_it_has_no_type() {
 
 #[test]
 fn arithmetic_on_mysql_and_sqlite_asks_for_a_cast() {
-    // sqlc types `a + b` as `int`, MySQL's `1.0` as `float` and its
-    // `BINARY x`, bytes, as `char`, of no table, whatever the operands; a
-    // cast it spells as declared.
+    // sqlc types `a + b` as `int`, MySQL's `1.0` as `float` and its `BINARY x` (bytes) as `char`, of no table and
+    // whatever the operands, while it spells a cast as declared.
     for (engine, data_type) in [
         ("mysql", "int"),
         ("mysql", "float"),
@@ -351,11 +335,7 @@ fn arithmetic_on_mysql_and_sqlite_asks_for_a_cast() {
 
 #[test]
 fn a_count_is_an_int_on_every_engine_and_any_other_call_asks_for_a_cast() {
-    for (engine, reported) in [
-        ("postgresql", "bigint"),
-        ("mysql", "bigint"),
-        ("sqlite", "integer"),
-    ] {
+    for (engine, reported) in [("postgresql", "bigint"), ("mysql", "bigint"), ("sqlite", "integer")] {
         let call = |name: &str| plugin::Column {
             is_func_call: true,
             ..column(name, reported, true)
@@ -364,10 +344,7 @@ fn a_count_is_an_int_on_every_engine_and_any_other_call_asks_for_a_cast() {
             engine,
             plugin::Query {
                 columns: vec![call("count"), call("n")],
-                ..query(
-                    ":one",
-                    "SELECT COUNT(*), count(DISTINCT bio) AS n FROM authors",
-                )
+                ..query(":one", "SELECT COUNT(*), count(DISTINCT bio) AS n FROM authors")
             },
         )
         .unwrap();
@@ -389,10 +366,7 @@ fn a_count_is_an_int_on_every_engine_and_any_other_call_asks_for_a_cast() {
             },
         )
         .unwrap_err();
-        assert!(
-            format!("{summed:#}").contains("is a function's result"),
-            "{engine}"
-        );
+        assert!(format!("{summed:#}").contains("is a function's result"), "{engine}");
     }
 }
 
@@ -422,8 +396,5 @@ fn an_embed_that_may_be_missing_needs_a_not_null_column_to_tell_by() {
     );
     let error = crate::api::resolve(&request, &Config::of(Backend::SqlAlchemy)).unwrap_err();
     let error = format!("{error:#}");
-    assert!(
-        error.contains("none is NOT NULL to tell a missing row by"),
-        "{error}"
-    );
+    assert!(error.contains("none is NOT NULL to tell a missing row by"), "{error}");
 }

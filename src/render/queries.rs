@@ -1,28 +1,21 @@
-//! A query module: what one query file's queries become
-//! (`docs/python-output.md` §6).
-
 use ruff_python_ast as ast;
 
 use super::{Attribute, documentation, record};
 use crate::api::models::Field;
 use crate::api::queries::{Module, Query, RowField, Takes};
 use crate::config::Config;
-use crate::python::vocabulary::{CONN, FINAL, FROM_ROW, ITERABLE, MODELS, PARAMS, ROW, ROWS};
-use crate::python::{
-    Expression, Function, Scope, ann_assign, int, name, parameter, stmts, unless_none,
-};
+use crate::python::vocabulary::{CONNECTION, FINAL, FROM_ROW, ITERABLE, MODELS, PARAMS, ROW, ROWS};
+use crate::python::{Expression, Function, Scope, ann_assign, int, name, parameter, stmts, unless_none};
 
-/// The module of one query file (§6): what its backend defines before its
-/// queries, if anything, then for each query its statement, its class if it
-/// has one, and its function, a coroutine if asked for.
+/// For each query its statement, its class if it has one, and its function (`docs/python-output.md` §6).
 pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
     let queries = (module.queries.iter()).flat_map(|query| {
-        let params = (query.takes.class()).map(|class| params_class(class, &query.params));
+        let parameters = (query.takes.class()).map(|class| params_class(class, &query.params));
         let row = query.row().map(|(class, fields)| row_class(class, fields));
         let statement = ann_assign(&query.constant, FINAL, config.backend.statement(query));
         let function = function(query, config);
         std::iter::once(statement)
-            .chain(params)
+            .chain(parameters)
             .chain(row)
             .chain([function])
     });
@@ -31,8 +24,7 @@ pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
         .collect()
 }
 
-/// `<Query>Row`, whose fields are the result's, an embed taking its model's
-/// columns.
+/// `<Query>Row`, where an embed takes its model's columns.
 fn row_class(class: &str, fields: &[RowField]) -> ast::Stmt {
     let mut offset = 0;
     let attributes: Vec<Attribute> = (fields.iter())
@@ -55,11 +47,8 @@ fn row_class(class: &str, fields: &[RowField]) -> ast::Stmt {
                     let read = model.clone().attr(FROM_ROW).call([columns]);
                     let (annotation, read) = match missing {
                         None => (model, read),
-                        // An outer join left the table without a row.
-                        Some(at) => (
-                            model.or_none(),
-                            unless_none(ROW.index(int(start + at)), read),
-                        ),
+                        // Its first NOT NULL column is only NULL when an outer join left the table without a row
+                        Some(column) => (model.or_none(), unless_none(ROW.index(int(start + column)), read)),
                     };
                     Attribute {
                         name: name.clone(),
@@ -74,13 +63,12 @@ fn row_class(class: &str, fields: &[RowField]) -> ast::Stmt {
     record(class, "", &attributes)
 }
 
-/// `<Query>Params`: one row of a `:copyfrom` or a batch, or the one record
-/// of a query's parameters.
-fn params_class(class: &str, params: &[Field]) -> ast::Stmt {
-    let attributes: Vec<Attribute> = (params.iter())
-        .map(|param| Attribute {
-            name: param.name.clone(),
-            annotation: param.ty.annotation(Scope::Queries),
+/// `<Query>Params`: one row of a `:copyfrom` or a batch, or the one record of a query's parameters.
+fn params_class(class: &str, parameters: &[Field]) -> ast::Stmt {
+    let attributes: Vec<Attribute> = (parameters.iter())
+        .map(|parameter| Attribute {
+            name: parameter.name.clone(),
+            annotation: parameter.ty.annotation(Scope::Queries),
             comment: String::new(),
             read: None,
         })
@@ -88,30 +76,25 @@ fn params_class(class: &str, params: &[Field]) -> ast::Stmt {
     record(class, "", &attributes)
 }
 
-/// The function that runs a query (§6, "Functions"): the connection, then
-/// each parameter keyword-only, or all of them as one record, or the rows it
-/// runs for; one execution; the result shaped by `cmd`.
+/// The connection, then each parameter keyword-only, or all of them as one record, or the rows it runs for
+/// (`docs/python-output.md` §6, "Functions").
 fn function(query: &Query, config: &Config) -> ast::Stmt {
     let (backend, asynchronous) = (config.backend, config.asynchronous);
-    // The record or the rows after `conn`, or each parameter as a keyword.
     let (positional, keyword_only) = match &query.takes {
         Takes::Record(class) => (Some(parameter(PARAMS, name(class))), vec![]),
         Takes::Rows(class) => (Some(parameter(ROWS, ITERABLE.index(name(class)))), vec![]),
         Takes::Keywords => {
             let keywords = (query.params.iter())
-                .map(|p| parameter(&p.name, p.ty.annotation(Scope::Queries)))
+                .map(|query_parameter| parameter(&query_parameter.name, query_parameter.ty.annotation(Scope::Queries)))
                 .collect();
             (None, keywords)
         }
     };
-    let conn = parameter(CONN, backend.connection(asynchronous));
+    let connection = parameter(CONNECTION, backend.connection(asynchronous));
     Function {
-        parameters: std::iter::once(conn).chain(positional).collect(),
+        parameters: std::iter::once(connection).chain(positional).collect(),
         keyword_only,
-        body: stmts![
-            documentation(&query.comment),
-            backend.body(query, asynchronous),
-        ],
+        body: stmts![documentation(&query.comment), backend.body(query, asynchronous),],
         is_async: asynchronous,
         ..Function::new(&query.function, backend.returns(query, asynchronous))
     }

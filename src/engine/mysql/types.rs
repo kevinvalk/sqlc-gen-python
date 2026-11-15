@@ -1,10 +1,3 @@
-//! Mapping MySQL column types to Python types.
-//!
-//! Every entry is what PyMySQL and asyncmy return over MySQL's text protocol,
-//! and SQLAlchemy hands through unchanged from them
-//! (`docs/python-output.md` §5, "MySQL"). sqlc reports a type by its lowercase
-//! name, with its length and signedness beside it.
-
 use crate::plugin;
 use crate::python::Type;
 
@@ -12,18 +5,19 @@ use crate::python::Type;
 #[path = "types_spec.rs"]
 mod spec;
 
-/// Each type sqlc reports of a MySQL column or expression, by its first word
-/// (`bigint unsigned` is a `bigint`), and what the drivers return for it.
-/// sqlc names a type as MySQL does, whatever the schema spells: `INTEGER` is
-/// `int`, `REAL` `double`, `NUMERIC` `decimal`, and `BOOL` `tinyint`.
+/// What PyMySQL and asyncmy return over MySQL's text protocol, which SQLAlchemy hands through unchanged, keyed by the
+/// first word of the type sqlc reports (`bigint unsigned` is a `bigint`). sqlc names a type as MySQL does, whatever the
+/// schema spells: `INTEGER` is `int`, `REAL` is `double`, `NUMERIC` is `decimal` and `BOOL` is `tinyint`.
+///
+/// NOTE: Keep in sync with `docs/python-output.md` §5, "MySQL".
 const TYPES: &[(&str, Type)] = &[
-    // What sqlc types a comparison, which MySQL returns as an integer.
+    // What sqlc types a comparison, which MySQL returns as an integer
     ("bool", Type::BOOL_FROM_INT),
     ("tinyint", Type::INT),
     ("smallint", Type::INT),
     ("mediumint", Type::INT),
     ("int", Type::INT),
-    // What sqlc types the parameter of a `LIMIT` or an `OFFSET`.
+    // What sqlc types the parameter of a `LIMIT` or an `OFFSET`
     ("integer", Type::INT),
     ("bigint", Type::INT),
     ("year", Type::INT),
@@ -36,7 +30,7 @@ const TYPES: &[(&str, Type)] = &[
     ("text", Type::STR),
     ("mediumtext", Type::STR),
     ("longtext", Type::STR),
-    // The drivers return a JSON document's text, undecoded.
+    // The drivers return a JSON document's text, undecoded
     ("json", Type::STR),
     ("binary", Type::BYTES),
     ("varbinary", Type::BYTES),
@@ -46,21 +40,19 @@ const TYPES: &[(&str, Type)] = &[
     ("longblob", Type::BYTES),
     ("bit", Type::BYTES),
     ("date", Type::DATE),
-    // Naive: MySQL stores no time zone, and converts a `TIMESTAMP` to the
-    // session's.
+    // Naive, as MySQL stores no time zone and converts a `TIMESTAMP` to the session's
     ("datetime", Type::DATETIME),
     ("timestamp", Type::DATETIME),
-    // A duration, which may be negative or over a day: `'-01:02:03'`.
+    // A duration, which may be negative or over a day: `'-01:02:03'`
     ("time", Type::TIMEDELTA),
 ];
 
-/// The Python type of a column of `column`'s type, or `None` if nobody has
-/// probed what the drivers return for it.
+/// `None` when nobody has probed what the drivers return for the column's type.
 pub fn scalar_type(column: &plugin::Column) -> Option<Type> {
     let data_type = column.data_type().to_ascii_lowercase();
     let name = data_type.split_whitespace().next().unwrap_or_default();
-    // `BOOL` is `TINYINT(1)`, stored as an integer: by convention, and
-    // sqlc-gen-go's, a boolean.
+
+    // `BOOL` is `TINYINT(1)`, stored as an integer, which by convention (and sqlc-gen-go's) is a boolean
     if name == "tinyint" && column.length == 1 {
         return Some(Type::BOOL_FROM_INT);
     }
@@ -69,11 +61,10 @@ pub fn scalar_type(column: &plugin::Column) -> Option<Type> {
         .map(|(_, python)| python.clone())
 }
 
-/// Why a column of an enum of `labels` is no enum, if it is not: sqlc reports
-/// a `SET` as an `ENUM` of its members, but a `SET` holds several, as
-/// `'x,y'`, which no member is. Its length, in bytes, tells them apart: an
-/// `ENUM`'s is its longest label's, a `SET`'s all of them joined by commas.
-/// Of one label, the two are one length.
+/// Why a column sqlc reports as an enum of `labels` cannot be one. sqlc reports a `SET` as an `ENUM` of its members,
+/// but a `SET` holds several (`'x,y'`), which is no member. We tell them apart by their length in bytes: an `ENUM`'s is
+/// its longest label's, a `SET`'s that of all labels joined by commas. Of one label the two are the same length, so we
+/// cannot tell at all.
 pub fn enum_problem(column: &plugin::Column, labels: &[String]) -> Option<&'static str> {
     let longest = labels.iter().map(String::len).max().unwrap_or(0);
     let joined = labels.iter().map(String::len).sum::<usize>() + labels.len().saturating_sub(1);

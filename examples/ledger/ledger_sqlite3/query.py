@@ -15,9 +15,9 @@ RETURNING id, name, archived, opened_on, settings"""
 
 
 def open_account(
-    conn: sqlite3.Connection, *, name: str, opened_on: str, settings: str | None
+    connection: sqlite3.Connection, *, name: str, opened_on: str, settings: str | None
 ) -> models.Account:
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_OPEN_ACCOUNT, (name, opened_on, settings))
         match cur.fetchmany(2):
@@ -34,8 +34,8 @@ _GET_ACCOUNT: Final = (
 )
 
 
-def get_account(conn: sqlite3.Connection, *, id: int) -> models.Account:
-    with contextlib.closing(conn.cursor()) as cur:
+def get_account(connection: sqlite3.Connection, *, id: int) -> models.Account:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_GET_ACCOUNT, (id,))
         match cur.fetchmany(2):
@@ -52,8 +52,8 @@ _GET_ACCOUNT_BY_NAME: Final = (
 )
 
 
-def get_account_by_name(conn: sqlite3.Connection, *, name: str) -> models.Account:
-    with contextlib.closing(conn.cursor()) as cur:
+def get_account_by_name(connection: sqlite3.Connection, *, name: str) -> models.Account:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_GET_ACCOUNT_BY_NAME, (name,))
         match cur.fetchmany(2):
@@ -70,8 +70,8 @@ _ARCHIVE_ACCOUNT: Final = (
 )
 
 
-def archive_account(conn: sqlite3.Connection, *, id: int) -> int:
-    with contextlib.closing(conn.cursor()) as cur:
+def archive_account(connection: sqlite3.Connection, *, id: int) -> int:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.execute(_ARCHIVE_ACCOUNT, (id,))
         return cur.rowcount
 
@@ -79,8 +79,8 @@ def archive_account(conn: sqlite3.Connection, *, id: int) -> int:
 _IS_ARCHIVED: Final = "SELECT archived FROM accounts WHERE id = ?"
 
 
-def is_archived(conn: sqlite3.Connection, *, id: int) -> bool:
-    with contextlib.closing(conn.cursor()) as cur:
+def is_archived(connection: sqlite3.Connection, *, id: int) -> bool:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_IS_ARCHIVED, (id,))
         match cur.fetchmany(2):
@@ -97,8 +97,8 @@ _LIST_ACCOUNTS: Final = (
 )
 
 
-def list_accounts(conn: sqlite3.Connection) -> list[models.Account]:
-    with contextlib.closing(conn.cursor()) as cur:
+def list_accounts(connection: sqlite3.Connection) -> list[models.Account]:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_LIST_ACCOUNTS)
         return [models.Account.from_row(row) for row in cur.fetchall()]
@@ -108,9 +108,9 @@ _LIST_ACCOUNTS_BY_IDS: Final = "SELECT id, name, archived, opened_on, settings F
 
 
 def list_accounts_by_ids(
-    conn: sqlite3.Connection, *, ids: list[int]
+    connection: sqlite3.Connection, *, ids: list[int]
 ) -> list[models.Account]:
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(
             _LIST_ACCOUNTS_BY_IDS.replace(
@@ -126,7 +126,7 @@ VALUES (?, ?, ?, ?, ?)"""
 
 
 def book(
-    conn: sqlite3.Connection,
+    connection: sqlite3.Connection,
     *,
     account_id: int,
     amount_cents: int,
@@ -134,7 +134,7 @@ def book(
     memo: str | None,
     receipt: bytes | None,
 ) -> None:
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.execute(_BOOK, (account_id, amount_cents, rate, memo, receipt))
 
 
@@ -150,8 +150,8 @@ class BookManyParams:
     memo: str | None
 
 
-def book_many(conn: sqlite3.Connection, rows: Iterable[BookManyParams]) -> None:
-    with contextlib.closing(conn.cursor()) as cur:
+def book_many(connection: sqlite3.Connection, rows: Iterable[BookManyParams]) -> None:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.executemany(
             _BOOK_MANY, [(r.account_id, r.amount_cents, r.memo) for r in rows]
         )
@@ -162,9 +162,13 @@ RETURNING id"""
 
 
 def book_returning_id(
-    conn: sqlite3.Connection, *, account_id: int, amount_cents: int, memo: str | None
+    connection: sqlite3.Connection,
+    *,
+    account_id: int,
+    amount_cents: int,
+    memo: str | None,
 ) -> int:
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_BOOK_RETURNING_ID, (account_id, amount_cents, memo))
         match cur.fetchmany(2):
@@ -181,8 +185,8 @@ _BALANCE: Final = """SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS b
 FROM entries WHERE account_id = ?"""
 
 
-def balance(conn: sqlite3.Connection, *, account_id: int) -> int:
-    with contextlib.closing(conn.cursor()) as cur:
+def balance(connection: sqlite3.Connection, *, account_id: int) -> int:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_BALANCE, (account_id,))
         match cur.fetchmany(2):
@@ -209,11 +213,13 @@ class CountEntriesRow:
         return cls(entries=row[0], debits=row[1])
 
 
-def count_entries(conn: sqlite3.Connection, *, account_id: int) -> CountEntriesRow:
+def count_entries(
+    connection: sqlite3.Connection, *, account_id: int
+) -> CountEntriesRow:
     """How many entries the account has, and how many of them are debits: a count
     of the rows a filter keeps is as much a count.
     """
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_COUNT_ENTRIES, (account_id,))
         match cur.fetchmany(2):
@@ -239,11 +245,13 @@ class ListAmountsRow:
         return cls(amount_cents=row[0], entries=row[1])
 
 
-def list_amounts(conn: sqlite3.Connection, *, account_id: int) -> list[ListAmountsRow]:
+def list_amounts(
+    connection: sqlite3.Connection, *, account_id: int
+) -> list[ListAmountsRow]:
     """The account's amounts, each beside how many there are: a count over a
     window.
     """
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_LIST_AMOUNTS, (account_id,))
         return [ListAmountsRow.from_row(row) for row in cur.fetchall()]
@@ -269,12 +277,12 @@ class ListSharesRow:
         return cls(name=row[0], amount_cents=row[1], total_cents=row[2])
 
 
-def list_shares(conn: sqlite3.Connection) -> list[ListSharesRow]:
+def list_shares(connection: sqlite3.Connection) -> list[ListSharesRow]:
     """Each account's amounts beside the ledger's total. An account without
     entries has no amount, though sqlc reports it NOT NULL once a JOIN follows
     the LEFT JOIN.
     """
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_LIST_SHARES)
         return [ListSharesRow.from_row(row) for row in cur.fetchall()]
@@ -283,8 +291,10 @@ def list_shares(conn: sqlite3.Connection) -> list[ListSharesRow]:
 _LIST_ENTRIES: Final = "SELECT id, account_id, amount_cents, rate, memo, receipt, booked_at FROM entries WHERE account_id = ? ORDER BY id"
 
 
-def list_entries(conn: sqlite3.Connection, *, account_id: int) -> list[models.Entry]:
-    with contextlib.closing(conn.cursor()) as cur:
+def list_entries(
+    connection: sqlite3.Connection, *, account_id: int
+) -> list[models.Entry]:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_LIST_ENTRIES, (account_id,))
         return [models.Entry.from_row(row) for row in cur.fetchall()]
@@ -296,10 +306,10 @@ ORDER BY id"""
 
 
 def list_entry_ids(
-    conn: sqlite3.Connection, *, ids: list[int], account_id: int
+    connection: sqlite3.Connection, *, ids: list[int], account_id: int
 ) -> list[int]:
     """The entries of the account among the ids: a slice, then a numbered parameter."""
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(
             _LIST_ENTRY_IDS.replace(
@@ -316,10 +326,10 @@ ORDER BY id"""
 
 
 def list_memos(
-    conn: sqlite3.Connection, *, pattern: str | None, account_id: int
+    connection: sqlite3.Connection, *, pattern: str | None, account_id: int
 ) -> list[str | None]:
     """Entries with a memo matching the pattern, in the account or every account."""
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_LIST_MEMOS, (pattern, account_id, account_id))
         return [row[0] for row in cur.fetchall()]
@@ -344,9 +354,9 @@ class ListEntriesWithAccountRow:
 
 
 def list_entries_with_account(
-    conn: sqlite3.Connection,
+    connection: sqlite3.Connection,
 ) -> list[ListEntriesWithAccountRow]:
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_LIST_ENTRIES_WITH_ACCOUNT)
         return [ListEntriesWithAccountRow.from_row(row) for row in cur.fetchall()]
@@ -371,10 +381,10 @@ class ListAccountsWithEntriesRow:
 
 
 def list_accounts_with_entries(
-    conn: sqlite3.Connection,
+    connection: sqlite3.Connection,
 ) -> list[ListAccountsWithEntriesRow]:
     """Each account with each of its entries: one without any once, its entry None."""
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_LIST_ACCOUNTS_WITH_ENTRIES)
         return [ListAccountsWithEntriesRow.from_row(row) for row in cur.fetchall()]
@@ -396,9 +406,9 @@ class GetLastAmountRow:
         return cls(name=row[0], last_amount_cents=row[1])
 
 
-def get_last_amount(conn: sqlite3.Connection, *, id: int) -> GetLastAmountRow:
+def get_last_amount(connection: sqlite3.Connection, *, id: int) -> GetLastAmountRow:
     """The account's last entry's amount: a subquery, so None without entries."""
-    with contextlib.closing(conn.cursor()) as cur:
+    with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
         cur.execute(_GET_LAST_AMOUNT, (id,))
         match cur.fetchmany(2):
@@ -413,8 +423,10 @@ def get_last_amount(conn: sqlite3.Connection, *, id: int) -> GetLastAmountRow:
 _DELETE_ENTRIES: Final = "DELETE FROM entries WHERE account_id = ?"
 
 
-def delete_entries(conn: sqlite3.Connection, *, account_id: int) -> sqlite3.Cursor:
-    cur = conn.cursor()
+def delete_entries(
+    connection: sqlite3.Connection, *, account_id: int
+) -> sqlite3.Cursor:
+    cur = connection.cursor()
     cur.row_factory = None
     cur.execute(_DELETE_ENTRIES, (account_id,))
     return cur

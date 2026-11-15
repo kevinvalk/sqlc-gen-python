@@ -1,5 +1,3 @@
-//! Specification for the sqlc wire-protocol helpers.
-
 use super::*;
 
 fn schema(name: &str) -> Schema {
@@ -33,10 +31,7 @@ fn an_unqualified_reference_means_the_default_schema() {
 
     assert!(unqualified.is(&public, &catalog("public")));
     assert!(!unqualified.is(&public, &catalog("analytics")));
-    assert_eq!(
-        catalog("public").schema("").map(|s| s.name.as_str()),
-        Some("public")
-    );
+    assert_eq!(catalog("public").schema("").map(|s| s.name.as_str()), Some("public"));
 }
 
 #[test]
@@ -50,8 +45,8 @@ fn the_engines_own_schemas_are_never_walked() {
 
 #[test]
 fn sqlc_sends_a_plugin_no_overrides_or_renames_of_its_own() {
-    // So this plugin's `overrides` and `rename` options are the only ones; a
-    // sqlc that sends sqlc-gen-go's must be supported before it is pinned.
+    // We rely on our own `overrides` and `rename` options being the only ones, so a sqlc that sends sqlc-gen-go's has
+    // to be supported before we pin it.
     let proto = include_str!("../protos/sqlc.proto");
     let settings = &proto[proto.find("message Settings {").unwrap()..];
     let fields: Vec<&str> = (settings.lines().skip(1))
@@ -60,9 +55,7 @@ fn sqlc_sends_a_plugin_no_overrides_or_renames_of_its_own() {
         .collect();
     for field in ["rename", "overrides"] {
         assert!(
-            !fields
-                .iter()
-                .any(|line| line.contains(&format!(" {field} ="))),
+            !fields.iter().any(|line| line.contains(&format!(" {field} ="))),
             "sqlc now sends {field} to plugins"
         );
     }

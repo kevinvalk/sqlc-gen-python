@@ -1,9 +1,6 @@
-//! Developer commands for this repository, run as `cargo xtask <command>`.
-//!
-//! The `xtask` convention: a small program of the workspace, which
-//! `.cargo/config.toml` runs as `cargo xtask`, instead of a Makefile or shell
-//! scripts, so there is no build system beyond cargo. The Python side runs
-//! through uv.
+//! We follow the `xtask` convention (a small program in the workspace that `.cargo/config.toml` runs as
+//! `cargo xtask`) instead of a Makefile or shell scripts, so there is no build system beyond cargo. The Python side
+//! runs through uv.
 
 use std::env;
 use std::fs;
@@ -17,40 +14,40 @@ const USAGE: &str = "\
 usage: cargo xtask <command>
 
 commands:
-  check   rustfmt --check, clippy with warnings denied, cargo test, the
-          static Python gate over every golden case and corpus output, the
-          scanner proof of the SQL rewriting, and ruff and mypy over the scripts
-          of tests/python
+  check   rustfmt --check, clippy with warnings denied, cargo test, the static
+          Python gate over every golden case and corpus output, the scanner
+          proof of the SQL rewriting, and ruff and mypy over the scripts of
+          tests/python
   bless [CASE...] [--allow-regressions]
-          rewrite the golden cases that changed (the generated directories in
-          examples/, each a codegen `out` of its sqlc.yaml) and the corpus
-          ledger, or with CASE names only those cases; refuses if the unit
-          specs, the sweep or the static gate fail, if anything else would
-          change, or if a corpus request stops generating (unless
-          --allow-regressions), or if verify fails on what would change,
-          which rewrites docs/typemap.md to match (docker, or
-          SQLC_TEST_DATABASE_URL and SQLC_TEST_MYSQL_URL)
+          rewrite the golden cases whose output changed (each the codegen `out`
+          directory of an examples/*/sqlc.yaml) and the corpus ledger, or with
+          CASE names only those cases. Refuses when the unit specs, the sweep
+          or the static gate fail, when anything else would change, when a
+          corpus request stops generating (unless --allow-regressions), or when
+          verify fails on what would change, which also rewrites docs/typemap.md
+          to match (needs docker, or SQLC_TEST_DATABASE_URL and
+          SQLC_TEST_MYSQL_URL)
   capture [--sqlc-bin PATH] [--check]
-          re-capture tests/sqlc/endtoend and tests/sqlc/examples/*.json from the sqlc
-          .prototools pins (downloaded, or the binary at PATH; several
-          minutes), or with --check fail if that would change anything, then
-          run the WASM plugin under that sqlc and fail unless it keeps the
-          wire contract (writing exactly each example's golden cases;
-          options, paths, errors); needs uv, git, go, network, and docker or
+          re-capture tests/sqlc/endtoend and tests/sqlc/examples/*.json with the
+          sqlc .prototools pins (downloaded, or the binary at PATH; takes
+          several minutes), or with --check fail if that would change anything.
+          Then run the WASM plugin under that sqlc and fail unless it keeps the
+          wire contract (it writes exactly each example's golden cases;
+          options, paths, errors). Needs uv, git, go, network, and docker or
           POSTGRESQL_SERVER_URI
   verify [--mutants] [--check]
-          prove what the generator emits against PostgreSQL and MySQL
-          (docker, or SQLC_TEST_DATABASE_URL and SQLC_TEST_MYSQL_URL) and
-          SQLite, on the oldest supported Python and the newest, rewriting
-          docs/typemap.md (docs/python-output.md, Proof); with --mutants,
-          also plant bugs that must each be caught; with --check, fail
-          instead of writing a document that would change
+          prove what the generator emits against PostgreSQL and MySQL (docker,
+          or SQLC_TEST_DATABASE_URL and SQLC_TEST_MYSQL_URL) and SQLite, on the
+          oldest and the newest supported Python, and rewrite docs/typemap.md
+          (docs/python-output.md, \"Proof\"). With --mutants also plant bugs that
+          must each be caught; with --check fail instead of writing a document
+          that would change
   generate REQUEST OPTIONS [OUT]
           run the plugin on a request as JSON (tests/sqlc/...) with OPTIONS as
-          JSON, printing each file, or writing them into OUT
+          JSON, printing each file or writing them into OUT
   sql-text
-          (for tests/python/scanner.py) answer each stdin line `[sql, params]`
-          with the SQLAlchemy text() of PostgreSQL's `sql`
+          answer each stdin line `[sql, params]` with the SQLAlchemy text() of
+          PostgreSQL's `sql` (for tests/python/scanner.py)
 ";
 
 fn main() -> ExitCode {
@@ -70,7 +67,7 @@ fn main() -> ExitCode {
                 .collect();
             match names.iter().any(|name| name.starts_with('-')) {
                 true => usage(),
-                false => GenDir::with(|dir| bless(dir, &names, allow_regressions)),
+                false => GenDir::with(|generated| bless(generated, &names, allow_regressions)),
             }
         }
         // Their scripts parse their own options.
@@ -78,8 +75,7 @@ fn main() -> ExitCode {
         ["verify", options @ ..] => GenDir::with(|generated| verify(generated, options)),
         ["sql-text"] => sql_text::serve().map_err(|error| format!("{error:#}")),
         ["generate", request, options, out @ ..] if out.len() <= 1 => {
-            generate::run(request, options, out.first().copied())
-                .map_err(|error| format!("{error:#}"))
+            generate::run(request, options, out.first().copied()).map_err(|error| format!("{error:#}"))
         }
         _ => usage(),
     };
@@ -96,14 +92,12 @@ fn usage() -> Result<(), String> {
     Err(format!("unknown command or option\n\n{USAGE}"))
 }
 
-/// Everything that must pass before a change is ready for review. Every step
-/// runs, so one report shows everything that is wrong.
+/// Everything that must pass before a change is ready for review. Every step runs even after one fails, so one report
+/// shows everything that is wrong.
 fn check(generated: &GenDir) -> Result<(), String> {
     let failed: Vec<String> = [
         run(&mut cargo("fmt --all --check")),
-        run(&mut cargo(
-            "clippy --workspace --all-targets -- -D warnings",
-        )),
+        run(&mut cargo("clippy --workspace --all-targets -- -D warnings")),
         run(&mut generated.test("--workspace")),
         generated.gate(),
         run(&mut uv_python("tests/python/scanner.py")),
@@ -124,29 +118,23 @@ fn check(generated: &GenDir) -> Result<(), String> {
     }
 }
 
-/// Rewrites the golden cases that changed and the corpus ledger, or only the
-/// cases in `names` if there are any.
-///
-/// Only bless output you have read and verified is more correct than what it
-/// replaces. To keep that honest, nothing is written unless the unit specs
-/// pass, every corpus output still satisfies the sweep's invariants,
-/// everything generated passes the static gate, nothing outside `names` would
-/// change, and no corpus request stops generating unless `allow_regressions`
-/// says that is intended. The static gate cannot see a wrong type that is
-/// still well typed, so what changes must also pass the runtime proof, every
-/// layer of which reads a golden case or a corpus output.
+/// IMPORTANT: Only bless output you have read and verified to be more correct than what it replaces. To keep that
+/// honest we write nothing unless the unit specs pass, every corpus output still holds the sweep's invariants,
+/// everything generated passes the static gate, nothing outside `names` would change and no corpus request stops
+/// generating (unless `allow_regressions` says that is intended). The static gate cannot see a wrong type that is still
+/// well typed, so what changes must also pass the runtime proof, every layer of which reads a golden case or a corpus
+/// output.
 fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<(), String> {
-    if let Some(name) = names.iter().find(|name| case_dir(name).is_none()) {
-        return Err(format!(
-            "{name} is not a golden case: no examples/*/{name}/"
-        ));
+    if let Some(name) = names.iter().find(|name| case_directory(name).is_none()) {
+        return Err(format!("{name} is not a golden case: no examples/*/{name}/"));
     }
+
     run(&mut generated.test("--quiet --lib"))?;
-    // These tests fail on exactly the differences being blessed, so their
-    // verdict is not the question here; what they wrote is.
+
+    // These tests fail on exactly the differences we are blessing, so we ignore their verdict and read what they wrote.
     let _ = run(&mut generated.test("--test rust"));
-    let read = |name: &str, failed: &str| {
-        fs::read_to_string(generated.0.join(name)).map_err(|_| format!("{failed} (see above)"))
+    let read = |name: &str, failure: &str| {
+        fs::read_to_string(generated.0.join(name)).map_err(|_| format!("{failure} (see above)"))
     };
     let changed = read("changed", "the golden test failed")?;
     let changed: Vec<&str> = changed.lines().collect();
@@ -156,9 +144,7 @@ fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<
     let ledger_path = root().join("tests/sqlc/endtoend/ledger.tsv");
     let ledger_changed = fs::read_to_string(&ledger_path).unwrap_or_default() != ledger;
     if !names.is_empty() {
-        let mut outside: Vec<&str> = (changed.iter().copied())
-            .filter(|name| !names.contains(name))
-            .collect();
+        let mut outside: Vec<&str> = (changed.iter().copied()).filter(|name| !names.contains(name)).collect();
         if ledger_changed {
             outside.push("the corpus ledger (bless it with no CASE names)");
         }
@@ -166,12 +152,14 @@ fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<
             return Err(format!("{} would change too", outside.join(", ")));
         }
     }
+
     if !regressions.is_empty() && !allow_regressions {
         return Err(format!(
             "these corpus requests would stop generating:\n{regressions}\
              bless with --allow-regressions if that is intended"
         ));
     }
+
     generated.gate()?;
     if !changed.is_empty() || ledger_changed {
         run(uv_python("tests/python/verify.py").arg(&generated.0))?;
@@ -179,9 +167,15 @@ fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<
 
     println!("\nblessed:");
     for name in &changed {
-        let to = case_dir(name).ok_or(format!("{name} is not a golden case"))?;
-        let shown = to.strip_prefix(root()).unwrap_or(&to).display().to_string();
-        mirror_generated(&generated.0.join(format!("cases__{name}")), &to)
+        let directory = case_directory(name).ok_or(format!("{name} is not a golden case"))?;
+        let shown = directory
+            .strip_prefix(root())
+            .unwrap_or(&directory)
+            .display()
+            .to_string();
+
+        // NOTE: tests/rust/golden.rs exports each case as `cases__<name>`, keep the prefix in sync with it.
+        mirror_generated(&generated.0.join(format!("cases__{name}")), &directory)
             .map_err(|error| format!("writing {shown}: {error}"))?;
         println!("  {shown}");
     }
@@ -195,12 +189,11 @@ fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<
     Ok(())
 }
 
-/// The runtime proof over what the generator emits: `cargo test` exports
-/// every golden and corpus output, which `tests/python/verify.py` then proves.
+/// The runtime proof over what the generator emits: `cargo test` exports every golden and corpus output, which
+/// `tests/python/verify.py` then proves.
 fn verify(generated: &GenDir, options: &[&str]) -> Result<(), String> {
-    // Whether the output matches what is committed is `check`'s question: a
-    // case awaiting bless is still output to prove. That everything was
-    // exported is this one's, and each test writes its file last.
+    // We ignore whether the output matches what is committed, as that is `check`'s question and a case awaiting bless
+    // is still output to prove. We do need everything exported, and each test writes its file last.
     let _ = run(&mut generated.test("--test rust"));
     if !["changed", "ledger.tsv", "packages.tsv"]
         .iter()
@@ -208,31 +201,28 @@ fn verify(generated: &GenDir, options: &[&str]) -> Result<(), String> {
     {
         return Err("cargo test stopped before exporting every output (see above)".into());
     }
-    run(uv_python("tests/python/verify.py")
-        .arg(&generated.0)
-        .args(options))
+    run(uv_python("tests/python/verify.py").arg(&generated.0).args(options))
 }
 
-/// The directory of golden case `name`: the `out` of a codegen entry of an
-/// example's sqlc.yaml, `examples/<example>/<name>/`, generated or not yet.
-fn case_dir(name: &str) -> Option<PathBuf> {
+/// `examples/<example>/<name>/` for the example whose `sqlc.yaml` has a codegen entry with `out: <name>`, whether it
+/// was generated yet or not.
+fn case_directory(name: &str) -> Option<PathBuf> {
     let examples = fs::read_dir(root().join("examples")).ok()?;
     (examples.filter_map(Result::ok))
         .map(|example| example.path())
         .find(|example| {
             let config = fs::read_to_string(example.join("sqlc.yaml")).unwrap_or_default();
-            config
-                .lines()
-                .any(|line| line.trim() == format!("- out: {name}"))
+            config.lines().any(|line| line.trim() == format!("- out: {name}"))
         })
         .map(|example| example.join(name))
 }
 
-/// Makes the generated files of `to` exactly those of `from`: all but what
-/// tools hide there (`.ruff_cache`).
+/// Makes the generated files of `to` exactly those of `from`.
 fn mirror_generated(from: &Path, to: &Path) -> std::io::Result<()> {
-    let generated = |dir: &Path| -> std::io::Result<Vec<PathBuf>> {
-        let entries = fs::read_dir(dir)?.collect::<std::io::Result<Vec<_>>>()?;
+    // NOTE: We skip dot files as tools hide their own there (`.ruff_cache`). Keep this in sync with `generated_files`
+    // in tests/rust/support/fixtures.rs.
+    let generated = |directory: &Path| -> std::io::Result<Vec<PathBuf>> {
+        let entries = fs::read_dir(directory)?.collect::<std::io::Result<Vec<_>>>()?;
         Ok((entries.into_iter().map(|entry| entry.path()))
             .filter(|path| {
                 let name = path.file_name().unwrap_or_default().to_string_lossy();
@@ -240,6 +230,7 @@ fn mirror_generated(from: &Path, to: &Path) -> std::io::Result<()> {
             })
             .collect())
     };
+
     fs::create_dir_all(to)?;
     for stale in generated(to)? {
         fs::remove_file(stale)?;
@@ -250,14 +241,13 @@ fn mirror_generated(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// A fresh directory for one invocation's generated output, so concurrent
-/// `check` and `bless` runs never gate or bless each other's files.
+/// A fresh directory for one invocation's generated output, so concurrent `check` and `bless` runs never gate or bless
+/// each other's files.
 struct GenDir(PathBuf);
 
 impl GenDir {
-    /// Runs `command` with `target/gen/<pid>`, removed if it succeeds. If it
-    /// fails, the directory becomes `target/gen/failed`, replacing the last
-    /// failure's, for inspection.
+    /// Runs `command` with `target/gen/<pid>` and removes it on success. On failure we keep it for inspection as
+    /// `target/gen/failed`, replacing the previous failure's.
     fn with(command: impl FnOnce(&Self) -> Result<(), String>) -> Result<(), String> {
         let parent = root().join("target/gen");
         let generated = Self(parent.join(std::process::id().to_string()));
@@ -277,44 +267,33 @@ impl GenDir {
         }
     }
 
-    /// `cargo test <args>`, set to write every output here (see
-    /// `tests/rust/support/`).
+    /// `cargo test <args>`, set to write every output here (see `tests/rust/support/`).
     fn test(&self, args: &str) -> Command {
         let mut test = cargo(&format!("test --no-fail-fast {args}"));
         test.env("GEN_DIR", &self.0);
         test
     }
 
-    /// The static Python gate over everything generated; see `tests/python/gate.py`.
     fn gate(&self) -> Result<(), String> {
         run(uv_python("tests/python/gate.py").arg(&self.0))
     }
 }
 
-/// `python <arg>` in the `tests/python` uv project, in the Python 3.10
-/// environment the static gate also uses, so nothing is created under
-/// `tests/python`, nor in the tree: what Hypothesis keeps of its draws goes
-/// to `target/` too. `-B -E -s` writes no bytecode and keeps out the caller's
-/// `PYTHON*` variables and user site-packages; a script's own directory stays
-/// importable.
+/// `python <arg>` in the `tests/python` uv project, in the Python 3.10 environment the static gate also uses. We keep
+/// everything under `target/`, what Hypothesis keeps of its draws included, so nothing is created under `tests/python`
+/// or anywhere else in the tree.
 fn uv_python(arg: &str) -> Command {
+    // Notes:
+    // - `-B` writes no bytecode
+    // - `-E` and `-s` keep out the caller's `PYTHON*` variables and user site-packages, while a script's own directory
+    //   stays importable (which `-I` would not allow)
     let mut command = Command::new("uv");
     command
         .args(["run", "--quiet", "--project=tests/python", "--locked"])
-        .args([
-            "--managed-python",
-            "--python=3.10",
-            "python",
-            "-B",
-            "-E",
-            "-s",
-        ])
+        .args(["--managed-python", "--python=3.10", "python", "-B", "-E", "-s"])
         .arg(arg)
         .env("UV_PROJECT_ENVIRONMENT", root().join("target/py/3.10"))
-        .env(
-            "HYPOTHESIS_STORAGE_DIRECTORY",
-            root().join("target/py/hypothesis"),
-        )
+        .env("HYPOTHESIS_STORAGE_DIRECTORY", root().join("target/py/hypothesis"))
         .current_dir(root());
     command
 }
@@ -327,10 +306,7 @@ fn cargo(args: &str) -> Command {
 }
 
 fn run(command: &mut Command) -> Result<(), String> {
-    let args: Vec<_> = command
-        .get_args()
-        .map(|arg| arg.to_string_lossy())
-        .collect();
+    let args: Vec<_> = command.get_args().map(|arg| arg.to_string_lossy()).collect();
     let program = command.get_program().to_string_lossy();
     let program = Path::new(program.as_ref()).file_name().unwrap_or_default();
     let line = format!("{} {}", program.to_string_lossy(), args.join(" "));
@@ -342,9 +318,8 @@ fn run(command: &mut Command) -> Result<(), String> {
     }
 }
 
-/// The workspace root, as cargo reports it to this run rather than to the
-/// build: a `target/` reused by another copy of the tree (a clone, a CI cache
-/// restored elsewhere) would otherwise point every command at the first copy.
+/// We ask cargo for the workspace root of this run rather than of the build, as a `target/` reused by another copy of
+/// the tree (a clone, a CI cache restored elsewhere) would otherwise point every command at the first copy.
 fn root() -> PathBuf {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("run by cargo"));
     (manifest.parent())

@@ -1,6 +1,3 @@
-//! The invariants of a query function's signature: safe to call, and its
-//! parameters named, documented and shaped as sqlc's.
-
 use ruff_python_ast::{Expr, StmtFunctionDef};
 use sqlc_gen_python::api::names::Repeats;
 use sqlc_gen_python::plugin;
@@ -9,8 +6,8 @@ use super::{Takes, uses};
 use crate::support::python::{Shape, docstring, unparse, words};
 use crate::support::records::named_after;
 
-/// Checks one query's function's signature and documentation against sqlc's
-/// query; whether its parameters pair up with sqlc's, for the checks after.
+/// Holds one query's function signature and docstring to sqlc's query. Returns whether its parameters pair up with
+/// sqlc's, as the checks after it rely on that.
 pub(super) fn function_follows_sqlc(
     query: &plugin::Query,
     function: &StmtFunctionDef,
@@ -19,10 +16,11 @@ pub(super) fn function_follows_sqlc(
     problems: &mut Vec<String>,
 ) -> bool {
     signature_is_safe(query, function, signature, problems);
+
     let uses = uses(query);
     let firsts: Vec<&plugin::Parameter> = (query.params.iter().zip(&uses).enumerate())
         .filter(|(i, (_, first))| i == *first)
-        .map(|(_, (param, _))| param)
+        .map(|(_, (parameter, _))| parameter)
         .collect();
     if parameters.len() != firsts.len() {
         let names: Vec<&str> = parameters.iter().map(|(name, _)| *name).collect();
@@ -33,22 +31,24 @@ pub(super) fn function_follows_sqlc(
         ));
         return false;
     }
+
     let spellings: Vec<&str> = (firsts.iter())
-        .map(|param| param.column.as_ref().map_or("", |c| c.name.as_str()))
+        .map(|parameter| parameter.column.as_ref().map_or("", |c| c.name.as_str()))
         .collect();
     let what = format!("{}: parameters", query.name);
     named_after(&what, parameters, &spellings, Repeats::Numbered, problems);
     if words(&docstring(function.body.first())) != words(&query.comments.join("\n")) {
         problems.push(format!("{}: its docstring is not its comment", query.name));
     }
-    let position = |param: &plugin::Parameter| firsts.iter().position(|f| std::ptr::eq(*f, param));
-    for (param, &first) in query.params.iter().zip(&uses) {
+
+    let position = |parameter: &plugin::Parameter| firsts.iter().position(|f| std::ptr::eq(*f, parameter));
+    for (parameter, &first) in query.params.iter().zip(&uses) {
         let Some(at) = position(&query.params[first]) else {
             continue;
         };
-        let column = param.column.clone().unwrap_or_default();
-        // A slice is a list of its column's type; a parameter used twice is
-        // optional if either use is.
+        let column = parameter.column.clone().unwrap_or_default();
+
+        // A slice is a list of its column's type, and a parameter used twice is optional if either use is.
         let optional = (query.params.iter().zip(&uses))
             .any(|(other, &f)| f == first && !other.column.as_ref().is_some_and(|c| c.not_null));
         let expected = Shape {
@@ -59,22 +59,21 @@ pub(super) fn function_follows_sqlc(
         if Shape::of(annotation) != expected {
             problems.push(format!(
                 "{}: parameter `{name}` disagrees with sqlc's {} on NULL or array depth",
-                query.name, param.number
+                query.name, parameter.number
             ));
         }
     }
     true
 }
 
-/// Checks what makes one query's function safe to call (§6, "Functions"):
-/// `conn` first and positional, annotated as the backend's connection, then
-/// only the `rows` of a `:copyfrom` or batch, or the one record `params`,
-/// every other parameter keyword-only; no defaults, so none can be forgotten;
-/// and `async def` exactly when the options ask for coroutines.
+/// A query's function is safe to call (§6, "Functions") when it takes `connection` first and positionally, annotated
+/// as the backend's connection, then only the `rows` of a `:copyfrom` or batch or the one record `params`, and every
+/// other parameter keyword-only. No parameter has a default, so none can be forgotten, and it is `async def` exactly
+/// when the options ask for coroutines.
 fn signature_is_safe(
     query: &plugin::Query,
     function: &StmtFunctionDef,
-    (conn, asynchronous, takes): (&str, bool, Takes),
+    (connection_annotation, asynchronous, takes): (&str, bool, Takes),
     problems: &mut Vec<String>,
 ) {
     let parameters = &function.parameters;
@@ -82,9 +81,9 @@ fn signature_is_safe(
         .map(|p| p.name().as_str())
         .collect();
     let expected: &[&str] = match takes {
-        Takes::Keywords => &["conn"],
-        Takes::Rows => &["conn", "rows"],
-        Takes::Record => &["conn", "params"],
+        Takes::Keywords => &["connection"],
+        Takes::Rows => &["connection", "rows"],
+        Takes::Record => &["connection", "params"],
     };
     if positional != expected
         || !parameters.posonlyargs.is_empty()
@@ -97,18 +96,16 @@ fn signature_is_safe(
             query.name
         ));
     }
-    if parameters
-        .iter_non_variadic_params()
-        .any(|p| p.default.is_some())
-    {
+
+    if parameters.iter_non_variadic_params().any(|p| p.default.is_some()) {
         problems.push(format!("{}: a parameter has a default", query.name));
     }
     let annotation = (parameters.args.first())
-        .and_then(|conn| conn.annotation())
+        .and_then(|connection| connection.annotation())
         .map(unparse);
-    if annotation.as_deref() != Some(conn) {
+    if annotation.as_deref() != Some(connection_annotation) {
         problems.push(format!(
-            "{}: takes a connection {annotation:?}, not `{conn}`",
+            "{}: takes a connection {annotation:?}, not `{connection_annotation}`",
             query.name
         ));
     }

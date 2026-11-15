@@ -1,5 +1,3 @@
-//! Specification for finding sqlc's placeholders as PostgreSQL's lexer does.
-
 use super::*;
 use crate::engine::{Piece, binds};
 
@@ -30,8 +28,8 @@ fn a_placeholder_is_only_code_never_text_postgresql_would_not_read_as_code() {
         "SELECT $$ $1 $$",
         "SELECT $fn$ $1 $fn$",
         "SELECT a$1 FROM t",
-        // PostgreSQL's lexer takes any non-ASCII character into an identifier
-        // or a dollar quote's tag, whatever Unicode calls it.
+        // PostgreSQL's lexer takes any non-ASCII character into an identifier or a dollar quote's tag, whatever
+        // Unicode calls it
         "SELECT $€$ $1 $€$",
         "SELECT a€$1 FROM t",
     ] {
@@ -71,39 +69,30 @@ fn a_placeholder_sqlc_reported_no_parameter_for_is_an_error() {
 
 #[test]
 fn a_parameter_sqlc_reported_that_no_placeholder_binds_is_an_error() {
-    // Were the lexer to take a placeholder for text, the driver would bind
-    // whatever its own `$N` means: silently, another parameter's value.
+    // Were the lexer to take a placeholder for text, the driver would bind whatever its own `$N` means: silently
+    // another parameter's value
     let error = error("SELECT '$1', $2", &[(1, "a"), (2, "b")]);
     assert!(error.contains(r#"parameter $1 ("a")"#), "{error}");
 }
 
 #[test]
 fn a_line_comment_ends_at_a_carriage_return_as_in_postgresql() {
-    // `scan.l`: a comment is `--` and then `[^\n\r]*`.
+    // `scan.l`: a comment is `--` and then `[^\n\r]*`
     assert_eq!(found("WHERE a = $2 -- note\rAND b = $1"), [2, 1]);
 }
 
 #[test]
 fn a_doubled_quote_keeps_an_escape_strings_escapes() {
-    // `''` is a quote inside the same literal, so a later `\'` is still
-    // escaped and does not end it.
-    assert_eq!(
-        found(r"WHERE a = $2 AND E'it''s\'' <> '' AND b = $1"),
-        [2, 1]
-    );
+    // `''` is a quote inside the same literal, so a later `\'` is still escaped and does not end it
+    assert_eq!(found(r"WHERE a = $2 AND E'it''s\'' <> '' AND b = $1"), [2, 1]);
     assert_eq!(found("SELECT 'a''$1'"), [0; 0]);
 }
 
 #[test]
 fn a_dollar_sign_belongs_to_an_identifier_only_inside_one() {
-    // `scan.l`: `$` continues an identifier, but not a number, a placeholder
-    // or a dollar quote, so a placeholder may follow each directly.
-    for sql in [
-        "SELECT $$x$$$1",
-        r#"SELECT "a"$1"#,
-        "SELECT 1$1",
-        "SELECT 0x1F$1",
-    ] {
+    // `scan.l`: `$` continues an identifier, but not a number, a placeholder or a dollar quote, so a placeholder may
+    // follow each directly
+    for sql in ["SELECT $$x$$$1", r#"SELECT "a"$1"#, "SELECT 1$1", "SELECT 0x1F$1"] {
         assert_eq!(found(sql), [1], "{sql}");
     }
     assert_eq!(found("SELECT $1$2"), [1, 2]);
@@ -111,21 +100,20 @@ fn a_dollar_sign_belongs_to_an_identifier_only_inside_one() {
 
 #[test]
 fn an_escape_string_goes_on_after_whitespace_holding_a_newline() {
-    // `scan.l`'s `quotecontinue`: the second quote continues the `E` string,
-    // so its `\'` is a quote, not the end, and `$1` is text.
+    // `scan.l`'s `quotecontinue`: the second quote continues the `E` string, so its `\'` is a quote, not the end, and
+    // `$1` is text
     for sql in ["SELECT E'a'\n'\\' $1 '", "SELECT E'a' \r\n\t'\\' $1 '"] {
         assert_eq!(found(sql), [0; 0], "{sql:?}");
     }
-    // Not across a comment in libpg_query, which sqlc parses with, nor
-    // without a newline.
+    // Not across a comment in libpg_query, which sqlc parses with, nor without a newline
     assert_eq!(found("SELECT E'a' -- c\n'\\' $1 ''"), [1]);
     assert_eq!(found("SELECT E'a' '\\' $1 ''"), [1]);
 }
 
 #[test]
 fn a_named_parameter_sqlc_left_as_written_is_an_error() {
-    // sqlc does not analyse MERGE, so `@amount` reaches PostgreSQL, which
-    // reads it as the absolute value of the column `amount`.
+    // sqlc does not analyse MERGE, so `@amount` reaches PostgreSQL, which reads it as the absolute value of the column
+    // `amount`
     for (sql, param) in [
         ("UPDATE SET amount = b.amount - @amount", "@amount"),
         (r#"SELECT @"Amount""#, r#"@"Amount""#),
@@ -140,7 +128,7 @@ fn a_named_parameter_sqlc_left_as_written_is_an_error() {
             "{sql}: {error}"
         );
     }
-    // Operators holding `@`, and what is not code.
+    // Operators holding `@`, and what is not code
     for sql in [
         "SELECT tags @> '{a}', tags <@ tags, a @@ b, @-x, @ x, @1",
         "SELECT '@a', \"@a\", $$@a$$ -- @a\n",

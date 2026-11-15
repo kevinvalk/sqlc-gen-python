@@ -28,7 +28,7 @@ class CreateLineItemsParams:
 
 
 async def create_line_items(
-    conn: AsyncConnection, rows: Iterable[CreateLineItemsParams]
+    connection: AsyncConnection, rows: Iterable[CreateLineItemsParams]
 ) -> None:
     params = [
         {
@@ -42,7 +42,7 @@ async def create_line_items(
         for r in rows
     ]
     if params:
-        await conn.execute(_CREATE_LINE_ITEMS, params)
+        await connection.execute(_CREATE_LINE_ITEMS, params)
 
 
 _LIST_LINE_ITEMS: Final = sqlalchemy.text(
@@ -51,9 +51,11 @@ _LIST_LINE_ITEMS: Final = sqlalchemy.text(
 
 
 async def list_line_items(
-    conn: AsyncConnection, *, invoice_id: UUID
+    connection: AsyncConnection, *, invoice_id: UUID
 ) -> list[models.LineItem]:
     return [
         models.LineItem.from_row(row)
-        for row in await conn.execute(_LIST_LINE_ITEMS, {"invoice_id": invoice_id})
+        for row in await connection.execute(
+            _LIST_LINE_ITEMS, {"invoice_id": invoice_id}
+        )
     ]

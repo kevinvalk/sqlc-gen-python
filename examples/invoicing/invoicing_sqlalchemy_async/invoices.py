@@ -21,7 +21,7 @@ RETURNING id, customer_id, number, status, currency, issued_on, due_on, notes, c
 
 
 async def create_invoice(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
     *,
     customer_id: UUID,
     number: str,
@@ -32,7 +32,7 @@ async def create_invoice(
 ) -> models.Invoice:
     return models.Invoice.from_row(
         (
-            await conn.execute(
+            await connection.execute(
                 _CREATE_INVOICE,
                 {
                     "customer_id": customer_id,
@@ -52,8 +52,10 @@ _GET_INVOICE: Final = sqlalchemy.text(
 )
 
 
-async def get_invoice(conn: AsyncConnection, *, id: UUID) -> models.Invoice | None:
-    row = (await conn.execute(_GET_INVOICE, {"id": id})).one_or_none()
+async def get_invoice(
+    connection: AsyncConnection, *, id: UUID
+) -> models.Invoice | None:
+    row = (await connection.execute(_GET_INVOICE, {"id": id})).one_or_none()
     return None if row is None else models.Invoice.from_row(row)
 
 
@@ -63,9 +65,11 @@ _GET_INVOICE_STATUS: Final = sqlalchemy.text(
 
 
 async def get_invoice_status(
-    conn: AsyncConnection, *, id: UUID
+    connection: AsyncConnection, *, id: UUID
 ) -> models.InvoiceStatus | None:
-    value = (await conn.execute(_GET_INVOICE_STATUS, {"id": id})).scalar_one_or_none()
+    value = (
+        await connection.execute(_GET_INVOICE_STATUS, {"id": id})
+    ).scalar_one_or_none()
     return None if value is None else models.InvoiceStatus(value)
 
 
@@ -74,9 +78,11 @@ _GET_INVOICE_DUE_DATE: Final = sqlalchemy.text(
 )
 
 
-async def get_invoice_due_date(conn: AsyncConnection, *, id: UUID) -> dt.date | None:
+async def get_invoice_due_date(
+    connection: AsyncConnection, *, id: UUID
+) -> dt.date | None:
     value: dt.date | None = (
-        await conn.execute(_GET_INVOICE_DUE_DATE, {"id": id})
+        await connection.execute(_GET_INVOICE_DUE_DATE, {"id": id})
     ).scalar_one_or_none()
     return value
 
@@ -122,9 +128,11 @@ class GetInvoiceWithCustomerRow:
 
 
 async def get_invoice_with_customer(
-    conn: AsyncConnection, *, id: UUID
+    connection: AsyncConnection, *, id: UUID
 ) -> GetInvoiceWithCustomerRow | None:
-    row = (await conn.execute(_GET_INVOICE_WITH_CUSTOMER, {"id": id})).one_or_none()
+    row = (
+        await connection.execute(_GET_INVOICE_WITH_CUSTOMER, {"id": id})
+    ).one_or_none()
     return None if row is None else GetInvoiceWithCustomerRow.from_row(row)
 
 
@@ -134,11 +142,11 @@ _LIST_INVOICES_BY_IDS: Final = sqlalchemy.text(
 
 
 async def list_invoices_by_ids(
-    conn: AsyncConnection, *, ids: list[UUID]
+    connection: AsyncConnection, *, ids: list[UUID]
 ) -> list[models.Invoice]:
     return [
         models.Invoice.from_row(row)
-        for row in await conn.execute(_LIST_INVOICES_BY_IDS, {"ids": ids})
+        for row in await connection.execute(_LIST_INVOICES_BY_IDS, {"ids": ids})
     ]
 
 
@@ -148,11 +156,13 @@ _LIST_INVOICES_BY_STATUS: Final = sqlalchemy.text(
 
 
 async def list_invoices_by_status(
-    conn: AsyncConnection, *, statuses: list[models.InvoiceStatus]
+    connection: AsyncConnection, *, statuses: list[models.InvoiceStatus]
 ) -> list[models.Invoice]:
     return [
         models.Invoice.from_row(row)
-        for row in await conn.execute(_LIST_INVOICES_BY_STATUS, {"statuses": statuses})
+        for row in await connection.execute(
+            _LIST_INVOICES_BY_STATUS, {"statuses": statuses}
+        )
     ]
 
 
@@ -162,11 +172,14 @@ _LIST_INVOICES_ISSUED_BETWEEN: Final = sqlalchemy.text(
 
 
 async def list_invoices_issued_between(
-    conn: AsyncConnection, *, issued_on: dt.date | None, issued_on_2: dt.date | None
+    connection: AsyncConnection,
+    *,
+    issued_on: dt.date | None,
+    issued_on_2: dt.date | None,
 ) -> list[models.Invoice]:
     return [
         models.Invoice.from_row(row)
-        for row in await conn.execute(
+        for row in await connection.execute(
             _LIST_INVOICES_ISSUED_BETWEEN,
             {"issued_on": issued_on, "issued_on_2": issued_on_2},
         )
@@ -179,7 +192,7 @@ _LIST_INVOICE_NUMBERS: Final = sqlalchemy.text(
 
 
 async def list_invoice_numbers(
-    conn: AsyncConnection, *, customer_id: UUID
+    connection: AsyncConnection, *, customer_id: UUID
 ) -> list[str]:
     """invoice numbers of one customer – in order, as printed on a statement.
 
@@ -188,7 +201,9 @@ async def list_invoice_numbers(
     """
     return list(
         (
-            await conn.execute(_LIST_INVOICE_NUMBERS, {"customer_id": customer_id})
+            await connection.execute(
+                _LIST_INVOICE_NUMBERS, {"customer_id": customer_id}
+            )
         ).scalars()
     )
 
@@ -215,7 +230,7 @@ class SearchInvoicesRow:
 
 
 async def search_invoices(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
     *,
     customer_id: UUID,
     status: models.InvoiceStatus | None,
@@ -224,7 +239,7 @@ async def search_invoices(
     """Filters are optional: a NULL filter matches every invoice."""
     return [
         SearchInvoicesRow.from_row(row)
-        for row in await conn.execute(
+        for row in await connection.execute(
             _SEARCH_INVOICES,
             {"customer_id": customer_id, "status": status, "due_before": due_before},
         )
@@ -258,13 +273,13 @@ class GetInvoiceTotalsRow:
 
 
 async def get_invoice_totals(
-    conn: AsyncConnection, *, id: UUID
+    connection: AsyncConnection, *, id: UUID
 ) -> GetInvoiceTotalsRow | None:
     """Totals are computed in SQL, so rounding matches the database exactly.
     Every aggregate is cast, since sqlc only guesses the type of a function call,
     and coalesced where it can be NULL, since sqlc reports every cast NOT NULL.
     """
-    row = (await conn.execute(_GET_INVOICE_TOTALS, {"id": id})).one_or_none()
+    row = (await connection.execute(_GET_INVOICE_TOTALS, {"id": id})).one_or_none()
     return None if row is None else GetInvoiceTotalsRow.from_row(row)
 
 
@@ -290,11 +305,11 @@ class ListOverdueInvoicesRow:
 
 
 async def list_overdue_invoices(
-    conn: AsyncConnection, *, as_of: dt.date | None
+    connection: AsyncConnection, *, as_of: dt.date | None
 ) -> list[ListOverdueInvoicesRow]:
     return [
         ListOverdueInvoicesRow.from_row(row)
-        for row in await conn.execute(_LIST_OVERDUE_INVOICES, {"as_of": as_of})
+        for row in await connection.execute(_LIST_OVERDUE_INVOICES, {"as_of": as_of})
     ]
 
 
@@ -314,11 +329,11 @@ class CountInvoicesByStatusRow:
 
 
 async def count_invoices_by_status(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
 ) -> list[CountInvoicesByStatusRow]:
     return [
         CountInvoicesByStatusRow.from_row(row)
-        for row in await conn.execute(_COUNT_INVOICES_BY_STATUS)
+        for row in await connection.execute(_COUNT_INVOICES_BY_STATUS)
     ]
 
 
@@ -327,9 +342,9 @@ _COUNT_INVOICES: Final = sqlalchemy.text(
 )
 
 
-async def count_invoices(conn: AsyncConnection, *, customer_id: UUID) -> int:
+async def count_invoices(connection: AsyncConnection, *, customer_id: UUID) -> int:
     value: int = (
-        await conn.execute(_COUNT_INVOICES, {"customer_id": customer_id})
+        await connection.execute(_COUNT_INVOICES, {"customer_id": customer_id})
     ).scalar_one()
     return value
 
@@ -349,13 +364,17 @@ class CountInvoicesIssuedRow:
 
 
 async def count_invoices_issued(
-    conn: AsyncConnection, *, customer_id: UUID
+    connection: AsyncConnection, *, customer_id: UUID
 ) -> CountInvoicesIssuedRow:
     """How many invoices the customer has, and how many of them are issued: a
     count of the rows a filter keeps is as much a count.
     """
     return CountInvoicesIssuedRow.from_row(
-        (await conn.execute(_COUNT_INVOICES_ISSUED, {"customer_id": customer_id})).one()
+        (
+            await connection.execute(
+                _COUNT_INVOICES_ISSUED, {"customer_id": customer_id}
+            )
+        ).one()
     )
 
 
@@ -374,7 +393,7 @@ class ListIssuedNumbersRow:
 
 
 async def list_issued_numbers(
-    conn: AsyncConnection, *, customer_id: UUID
+    connection: AsyncConnection, *, customer_id: UUID
 ) -> list[ListIssuedNumbersRow]:
     """Each of the customer's invoices, with its number once it has an issue
     date: a CASE without an ELSE is NULL where no WHEN holds, though sqlc
@@ -382,7 +401,7 @@ async def list_issued_numbers(
     """
     return [
         ListIssuedNumbersRow.from_row(row)
-        for row in await conn.execute(
+        for row in await connection.execute(
             _LIST_ISSUED_NUMBERS, {"customer_id": customer_id}
         )
     ]
@@ -403,14 +422,14 @@ class ListInvoiceNumbersPageRow:
 
 
 async def list_invoice_numbers_page(
-    conn: AsyncConnection, *, customer_id: UUID, limit: int
+    connection: AsyncConnection, *, customer_id: UUID, limit: int
 ) -> list[ListInvoiceNumbersPageRow]:
     """A page of the customer's invoice numbers, each beside how many there are
     in all: a count over a window.
     """
     return [
         ListInvoiceNumbersPageRow.from_row(row)
-        for row in await conn.execute(
+        for row in await connection.execute(
             _LIST_INVOICE_NUMBERS_PAGE, {"customer_id": customer_id, "limit": limit}
         )
     ]
@@ -422,10 +441,10 @@ _ISSUE_INVOICE: Final = sqlalchemy.text(
 
 
 async def issue_invoice(
-    conn: AsyncConnection, *, issued_on: dt.date | None, id: UUID
+    connection: AsyncConnection, *, issued_on: dt.date | None, id: UUID
 ) -> int:
     return (
-        await conn.execute(_ISSUE_INVOICE, {"issued_on": issued_on, "id": id})
+        await connection.execute(_ISSUE_INVOICE, {"issued_on": issued_on, "id": id})
     ).rowcount
 
 
@@ -435,9 +454,9 @@ _MARK_INVOICE_PAID: Final = sqlalchemy.text(
 
 
 async def mark_invoice_paid(
-    conn: AsyncConnection, *, paid_at: dt.datetime | None, id: UUID
+    connection: AsyncConnection, *, paid_at: dt.datetime | None, id: UUID
 ) -> None:
-    await conn.execute(_MARK_INVOICE_PAID, {"paid_at": paid_at, "id": id})
+    await connection.execute(_MARK_INVOICE_PAID, {"paid_at": paid_at, "id": id})
 
 
 _VOID_INVOICE: Final = sqlalchemy.text(
@@ -446,9 +465,9 @@ _VOID_INVOICE: Final = sqlalchemy.text(
 
 
 async def void_invoice(
-    conn: AsyncConnection, *, id: UUID
+    connection: AsyncConnection, *, id: UUID
 ) -> sqlalchemy.CursorResult[Any]:
-    return await conn.execute(_VOID_INVOICE, {"id": id})
+    return await connection.execute(_VOID_INVOICE, {"id": id})
 
 
 _DELETE_DRAFT_INVOICES: Final = sqlalchemy.text(
@@ -457,10 +476,12 @@ _DELETE_DRAFT_INVOICES: Final = sqlalchemy.text(
 
 
 async def delete_draft_invoices(
-    conn: AsyncConnection, *, created_before: dt.datetime
+    connection: AsyncConnection, *, created_before: dt.datetime
 ) -> int:
     return (
-        await conn.execute(_DELETE_DRAFT_INVOICES, {"created_before": created_before})
+        await connection.execute(
+            _DELETE_DRAFT_INVOICES, {"created_before": created_before}
+        )
     ).rowcount
 
 
@@ -470,11 +491,11 @@ RETURNING id, invoice_id, filename, content, uploaded_at""")
 
 
 async def attach_medium(
-    conn: AsyncConnection, *, invoice_id: UUID, filename: str, content: bytes
+    connection: AsyncConnection, *, invoice_id: UUID, filename: str, content: bytes
 ) -> models.Medium:
     return models.Medium.from_row(
         (
-            await conn.execute(
+            await connection.execute(
                 _ATTACH_MEDIUM,
                 {"invoice_id": invoice_id, "filename": filename, "content": content},
             )
@@ -498,10 +519,12 @@ class ListMediaRow:
         return cls(id=row[0], filename=row[1], uploaded_at=row[2])
 
 
-async def list_media(conn: AsyncConnection, *, invoice_id: UUID) -> list[ListMediaRow]:
+async def list_media(
+    connection: AsyncConnection, *, invoice_id: UUID
+) -> list[ListMediaRow]:
     return [
         ListMediaRow.from_row(row)
-        for row in await conn.execute(_LIST_MEDIA, {"invoice_id": invoice_id})
+        for row in await connection.execute(_LIST_MEDIA, {"invoice_id": invoice_id})
     ]
 
 
@@ -510,10 +533,12 @@ _LIST_INVOICE_STATUSES: Final = sqlalchemy.text(
 )
 
 
-async def list_invoice_statuses(conn: AsyncConnection) -> list[models.InvoiceStatus]:
+async def list_invoice_statuses(
+    connection: AsyncConnection,
+) -> list[models.InvoiceStatus]:
     return [
         models.InvoiceStatus(value)
-        for value in (await conn.execute(_LIST_INVOICE_STATUSES)).scalars()
+        for value in (await connection.execute(_LIST_INVOICE_STATUSES)).scalars()
     ]
 
 
@@ -528,12 +553,14 @@ class GetInvoicesBatchParams:
 
 
 async def get_invoices_batch(
-    conn: AsyncConnection, rows: Iterable[GetInvoicesBatchParams]
+    connection: AsyncConnection, rows: Iterable[GetInvoicesBatchParams]
 ) -> list[models.Invoice | None]:
     """Several invoices at once, each in the place of its id."""
     values: list[models.Invoice | None] = []
     for r in rows:
-        row = (await conn.execute(_GET_INVOICES_BATCH, {"id": r.id})).one_or_none()
+        row = (
+            await connection.execute(_GET_INVOICES_BATCH, {"id": r.id})
+        ).one_or_none()
         values.append(None if row is None else models.Invoice.from_row(row))
     return values
 
@@ -549,12 +576,12 @@ class ListInvoiceNumbersBatchParams:
 
 
 async def list_invoice_numbers_batch(
-    conn: AsyncConnection, rows: Iterable[ListInvoiceNumbersBatchParams]
+    connection: AsyncConnection, rows: Iterable[ListInvoiceNumbersBatchParams]
 ) -> list[list[str]]:
     return [
         list(
             (
-                await conn.execute(
+                await connection.execute(
                     _LIST_INVOICE_NUMBERS_BATCH, {"customer_id": r.customer_id}
                 )
             ).scalars()
@@ -574,8 +601,8 @@ class VoidInvoicesBatchParams:
 
 
 async def void_invoices_batch(
-    conn: AsyncConnection, rows: Iterable[VoidInvoicesBatchParams]
+    connection: AsyncConnection, rows: Iterable[VoidInvoicesBatchParams]
 ) -> None:
     params = [{"id": r.id} for r in rows]
     if params:
-        await conn.execute(_VOID_INVOICES_BATCH, params)
+        await connection.execute(_VOID_INVOICES_BATCH, params)

@@ -1,6 +1,4 @@
-//! The generated output, end to end: real sqlc requests in, Python out.
-//!
-//! One test target, so the ruff crates the checks parse with are linked once.
+// We keep one test target so the ruff crates the checks parse with are linked only once.
 
 mod corpus;
 mod golden;

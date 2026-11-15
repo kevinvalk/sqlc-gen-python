@@ -1,17 +1,12 @@
-# Every layer of the proof (docs/python-output.md, "Proof"), and the
-# plugin itself: `capture --check` builds it and runs it under the pinned sqlc,
-# then a clean build on another runner must give the same bytes. `release.yml`
-# calls this workflow for `main` and for a tag, so each is held to exactly
-# these checks and releases exactly the plugin they ran. Each command fails
-# loudly when what it needs is missing; the runners have Docker.
 name: CI
 
 on:
-  # Renovate merges a branch of its own once these checks pass on it
-  # (`automergeType: branch`), without a pull request.
+  # Renovate merges its own branch once these checks pass on it (`automergeType: branch`), without a pull request
   push:
     branches: ["renovate/**"]
   pull_request:
+  # release.yml calls this for main and for a tag, so each is held to exactly these checks and releases exactly the
+  # plugin they built
   workflow_call:
 
 permissions:
@@ -22,14 +17,13 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Exact, and a week old before Renovate proposes it: this uv runs in the job
-  # whose build is released. tests/python/pyproject.toml holds the range a
-  # developer's own uv must be in.
+  # Exact, and a week old before Renovate proposes it, as this uv runs in the job whose build we release.
+  # tests/python/pyproject.toml holds the range a developer's own uv must be in.
   UV_VERSION: "0.13.7"
 
-# A Renovate branch that failed becomes a pull request, whose push already ran
-# these checks. Only this repository's branch is Renovate's: a fork's of that
-# name is checked like any other.
+# A Renovate branch that failed becomes a pull request whose push already ran these checks, so we skip that pull
+# request. Only this repository's branch is Renovate's, a fork's branch of that name is checked like any other.
+# NOTE: xtask fails loudly when what it needs is missing, and GitHub's Ubuntu runners have the Docker it needs.
 jobs:
   xtask:
     name: cargo xtask ${{ matrix.task }}
@@ -41,8 +35,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # --check: docs/typemap.md must already say what verify finds, so
-        # neither a hand edit nor a driver's change slips by.
+        # With --check docs/typemap.md must already say what verify finds, so neither a hand edit nor a driver's
+        # change slips by
         task: [check, verify --mutants --check]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,10 +46,8 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-      # rust-cache takes all of target/ for cargo's. Of what is not (xtask's
-      # Python environments, generated packages and captures), it restores the
-      # directories without their files, and uv will not use such an
-      # environment.
+      # rust-cache treats all of target/ as cargo's, so it restores xtask's Python environments, generated packages
+      # and captures as directories without their files, and uv will not use such an environment.
       - run: rm -rf target/py target/gen target/capture
       - run: cargo xtask ${{ matrix.task }}
 
@@ -73,14 +65,15 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: ${{ env.UV_VERSION }}
-      # sqlc's own singularisation is Go. Any Go bootstraps it: sqlc's go.mod
-      # selects the toolchain (GOTOOLCHAIN=auto), so `stable` is not a pin.
+      # capture runs sqlc's own singularisation, which is Go. Any Go bootstraps it as sqlc's go.mod selects the
+      # toolchain (GOTOOLCHAIN=auto), so `stable` is not a pin.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
           cache: false
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-      # As above: what the cache holds of xtask's is directories alone.
+      # rust-cache treats all of target/ as cargo's, so it restores xtask's Python environments, generated packages
+      # and captures as directories without their files, and uv will not use such an environment.
       - run: rm -rf target/py target/gen target/capture
       - run: cargo xtask capture --check
         env:
@@ -91,11 +84,9 @@ jobs:
           path: target/wasm32-wasip1/release/sqlc-gen-python.wasm
           if-no-files-found: error
 
-  # Uncached, so the plugin sqlc ran is proven to be what the source and the
-  # pinned toolchain make. Same host triple: cargo mixes it into crate hashes,
-  # so the bytes are reproducible per host, not across hosts. And the same
-  # image, which is why every job names its release: `ubuntu-latest` becomes
-  # the next one runner by runner.
+  # Uncached, so we prove the plugin sqlc ran is what the source and the pinned toolchain make. It needs the same host
+  # triple, as cargo mixes it into crate hashes, and the same image, which is why every job here names its release:
+  # `ubuntu-latest` moves to the next one runner by runner!
   reproduce:
     name: clean rebuild gives the same plugin
     needs: capture

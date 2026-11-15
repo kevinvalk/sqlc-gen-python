@@ -1,5 +1,3 @@
-//! Specification for running sqlc's SQL as written, on a driver.
-
 use super::*;
 use crate::api::models::{Field, FieldType, Member};
 use crate::api::queries::{Command, Takes};
@@ -21,14 +19,14 @@ fn field(name: &str, element: Type) -> Field {
     }
 }
 
-/// A query `get` taking `params`, on `$1`, `$2`, ...
-fn query(command: Command, params: Vec<Field>) -> Query {
+/// A query `get` with its parameters on `$1`, `$2`, ...
+fn query(command: Command, parameters: Vec<Field>) -> Query {
     let mut pieces = vec![Piece::Text("SELECT ".into())];
-    for (i, param) in params.iter().enumerate() {
+    for (i, parameter) in parameters.iter().enumerate() {
         pieces.push(Piece::Param {
             placeholder: format!("${}", i + 1),
             number: i as i32 + 1,
-            name: param.name.clone(),
+            name: parameter.name.clone(),
         });
     }
     Query {
@@ -39,7 +37,7 @@ fn query(command: Command, params: Vec<Field>) -> Query {
         copy_into: None,
         raises: true,
         takes: Takes::Keywords,
-        params,
+        params: parameters,
         columns: Vec::new(),
         command,
     }
@@ -49,47 +47,39 @@ fn query(command: Command, params: Vec<Field>) -> Query {
 fn a_driver_is_given_sqlcs_statement_as_written() {
     let query = query(Command::Exec, vec![field("id", Type::INT)]);
     let statement = python::render(
-        &[python::ann_assign(
-            "_GET",
-            FINAL,
-            Backend::Psycopg.statement(&query),
-        )],
+        &[python::ann_assign("_GET", FINAL, Backend::Psycopg.statement(&query))],
         &[],
     );
-    assert!(
-        statement.ends_with("_GET: Final = \"SELECT $1\"\n"),
-        "{statement}"
-    );
+    assert!(statement.ends_with("_GET: Final = \"SELECT $1\"\n"), "{statement}");
 }
 
 #[test]
 fn a_driver_binds_each_parameter_by_position_json_wrapped_on_psycopg() {
-    let params = vec![field("id", Type::INT), field("data", Type::JSONB)];
-    let body = Backend::Psycopg.body(&query(Command::Exec, params.clone()), false);
+    let parameters = vec![field("id", Type::INT), field("data", Type::JSONB)];
+    let body = Backend::Psycopg.body(&query(Command::Exec, parameters.clone()), false);
     let body = python::unparse_stmts(&body);
     assert_eq!(
         body,
-        "with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:\n    \
+        "with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:\n    \
          cur.execute(_GET, (id, None if data is None else Jsonb(data)))"
     );
-    let body = Backend::Sqlite3.body(&query(Command::Exec, params[..1].to_vec()), true);
+    let body = Backend::Sqlite3.body(&query(Command::Exec, parameters[..1].to_vec()), true);
     let body = python::unparse_stmts(&body);
     assert_eq!(
         body,
-        "async with conn.cursor() as cur:\n    \
+        "async with connection.cursor() as cur:\n    \
          await cur.execute(_GET, (id,))"
     );
 }
 
 #[test]
 fn sqlite3_makes_a_cursors_rows_tuples_only_where_they_are_read() {
-    let body =
-        |command| python::unparse_stmts(&Backend::Sqlite3.body(&query(command, Vec::new()), false));
+    let body = |command| python::unparse_stmts(&Backend::Sqlite3.body(&query(command, Vec::new()), false));
     let scalar = crate::api::queries::Shape::Scalar(field("n", Type::INT).ty);
     for reads in [
         Command::One(scalar.clone()),
         Command::Many(scalar),
-        // By whoever the cursor is returned to.
+        // Read by whoever the cursor is returned to
         Command::ExecResult,
     ] {
         let body = body(reads);
@@ -110,7 +100,7 @@ fn a_one_raises_without_exactly_one_row_on_a_driver_if_asked() {
     assert_eq!(python::unparse(&returns), "int");
     assert_eq!(
         body,
-        "with contextlib.closing(conn.cursor()) as cur:\n    \
+        "with contextlib.closing(connection.cursor()) as cur:\n    \
          cur.row_factory = None\n    \
          cur.execute(_GET)\n    \
          match cur.fetchmany(2):\n        \
@@ -133,28 +123,12 @@ fn psycopg_reads_an_array_of_an_enum_only_if_no_label_is_quoted_in_it() {
             .collect(),
     };
     assert!(check_text_array(&sql_enum(&["card", "direct-debit", "a_b"])).is_ok());
-    for label in [
-        "",
-        "null",
-        "NULL",
-        "with space",
-        "a,b",
-        "{a}",
-        "\"q\"",
-        "back\\slash",
-    ] {
+    for label in ["", "null", "NULL", "with space", "a,b", "{a}", "\"q\"", "back\\slash"] {
         let error = check_text_array(&sql_enum(&["card", label])).unwrap_err();
-        assert!(
-            error.to_string().contains("quotes the label"),
-            "{label:?}: {error}"
-        );
+        assert!(error.to_string().contains("quotes the label"), "{label:?}: {error}");
     }
-    // Neither SQLAlchemy nor a driver that returns lists needs one.
-    assert!(
-        Backend::SqlAlchemy
-            .check_array_enum(&sql_enum(&["with space"]))
-            .is_ok()
-    );
+    // Neither SQLAlchemy nor a driver that returns lists needs the check
+    assert!(Backend::SqlAlchemy.check_array_enum(&sql_enum(&["with space"])).is_ok());
 }
 
 #[test]
@@ -167,29 +141,18 @@ fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
     };
     query.sql.0.push(Piece::Text(" LIKE '%:x%'".into()));
     let statement = python::render(
-        &[python::ann_assign(
-            "_GET",
-            FINAL,
-            Backend::Pymysql.statement(&query),
-        )],
+        &[python::ann_assign("_GET", FINAL, Backend::Pymysql.statement(&query))],
         &[],
     );
-    assert!(
-        statement.contains(r#""SELECT %s LIKE '%%:x%%'""#),
-        "{statement}"
-    );
-    // Without parameters PyMySQL formats nothing, so nothing is doubled.
+    assert!(statement.contains(r#""SELECT %s LIKE '%%:x%%'""#), "{statement}");
+    // Without parameters PyMySQL formats nothing, so nothing is doubled
     let query = Query {
         sql: Sql(vec![Piece::Text("SELECT '%:x%'".into())]),
         params: Vec::new(),
         ..query
     };
     let statement = python::render(
-        &[python::ann_assign(
-            "_GET",
-            FINAL,
-            Backend::Pymysql.statement(&query),
-        )],
+        &[python::ann_assign("_GET", FINAL, Backend::Pymysql.statement(&query))],
         &[],
     );
     assert!(statement.contains(r#""SELECT '%:x%'""#), "{statement}");
@@ -211,8 +174,8 @@ fn only_a_library_whose_stubs_need_it_has_a_prelude() {
 
 #[test]
 fn pymysqls_connection_is_named_once_for_a_type_checker_and_for_python() {
-    // Bare, the class is a connection of plain cursors alone to a type
-    // checker; subscripted, it raises: it is generic only in its stubs.
+    // Bare, a type checker takes the class for a connection of plain cursors only, and subscripted it raises, as it is
+    // only generic in its stubs.
     let prelude = python::render(&Backend::Pymysql.prelude(false), &[]);
     assert_eq!(
         prelude,
@@ -263,27 +226,27 @@ def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:
     let body = python::unparse_stmts(&Backend::Pymysql.body(&one, true));
     assert!(
         body.starts_with(
-            "async with conn.cursor(asyncmy.cursors.Cursor) as cur:\n    \
+            "async with connection.cursor(asyncmy.cursors.Cursor) as cur:\n    \
              await _typed(cur).execute(_GET)\n    \
              match (await _typed(cur).fetchmany(2)):\n"
         ),
         "{body}"
     );
-    // The stubs type the rest: what reads every row, and the last id.
+    // The stubs do type the rest: what reads every row, and the last id
     let many = query(Command::Many(scalar), Vec::new());
     let body = python::unparse_stmts(&Backend::Pymysql.body(&many, true));
     assert!(body.contains("in await cur.fetchall()]"), "{body}");
     let last_id = query(Command::ExecLastId, Vec::new());
     let body = python::unparse_stmts(&Backend::Pymysql.body(&last_id, true));
     assert!(body.ends_with("return cur.lastrowid"), "{body}");
-    // An `:execresult` returns the library's cursor, not the protocol.
+    // An `:execresult` returns the library's cursor and not the protocol
     let result = query(Command::ExecResult, Vec::new());
     let returns = python::unparse(&Backend::Pymysql.returns(&result, true));
     let body = python::unparse_stmts(&Backend::Pymysql.body(&result, true));
     assert_eq!(returns, "asyncmy.cursors.Cursor");
     assert_eq!(
         body,
-        "cur = conn.cursor(asyncmy.cursors.Cursor)\n\
+        "cur = connection.cursor(asyncmy.cursors.Cursor)\n\
          await _typed(cur).execute(_GET)\n\
          return cur"
     );

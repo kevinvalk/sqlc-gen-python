@@ -17,10 +17,12 @@ _LIST_SCALARS: Final = sqlalchemy.text(
 )
 
 
-def list_scalars(conn: sqlalchemy.Connection, *, limit: int) -> list[models.Scalar]:
+def list_scalars(
+    connection: sqlalchemy.Connection, *, limit: int
+) -> list[models.Scalar]:
     return [
         models.Scalar.from_row(row)
-        for row in conn.execute(_LIST_SCALARS, {"limit": limit})
+        for row in connection.execute(_LIST_SCALARS, {"limit": limit})
     ]
 
 
@@ -38,7 +40,7 @@ _ADD_SCALARS: Final = sqlalchemy.text("""INSERT INTO scalars (
 
 
 def add_scalars(
-    conn: sqlalchemy.Connection,
+    connection: sqlalchemy.Connection,
     *,
     c_bool: bool | None,
     c_tinyint: int | None,
@@ -75,7 +77,7 @@ def add_scalars(
     c_timestamp: dt.datetime | None,
     c_time: dt.timedelta | None,
 ) -> None:
-    conn.execute(
+    connection.execute(
         _ADD_SCALARS,
         {
             "c_bool": c_bool,
@@ -132,8 +134,8 @@ class ListDerivedRow:
         return cls(filled=bool(row[0]), as_signed=row[1])
 
 
-def list_derived(conn: sqlalchemy.Connection) -> list[ListDerivedRow]:
+def list_derived(connection: sqlalchemy.Connection) -> list[ListDerivedRow]:
     """What sqlc types otherwise than a column: a comparison is its `bool`, a
     cast to an integer its `bigint signed`.
     """
-    return [ListDerivedRow.from_row(row) for row in conn.execute(_LIST_DERIVED)]
+    return [ListDerivedRow.from_row(row) for row in connection.execute(_LIST_DERIVED)]

@@ -3,8 +3,8 @@ use std::io::Result;
 fn main() -> Result<()> {
     println!("cargo:rerun-if-changed=protos/sqlc.proto");
 
-    // `prost-build` shells out to `protoc`; point it at the vendored binary so a
-    // checkout builds without a system-wide protobuf install.
+    // `prost-build` shells out to `protoc`, so we point it at the vendored binary and a checkout builds without a
+    // system-wide protobuf install.
     if std::env::var_os("PROTOC").is_none()
         && let Ok(protoc) = protoc_bin_vendored::protoc_bin_path()
     {
@@ -12,21 +12,17 @@ fn main() -> Result<()> {
         unsafe { std::env::set_var("PROTOC", protoc) };
     }
 
-    // sqlc dumps a `GenerateRequest` as protobuf JSON via its built-in `json`
-    // codegen (see `tests/python/capture.py`), and the tests read those dumps back.
-    // Deriving `Deserialize` on the wire types lets them load directly, with the
-    // one convention serde does not share handled here: absent fields fall back
-    // to the proto3 zero value rather than failing.
+    // sqlc dumps a `GenerateRequest` as protobuf JSON through its built-in `json` codegen (see
+    // `tests/python/capture.py`) and the tests read those dumps back, so we derive `Deserialize` on the wire types. The
+    // one convention serde does not share is that an absent field is the proto3 zero value, so every message defaults
+    // instead of failing.
     //
-    // Only a message takes the zero-value default; a `oneof`, which is an
-    // enum, just derives. The dumps write its value under the variant's own
-    // key, which a message ignores as it does any key it has no field for, so
-    // one is read as unset: nothing here reads one.
+    // NOTE: A `oneof` is an enum and only derives. The dumps write it under the variant's own key, which a message
+    // ignores like any key it has no field for, so it reads as unset. That is fine as nothing here reads one.
     //
-    // The `bytes` fields are skipped. protobuf JSON base64-encodes them, but a
-    // fixture carries only the catalog — plugin options belong to the test case,
-    // not the schema — so decoding them would be machinery for nothing. The
-    // plugin itself never goes through serde; sqlc speaks protobuf.
+    // We skip the `bytes` fields, which protobuf JSON base64-encodes, as a fixture only carries the catalog (plugin
+    // options belong to the test case) and decoding them would be machinery for nothing. The plugin itself never goes
+    // through serde, sqlc speaks protobuf to it.
     let mut config = prost_build::Config::new();
     config
         .type_attribute(".", "#[derive(::serde::Deserialize)]")

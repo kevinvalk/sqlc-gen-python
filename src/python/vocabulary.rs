@@ -1,10 +1,5 @@
-//! Every name generated code reads or binds that is not the schema's, each
-//! spelt once: the builtins it reads, what it imports ([`VOCABULARY`]), and
-//! the parameters, locals and methods of its own.
-//!
-//! A [`Symbol`] reads as the name it is, so `ROW.index(int(0))` is `row[0]`
-//! ([`super::Expression`]), and binds as it too: `each(ROW, rows)` is `for row
-//! in rows`.
+//! Every name generated code reads or binds that is not the schema's, each spelt exactly once: the builtins it reads,
+//! what it imports ([`VOCABULARY`]), and the parameters, locals and methods of its own.
 
 use ruff_python_ast as ast;
 
@@ -14,8 +9,7 @@ use super::{Expression, name};
 #[path = "vocabulary_spec.rs"]
 mod spec;
 
-/// A name, by its one spelling. One with dots is read through its first
-/// part: `dt.date`.
+/// A name with dots is read through its first part, as in `dt.date`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Symbol(&'static str);
 
@@ -33,8 +27,6 @@ impl From<Symbol> for ast::Expr {
     }
 }
 
-// -- Builtins ----------------------------------------------------------------
-
 pub const BOOL: Symbol = Symbol("bool");
 pub const BYTES: Symbol = Symbol("bytes");
 pub const CLASSMETHOD: Symbol = Symbol("classmethod");
@@ -48,12 +40,10 @@ pub const OBJECT: Symbol = Symbol("object");
 pub const STR: Symbol = Symbol("str");
 pub const TUPLE: Symbol = Symbol("tuple");
 
-// -- Imports -----------------------------------------------------------------
-
 pub const CONTEXTLIB: Symbol = Symbol("contextlib");
 pub const DATACLASSES: Symbol = Symbol("dataclasses");
-/// `datetime`, bound as ruff's convention has it (ICN001): a column called
-/// `datetime` or `date` cannot hide it, and `dt.datetime` does not stutter.
+/// We bind `datetime` as `dt`, ruff's convention (ICN001), so a column called `datetime` or `date` cannot hide it and
+/// `dt.datetime` does not stutter.
 pub const DT: Symbol = Symbol("dt");
 pub const ENUM: Symbol = Symbol("enum");
 pub const SQLITE3: Symbol = Symbol("sqlite3");
@@ -87,22 +77,19 @@ pub const MULTIPLE_ROWS_ERROR: Symbol = Symbol("MultipleRowsError");
 pub const NO_ROW_ERROR: Symbol = Symbol("NoRowError");
 pub const MODELS: Symbol = Symbol("models");
 
-/// Read through [`TYPING`]: imported by name, a table `protocols` could not
-/// be the class `Protocol`.
+/// Read through [`TYPING`] because, imported by name, a table `protocols` could no longer be the class `Protocol`.
 pub const PROTOCOL: Symbol = Symbol("typing.Protocol");
 pub const TYPE_CHECKING: Symbol = Symbol("typing.TYPE_CHECKING");
 
-/// `datetime`'s classes, read through [`DT`].
 pub const DATE: Symbol = Symbol("dt.date");
 pub const DATETIME: Symbol = Symbol("dt.datetime");
 pub const TIME: Symbol = Symbol("dt.time");
 pub const TIMEDELTA: Symbol = Symbol("dt.timedelta");
 
-/// Everything generated code may read without defining it, and how each is
-/// imported (`docs/python-output.md` §2). [`super::render()`] imports exactly the
-/// entries its body reads, as written here: in isort's sections (the standard
-/// library, third-party, relative), each listing plain `import`s before `from`
-/// imports, by module, then by name.
+/// Everything generated code may read without defining it, and how each is imported (`docs/python-output.md` §2).
+/// [`super::render()`] imports exactly the entries a body reads, in the order written here, so this list must stay in
+/// isort's order: its sections (standard library, third-party, relative), plain `import`s before `from` imports, by
+/// module, then by name.
 pub(super) const VOCABULARY: [&[Import]; 3] = [
     &[
         Import::plain(CONTEXTLIB),
@@ -126,8 +113,8 @@ pub(super) const VOCABULARY: [&[Import]; 3] = [
     ],
     &[
         Import::plain(AIOSQLITE),
-        // Its cursors are no attribute of `asyncmy` to a type checker
-        // without the import of their module, which binds `asyncmy` too.
+        // A type checker only sees the cursors as an attribute of `asyncmy` once their module is imported, and that
+        // import binds `asyncmy` too.
         Import::Module("asyncmy.cursors", ASYNCMY),
         Import::plain(PSYCOPG),
         Import::plain(PYMYSQL),
@@ -147,73 +134,63 @@ pub(super) const VOCABULARY: [&[Import]; 3] = [
     ],
 ];
 
-/// One name's import, ordered as isort orders one section.
+/// The derived order is isort's order within one section.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Import {
-    /// `import <module>`, bound as the symbol: `as` it, if that is not the
-    /// name the import binds itself, the module's first part.
+    /// `import <module>`, with an `as <symbol>` when the symbol is not the module's first part.
     Module(&'static str, Symbol),
-    /// `from <module> import <symbol>`; `<module>` may be relative, such as
-    /// `.`.
+    /// `from <module> import <symbol>`, where the module may be relative (`.`).
     From(&'static str, Symbol),
 }
 
 impl Import {
-    /// `import <module>`, bound as itself.
     const fn plain(module: Symbol) -> Self {
         Self::Module(module.0, module)
     }
 
-    /// The name this import binds.
     pub(super) fn binding(&self) -> &'static str {
         let (Self::Module(_, symbol) | Self::From(_, symbol)) = self;
         symbol.0
     }
 }
 
-/// Whether generated code imports something under `name`, which nothing it
-/// defines may then take.
+/// Nothing generated may define a name that is imported.
 pub fn is_imported(name: &str) -> bool {
     (VOCABULARY.iter().copied().flatten()).any(|import| import.binding() == name)
 }
 
-// -- Its own -----------------------------------------------------------------
-//
-// A function's parameters (`conn`, then `params` or `rows`) are the generated
-// API's; the rest are names a body binds for itself.
+// A function's parameters (`connection`, then `params` or `rows`) are part of the generated API; the rest are locals a
+// body binds for itself.
 
-pub const CONN: Symbol = Symbol("conn");
-/// The one record of a function's parameters; and, on SQLAlchemy, a batch's
-/// rows as it binds them.
+pub const CONNECTION: Symbol = Symbol("connection");
+/// The one record of a function's parameters and, on SQLAlchemy, a batch's rows as it binds them.
 pub const PARAMS: Symbol = Symbol("params");
 pub const ROWS: Symbol = Symbol("rows");
-/// One of [`ROWS`].
 pub const R: Symbol = Symbol("r");
 
+// NOTE: We do NOT call this `cursor`, as a query's keyword parameter is often named `cursor` (pagination) and a
+// reserved `cursor` would rename the user's parameter to `cursor_`.
 pub const CUR: Symbol = Symbol("cur");
 /// A row as the database returns it.
 pub const ROW: Symbol = Symbol("row");
 pub const VALUE: Symbol = Symbol("value");
 pub const VALUES: Symbol = Symbol("values");
-/// One row's result of a batch.
 pub const RESULT: Symbol = Symbol("result");
 pub const COPY: Symbol = Symbol("copy");
 
 pub const CLS: Symbol = Symbol("cls");
 pub const SELF: Symbol = Symbol("self");
-/// A record's constructor from a [`ROW`].
 pub const FROM_ROW: Symbol = Symbol("from_row");
-/// An enum's constructor of its members from an array's [`TEXT`].
+/// An enum's constructor of its members from an array's [`TEXT`], which is what psycopg returns for an enum array.
 pub const FROM_ARRAY: Symbol = Symbol("from_array");
 pub const TEXT: Symbol = Symbol("text");
 pub const LABEL: Symbol = Symbol("label");
-/// One element of an array.
 pub const V: Symbol = Symbol("v");
 
-/// The connection's class, where it is generic in the library's stubs alone.
-pub const CONNECTION: Symbol = Symbol("_Connection");
-/// A cursor's methods as generated code calls them, where the driver's own
-/// stubs leave them untyped; what views a cursor so; and the cursor it views.
+/// The connection's class, for where it is only generic in the library's stubs.
+pub const CONNECTION_TYPE: Symbol = Symbol("_Connection");
+/// A protocol of a cursor's methods as generated code calls them, a function that views a cursor as it, and its
+/// parameter, for drivers whose stubs leave those methods untyped (see "Workarounds" in AGENTS.md).
 pub const TYPED_CURSOR: Symbol = Symbol("_Cursor");
 pub const TYPED: Symbol = Symbol("_typed");
 pub const CURSOR: Symbol = Symbol("cursor");

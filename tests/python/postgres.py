@@ -1,12 +1,8 @@
 """Throwaway PostgreSQL servers in Docker, and databases on them.
 
-The runtime proof uses ``NEWEST``, or the server ``SQLC_TEST_DATABASE_URL``
-names; the capture passes the image sqlc's test suite runs, and its own
-variable. There is no silent skip: no Docker and no such variable ends the
-program with an error.
-
-``database`` makes a throwaway database holding a schema, for every layer of
-the runtime proof.
+The runtime proof uses ``NEWEST`` or the server ``SQLC_TEST_DATABASE_URL`` names, and the capture passes the image
+sqlc's test suite runs with its own variable. We never skip silently: without Docker and without such a variable, the
+program ends with an error.
 """
 
 from __future__ import annotations
@@ -28,58 +24,54 @@ if TYPE_CHECKING:
 
 READY_SECONDS = 60
 ENV = "SQLC_TEST_DATABASE_URL"
-# The data memory each server process may use, in bytes.
-BACKEND_MEMORY = 2**30
-# The runtime proof's server: the newest PostgreSQL.
+BACKEND_MEMORY = 2**30  # The data memory in bytes each server process may use
 NEWEST = "postgres:18"
 
 
 @contextmanager
-def server(image: str = NEWEST, env: str = ENV) -> Iterator[sqlalchemy.URL]:
-    """Yield a server's psycopg URL, valid for as long as the context lasts:
-    ``env``'s, if that variable is set, or else a container of ``image``.
+def server(image: str = NEWEST, variable: str = ENV) -> Iterator[sqlalchemy.URL]:
+    """Yield a server's psycopg URL, valid for as long as the context lasts: the one the environment ``variable`` names
+    when it is set, else a container of ``image``.
     """
-    if given := os.environ.get(env):
+    if given := os.environ.get(variable):
         yield sqlalchemy.make_url(given).set(drivername="postgresql+psycopg")
         return
-    args = [
+
+    arguments = [
         "--env=POSTGRES_PASSWORD=postgres",
-        # A statement that would need more memory fails with SQLSTATE 53200
-        # instead of the kernel killing the server: the runtime sweep draws
-        # values such as an array index of 10**8.
+        # A statement that needs more memory fails with SQLSTATE 53200 instead of the kernel killing the server, as the
+        # runtime sweep draws values such as an array index of 10**8.
         f"--ulimit=data={BACKEND_MEMORY}",
         image,
         *["-c", "fsync=off", "-c", "synchronous_commit=off"],
         *["-c", "max_connections=200"],
     ]
-    with container("PostgreSQL", env, 5432, args) as port:
-        url = sqlalchemy.make_url(
-            f"postgresql+psycopg://postgres:postgres@127.0.0.1:{port}/postgres"
-        )
+    with container("PostgreSQL", variable, 5432, arguments) as port:
+        url = sqlalchemy.make_url(f"postgresql+psycopg://postgres:postgres@127.0.0.1:{port}/postgres")
         wait_for(url)
         yield url
 
 
 class SchemaRejectedError(Exception):
-    """PostgreSQL does not accept a schema sqlc did."""
+    """PostgreSQL does not accept a schema that sqlc did."""
 
 
 @contextmanager
 def database(server: sqlalchemy.URL, schema: str) -> Iterator[sqlalchemy.URL]:
-    """Yield the URL of a fresh database holding ``schema``, dropped afterwards.
-
-    A statement or lock that hangs fails instead, so a proof cannot stall.
-    """
+    """Yield the URL of a fresh database holding ``schema``, dropped afterwards."""
     name = f"sqlcdx_{secrets.token_hex(6)}"
     with psycopg.connect(conninfo(server), autocommit=True) as admin:
         admin.execute(f"CREATE DATABASE {name}")
+
+        # A statement or lock that hangs fails instead, so that a proof cannot stall.
         for setting in ("statement_timeout = '5s'", "lock_timeout = '1s'"):
             admin.execute(f"ALTER DATABASE {name} SET {setting}")
+
         url = server.set(database=name)
         try:
             try:
-                with psycopg.connect(conninfo(url)) as conn:
-                    conn.execute(schema)  # without parameters: a verbatim script
+                with psycopg.connect(conninfo(url)) as connection:
+                    connection.execute(schema)  # Without parameters, psycopg runs it as a verbatim script
             except psycopg.Error as error:
                 message = f"schema: {' '.join(str(error).split())[:100]}"
                 raise SchemaRejectedError(message) from error
@@ -89,32 +81,27 @@ def database(server: sqlalchemy.URL, schema: str) -> Iterator[sqlalchemy.URL]:
 
 
 def conninfo(url: sqlalchemy.URL) -> str:
-    """The libpq URL of a SQLAlchemy URL, for psycopg itself."""
     return url.set(drivername="postgresql").render_as_string(hide_password=False)
 
 
 async def aw(value: Any) -> Any:
-    """Await ``value`` if SQLAlchemy's async API returned it; the sync API's as is."""
+    """Await ``value`` when SQLAlchemy's async API returned it, so that one probe drives both APIs."""
     return await value if inspect.isawaitable(value) else value
 
 
 def version(url: sqlalchemy.URL) -> str:
-    """Return the server's version, such as ``16.15``."""
     engine = sqlalchemy.create_engine(url)
     try:
-        with engine.connect() as conn:
-            found = conn.exec_driver_sql("SHOW server_version").scalar_one()
+        with engine.connect() as connection:
+            found = connection.exec_driver_sql("SHOW server_version").scalar_one()
             return str(found).split()[0]
     finally:
         engine.dispose()
 
 
 def wait_for(url: sqlalchemy.URL) -> None:
-    """Block until ``url`` accepts connections, for at most ``READY_SECONDS``.
-
-    The image's init phase listens on a Unix socket only, so the first TCP
-    connection that succeeds is the real server.
-    """
+    # The image's init phase only listens on a Unix socket, so the first TCP connection that succeeds is the real
+    # server.
     engine = sqlalchemy.create_engine(url)
     deadline = time.monotonic() + READY_SECONDS
     try:

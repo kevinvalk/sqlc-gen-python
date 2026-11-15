@@ -1,5 +1,3 @@
-//! Specification for choosing a backend.
-
 use super::*;
 
 #[test]
@@ -12,36 +10,23 @@ fn each_backend_runs_its_engines() {
         (Backend::Pymysql, &[MySql]),
     ] {
         for engine in [PostgreSql, MySql, Sqlite] {
-            assert_eq!(
-                backend.runs(engine),
-                engines.contains(&engine),
-                "{backend:?}"
-            );
+            assert_eq!(backend.runs(engine), engines.contains(&engine), "{backend:?}");
         }
     }
 }
 
 #[test]
 fn a_backends_coroutines_take_the_connection_of_its_async_library() {
-    let connection =
-        |backend: Backend, asynchronous| crate::python::unparse(&backend.connection(asynchronous));
+    let connection = |backend: Backend, asynchronous| crate::python::unparse(&backend.connection(asynchronous));
     for (backend, sync, asynchronous) in [
-        (
-            Backend::SqlAlchemy,
-            "sqlalchemy.Connection",
-            "AsyncConnection",
-        ),
+        (Backend::SqlAlchemy, "sqlalchemy.Connection", "AsyncConnection"),
         (
             Backend::Psycopg,
             "psycopg.Connection[Any]",
             "psycopg.AsyncConnection[Any]",
         ),
-        (
-            Backend::Sqlite3,
-            "sqlite3.Connection",
-            "aiosqlite.Connection",
-        ),
-        // The module's own name for `pymysql.Connection`.
+        (Backend::Sqlite3, "sqlite3.Connection", "aiosqlite.Connection"),
+        // The module's own name for `pymysql.Connection`, see `dbapi::prelude`
         (Backend::Pymysql, "_Connection", "asyncmy.Connection"),
     ] {
         assert_eq!(connection(backend, false), sync);
@@ -57,14 +42,14 @@ fn a_package_defines_the_errors_of_a_one_only_where_its_library_has_none() {
     }
 }
 
-/// A type is in a map with driver evidence (`AGENTS.md`), which the runtime
-/// proof gets by reading a column of it (`tests/python/typemap_psycopg.py`).
+/// A type only joins a map with driver evidence (`AGENTS.md`), which the runtime proof gets by reading a column of it
+/// (`tests/python/typemap_psycopg.py`).
 #[test]
 fn every_type_psycopg_alone_maps_has_a_column_the_runtime_proof_reads() {
-    // Where cargo runs the test from, not where it was built (a reused
-    // `target/` may come from another copy of the tree).
-    let path = std::path::Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").unwrap())
-        .join("tests/sqlc/examples/pgtext.json");
+    // We read where cargo runs the test from and not where it was built, as a reused `target/` may come from another
+    // copy of the tree.
+    let path =
+        std::path::Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("tests/sqlc/examples/pgtext.json");
     let request: crate::plugin::GenerateRequest =
         serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     let columns: Vec<String> = (request.catalog.iter())
@@ -87,26 +72,17 @@ fn a_type_the_drivers_disagree_on_is_the_backends_to_decide() {
         (backend.scalar_type(Engine::PostgreSql, data_type))
             .map(|ty| crate::python::unparse(&ty.annotation(crate::python::Scope::Queries)))
     };
-    // A range is each library's class, SQLAlchemy's whatever the driver.
-    assert_eq!(
-        annotation(Backend::Psycopg, "int4range").as_deref(),
-        Some("Range[int]")
-    );
+    // A range is each library's own class, and SQLAlchemy's whatever the driver
+    assert_eq!(annotation(Backend::Psycopg, "int4range").as_deref(), Some("Range[int]"));
     assert_eq!(
         annotation(Backend::SqlAlchemy, "daterange").as_deref(),
         Some("postgresql.Range[dt.date]")
     );
-    // psycopg returns a point's text; asyncpg, under SQLAlchemy, an object.
+    // psycopg returns a point's text, while asyncpg under SQLAlchemy returns an object
     assert_eq!(
         Backend::Psycopg.scalar_type(Engine::PostgreSql, "point"),
         Some(Type::STR)
     );
-    assert_eq!(
-        Backend::SqlAlchemy.scalar_type(Engine::PostgreSql, "point"),
-        None
-    );
-    assert_eq!(
-        Backend::Sqlite3.scalar_type(Engine::Sqlite, "int4range"),
-        None
-    );
+    assert_eq!(Backend::SqlAlchemy.scalar_type(Engine::PostgreSql, "point"), None);
+    assert_eq!(Backend::Sqlite3.scalar_type(Engine::Sqlite, "int4range"), None);
 }

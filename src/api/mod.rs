@@ -1,10 +1,6 @@
-//! The generated API, decided once, with the engine and the backend asked
-//! what only they know: the
-//! models and enums of the catalog ([`models`]), typed and spelt by one
-//! reading of it ([`resolver`], [`names`]) and named as sqlc names them
-//! ([`inflection`]), and the functions of the queries ([`queries`]). A type
-//! is held as it is annotated and read; no class, statement or function is
-//! built here: [`crate::render`] and the backend write those.
+//! We decide the whole generated API here, once: the models and enums of the catalog ([`models`]) and the functions of
+//! the queries ([`queries`]), with every name and type, asking the engine and the backend only what they alone know.
+//! Nothing in here builds Python syntax, that is for [`crate::render`] and the backends.
 
 pub mod inflection;
 pub mod models;
@@ -26,7 +22,6 @@ use crate::plugin;
 use crate::python::Type;
 use queries::RowField;
 
-/// Everything a codegen entry generates, decided.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Api {
     pub enums: Vec<models::Enum>,
@@ -34,8 +29,7 @@ pub struct Api {
     pub modules: Vec<queries::Module>,
 }
 
-/// The API of `request`, as `config` asks for it. The backend is consulted
-/// only for what it cannot represent, which must fail generation.
+/// We only ask the backend about what it cannot represent, as that has to fail generation.
 pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api> {
     let resolver = resolver::Resolver::new(request, config)?;
     if !config.backend.runs(resolver.engine) {
@@ -45,19 +39,16 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
             resolver.engine.name()
         );
     }
+
     let mut problems = Problems::default();
     let (enums, models) = models::resolve(&resolver, &config.models, &mut problems);
     let modules = queries::modules(&request.queries, &resolver, &models, config, &mut problems);
     problems.check()?;
     resolver.check_used()?;
-    let api = Api {
-        enums,
-        models,
-        modules,
-    };
-    // A field reads its annotation in its class's namespace, and a function
-    // takes the module's: neither may take the name of a module an override
-    // imports.
+    let api = Api { enums, models, modules };
+
+    // A field resolves its annotation in its class's namespace and a function in its module's, so neither may take the
+    // name of a module an override imports.
     let roots: Vec<String> = (config.modules().iter())
         .map(|module| module.split('.').next().unwrap_or_default().to_string())
         .collect();
@@ -72,55 +63,47 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
     let names = (models.chain(records).map(|field| field.name.as_str()))
         .chain(rows)
         .chain(queries.map(|query| query.function.as_str()));
-    if let Some(name) = names
-        .into_iter()
-        .find(|name| roots.iter().any(|root| root == name))
-    {
+    if let Some(name) = names.into_iter().find(|name| roots.iter().any(|root| root == name)) {
         bail!(
             "`{name}` would hide the module an override imports; name it otherwise with the \
              rename option"
         );
     }
+
     let arrays = api.text_array_enums();
     for sql_enum in (api.enums.iter()).filter(|e| arrays.contains(e.name.as_str())) {
-        (config.backend.check_array_enum(sql_enum))
-            .with_context(|| format!("enum class `{}`", sql_enum.name))?;
+        (config.backend.check_array_enum(sql_enum)).with_context(|| format!("enum class `{}`", sql_enum.name))?;
     }
     Ok(api)
 }
 
-/// Every problem of the schema and queries, so that one run reports them all:
-/// sqlc shows a plugin's message only once it fails, and a problem at a time
-/// would take a run each.
+/// We collect every problem of the schema and queries so that one run reports them all, as sqlc only shows a plugin's
+/// output once it fails and a problem at a time would take a run each.
 ///
-/// A problem says what is wrong where, and after a `; ` what to do about it.
-/// Of several, what to do is said once, under the problems it is the fix
-/// of: an override types every column of its type.
+/// A problem says what is wrong where and, after a `; `, what to do about it. We say each fix once, under all the
+/// problems it fixes, as one override types every column of its type.
 #[derive(Default)]
 pub struct Problems(Vec<String>);
 
 impl Problems {
-    /// `result`'s value, or `None` with its error noted under `what`.
+    /// The value of `result`, or `None` after noting its error under `what`.
     pub fn take<T>(&mut self, what: &str, result: Result<T>) -> Option<T> {
-        result
-            .map_err(|error| self.0.push(format!("{what}: {error:#}")))
-            .ok()
+        result.map_err(|error| self.0.push(format!("{what}: {error:#}"))).ok()
     }
 
-    /// Notes `error`.
     pub fn note(&mut self, error: anyhow::Error) {
         self.0.push(format!("{error:#}"));
     }
 
-    /// An error naming every problem, if there is one.
+    /// Fails with every problem we noted, if there is any.
     pub fn check(self) -> Result<()> {
         let all = match self.0.as_slice() {
             [] => return Ok(()),
             [one] => bail!("{one}"),
             all => all,
         };
-        // What to do, and the problems it is the fix of, each in the order
-        // they were found.
+
+        // We group the problems by their fix, keeping both in the order we found them.
         let mut fixes: Vec<(&str, Vec<&str>)> = Vec::new();
         for problem in all {
             let (wrong, fix) = problem.split_once("; ").unwrap_or((problem, ""));
@@ -129,6 +112,7 @@ impl Problems {
                 None => fixes.push((fix, vec![wrong])),
             }
         }
+
         let lines: Vec<String> = (fixes.iter())
             .flat_map(|(fix, problems)| {
                 let fix = (!fix.is_empty()).then(|| format!("  {fix}"));
@@ -140,7 +124,7 @@ impl Problems {
 }
 
 impl Api {
-    /// The enum classes some result reads an array of from the array's text.
+    /// The enum classes of which some field reads an array from the array's text (`from_array`).
     pub fn text_array_enums(&self) -> BTreeSet<&str> {
         let models = self.models.iter().flat_map(|model| &model.fields);
         let columns = (self.modules.iter())

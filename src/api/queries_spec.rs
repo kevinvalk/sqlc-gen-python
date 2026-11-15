@@ -1,11 +1,7 @@
-//! Specification for resolving queries into modules, functions and commands.
-
 use super::*;
 use crate::api::fixtures::authors::{resolve, *};
 use crate::api::fixtures::*;
 use crate::backend::Backend;
-
-// -- Modules -----------------------------------------------------------------
 
 #[test]
 fn each_query_file_is_a_module_named_after_its_stem_in_sqlc_order() {
@@ -14,19 +10,9 @@ fn each_query_file_is_a_module_named_after_its_stem_in_sqlc_order() {
         filename: filename.into(),
         ..query(":exec", "SELECT 1")
     };
-    let modules = try_resolve_all(vec![
-        file("A", "b.sql"),
-        file("B", "a.sql"),
-        file("C", "b.sql"),
-    ])
-    .unwrap();
+    let modules = try_resolve_all(vec![file("A", "b.sql"), file("B", "a.sql"), file("C", "b.sql")]).unwrap();
     let shape: Vec<(&str, Vec<&str>)> = (modules.iter())
-        .map(|m| {
-            (
-                m.name.as_str(),
-                m.queries.iter().map(|q| q.function.as_str()).collect(),
-            )
-        })
+        .map(|m| (m.name.as_str(), m.queries.iter().map(|q| q.function.as_str()).collect()))
         .collect();
     assert_eq!(shape, [("b", vec!["a", "c"]), ("a", vec!["b"])]);
 }
@@ -75,10 +61,7 @@ fn a_hyphen_in_a_query_files_name_is_an_underscore_unless_two_files_meet() {
         "{:#}",
         try_resolve_all(vec![file("a-b.sql"), file("a_b.sql")]).unwrap_err()
     );
-    assert!(
-        error.contains(r#"both become the module "a_b.py""#),
-        "{error}"
-    );
+    assert!(error.contains(r#"both become the module "a_b.py""#), "{error}");
 }
 
 #[test]
@@ -88,10 +71,7 @@ fn every_problem_is_reported_at_once() {
         columns: vec![column("v", "int", true)],
         ..query(":one", "SELECT 1")
     };
-    let error = format!(
-        "{:#}",
-        try_resolve_all(vec![guessed("A"), guessed("B")]).unwrap_err()
-    );
+    let error = format!("{:#}", try_resolve_all(vec![guessed("A"), guessed("B")]).unwrap_err());
     assert!(error.starts_with("2 problems:"), "{error}");
     assert!(
         error.contains(r#"query "A""#) && error.contains(r#"query "B""#),
@@ -106,11 +86,7 @@ fn what_to_do_about_several_problems_is_said_once_under_them() {
         columns: vec![column("v", data_type, true)],
         ..query(":one", "SELECT v FROM t")
     };
-    let queries = vec![
-        column("A", "geometry"),
-        column("B", "integer"),
-        column("C", "geometry"),
-    ];
+    let queries = vec![column("A", "geometry"), column("B", "integer"), column("C", "geometry")];
     let error = format!("{:#}", try_resolve_all(queries).unwrap_err());
     assert_eq!(
         error,
@@ -133,10 +109,7 @@ fn queries_that_spell_one_function_are_an_error() {
         "{:#}",
         try_resolve_all(vec![named("GetA"), named("Get_A")]).unwrap_err()
     );
-    assert!(
-        error.contains(r#"both become the Python name "get_a""#),
-        "{error}"
-    );
+    assert!(error.contains(r#"both become the Python name "get_a""#), "{error}");
 }
 
 #[test]
@@ -157,10 +130,7 @@ fn queries_that_spell_one_class_are_an_error() {
         name: name.into(),
         ..query(":copyfrom", "SELECT 1")
     };
-    for queries in [
-        vec![row("Get1"), row("Get_1")],
-        vec![copy("Add1"), copy("Add_1")],
-    ] {
+    for queries in [vec![row("Get1"), row("Get_1")], vec![copy("Add1"), copy("Add_1")]] {
         let error = format!("{:#}", try_resolve_all(queries).unwrap_err());
         assert!(error.contains("both become the Python name \""), "{error}");
     }
@@ -180,39 +150,26 @@ fn a_copyfrom_copies_only_a_statement_that_binds_each_parameter_once() {
     };
     let name = || param(1, column("name", "text", true));
     let bio = || param(2, column("bio", "text", false));
-    let both = copy(
-        "INSERT INTO authors (name, bio) VALUES ($1, $2)",
-        vec![name(), bio()],
-    );
+    let both = copy("INSERT INTO authors (name, bio) VALUES ($1, $2)", vec![name(), bio()]);
     let columns = both.copy_into.map(|into| into.columns);
     assert_eq!(columns, Some(vec!["name".to_string(), "bio".to_string()]));
     // `COPY` would write one column for the two the statement inserts.
-    let twice = copy(
-        "INSERT INTO authors (name, bio) VALUES ($1, $1)",
-        vec![name()],
-    );
+    let twice = copy("INSERT INTO authors (name, bio) VALUES ($1, $1)", vec![name()]);
     assert_eq!(twice.copy_into, None);
 }
-
-// -- Names -------------------------------------------------------------------
 
 #[test]
 fn a_query_is_a_snake_case_function_a_private_constant_and_perhaps_a_class() {
     let query = resolve(query(":exec", "SELECT 1"));
     assert_eq!(
-        (
-            query.function.as_str(),
-            query.constant.as_str(),
-            query.classes().next()
-        ),
+        (query.function.as_str(), query.constant.as_str(), query.classes().next()),
         ("get_author", "_GET_AUTHOR", None)
     );
     let copy = resolve(self::query(":copyfrom", "SELECT 1"));
     assert_eq!(copy.takes, Takes::Rows("GetAuthorParams".into()));
-    let Command::One(Shape::Row(class, _)) = returning(
-        ":one",
-        vec![column("bio", "text", false), column("name", "text", true)],
-    ) else {
+    let Command::One(Shape::Row(class, _)) =
+        returning(":one", vec![column("bio", "text", false), column("name", "text", true)])
+    else {
         panic!("not a row");
     };
     assert_eq!(class, "GetAuthorRow");
@@ -220,11 +177,7 @@ fn a_query_is_a_snake_case_function_a_private_constant_and_perhaps_a_class() {
 
 #[test]
 fn a_function_named_like_a_keyword_reserved_name_or_builtin_takes_a_trailing_underscore() {
-    for (name, function) in [
-        ("Import", "import_"),
-        ("Models", "models_"),
-        ("Any", "any_"),
-    ] {
+    for (name, function) in [("Import", "import_"), ("Models", "models_"), ("Any", "any_")] {
         let query = resolve(plugin::Query {
             name: name.into(),
             ..query(":exec", "SELECT 1")
@@ -245,31 +198,21 @@ fn a_query_comment_loses_the_space_sqlc_puts_before_each_line() {
 #[test]
 fn errors_name_the_file_and_the_query() {
     let error = error(query(":execlastid", "SELECT 1"));
-    assert!(
-        error.starts_with(r#"authors.sql: query "GetAuthor": "#),
-        "{error}"
-    );
+    assert!(error.starts_with(r#"authors.sql: query "GetAuthor": "#), "{error}");
 }
-
-// -- Commands ----------------------------------------------------------------
 
 #[test]
 fn commands_an_engine_cannot_run_are_errors_that_say_what_to_use() {
-    assert!(error(query(":execlastid", "")).contains(
-        ":execlastid is not supported on postgresql; use INSERT ... RETURNING with :one"
-    ));
+    assert!(
+        error(query(":execlastid", ""))
+            .contains(":execlastid is not supported on postgresql; use INSERT ... RETURNING with :one")
+    );
     // A batch runs per row of its parameters, on PostgreSQL alone.
     for batch in [":batchexec", ":batchmany", ":batchone"] {
         let error = error(query(batch, ""));
-        assert!(
-            error.contains("has no parameters to run it per row"),
-            "{error}"
-        );
+        assert!(error.contains("has no parameters to run it per row"), "{error}");
         let error = format!("{:#}", on("sqlite", query(batch, "")).unwrap_err());
-        assert!(
-            error.contains(&format!("{batch} is PostgreSQL only")),
-            "{error}"
-        );
+        assert!(error.contains(&format!("{batch} is PostgreSQL only")), "{error}");
     }
     assert!(error(query(":frobnicate", "")).contains(":frobnicate"));
 }
@@ -281,16 +224,10 @@ fn a_merge_cannot_count_its_rows() {
                  WHEN MATCHED THEN DELETE";
     for cmd in [":execrows", ":execresult"] {
         let error = error(query(cmd, merge));
-        assert!(
-            error.contains(&format!("{cmd} counts -1 rows for a MERGE")),
-            "{error}"
-        );
+        assert!(error.contains(&format!("{cmd} counts -1 rows for a MERGE")), "{error}");
     }
     resolve(query(":exec", merge));
-    resolve(query(
-        ":execrows",
-        "DELETE FROM authors WHERE name = 'merge into'",
-    ));
+    resolve(query(":execrows", "DELETE FROM authors WHERE name = 'merge into'"));
 }
 
 #[test]
@@ -424,10 +361,7 @@ fn a_bare_integer_is_a_type_sqlc_read_only_of_a_parameter_without_a_column() {
         "{error}"
     );
     let limit = taking(through_subquery).unwrap();
-    assert_eq!(
-        limit.params[0].ty.describe(crate::python::Scope::Queries),
-        "int"
-    );
+    assert_eq!(limit.params[0].ty.describe(crate::python::Scope::Queries), "int");
 }
 
 #[test]
@@ -477,10 +411,7 @@ fn a_command_that_returns_rows_needs_a_column() {
 #[test]
 fn execlastid_is_mysqls_alone() {
     let insert = query(":execlastid", "INSERT INTO authors (name) VALUES ('a')");
-    assert_eq!(
-        on("mysql", insert.clone()).unwrap().command,
-        Command::ExecLastId
-    );
+    assert_eq!(on("mysql", insert.clone()).unwrap().command, Command::ExecLastId);
     for engine in ["postgresql", "sqlite"] {
         let error = format!("{:#}", on(engine, insert.clone()).unwrap_err());
         assert!(
@@ -492,11 +423,7 @@ fn execlastid_is_mysqls_alone() {
 
 #[test]
 fn a_batch_is_its_command_per_row_of_its_params() {
-    for (batch, single) in [
-        (":batchexec", ":exec"),
-        (":batchone", ":one"),
-        (":batchmany", ":many"),
-    ] {
+    for (batch, single) in [(":batchexec", ":exec"), (":batchone", ":one"), (":batchmany", ":many")] {
         let columns = vec![column("bio", "text", false), column("name", "text", true)];
         let resolved = resolve(plugin::Query {
             params: vec![param(1, column("id", "pg_catalog.int8", true))],
@@ -512,8 +439,6 @@ fn a_batch_is_its_command_per_row_of_its_params() {
         assert_eq!(resolved.takes, Takes::Rows("GetAuthorParams".into()));
     }
 }
-
-// -- What a function returns --------------------------------------------------
 
 #[test]
 fn a_function_returns_what_one_run_of_its_command_does_or_a_list_of_that_per_row() {
@@ -551,10 +476,7 @@ fn a_function_returns_what_one_run_of_its_command_does_or_a_list_of_that_per_row
     // Per row: nothing, or each row's result.
     assert_eq!(returns(":batchexec", vec![], false), "None");
     assert_eq!(returns(":batchone", bio(), false), "list[str | None]");
-    assert_eq!(
-        returns(":batchmany", author(), false),
-        "list[list[models.Author]]"
-    );
+    assert_eq!(returns(":batchmany", author(), false), "list[list[models.Author]]");
 }
 
 #[test]

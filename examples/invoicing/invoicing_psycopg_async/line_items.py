@@ -27,10 +27,10 @@ class CreateLineItemsParams:
 
 
 async def create_line_items(
-    conn: psycopg.AsyncConnection[Any], rows: Iterable[CreateLineItemsParams]
+    connection: psycopg.AsyncConnection[Any], rows: Iterable[CreateLineItemsParams]
 ) -> None:
     async with (
-        psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur,
+        psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur,
         cur.copy(_CREATE_LINE_ITEMS) as copy,
     ):
         for r in rows:
@@ -50,8 +50,8 @@ _LIST_LINE_ITEMS: Final = "SELECT id, invoice_id, position, description, quantit
 
 
 async def list_line_items(
-    conn: psycopg.AsyncConnection[Any], *, invoice_id: UUID
+    connection: psycopg.AsyncConnection[Any], *, invoice_id: UUID
 ) -> list[models.LineItem]:
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_LINE_ITEMS, (invoice_id,))
         return [models.LineItem.from_row(row) for row in await cur.fetchall()]

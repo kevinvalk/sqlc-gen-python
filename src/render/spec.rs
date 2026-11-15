@@ -1,5 +1,3 @@
-//! Specification for assembling the generated files.
-
 use super::*;
 
 /// The files `generate` writes for an empty PostgreSQL catalog, by name.
@@ -18,8 +16,7 @@ fn generated(sqlc_version: &str, options: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The header `generate` writes, read off `__init__.py`, which holds only it
-/// on SQLAlchemy.
+/// We read the header off `__init__.py`, which holds nothing else on SQLAlchemy.
 fn header_of(sqlc_version: &str, options: &str) -> String {
     let options = format!(r#"{{"backend": "sqlalchemy", "async": false{options}}}"#);
     generated(sqlc_version, &options).remove(0).1
@@ -43,10 +40,7 @@ fn the_header_records_both_versions() {
 fn the_sqlc_line_is_left_out_when_asked_or_unknown() {
     let without = header_of("", "");
     assert!(!without.contains("sqlc v"), "{without}");
-    assert_eq!(
-        header_of("v1.31.1", r#", "omit_sqlc_version": true"#),
-        without
-    );
+    assert_eq!(header_of("v1.31.1", r#", "omit_sqlc_version": true"#), without);
 }
 
 #[test]
@@ -60,12 +54,11 @@ fn a_version_that_could_end_the_comment_is_left_out() {
 #[test]
 fn the_package_defines_the_errors_of_a_one_where_the_library_has_none() {
     let init = |backend: &str, raises: bool| {
-        let options =
-            format!(r#"{{"backend": "{backend}", "async": false, "raise_on_none": {raises}}}"#);
+        let options = format!(r#"{{"backend": "{backend}", "async": false, "raise_on_none": {raises}}}"#);
         generated("", &options).remove(0).1
     };
     assert!(!init("sqlalchemy", true).contains("class"));
-    // Both, whatever the queries raise: what a package exports is stable.
+    // Both, whatever the queries raise, so what a package exports is stable
     for raises in [true, false] {
         for error in [
             "class NoRowError(LookupError):",

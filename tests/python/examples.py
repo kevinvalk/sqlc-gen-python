@@ -1,9 +1,8 @@
 """The golden cases: each ``codegen`` entry of each ``examples/*/sqlc.yaml``.
 
-An example is a sqlc project: its ``sqlc.yaml``, its SQL, and beside them one
-directory per codegen ``out``, named for the case, holding what the plugin
-generates for it. What sqlc sends the plugin for each example is captured in
-``tests/sqlc/examples/<example>.json`` (``cargo xtask capture``).
+Beside an example's ``sqlc.yaml`` and SQL sits one directory per codegen ``out``, named for the case, holding what the
+plugin generates. What sqlc sends the plugin for each example is captured in ``tests/sqlc/examples/<example>.json``
+(``cargo xtask capture``).
 """
 
 from __future__ import annotations
@@ -22,57 +21,47 @@ REQUESTS = ROOT / "tests/sqlc/examples"
 
 @dataclass(frozen=True)
 class GoldenCase:
-    """One codegen entry of an example's ``sqlc.yaml``."""
-
     name: str
     example: str
     options: dict[str, Any]
 
     @property
     def dir(self) -> Path:
-        """The committed directory of what it generates."""
         return EXAMPLES / self.example / self.name
 
     @property
     def request(self) -> Path:
-        """What sqlc sends the plugin for its example, captured."""
         return REQUESTS / f"{self.example}.json"
 
     @property
     def backend(self) -> str:
-        """The library it runs its SQL through."""
         return str(self.options["backend"])
 
     @property
     def is_async(self) -> bool:
-        """Whether its functions are coroutines."""
         return bool(self.options["async"])
 
     @property
     def schema_sql(self) -> Path:
-        """Its example's schema."""
         return EXAMPLES / self.example / "schema.sql"
 
 
 @cache
 def golden_cases() -> tuple[GoldenCase, ...]:
-    """Every golden case, by example, in ``sqlc.yaml`` order."""
-    found: list[GoldenCase] = []
-    for config in sorted(EXAMPLES.glob("*/sqlc.yaml")):
-        parsed: dict[str, Any] = yaml.safe_load(config.read_text())
-        found.extend(
-            GoldenCase(codegen["out"], config.parent.name, codegen.get("options", {}))
-            for package in parsed["sql"]
+    cases: list[GoldenCase] = []
+    for configuration_path in sorted(EXAMPLES.glob("*/sqlc.yaml")):
+        configuration: dict[str, Any] = yaml.safe_load(configuration_path.read_text())
+        cases.extend(
+            GoldenCase(codegen["out"], configuration_path.parent.name, codegen.get("options", {}))
+            for package in configuration["sql"]
             for codegen in package.get("codegen", [])
         )
-    return tuple(found)
+    return tuple(cases)
 
 
 def statements(script: str) -> list[str]:
-    """The statements of a schema script, whose comments are whole `--`
-    lines, and which holds no other `;` than between statements.
+    """Split a schema script into statements. We only handle what our schemas hold: comments are whole ``--`` lines, and
+    there is no ``;`` other than between statements.
     """
-    code = "\n".join(
-        line for line in script.splitlines() if not line.lstrip().startswith("--")
-    )
-    return [s for s in code.split(";") if s.strip()]
+    code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("--"))
+    return [statement for statement in code.split(";") if statement.strip() != ""]

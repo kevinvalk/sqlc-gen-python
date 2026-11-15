@@ -57,17 +57,18 @@ _GET_SCALARS: Final = sqlalchemy.text(
 )
 
 
-async def get_scalars(conn: AsyncConnection, *, id: int) -> models.Scalar | None:
-    row = (await conn.execute(_GET_SCALARS, {"id": id})).one_or_none()
+async def get_scalars(connection: AsyncConnection, *, id: int) -> models.Scalar | None:
+    row = (await connection.execute(_GET_SCALARS, {"id": id})).one_or_none()
     return None if row is None else models.Scalar.from_row(row)
 
 
 _LIST_EVENTS: Final = sqlalchemy.text("SELECT id, kind FROM analytics.events")
 
 
-async def list_events(conn: AsyncConnection) -> list[models.AnalyticsEvent]:
+async def list_events(connection: AsyncConnection) -> list[models.AnalyticsEvent]:
     return [
-        models.AnalyticsEvent.from_row(row) for row in await conn.execute(_LIST_EVENTS)
+        models.AnalyticsEvent.from_row(row)
+        for row in await connection.execute(_LIST_EVENTS)
     ]
 
 
@@ -77,9 +78,9 @@ _LIST_ODDITIES: Final = sqlalchemy.text(
 
 
 async def list_oddities(
-    conn: AsyncConnection, *, mood: models.WeirdMood
+    connection: AsyncConnection, *, mood: models.WeirdMood
 ) -> list[models.Oddity]:
     return [
         models.Oddity.from_row(row)
-        for row in await conn.execute(_LIST_ODDITIES, {"mood": mood})
+        for row in await connection.execute(_LIST_ODDITIES, {"mood": mood})
     ]

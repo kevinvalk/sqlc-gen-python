@@ -1,20 +1,12 @@
-//! Specification for rendering a tree: docstrings, multi-line strings, and
-//! what ruff's formatter is left to decide.
-
 use super::*;
 use crate::python::vocabulary::{ENUM, FINAL, INT, SQLALCHEMY, STR};
-use crate::python::{
-    Expression, Function, ann_assign, annotate, assign, class, docstring, name, none, string,
-};
+use crate::python::{Expression, Function, ann_assign, annotate, assign, class, docstring, name, none, string};
 
 fn documented(docstrings: &[&str]) -> String {
-    let body = docstrings
-        .iter()
-        .flat_map(|text| [annotate("x", INT), docstring(text)]);
+    let body = docstrings.iter().flat_map(|text| [annotate("x", INT), docstring(text)]);
     render(&[class("A", [], [], body)], &[])
 }
 
-/// The docstrings a rendered module holds, read back by ruff's parser.
 fn docstrings_of(source: &str) -> Vec<String> {
     let parsed = parse_module(source).unwrap().into_syntax();
     let ast::Stmt::ClassDef(class) = &parsed.body[0] else {
@@ -36,7 +28,7 @@ fn a_docstring_is_a_triple_quoted_string_statement() {
 
 #[test]
 fn a_multi_line_docstring_is_indented_to_its_own_column_and_closes_on_its_own_line() {
-    // PEP 257 (D209). The formatter leaves an attribute docstring as written.
+    // PEP 257 (D209), which we have to do ourselves as the formatter leaves an attribute docstring as written
     assert_eq!(
         documented(&["First.\nSecond.\n\nFourth."]),
         "class A:\n    x: int\n    \"\"\"First.\n    Second.\n\n    Fourth.\n    \"\"\"\n"
@@ -66,37 +58,32 @@ fn a_docstring_escapes_only_what_a_triple_quoted_string_cannot_hold() {
 
 #[test]
 fn a_docstring_escapes_whitespace_a_reader_cannot_see() {
-    // A line separator would split the line in an editor (ruff RUF002), and a
-    // no-break space reads as a space.
+    // A line separator would split the line in an editor (ruff RUF002), and a no-break space reads as a space.
     let text = "a\u{2028}b\u{2029}c\u{a0}d\u{85}e";
     let source = documented(&[text]);
-    assert!(
-        source.contains(r#""""a\u2028b\u2029c\xa0d\x85e""""#),
-        "{source}"
-    );
+    assert!(source.contains(r#""""a\u2028b\u2029c\xa0d\x85e""""#), "{source}");
     assert_eq!(docstrings_of(&source), [text]);
 }
 
 #[test]
 fn a_docstring_drops_whitespace_ending_a_line_rather_than_escaping_it() {
-    // A docstring is prose: trailing whitespace carries nothing, where in SQL
-    // it is part of the text (W291 either way).
+    // A docstring is prose, so trailing whitespace carries nothing, while in SQL it is part of the text (W291 either
+    // way).
     assert_eq!(
         documented(&["Ends in spaces  \nand a no-break space\u{a0}\nend"]),
         "class A:\n    x: int\n    \"\"\"Ends in spaces\n    and a no-break space\n    end\n    \"\"\"\n"
     );
 }
 
-/// What Python's `str.isprintable()` rejects, apart from space, tab and line
-/// breaks: format characters (zero-width space, BOM, the bidi controls of
-/// "Trojan Source"), private use and unassigned code points, outside the
-/// Basic Multilingual Plane too.
+/// What Python's `str.isprintable()` rejects apart from space, tab and line breaks: format characters (zero-width
+/// space, BOM, the bidi controls of "Trojan Source"), private use and unassigned code points, outside the Basic
+/// Multilingual Plane too.
 const UNPRINTABLE: &str = "a\u{200b}b\u{feff}c\u{202e}d\u{2066}e\u{e000}f\u{e0001}g\u{10ffff}h";
 const UNPRINTABLE_ESCAPED: &str = r"a\u200bb\ufeffc\u202ed\u2066e\ue000f\U000e0001g\U0010ffffh";
 
 #[test]
 fn a_docstring_escapes_what_python_does_not_print() {
-    // ruff PLE2502 and PLE2515; a reader cannot see them.
+    // A reader cannot see them (ruff PLE2502 and PLE2515)
     let source = documented(&[UNPRINTABLE, "naïve – “quoted”"]);
     assert!(
         source.contains(&format!("\"\"\"{UNPRINTABLE_ESCAPED}\"\"\"")),
@@ -108,14 +95,14 @@ fn a_docstring_escapes_what_python_does_not_print() {
 
 #[test]
 fn a_docstring_escapes_a_tab_that_would_follow_its_own_indentation() {
-    // The docstring's spaces then the comment's tab are mixed indentation
-    // (E101), whether the formatter re-indents the docstring or not.
+    // The docstring's spaces and then the text's tab are mixed indentation (E101), whether the formatter re-indents the
+    // docstring or not.
     let source = documented(&["x\n\ty"]);
     assert!(source.contains("\"\"\"x\n    \\ty\n    \"\"\""), "{source}");
-    // The value is still a tab, after the indentation `inspect.cleandoc` drops.
+    // The value is still a tab once `inspect.cleandoc` drops the indentation
     assert_eq!(docstrings_of(&source), ["x\n    \ty\n    "]);
 
-    // A backslash keeps the formatter from re-indenting a function's (D206).
+    // A backslash keeps the formatter from re-indenting a function's docstring (D206)
     let function = Function {
         body: vec![docstring("a\n\tb\nc\\")],
         ..Function::new("f", none())
@@ -124,7 +111,6 @@ fn a_docstring_escapes_a_tab_that_would_follow_its_own_indentation() {
     assert!(source.contains("\n    \\tb\n"), "{source}");
 }
 
-/// How a module holding `x = f(<value>)` renders.
 fn rendered_string(value: &str) -> String {
     let call = name("f").call([string(value)]);
     render(&[assign("X", call)], &[])
@@ -140,8 +126,7 @@ fn a_string_with_a_line_break_is_triple_quoted_and_written_verbatim() {
 
 #[test]
 fn a_verbatim_string_escapes_what_a_triple_quoted_string_cannot_hold_or_linters_reject() {
-    // A backslash, a quote before the closing ones, a control character, and
-    // whitespace ending a line (W291).
+    // A backslash, a quote before the closing ones, a control character, and whitespace ending a line (W291)
     assert_eq!(
         rendered_string("a\\:b \nc\r\n\"d\""),
         "X = f(\"\"\"a\\\\:b\\x20\nc\\x0d\n\"d\\\"\"\"\")\n"
@@ -151,19 +136,13 @@ fn a_verbatim_string_escapes_what_a_triple_quoted_string_cannot_hold_or_linters_
 #[test]
 fn a_verbatim_string_escapes_the_tabs_of_an_indentation_that_mixes_them_with_spaces() {
     // E101 reads a string's lines as indentation too.
-    assert_eq!(
-        rendered_string("a\n\tb\n \tc"),
-        "X = f(\"\"\"a\n\tb\n \\tc\"\"\")\n"
-    );
+    assert_eq!(rendered_string("a\n\tb\n \tc"), "X = f(\"\"\"a\n\tb\n \\tc\"\"\")\n");
 }
 
 #[test]
 fn a_verbatim_string_escapes_what_python_does_not_print() {
     let source = rendered_string(&format!("SELECT '{UNPRINTABLE}'\n"));
-    assert_eq!(
-        source,
-        format!("X = f(\"\"\"SELECT '{UNPRINTABLE_ESCAPED}'\n\"\"\")\n")
-    );
+    assert_eq!(source, format!("X = f(\"\"\"SELECT '{UNPRINTABLE_ESCAPED}'\n\"\"\")\n"));
 }
 
 #[test]

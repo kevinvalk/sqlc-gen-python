@@ -29,9 +29,9 @@ class CreateCustomerParams:
 
 
 async def create_customer(
-    conn: psycopg.AsyncConnection[Any], params: CreateCustomerParams
+    connection: psycopg.AsyncConnection[Any], params: CreateCustomerParams
 ) -> models.Customer:
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(
             _CREATE_CUSTOMER,
             (
@@ -56,9 +56,9 @@ _GET_CUSTOMER: Final = "SELECT id, name, email, tags, preferred_method, accepted
 
 
 async def get_customer(
-    conn: psycopg.AsyncConnection[Any], *, id: UUID
+    connection: psycopg.AsyncConnection[Any], *, id: UUID
 ) -> models.Customer | None:
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_GET_CUSTOMER, (id,))
         match await cur.fetchmany(2):
             case [row]:
@@ -73,10 +73,10 @@ _GET_CUSTOMER_BY_NAME: Final = "SELECT id, name, email, tags, preferred_method, 
 
 
 async def get_customer_by_name(
-    conn: psycopg.AsyncConnection[Any], *, name: str
+    connection: psycopg.AsyncConnection[Any], *, name: str
 ) -> models.Customer | None:
     """Names are not unique: more than one match is an error, never a guess."""
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_GET_CUSTOMER_BY_NAME, (name,))
         match await cur.fetchmany(2):
             case [row]:
@@ -91,9 +91,9 @@ _GET_CUSTOMER_ID_BY_EMAIL: Final = "SELECT id FROM customers WHERE email = $1"
 
 
 async def get_customer_id_by_email(
-    conn: psycopg.AsyncConnection[Any], *, email: str | None
+    connection: psycopg.AsyncConnection[Any], *, email: str | None
 ) -> UUID | None:
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_GET_CUSTOMER_ID_BY_EMAIL, (email,))
         match await cur.fetchmany(2):
             case [row]:
@@ -111,10 +111,10 @@ _GET_ACCEPTED_METHODS: Final = (
 
 
 async def get_accepted_methods(
-    conn: psycopg.AsyncConnection[Any], *, id: UUID
+    connection: psycopg.AsyncConnection[Any], *, id: UUID
 ) -> list[models.BillingPaymentMethod] | None:
     """PostgreSQL names this column `coalesce`, and sqlc `accepted_methods`."""
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_GET_ACCEPTED_METHODS, (id,))
         match await cur.fetchmany(2):
             case [row]:
@@ -144,10 +144,10 @@ class CompareAcceptedMethodsRow:
 
 
 async def compare_accepted_methods(
-    conn: psycopg.AsyncConnection[Any], *, first: UUID, second: UUID
+    connection: psycopg.AsyncConnection[Any], *, first: UUID, second: UUID
 ) -> CompareAcceptedMethodsRow | None:
     """Two columns of one name, as when merging two customers."""
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_COMPARE_ACCEPTED_METHODS, (first, second))
         match await cur.fetchmany(2):
             case [row]:
@@ -162,10 +162,10 @@ _UPDATE_CUSTOMER_EMAIL: Final = "UPDATE customers SET email = $1 WHERE id = $2"
 
 
 async def update_customer_email(
-    conn: psycopg.AsyncConnection[Any], *, email: str | None, id: UUID
+    connection: psycopg.AsyncConnection[Any], *, email: str | None, id: UUID
 ) -> int:
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
-        async with conn.pipeline():
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
+        async with connection.pipeline():
             await cur.execute(_UPDATE_CUSTOMER_EMAIL, (email, id))
         return cur.rowcount
 
@@ -176,10 +176,10 @@ ORDER BY name"""
 
 
 async def search_customers(
-    conn: psycopg.AsyncConnection[Any], *, query: str
+    connection: psycopg.AsyncConnection[Any], *, query: str
 ) -> list[models.Customer]:
     """Case-insensitive search on name or email."""
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_SEARCH_CUSTOMERS, (query,))
         return [models.Customer.from_row(row) for row in await cur.fetchall()]
 
@@ -190,9 +190,9 @@ _LIST_CUSTOMER_NAMES_BY_TAG: Final = (
 
 
 async def list_customer_names_by_tag(
-    conn: psycopg.AsyncConnection[Any], *, tag: str
+    connection: psycopg.AsyncConnection[Any], *, tag: str
 ) -> list[str]:
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_CUSTOMER_NAMES_BY_TAG, (tag,))
         return [row[0] for row in await cur.fetchall()]
 
@@ -212,9 +212,9 @@ class ListVipCustomersRow:
 
 
 async def list_vip_customers(
-    conn: psycopg.AsyncConnection[Any],
+    connection: psycopg.AsyncConnection[Any],
 ) -> list[ListVipCustomersRow]:
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_VIP_CUSTOMERS)
         return [ListVipCustomersRow.from_row(row) for row in await cur.fetchall()]
 
@@ -223,9 +223,9 @@ _LIST_PREFERRED_METHODS: Final = "SELECT preferred_method FROM customers ORDER B
 
 
 async def list_preferred_methods(
-    conn: psycopg.AsyncConnection[Any],
+    connection: psycopg.AsyncConnection[Any],
 ) -> list[models.BillingPaymentMethod | None]:
-    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_PREFERRED_METHODS)
         return [
             None if row[0] is None else models.BillingPaymentMethod(row[0])

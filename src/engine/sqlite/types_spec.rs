@@ -1,5 +1,3 @@
-//! Specification for SQLite's type map.
-
 use super::*;
 
 #[test]
@@ -7,7 +5,7 @@ fn a_declared_type_maps_by_the_class_its_affinity_stores() {
     for (declared, python) in [
         ("INTEGER", Type::INT),
         ("bigint", Type::INT),
-        // SQLite's rules, in their order: `INT` first, wherever it is.
+        // SQLite's rules, in their order: `INT` first, wherever it is
         ("FLOATING POINT", Type::INT),
         ("REAL", Type::FLOAT),
         ("DOUBLEPRECISION", Type::FLOAT),
@@ -25,26 +23,17 @@ fn a_declared_type_maps_by_the_class_its_affinity_stores() {
 
 #[test]
 fn a_type_of_numeric_affinity_is_not_mapped() {
-    // Each stores `'2024'` as an integer and `'12.50'` as a real.
-    for declared in [
-        "NUMERIC",
-        "DECIMAL(10,5)",
-        "DATE",
-        "DATETIME",
-        "JSON",
-        "money",
-        "",
-    ] {
+    // Each stores `'2024'` as an integer and `'12.50'` as a real
+    for declared in ["NUMERIC", "DECIMAL(10,5)", "DATE", "DATETIME", "JSON", "money", ""] {
         assert_eq!(scalar_type(declared), None, "{declared}");
     }
 }
 
-/// The fixture the runtime proof reads back through every driver
-/// (`tests/python/typemap_sqlite.py`).
+/// The runtime proof (`tests/python/typemap_sqlite.py`) reads this fixture back through every driver.
 #[test]
 fn every_rule_decides_a_column_the_runtime_proof_reads() {
-    // Where cargo runs the test from, not where it was built (a reused
-    // `target/` may come from another copy of the tree).
+    // We read from where cargo runs the test and not where it was built, as a reused `target/` may come from another
+    // copy of the tree
     let path = std::path::Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").unwrap())
         .join("tests/sqlc/examples/sqlitetypes.json");
     let request: crate::plugin::GenerateRequest =
@@ -56,9 +45,7 @@ fn every_rule_decides_a_column_the_runtime_proof_reads() {
         .map(|column| column.data_type().to_ascii_uppercase())
         .collect();
 
-    let decides = |word: &str| {
-        (declared.iter()).any(|name| affinity(name).is_some_and(|(rule, _)| *rule == word))
-    };
+    let decides = |word: &str| (declared.iter()).any(|name| affinity(name).is_some_and(|(rule, _)| *rule == word));
     let unread: Vec<&str> = (AFFINITIES.iter().map(|(word, _)| *word))
         .filter(|word| !decides(word))
         .chain((BOOLEANS.iter().copied()).filter(|name| !declared.iter().any(|d| d == name)))

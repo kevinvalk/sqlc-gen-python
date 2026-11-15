@@ -1,8 +1,6 @@
-# The Python side of the test suite. `cargo test` never needs it.
-#
-# Its tool configuration is the definition of "best-practice Python" for the
-# generated code: every file the plugin emits must pass ruff with all rules,
-# pyright strict and mypy strict, targeting the minimum supported Python.
+# The Python side of the test suite, which `cargo test` never needs. Its tool configuration is our definition of
+# "best-practice Python" for the generated code: every file the plugin emits must pass ruff with all rules, pyright
+# strict and mypy strict, targeting the minimum supported Python.
 
 [project]
 name = "sqlc-gen-python-tests"
@@ -10,55 +8,51 @@ version = "0.0.0"
 requires-python = ">=3.10"
 
 [dependency-groups]
-# Exact pins: a tool upgrade that changes a verdict must show up as a diff here.
+# We pin exactly, so a tool upgrade that changes a verdict shows up as a diff here.
 dev = [
     # The async driver of the sqlite3 backend.
     "aiosqlite==0.22.1",
-    # The async driver of the pymysql backend, and SQLAlchemy's
-    # (`mysql+asyncmy`). Not aiomysql 0.3.2, which cannot bind `bytes` on
-    # PyMySQL 1.2.
+    # The async driver of the pymysql backend, and SQLAlchemy's (`mysql+asyncmy`). Not aiomysql 0.3.2, as that cannot
+    # bind `bytes` on PyMySQL 1.2.
     "asyncmy==0.2.18",
     "asyncpg==0.32.0",
     # Draws the arguments of the corpus runtime sweep (autoprop.py).
     "hypothesis==6.168.5",
     "mypy==2.4.1",
-    # PostgreSQL's own scanner, libpg_query, which sqlc parses with (through
-    # pg_query_go) and scanner.py holds the SQL rewriting to.
+    # PostgreSQL's own scanner, libpg_query, which sqlc parses with (through pg_query_go) and scanner.py holds the SQL
+    # rewriting to.
     "pglast==7.22",
     "psycopg[binary]==3.3.8",
-    # The `nodejs` extra bundles node, so pyright never downloads it at runtime.
+    # The `nodejs` extra bundles node, so pyright never downloads it at runtime
     "pyright[nodejs]==1.1.414",
     "pymysql==1.2.4",
     "pytest==9.2.0",
-    # Reads sqlc configs, which may be YAML, when capturing the corpus.
+    # Reads sqlc configurations, which may be YAML, when capturing the corpus
     "pyyaml==6.0.3",
-    # Must match the ruff crates in Cargo.toml, which the plugin formats with
-    # (tests/rust/golden.rs holds the two together).
+    # IMPORTANT: Must match the ruff crates in Cargo.toml, which the plugin formats with (tests/rust/golden.rs holds
+    # the two together).
     "ruff==0.17.4",
-    # SQLAlchemy 2.1 needs Python 3.11, so on 3.10 users get 2.0: generated code
-    # must work with both, and the minimum Python tests the older one.
+    # SQLAlchemy 2.1 needs Python 3.11, so users on 3.10 get 2.0. Generated code must work with both, so we test the
+    # older one on the minimum Python.
     "sqlalchemy[asyncio]==2.0.57; python_version < '3.11'",
     "sqlalchemy[asyncio]==2.1.8; python_version >= '3.11'",
     "types-pymysql==1.2.4.20261111",
     "types-pyyaml==6.0.12.20261111",
-    # `assert_type` on Python 3.10, for the usage the gate type-checks
-    # (suite/usage.py).
+    # `assert_type` on Python 3.10, for the usage the gate type-checks (suite/usage.py)
     "typing-extensions==4.16.0",
 ]
 
 [tool.uv]
-# A range, so that a developer's uv need not be the release CI runs
-# (`UV_VERSION` in .github/workflows/ci.yml, exact): uv.lock decides every
-# package either way.
+# A range, so a developer's uv need not be the exact release CI runs (`UV_VERSION` in .github/workflows/ci.yml), as
+# uv.lock decides every package either way.
 required-version = ">=0.13.7,<0.14"
 
 [tool.ruff]
 target-version = "py310"
 
-# The lint contract for generated code: every rule, minus those generated code
-# cannot or should not satisfy, each justified in docs/python-output.md, "Lint
-# contract". `gate.py` applies exactly this to everything the plugin emits; the
-# developer scripts extend it in `ruff.toml`.
+# The lint contract for generated code: every rule, minus those generated code cannot or should not satisfy.
+# NOTE: Each exception is justified in docs/python-output.md, "Lint contract", so keep the two in sync. `gate.py`
+# applies exactly this to everything the plugin emits, and the developer scripts extend it in `ruff.toml`.
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
@@ -78,12 +72,11 @@ reportUnnecessaryTypeIgnoreComment = "error"
 [tool.mypy]
 python_version = "3.10"
 strict = true
-# Without paths, the developer scripts and the suite (`cargo xtask check`);
-# the gate names the generated packages it checks, and `suite/usage.py`,
-# which is written against them.
+# Without paths we check the developer scripts and the suite (`cargo xtask check`). The gate names the generated
+# packages it checks itself, and `suite/usage.py` too, as that is written against them.
 files = ["$MYPY_CONFIG_FILE_DIR/*.py", "$MYPY_CONFIG_FILE_DIR/suite"]
 exclude = ['suite/usage\.py$']
-# `suite` is a directory of pytest's, not a package.
+# `suite` is a pytest directory, not a package.
 mypy_path = "$MYPY_CONFIG_FILE_DIR"
 explicit_package_bases = true
 
@@ -91,6 +84,5 @@ explicit_package_bases = true
 # The runtime suite's tests import the shared `postgres` module from here.
 pythonpath = ["."]
 addopts = ["-p", "no:cacheprovider"]
-# A proof that runs nothing proves nothing: an empty parametrization fails, and
-# so does a skipped test (conftest.py).
+# A proof that runs nothing proves nothing, so an empty parametrization fails and so does a skipped test (conftest.py).
 empty_parameter_set_mark = "fail_at_collect"

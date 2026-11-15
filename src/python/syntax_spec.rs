@@ -1,17 +1,12 @@
-//! Specification for the syntax generated code is built from.
-
 use super::*;
-use crate::python::vocabulary::{CONN, CUR, DATE, DICT, INT, LIST, ROW, STR};
+use crate::python::vocabulary::{CONNECTION, CUR, DATE, DICT, INT, LIST, ROW, STR};
 
 #[test]
 fn a_string_literal_is_quoted_to_avoid_escaping() {
-    // Data is built rather than parsed precisely so ruff escapes it; here it
-    // switches quote style instead, as Black does.
+    // We build data rather than parse it precisely so ruff escapes it, and here it switches quote style instead, as
+    // Black does.
     assert_eq!(unparse(&string("open")), r#""open""#);
-    assert_eq!(
-        unparse(&string(r#"a "quoted" value"#)),
-        r#"'a "quoted" value'"#
-    );
+    assert_eq!(unparse(&string(r#"a "quoted" value"#)), r#"'a "quoted" value'"#);
 }
 
 #[test]
@@ -23,10 +18,7 @@ fn a_class_without_bases_omits_the_parentheses() {
 #[test]
 fn an_empty_class_body_becomes_pass() {
     // Python has no empty suite, so something has to stand in for one.
-    assert_eq!(
-        unparse_stmt(&class("Empty", [], [], [])),
-        "class Empty:\n    pass"
-    );
+    assert_eq!(unparse_stmt(&class("Empty", [], [], [])), "class Empty:\n    pass");
 }
 
 #[test]
@@ -34,8 +26,8 @@ fn a_public_name_is_an_ascii_identifier_that_is_neither_a_keyword_nor_private() 
     for name in ["id", "user_id", "VALUE_0", "Author", "match", "type"] {
         assert!(is_public_name(name), "{name}");
     }
-    // Not ASCII: ruff PLC2401, and Python NFKC-normalises identifiers, so
-    // `ﬁle` (a ligature) and `file` would be one name.
+    // Not ASCII is not public, as ruff rejects it (PLC2401) and Python NFKC-normalises identifiers, so `ﬁle` (a
+    // ligature) and `file` would be one name.
     for name in [
         "", "1st", "user id", "a-b", "class", "None", "_id", "__x", "_sunder_", "naïve", "ﬁle",
     ] {
@@ -55,23 +47,11 @@ fn an_expression_grows_as_python_reads() {
         "cur.execute(sql, returning=True)"
     );
     assert_eq!(written(LIST.index(INT).or_none()), "list[int] | None");
-    // Once: a union that has `None` already is itself.
-    assert_eq!(
-        written(INT.or_none().union(STR).or_none()),
-        "int | None | str"
-    );
-    assert_eq!(
-        written(LIST.index(INT.or_none()).or_none()),
-        "list[int | None] | None"
-    );
-    assert_eq!(
-        written(DICT.index_each(vec![STR.into(), INT.into()])),
-        "dict[str, int]"
-    );
-    assert_eq!(
-        written(name("text").slice(int(1), minus(int(1)))),
-        "text[1:-1]"
-    );
+    // A union that already has `None` gets no second one
+    assert_eq!(written(INT.or_none().union(STR).or_none()), "int | None | str");
+    assert_eq!(written(LIST.index(INT.or_none()).or_none()), "list[int | None] | None");
+    assert_eq!(written(DICT.index_each(vec![STR.into(), INT.into()])), "dict[str, int]");
+    assert_eq!(written(name("text").slice(int(1), minus(int(1)))), "text[1:-1]");
     assert_eq!(
         written(
             string(", ")
@@ -89,10 +69,7 @@ fn an_expression_grows_as_python_reads() {
         written(list_of(name("x"), each("x", name("xs")).when(name("x")))),
         "[x for x in xs if x]"
     );
-    assert_eq!(
-        written(forward(LIST.index(name("Mood")))),
-        r#""list[Mood]""#
-    );
+    assert_eq!(written(forward(LIST.index(name("Mood")))), r#""list[Mood]""#);
 }
 
 #[test]
@@ -102,17 +79,17 @@ fn a_coroutine_awaits_and_enters_what_a_blocking_function_calls_and_enters() {
         let rows = each(ROW, CUR.attr("results").call([])).asynchronous(asynchronous);
         unparse_stmts(&[with(
             asynchronous,
-            vec![CONN.attr("cursor").call([]).entered_as(CUR)],
+            vec![CONNECTION.attr("cursor").call([]).entered_as(CUR)],
             vec![for_(rows, vec![return_(fetched)])],
         )])
     };
     assert_eq!(
         body(false),
-        "with conn.cursor() as cur:\n    for row in cur.results():\n        return cur.fetchall()"
+        "with connection.cursor() as cur:\n    for row in cur.results():\n        return cur.fetchall()"
     );
     assert_eq!(
         body(true),
-        "async with conn.cursor() as cur:\n    async for row in cur.results():\n        return await cur.fetchall()"
+        "async with connection.cursor() as cur:\n    async for row in cur.results():\n        return await cur.fetchall()"
     );
 }
 
@@ -161,17 +138,11 @@ fn a_statement_is_built_whole() {
 
 #[test]
 fn an_import_binds_a_module_an_alias_or_names() {
-    assert_eq!(
-        unparse_stmt(&import("datetime", Some("dt"))),
-        "import datetime as dt"
-    );
+    assert_eq!(unparse_stmt(&import("datetime", Some("dt"))), "import datetime as dt");
     assert_eq!(unparse_stmt(&import("app.types", None)), "import app.types");
     assert_eq!(
         unparse_stmt(&import_from("typing", &["Any", "Final"])),
         "from typing import Any, Final"
     );
-    assert_eq!(
-        unparse_stmt(&import_from(".", &["models"])),
-        "from . import models"
-    );
+    assert_eq!(unparse_stmt(&import_from(".", &["models"])), "from . import models");
 }

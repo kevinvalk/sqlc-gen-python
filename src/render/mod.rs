@@ -1,7 +1,3 @@
-//! Writing the decided [`Api`] as Python files, each a tree [`python::render`]
-//! writes: the models module ([`models`]), a module per query file
-//! ([`queries`]), and here the package they make and the records both define.
-
 mod models;
 mod queries;
 
@@ -15,15 +11,13 @@ use crate::api::models::Field;
 use crate::config::Config;
 use crate::plugin;
 use crate::python::vocabulary::{
-    ANY, CLASSMETHOD, CLS, DATACLASSES, FROM_ROW, LOOKUP_ERROR, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR,
-    ROW, SEQUENCE,
+    ANY, CLASSMETHOD, CLS, DATACLASSES, FROM_ROW, LOOKUP_ERROR, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, ROW, SEQUENCE,
 };
 use crate::python::{
-    self, Expression, Function, Scope, annotate, class, docstring, forward, int, keyword, name,
-    parameter, receiver, return_, true_,
+    self, Expression, Function, Scope, annotate, class, docstring, forward, int, keyword, name, parameter, receiver,
+    return_, true_,
 };
 
-/// Renders every file a codegen entry asked for.
 pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File> {
     let header = header(sqlc_version, config);
     let modules = config.modules();
@@ -42,31 +36,23 @@ pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File
         true => errors(),
         false => Vec::new(),
     };
-    // The generated package owns `out`, so it is a regular package: relative
-    // imports resolve, and mypy and ruff (INP001) need no configuration.
+    // The generated package owns `out`, so we make it a regular package where relative imports resolve, and mypy and
+    // ruff (INP001) need no configuration.
     let mut files = vec![
         file("__init__.py".into(), &init),
         file("models.py".into(), &models::module(api)),
     ];
-    files.extend((api.modules.iter()).map(|module| {
-        file(
-            format!("{}.py", module.name),
-            &queries::module(module, config),
-        )
-    }));
+    files.extend(
+        (api.modules.iter()).map(|module| file(format!("{}.py", module.name), &queries::module(module, config))),
+    );
     files
 }
 
-/// The banner every generated module opens with, prepended to the rendered
-/// tree: ruff's AST has nowhere to put a `#` comment, so this is the one part
-/// of a file that is not built as one. A module ruff's S105 would flag also
-/// exempts itself from it ([`python::trips_s105`]).
+/// We prepend the header as text, as ruff's AST has nowhere to put a `#` comment. The versions make a regenerated
+/// file's diff explain itself.
 ///
-/// Recording the versions makes a regenerated file's diff explain itself,
-/// though `omit_sqlc_version` drops the sqlc line for anyone who would rather
-/// not see churn on every upgrade. The version is the request's own text, the
-/// only one written outside the tree: anything but one printable word could
-/// end the comment and be code, so it is left out as an unknown version is.
+/// IMPORTANT: sqlc's version is the only text of the request we write outside the tree, and anything but one printable
+/// word could end the comment and be code. So we leave anything else out, as we do an unknown version.
 fn header(sqlc_version: &str, config: &Config) -> String {
     let (name, version) = (env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
     let is_word = !sqlc_version.is_empty() && sqlc_version.chars().all(|c| c.is_ascii_graphic());
@@ -82,22 +68,18 @@ fn header(sqlc_version: &str, config: &Config) -> String {
     )
 }
 
-/// The errors a `:one` raises without exactly one row, where the backend's
-/// library has none (§6, "Functions", rule 3).
+/// For a backend whose library has no errors for a `:one` without exactly one row (`docs/python-output.md` §6,
+/// "Functions", rule 3).
 fn errors() -> Vec<ast::Stmt> {
     [
         (NO_ROW_ERROR, "A `:one` query returned no row."),
-        (
-            MULTIPLE_ROWS_ERROR,
-            "A `:one` query returned more than one row.",
-        ),
+        (MULTIPLE_ROWS_ERROR, "A `:one` query returned more than one row."),
     ]
     .into_iter()
     .map(|(error, doc)| class(error, [], [LOOKUP_ERROR.into()], [docstring(doc)]))
     .collect()
 }
 
-/// One field of a [`record`].
 struct Attribute {
     name: String,
     annotation: ast::Expr,
@@ -107,24 +89,19 @@ struct Attribute {
 }
 
 impl Attribute {
-    /// `field`, read from `row[at]`, without its comment.
-    fn column(field: &Field, at: usize, scope: Scope) -> Self {
+    fn column(field: &Field, index: usize, scope: Scope) -> Self {
         Self {
             name: field.name.clone(),
             annotation: field.ty.annotation(scope),
             comment: String::new(),
-            read: Some(field.ty.read(row(at), scope)),
+            read: Some(field.ty.read(ROW.index(int(index)), scope)),
         }
     }
 }
 
-/// A record (`docs/python-output.md` §4, rule 2): frozen, so rows are values;
-/// slotted, so a misspelt attribute is an error; keyword-only, so construction
-/// cannot depend on column order.
-///
-/// A record of results also builds itself from a driver's row, by position, so
-/// duplicate column names cannot confuse it (§4, rule 4). One without columns
-/// has no row to read.
+/// A record is frozen so rows are values, slotted so a misspelt attribute is an error, and keyword-only so construction
+/// cannot depend on column order (`docs/python-output.md` §4, rule 2). A record of results builds itself from a
+/// driver's row by position, so duplicate column names cannot confuse it (§4, rule 4).
 fn record(class_name: &str, comment: &str, attributes: &[Attribute]) -> ast::Stmt {
     let fields = (attributes.iter()).flat_map(|attribute| {
         let declaration = annotate(&attribute.name, attribute.annotation.clone());
@@ -149,18 +126,10 @@ fn record(class_name: &str, comment: &str, attributes: &[Attribute]) -> ast::Stm
         class_name,
         [dataclass],
         [],
-        (documentation(comment).into_iter())
-            .chain(fields)
-            .chain(from_row),
+        (documentation(comment).into_iter()).chain(fields).chain(from_row),
     )
 }
 
-/// `row[at]`: one column of a row.
-fn row(at: usize) -> ast::Expr {
-    ROW.index(int(at))
-}
-
-/// The docstring of what the schema documented, if it did.
 fn documentation(comment: &str) -> Option<ast::Stmt> {
     (!comment.trim().is_empty()).then(|| docstring(comment.trim()))
 }

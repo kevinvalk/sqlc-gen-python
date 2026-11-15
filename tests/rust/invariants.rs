@@ -1,34 +1,21 @@
-//! The invariants every generated output must hold ([`support::check_output`]),
-//! each specified by an output that breaks it: a golden case with a planted bug.
-
 use sqlc_gen_python::plugin;
 
 use crate::support;
 
-/// Golden case `case`'s request and files, with each `old` replaced by its
-/// `new` in its `file`, once.
-fn plant(
-    case: &str,
-    file: &str,
-    edits: &[(&str, &str)],
-) -> (plugin::GenerateRequest, Vec<plugin::File>) {
+/// Golden case `case`'s request and files, with the first `old` of each edit replaced by its `new` in `file`.
+fn plant(case: &str, file: &str, edits: &[(&str, &str)]) -> (plugin::GenerateRequest, Vec<plugin::File>) {
     let case = support::case(case);
-    let mut files = support::generated_files(&case.dir());
+    let mut files = support::generated_files(&case.directory());
     let module = files.iter_mut().find(|f| f.name == file).unwrap();
     let mut source = String::from_utf8(module.contents.clone()).unwrap();
     for (old, new) in edits {
-        assert!(
-            source.contains(old),
-            "the planted bug no longer applies: {old}"
-        );
+        assert!(source.contains(old), "the planted bug no longer applies: {old}");
         source = source.replacen(old, new, 1);
     }
     module.contents = source.into_bytes();
     (case.request(), files)
 }
 
-/// What the invariants say of golden case `case` with each edit made to its
-/// `file`.
 fn planted_all(case: &str, file: &str, edits: &[(&str, &str)]) -> Vec<String> {
     let (request, files) = plant(case, file, edits);
     support::check_output(&request, &files)
@@ -38,10 +25,10 @@ fn planted(case: &str, file: &str, old: &str, new: &str) -> Vec<String> {
     planted_all(case, file, &[(old, new)])
 }
 
-/// What the invariants say of the invoicing case's `files`, edited.
+/// What the invariants say of the invoicing case with its files edited.
 fn files_planted(edit: impl FnOnce(&mut Vec<plugin::File>)) -> Vec<String> {
     let case = support::case("invoicing_sqlalchemy");
-    let mut files = support::generated_files(&case.dir());
+    let mut files = support::generated_files(&case.directory());
     edit(&mut files);
     support::check_output(&case.request(), &files)
 }
@@ -52,10 +39,7 @@ fn module(source: &str) -> String {
 
 #[test]
 fn models_follow_the_columns_nullability_and_array_depth() {
-    assert_eq!(
-        planted("pgtypes_sqlalchemy", "models.py", "", ""),
-        Vec::<String>::new()
-    );
+    assert_eq!(planted("pgtypes_sqlalchemy", "models.py", "", ""), Vec::<String>::new());
     for (old, new) in [
         ("    small: int\n", "    small: int | None\n"),
         ("    optional: str | None\n", "    optional: str\n"),
@@ -80,8 +64,8 @@ fn signatures_follow_sqlcs_nullability_and_array_depth() {
         // A nullable parameter that would no longer accept `None`.
         (
             "customers.py",
-            "*, email: str | None) -> UUID:",
-            "*, email: str) -> UUID:",
+            "*, email: str | None\n) -> UUID:",
+            "*, email: str\n) -> UUID:",
             "parameter `email`",
         ),
         // A `:copyfrom` field that would accept a NULL the column refuses.
@@ -123,21 +107,17 @@ fn signatures_follow_sqlcs_nullability_and_array_depth() {
 #[test]
 fn no_field_mentions_any_at_any_depth() {
     for annotation in ["Any", "typing.Any", "list[typing.Any]", "t.Any | None"] {
-        let source = format!(
-            "import typing\nimport typing as t\nfrom typing import Any\n\n\nclass Row:\n    x: {annotation}\n"
-        );
+        let source =
+            format!("import typing\nimport typing as t\nfrom typing import Any\n\n\nclass Row:\n    x: {annotation}\n");
         let problems = module(&source);
-        assert!(
-            problems.contains("annotated with `Any`"),
-            "{annotation}: {problems}"
-        );
+        assert!(problems.contains("annotated with `Any`"), "{annotation}: {problems}");
     }
 }
 
 #[test]
 fn no_parameter_or_result_mentions_any_but_the_drivers_own() {
-    // pyright strict and mypy --strict accept an explicit `Any`, and ruff
-    // ANN401 flags only a bare one.
+    // We need this check as pyright strict and mypy --strict accept an explicit `Any`, and ruff's ANN401 only flags a
+    // bare one.
     for (file, old, new) in [
         ("invoices.py", "ids: list[UUID]", "ids: list[Any]"),
         ("invoices.py", ") -> list[str]:", ") -> list[Any]:"),
@@ -148,10 +128,7 @@ fn no_parameter_or_result_mentions_any_but_the_drivers_own() {
         ),
     ] {
         let problems = planted("invoicing_sqlalchemy", file, old, new).join("\n");
-        assert!(
-            problems.contains("with `Any`"),
-            "{new:?} not caught: {problems}"
-        );
+        assert!(problems.contains("with `Any`"), "{new:?} not caught: {problems}");
     }
 }
 
@@ -168,10 +145,7 @@ fn only_dunders_and_module_constants_may_start_with_an_underscore() {
         "class _Row:\n    pass\n",
         "class A:\n    _X = 1\n",
     ] {
-        assert!(
-            module(private).contains("is private"),
-            "{private:?} not caught"
-        );
+        assert!(module(private).contains("is private"), "{private:?} not caught");
     }
 }
 
@@ -179,8 +153,7 @@ fn only_dunders_and_module_constants_may_start_with_an_underscore() {
 fn a_prelude_is_its_librarys_to_the_letter_and_no_other_module_has_one() {
     let needs = "its prelude is not the one its library's stubs need";
     for (case, old, new, problem) in [
-        // asyncmy's bridge, a letter off, is a private class of `Any`s like
-        // another; and half of it is none.
+        // asyncmy's bridge one letter off is just another private class of `Any`s, and half of it is no prelude at all.
         (
             "billing_pymysql_async",
             "async def fetchmany(self, size: int)",
@@ -211,8 +184,8 @@ fn a_prelude_is_its_librarys_to_the_letter_and_no_other_module_has_one() {
         let problems = planted(case, "query.py", old, new).join("\n");
         assert!(problems.contains(problem), "{new:?} not caught: {problems}");
     }
-    // Each is its own library's: PyMySQL's stubs type what a statement runs
-    // through, and no other connection is generic in its stubs alone.
+    // Each prelude is its own library's only: PyMySQL's stubs do type what a statement runs through, and no other
+    // connection is generic in its stubs alone.
     for (case, other) in [
         ("billing_pymysql_async", "billing_pymysql"),
         ("billing_pymysql", "billing_sqlalchemy"),
@@ -225,8 +198,7 @@ fn a_prelude_is_its_librarys_to_the_letter_and_no_other_module_has_one() {
 
 #[test]
 fn a_query_module_runs_exactly_the_sql_sqlc_wrote() {
-    // `invoicing_sqlalchemy` with a planted bug, and `sql` replaced by `sqlc_sql`
-    // in the query texts sqlc sent.
+    // `invoicing_sqlalchemy` with a planted bug, and `sql` replaced by `sqlc_sql` in the query texts sqlc sent.
     let with_sqlc_text = |file, old, new, (sql, sqlc_sql): (&str, &str)| {
         let (mut request, files) = plant("invoicing_sqlalchemy", file, &[(old, new)]);
         for query in &mut request.queries {
@@ -245,21 +217,9 @@ fn a_query_module_runs_exactly_the_sql_sqlc_wrote() {
             "binds",
         ),
         // A literal colon read as a bind.
-        (
-            "customers.py",
-            r#""vip\"\\:true"#,
-            r#""vip\":true"#,
-            same,
-            "binds",
-        ),
+        ("customers.py", r#""vip\"\\:true"#, r#""vip\":true"#, same, "binds"),
         // A bind that is not the parameter's name.
-        (
-            "customers.py",
-            r"WHERE :tag\\:",
-            r"WHERE :tags\\:",
-            same,
-            "binds",
-        ),
+        ("customers.py", r"WHERE :tag\\:", r"WHERE :tags\\:", same, "binds"),
         // A chained cast left unescaped: SQLAlchemy would send `\:text`.
         (
             "customers.py",
@@ -319,8 +279,8 @@ fn the_files_are_the_init_the_models_and_one_module_per_query_file() {
         contents: contents.into(),
     };
     for (edit, problem) in [
-        // A query file whose queries vanished with their module, and one
-        // module too many, which would hold no query to check.
+        // A query file whose queries vanished with their module, and one module too many, which would hold no query to
+        // check.
         (
             Box::new(|files: &mut Vec<plugin::File>| files.retain(|f| f.name != "payments.py"))
                 as Box<dyn FnOnce(&mut Vec<plugin::File>)>,
@@ -363,14 +323,8 @@ fn the_files_are_the_init_the_models_and_one_module_per_query_file() {
 fn a_module_parses_is_formatted_and_binds_each_name_once_before_reading_it() {
     for (source, problem) in [
         ("def (\n", "does not parse"),
-        (
-            "x = 1\n\n\n\n\ny = 2\n",
-            "is not a fixpoint of ruff's formatter",
-        ),
-        (
-            "import enum\nimport enum\n",
-            "module: `enum` is bound twice",
-        ),
+        ("x = 1\n\n\n\n\ny = 2\n", "is not a fixpoint of ruff's formatter"),
+        ("import enum\nimport enum\n", "module: `enum` is bound twice"),
         (
             "class A(str, enum.Enum):\n    X = \"x\"\n    X = \"y\"\n",
             "class A: `X` is bound twice",
@@ -450,10 +404,7 @@ fn every_name_is_the_one_the_catalog_and_sqlc_give() {
         // A label the database does not have, and a member not named after its.
         (
             "models.py",
-            &[(
-                "BANK_TRANSFER = \"bank_transfer\"",
-                "BANK_TRANSFER = \"bank-transfer\"",
-            )][..],
+            &[("BANK_TRANSFER = \"bank_transfer\"", "BANK_TRANSFER = \"bank-transfer\"")][..],
             "class `BillingPaymentMethod` has no SQL enum of its values",
         ),
         (
@@ -463,14 +414,11 @@ fn every_name_is_the_one_the_catalog_and_sqlc_give() {
         ),
         (
             "models.py",
-            &[(
-                "BANK_TRANSFER = \"bank_transfer\"",
-                "BANKTRANSFER = \"bank_transfer\"",
-            )],
+            &[("BANK_TRANSFER = \"bank_transfer\"", "BANKTRANSFER = \"bank_transfer\"")],
             "are not named after their labels",
         ),
-        // Two fields of one type swapped by name, in the class and in
-        // `from_row` alike: every type and position still agrees.
+        // Two fields of one type swapped by name, in the class and in `from_row` alike, so every type and position
+        // still agrees.
         (
             "models.py",
             &[
@@ -505,12 +453,10 @@ fn every_name_is_the_one_the_catalog_and_sqlc_give() {
         ),
     ] {
         let problems = planted_all("invoicing_sqlalchemy", file, edits).join("\n");
-        assert!(
-            problems.contains(problem),
-            "{edits:?} not caught: {problems}"
-        );
+        assert!(problems.contains(problem), "{edits:?} not caught: {problems}");
     }
 }
+
 #[test]
 fn a_function_is_called_safely() {
     for (case, file, old, new, problem) in [
@@ -518,8 +464,8 @@ fn a_function_is_called_safely() {
         (
             "invoicing_sqlalchemy",
             "invoices.py",
-            "def get_invoice(conn: sqlalchemy.Connection, *, id: UUID)",
-            "def get_invoice(*, conn: sqlalchemy.Connection, id: UUID)",
+            "def get_invoice(connection: sqlalchemy.Connection, *, id: UUID)",
+            "def get_invoice(*, connection: sqlalchemy.Connection, id: UUID)",
             "positionally",
         ),
         // A parameter that can be forgotten.
@@ -534,23 +480,23 @@ fn a_function_is_called_safely() {
         (
             "invoicing_sqlalchemy",
             "invoices.py",
-            "def get_invoice(conn",
-            "async def get_invoice(conn",
+            "def get_invoice(connection",
+            "async def get_invoice(connection",
             "is `async def` exactly when async",
         ),
         (
             "invoicing_sqlalchemy_async",
             "invoices.py",
-            "async def get_invoice(conn",
-            "def get_invoice(conn",
+            "async def get_invoice(\n    connection",
+            "def get_invoice(\n    connection",
             "is `async def` exactly when async",
         ),
         // The wrong connection, which the type checkers would pass on.
         (
             "invoicing_psycopg",
             "invoices.py",
-            "def get_invoice(conn: psycopg.Connection[Any]",
-            "def get_invoice(conn: psycopg.AsyncConnection[Any]",
+            "def get_invoice(connection: psycopg.Connection[Any]",
+            "def get_invoice(connection: psycopg.AsyncConnection[Any]",
             "takes a connection",
         ),
     ] {
@@ -566,8 +512,8 @@ fn a_function_runs_its_own_statement_with_each_parameter_as_itself() {
         (
             "invoicing_sqlalchemy",
             "invoices.py",
-            "conn.execute(_GET_INVOICE, {\"id\": id}).one()",
-            "conn.execute(_GET_INVOICE_DUE_DATE, {\"id\": id}).one()",
+            "connection.execute(_GET_INVOICE, {\"id\": id}).one()",
+            "connection.execute(_GET_INVOICE_DUE_DATE, {\"id\": id}).one()",
             "not its own statement",
         ),
         (
@@ -607,8 +553,7 @@ fn a_function_runs_its_own_statement_with_each_parameter_as_itself() {
             "(statuses, customer_id)",
             "not each parameter as itself",
         ),
-        // A slice's items, then the parameter after it: by number, `?2`
-        // would bind the slice's second item.
+        // A slice's items, then the parameter after it: by number, `?2` would bind the slice's second item.
         (
             "ledger_sqlite3",
             "query.py",
@@ -628,22 +573,22 @@ fn a_function_runs_its_own_statement_with_each_parameter_as_itself() {
             "invoicing_sqlalchemy",
             "payments.py",
             "    return models.BillingPayment.from_row(\n",
-            "    conn.commit()\n    return models.BillingPayment.from_row(\n",
-            "reads `conn` 2 times",
+            "    connection.commit()\n    return models.BillingPayment.from_row(\n",
+            "reads `connection` 2 times",
         ),
         (
             "invoicing_sqlalchemy",
             "invoices.py",
-            "    return models.Invoice.from_row(conn.execute(_GET_INVOICE",
-            "    conn.exec_driver_sql(\"SELECT 1\")\n    return models.Invoice.from_row(conn.execute(_GET_INVOICE",
-            "reads `conn` 2 times",
+            "    return models.Invoice.from_row(connection.execute(_GET_INVOICE",
+            "    connection.exec_driver_sql(\"SELECT 1\")\n    return models.Invoice.from_row(connection.execute(_GET_INVOICE",
+            "reads `connection` 2 times",
         ),
         // A coroutine never awaited never runs.
         (
             "invoicing_sqlalchemy_async",
             "line_items.py",
-            "for row in await conn.execute(",
-            "for row in conn.execute(",
+            "for row in await connection.execute(",
+            "for row in connection.execute(",
             "awaits its statement exactly when async",
         ),
     ] {
@@ -682,14 +627,11 @@ fn a_model_is_returned_exactly_when_the_result_is_its_tables_columns() {
     let problems = planted(
         "invoicing_sqlalchemy",
         "invoices.py",
-        "def get_invoice(conn: sqlalchemy.Connection, *, id: UUID) -> models.Invoice:",
-        "def get_invoice(conn: sqlalchemy.Connection, *, id: UUID) -> GetInvoiceWithCustomerRow:",
+        "def get_invoice(connection: sqlalchemy.Connection, *, id: UUID) -> models.Invoice:",
+        "def get_invoice(connection: sqlalchemy.Connection, *, id: UUID) -> GetInvoiceWithCustomerRow:",
     )
     .join("\n");
-    assert!(
-        problems.contains("a model is returned exactly when"),
-        "{problems}"
-    );
+    assert!(problems.contains("a model is returned exactly when"), "{problems}");
 }
 
 #[test]
@@ -722,12 +664,7 @@ fn a_record_is_a_frozen_slotted_keyword_only_dataclass_without_defaults() {
             "@dataclasses.dataclass(slots=True, kw_only=True)\nclass Customer:",
             "`Customer` is not exactly",
         ),
-        (
-            "models.py",
-            record,
-            "class Customer:",
-            "`Customer` is not exactly",
-        ),
+        ("models.py", record, "class Customer:", "`Customer` is not exactly"),
     ] {
         let problems = planted("invoicing_sqlalchemy", file, old, new).join("\n");
         assert!(problems.contains(problem), "{new:?} not caught: {problems}");

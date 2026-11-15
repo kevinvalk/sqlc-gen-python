@@ -1,10 +1,8 @@
-"""Check that every value crossing a generated function matches its annotation.
+"""Checks that every value crossing a generated function matches its annotation.
 
-SQLAlchemy rows from `text()` are `Any`, so the type checkers cannot see what a
-driver really returns; this is the layer that can. It is stricter than
-typeguard: it descends into dataclass fields and list items, rejects `bool`
-where `int` is declared and `datetime` where `date` is, and requires enum
-members rather than their string values.
+SQLAlchemy rows from `text()` are `Any`, so the type checkers cannot see what a driver really returns and this is the
+layer that can. We are stricter than typeguard on purpose: we descend into dataclass fields and list items, reject
+`bool` where `int` is declared and `datetime` where `date` is, and require enum members rather than their values.
 """
 
 import dataclasses
@@ -19,12 +17,11 @@ from typing import Any
 
 
 def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: C901
-    """Fail with the offending path unless `value` inhabits `hint` exactly.
-
-    `object` is what a JSON column is annotated: any value inhabits it, so
-    whether a driver decoded the JSON is `typemap.py`'s to check.
-    """
+    """Fail with the offending path unless `value` inhabits `hint` exactly."""
     origin = typing.get_origin(hint)
+
+    # A JSON column is annotated `object`, which any value inhabits, so whether a driver decoded the JSON is for
+    # `typemap.py` to check.
     if hint is object:
         return
     if origin in (typing.Union, types.UnionType):
@@ -32,9 +29,9 @@ def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: C901
         if value is None:
             assert type(None) in options, f"{path}: None for non-optional {hint}"
             return
-        failures = [failure(value, o, path) for o in options if o is not type(None)]
+        failures = [failure(value, option, path) for option in options if option is not type(None)]
         assert None in failures, "; ".join(map(str, failures))
-    # `Iterable` is `:copyfrom` input; tests pass lists.
+    # `Iterable` is what a `:copyfrom` takes, and our tests pass lists.
     elif origin in (list, Iterable):
         if origin is list:
             assert type(value) is list, f"{path}: {type(value).__name__} is not a list"
@@ -48,31 +45,28 @@ def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: C901
         assert type(value) is hint, f"{path}: {type(value).__name__} is not {hint}"
         fields = typing.get_type_hints(hint)
         for field in dataclasses.fields(hint):
-            check(
-                getattr(value, field.name), fields[field.name], f"{path}.{field.name}"
-            )
-    # The one tolerated subclass: asyncpg returns its own `uuid.UUID` subclass.
+            check(getattr(value, field.name), fields[field.name], f"{path}.{field.name}")
+    # The one subclass we tolerate, as asyncpg returns its own subclass of `uuid.UUID`.
     elif isinstance(hint, type) and issubclass(hint, uuid.UUID):
         assert isinstance(value, hint), f"{path}: {value!r} is not {hint.__name__}"
     else:
-        assert type(value) is hint, (
-            f"{path}: {type(value).__name__} {value!r} is not {hint}"
-        )
+        assert type(value) is hint, f"{path}: {type(value).__name__} {value!r} is not {hint}"
 
 
 def bounds(value: object, hint: Any, path: str) -> None:
-    """Check what a generic value holds: a dict's keys and items (an
-    `hstore`), or a range's bounds, psycopg's or SQLAlchemy's, each of the
-    range's type or open (`None`).
+    """Check what a generic value holds: the keys and items of a dict (an `hstore`), or the bounds of a psycopg or
+    SQLAlchemy range, each of the range's type or open (`None`).
     """
     if isinstance(value, dict):
-        key, item = typing.get_args(hint)
-        for k, v in typing.cast("dict[object, object]", value).items():
-            check(k, key, f"{path} key")
-            check(v, item, f"{path}[{k!r}]")
+        key_hint, item_hint = typing.get_args(hint)
+        for key, item in typing.cast("dict[object, object]", value).items():
+            check(key, key_hint, f"{path} key")
+            check(item, item_hint, f"{path}[{key!r}]")
         return
+
     if not (hasattr(value, "lower") and hasattr(value, "upper")):
         return
+
     (bound,) = typing.get_args(hint)
     for end in ("lower", "upper"):
         if (limit := getattr(value, end)) is not None:
@@ -80,7 +74,7 @@ def bounds(value: object, hint: Any, path: str) -> None:
 
 
 def failure(value: object, hint: Any, path: str = "value") -> str | None:
-    """Say why `value` does not inhabit `hint`, or None if it does."""
+    """Why `value` does not inhabit `hint`, or None if it does."""
     try:
         check(value, hint, path)
     except AssertionError as failure:
@@ -88,11 +82,11 @@ def failure(value: object, hint: Any, path: str = "value") -> str | None:
     return None
 
 
-def checked(fn: Callable[..., Any], called: set[str]) -> Callable[..., Any]:
-    """Wrap a generated function so each call checks arguments and result."""
-    hints = typing.get_type_hints(fn)  # also proves the hints resolve at runtime
-    signature = inspect.signature(fn)
-    name = f"{fn.__module__}.{fn.__qualname__}"
+def checked(function: Callable[..., Any], called: set[str]) -> Callable[..., Any]:
+    """Wrap a generated function so each call checks its arguments and result, and records the function in `called`."""
+    hints = typing.get_type_hints(function)  # This also proves the hints resolve at runtime
+    signature = inspect.signature(function)
+    name = f"{function.__module__}.{function.__qualname__}"
 
     def check_arguments(*args: object, **kwargs: object) -> None:
         bound = signature.bind(*args, **kwargs)
@@ -100,21 +94,21 @@ def checked(fn: Callable[..., Any], called: set[str]) -> Callable[..., Any]:
             check(value, hints[parameter], f"{name}({parameter}=)")
         called.add(name)
 
-    if inspect.iscoroutinefunction(fn):
+    if inspect.iscoroutinefunction(function):
 
-        @functools.wraps(fn)
+        @functools.wraps(function)
         async def async_wrapper(*args: object, **kwargs: object) -> object:
             check_arguments(*args, **kwargs)
-            result = await fn(*args, **kwargs)
+            result = await function(*args, **kwargs)
             check(result, hints["return"], f"{name}() ->")
             return result
 
         return async_wrapper
 
-    @functools.wraps(fn)
+    @functools.wraps(function)
     def wrapper(*args: object, **kwargs: object) -> object:
         check_arguments(*args, **kwargs)
-        result = fn(*args, **kwargs)
+        result = function(*args, **kwargs)
         check(result, hints["return"], f"{name}() ->")
         return result
 
@@ -123,40 +117,38 @@ def checked(fn: Callable[..., Any], called: set[str]) -> Callable[..., Any]:
 
 def strip_none(hint: Any) -> tuple[Any, bool]:
     """`T`, and whether the hint was `T | None`."""
-    args = typing.get_args(hint)
-    if type(None) not in args:
+    arguments = typing.get_args(hint)
+    if type(None) not in arguments:
         return hint, False
-    rest = [a for a in args if a is not type(None)]
+
+    rest = [argument for argument in arguments if argument is not type(None)]
     return (rest[0] if len(rest) == 1 else typing.Union[tuple(rest)]), True  # noqa: UP007
 
 
 def build(model: Any, row: Sequence[Any]) -> object:
-    """Build a model by position, as `from_row` does (docs/python-output.md §4),
-    to hold `from_row` to it.
-    """
+    """Build a model by position, as `from_row` does (docs/python-output.md §4), so we can hold `from_row` to it."""
     hints = typing.get_type_hints(model)
     fields = dataclasses.fields(model)
     assert len(fields) == len(row), f"{model.__name__}: {len(row)} columns"
-    return model(
-        **{f.name: coerce(v, hints[f.name]) for f, v in zip(fields, row, strict=True)}
-    )
+    return model(**{field.name: coerce(value, hints[field.name]) for field, value in zip(fields, row, strict=True)})
 
 
 def coerce(value: object, hint: Any) -> object:
-    """Apply `from_row`'s one conversion: both drivers return enums as `str`."""
+    """Apply the one conversion `from_row` does, as both drivers return enums as `str`."""
     origin = typing.get_origin(hint)
     if value is None:
         return None
+
     if isinstance(hint, type) and issubclass(hint, enum.Enum):
         return hint(value)
     if origin is list:
         (item,) = typing.get_args(hint)
         if isinstance(value, str):
-            # psycopg returns an array of a type it does not know, an enum's,
-            # as its text: `{a,b}`, whose labels need no quoting (§5).
-            value = [label for label in value[1:-1].split(",") if label]
-        return [coerce(v, item) for v in typing.cast("list[object]", value)]
+            # NOTE: psycopg returns an array of a type it does not know (an enum's) as its text `{a,b}`, whose labels
+            # need no quoting (§5).
+            value = [label for label in value[1:-1].split(",") if label != ""]
+        return [coerce(element, item) for element in typing.cast("list[object]", value)]
     if origin in (typing.Union, types.UnionType):
-        rest = [a for a in typing.get_args(hint) if a is not type(None)]
+        rest = [argument for argument in typing.get_args(hint) if argument is not type(None)]
         return coerce(value, rest[0]) if len(rest) == 1 else value
     return value

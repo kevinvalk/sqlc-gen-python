@@ -1,7 +1,3 @@
-//! The invariants holding each query module to sqlc's request: here, pairing
-//! each query with its statement and function; in the submodules, what each
-//! pair must then say of its signature, its execution and its result.
-
 mod execution;
 mod result;
 mod signature;
@@ -20,18 +16,10 @@ use execution::{runs_its_statement, sql_round_trips};
 use result::result_follows_sqlc;
 use signature::function_follows_sqlc;
 
-/// Checks that the module of query file `stem` implements sqlc's queries of
-/// it (`docs/python-output.md` §6).
-///
-/// After its `prelude`, which it holds exactly where its library's stubs
-/// need one (PyMySQL's, or asyncmy's for the pymysql backend's coroutines),
-/// the module holds one statement constant and one function per query, in
-/// sqlc's order, so they pair up without repeating any naming rule. Each pair
-/// must run exactly the SQL sqlc wrote, and its signature must say what sqlc
-/// says of NULL and arrays: a parameter, result field or bare result
-/// annotated optional exactly when sqlc says it admits NULL, and a list
-/// exactly as deep as its array. No type checker or runtime probe can see a
-/// non-null value annotated `X | None`.
+/// The module of query file `stem` implements sqlc's queries in it (`docs/python-output.md` §6). After the prelude its
+/// library's stubs need, if any, it holds one statement constant and one function per query in sqlc's order, so we
+/// pair them up without repeating any naming rule. Each pair must run exactly the SQL sqlc wrote and say what sqlc
+/// says of NULL and arrays, as no type checker or runtime probe can see a non-null value annotated `X | None`.
 pub(super) fn queries_follow_sqlc(
     request: &plugin::GenerateRequest,
     stem: &str,
@@ -42,16 +30,18 @@ pub(super) fn queries_follow_sqlc(
     let Ok(config) = Config::from_request(request) else {
         return problems.push("generated from options that do not parse".into());
     };
+
     let (backend, asynchronous) = (config.backend, config.asynchronous);
-    let needed = match (backend, asynchronous) {
+    let expected_prelude = match (backend, asynchronous) {
         (Backend::Pymysql, false) => Some(PYMYSQL),
         (Backend::Pymysql, true) => Some(ASYNCMY),
         (Backend::SqlAlchemy | Backend::Psycopg | Backend::Sqlite3, _) => None,
     };
-    if prelude.map(|(_, held)| held) != needed {
+    if prelude.map(|(_, held)| held) != expected_prelude {
         problems.push("its prelude is not the one its library's stubs need".into());
     }
-    let body = &body[prelude.map_or(0, |(at, held)| at + held.len())..];
+    let body = &body[prelude.map_or(0, |(start, held)| start + held.len())..];
+
     let Ok(engine) = Engine::of(request) else {
         return problems.push("generated for an engine it does not support".into());
     };
@@ -62,8 +52,7 @@ pub(super) fn queries_follow_sqlc(
         .filter_map(|stmt| {
             let constant = stmt.as_ann_assign_stmt()?;
             let sql = statement_sql(constant.value.as_deref()?, backend)?;
-            is_name(&constant.annotation, "Final")
-                .then_some((constant.target.as_name_expr()?.id.as_str(), sql))
+            is_name(&constant.annotation, "Final").then_some((constant.target.as_name_expr()?.id.as_str(), sql))
         })
         .collect();
     let functions = functions(body);
@@ -75,11 +64,12 @@ pub(super) fn queries_follow_sqlc(
             queries.len()
         ));
     }
-    let conn = &sqlc_gen_python::python::unparse(&backend.connection(asynchronous));
+
+    let connection_annotation = &sqlc_gen_python::python::unparse(&backend.connection(asynchronous));
     for ((query, (constant, sql)), function) in queries.into_iter().zip(statements).zip(functions) {
         let parameters = parameters(body, function);
         let takes = Takes::of(query, &config);
-        let signature = (conn.as_str(), asynchronous, takes);
+        let signature = (connection_annotation.as_str(), asynchronous, takes);
         if function_follows_sqlc(query, function, &parameters, signature, problems) {
             runs_its_statement(
                 query,
@@ -90,27 +80,18 @@ pub(super) fn queries_follow_sqlc(
                 (asynchronous, takes),
                 problems,
             );
-            result_follows_sqlc(
-                request,
-                query,
-                function,
-                (body, models),
-                (&config, engine),
-                problems,
-            );
+            result_follows_sqlc(request, query, function, (body, models), (&config, engine), problems);
             sql_round_trips(query, &sql, &parameters, backend, engine, problems);
         }
     }
 }
 
-/// A module's functions, in order.
 fn functions(body: &[Stmt]) -> Vec<&StmtFunctionDef> {
     body.iter().filter_map(Stmt::as_function_def_stmt).collect()
 }
 
-/// Each of sqlc's parameters, as the index of the first one it is: a name the
-/// user chose (`sqlc.arg`) is one parameter however often sqlc reports it, as
-/// MySQL's `?` cannot be bound twice.
+/// For each of sqlc's parameters, the index of its first use. A name the user chose (`sqlc.arg`) is one parameter
+/// however often sqlc reports it, as MySQL's `?` cannot be bound twice.
 fn uses(query: &plugin::Query) -> Vec<usize> {
     let column = |i: usize| query.params[i].column.clone().unwrap_or_default();
     (0..query.params.len())
@@ -119,30 +100,19 @@ fn uses(query: &plugin::Query) -> Vec<usize> {
             (0..i)
                 .find(|&j| {
                     let other = column(j);
-                    this.is_named_param
-                        && other.is_named_param
-                        && !this.name.is_empty()
-                        && other.name == this.name
+                    this.is_named_param && other.is_named_param && !this.name.is_empty() && other.name == this.name
                 })
                 .unwrap_or(i)
         })
         .collect()
 }
 
-/// Whether a query's function takes `rows` of its parameters: a `:copyfrom`,
-/// or a batch (`:batchexec`, `:batchone`, `:batchmany`).
-fn takes_rows(query: &plugin::Query) -> bool {
-    query.cmd == ":copyfrom" || query.cmd.starts_with(":batch")
-}
-
-/// How a query's function takes its parameters.
+/// How a query's function takes its parameters: each as a keyword, as `rows` of them (a `:copyfrom` or a batch), or as
+/// the one record `params` when there are more than the options' `max_params`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Takes {
-    /// Each as a keyword.
     Keywords,
-    /// `rows` of them.
     Rows,
-    /// One record of them, `params`: more than the options' `max_params`.
     Record,
 }
 
@@ -150,15 +120,15 @@ impl Takes {
     fn of(query: &plugin::Query, config: &Config) -> Self {
         let uses = uses(query);
         let distinct = (0..uses.len()).filter(|&i| uses[i] == i).count();
-        match (takes_rows(query), config.max_params) {
+        let is_rows = query.cmd == ":copyfrom" || query.cmd.starts_with(":batch");
+        match (is_rows, config.max_params) {
             (true, _) => Self::Rows,
-            (false, Some(max)) if distinct > max => Self::Record,
+            (false, Some(max_params)) if distinct > max_params => Self::Record,
             _ => Self::Keywords,
         }
     }
 
-    /// Where a parameter's value is read: itself, a row's field, the
-    /// record's.
+    /// Where a parameter's value is read: itself, a row's field or the record's.
     fn value(self, name: &str) -> String {
         match self {
             Self::Keywords => name.to_string(),
@@ -168,7 +138,7 @@ impl Takes {
     }
 }
 
-/// The module a query file is: its stem, each `-` a `_`.
+/// The module of a query file: its stem with each `-` as `_`.
 pub(super) fn stem(filename: &str) -> String {
     (Path::new(filename).file_stem())
         .and_then(|stem| stem.to_str())
@@ -176,8 +146,8 @@ pub(super) fn stem(filename: &str) -> String {
         .replace('-', "_")
 }
 
-/// The SQL of a statement constant: on SQLAlchemy, the string it wraps in
-/// `sqlalchemy.text(...)`; on a driver, the string itself.
+/// The SQL of a statement constant: on SQLAlchemy the string it wraps in `sqlalchemy.text(...)`, on a driver the
+/// string itself.
 fn statement_sql(expr: &Expr, backend: Backend) -> Option<String> {
     match backend {
         Backend::SqlAlchemy => text_of(expr),
@@ -185,8 +155,7 @@ fn statement_sql(expr: &Expr, backend: Backend) -> Option<String> {
     }
 }
 
-/// The string a statement constant wraps in `sqlalchemy.text(...)`, under any
-/// methods called on it.
+/// The string a statement constant wraps in `sqlalchemy.text(...)`, under any methods called on it.
 fn text_of(expr: &Expr) -> Option<String> {
     let call = expr.as_call_expr()?;
     match &*call.func {
@@ -199,9 +168,8 @@ fn text_of(expr: &Expr) -> Option<String> {
     }
 }
 
-/// The names a function binds its query's parameters under, and their
-/// annotations: its keyword-only parameters, or the fields of the `Params`
-/// class its `rows` are made of.
+/// The names a function binds its query's parameters under, with their annotations: its keyword-only parameters, or
+/// the fields of the `Params` class of its `rows` or `params`.
 fn parameters<'a>(body: &'a [Stmt], function: &'a StmtFunctionDef) -> Vec<(&'a str, &'a Expr)> {
     if let Some(class) = params_class(body, function) {
         return fields(class);
@@ -211,10 +179,8 @@ fn parameters<'a>(body: &'a [Stmt], function: &'a StmtFunctionDef) -> Vec<(&'a s
         .collect()
 }
 
-/// The `Params` class of the module a function takes `rows` of, or one
-/// record of as `params`.
 fn params_class<'a>(body: &'a [Stmt], function: &StmtFunctionDef) -> Option<&'a StmtClassDef> {
-    let class = (function.parameters.args.iter()).find_map(|p| {
+    let class_name = (function.parameters.args.iter()).find_map(|p| {
         let annotation = p.parameter.annotation.as_deref()?;
         match p.name().as_str() {
             "rows" => annotation.as_subscript_expr()?.slice.as_name_expr(),
@@ -222,5 +188,5 @@ fn params_class<'a>(body: &'a [Stmt], function: &StmtFunctionDef) -> Option<&'a 
             _ => None,
         }
     })?;
-    (body.iter().filter_map(Stmt::as_class_def_stmt)).find(|c| c.name.as_str() == class.id.as_str())
+    (body.iter().filter_map(Stmt::as_class_def_stmt)).find(|c| c.name.as_str() == class_name.id.as_str())
 }

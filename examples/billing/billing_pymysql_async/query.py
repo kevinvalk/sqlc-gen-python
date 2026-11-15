@@ -32,7 +32,7 @@ _CREATE_CUSTOMER: Final = "INSERT INTO customers (name, email, vip, preferred_me
 
 
 async def create_customer(
-    conn: asyncmy.Connection,
+    connection: asyncmy.Connection,
     *,
     name: str,
     email: str | None,
@@ -40,7 +40,7 @@ async def create_customer(
     preferred_method: models.CustomersPreferredMethod | None,
     metadata: str | None,
 ) -> int:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(
             _CREATE_CUSTOMER, (name, email, vip, preferred_method, metadata)
         )
@@ -50,8 +50,8 @@ async def create_customer(
 _GET_CUSTOMER: Final = "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE id = %s"
 
 
-async def get_customer(conn: asyncmy.Connection, *, id: int) -> models.Customer:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+async def get_customer(connection: asyncmy.Connection, *, id: int) -> models.Customer:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_GET_CUSTOMER, (id,))
         match await _typed(cur).fetchmany(2):
             case [row]:
@@ -66,10 +66,10 @@ _FIND_CUSTOMER_BY_NAME: Final = "SELECT id, name, email, vip, preferred_method, 
 
 
 async def find_customer_by_name(
-    conn: asyncmy.Connection, *, name: str
+    connection: asyncmy.Connection, *, name: str
 ) -> models.Customer:
     """Names are not unique: more than one match is an error, never a guess."""
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_FIND_CUSTOMER_BY_NAME, (name,))
         match await _typed(cur).fetchmany(2):
             case [row]:
@@ -96,10 +96,10 @@ class SearchCustomersRow:
 
 
 async def search_customers(
-    conn: asyncmy.Connection, *, pattern: str | None
+    connection: asyncmy.Connection, *, pattern: str | None
 ) -> list[SearchCustomersRow]:
     """A name or email matching the pattern, but no test account: `%` and `:` stay literal."""
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_SEARCH_CUSTOMERS, (pattern, pattern))
         return [SearchCustomersRow.from_row(row) for row in await cur.fetchall()]
 
@@ -108,9 +108,9 @@ _LIST_CUSTOMERS_BY_IDS: Final = "SELECT id, name, email, vip, preferred_method, 
 
 
 async def list_customers_by_ids(
-    conn: asyncmy.Connection, *, ids: list[int]
+    connection: asyncmy.Connection, *, ids: list[int]
 ) -> list[models.Customer]:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(
             _LIST_CUSTOMERS_BY_IDS.replace(
                 "/*SLICE:ids*/%s",
@@ -126,7 +126,7 @@ VALUES (%s, %s, %s, %s, %s, %s)"""
 
 
 async def create_invoice(
-    conn: asyncmy.Connection,
+    connection: asyncmy.Connection,
     *,
     customer_id: int,
     number: str,
@@ -135,7 +135,7 @@ async def create_invoice(
     attachment: bytes | None,
     pay_within: dt.timedelta | None,
 ) -> int:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(
             _CREATE_INVOICE,
             (customer_id, number, issued_on, notes, attachment, pay_within),
@@ -146,8 +146,8 @@ async def create_invoice(
 _GET_INVOICE: Final = "SELECT id, customer_id, number, status, total, issued_on, notes, attachment, pay_within, created_at FROM invoices WHERE id = %s"
 
 
-async def get_invoice(conn: asyncmy.Connection, *, id: int) -> models.Invoice:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+async def get_invoice(connection: asyncmy.Connection, *, id: int) -> models.Invoice:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_GET_INVOICE, (id,))
         match await _typed(cur).fetchmany(2):
             case [row]:
@@ -162,9 +162,9 @@ _GET_INVOICE_STATUS: Final = "SELECT status FROM invoices WHERE id = %s"
 
 
 async def get_invoice_status(
-    conn: asyncmy.Connection, *, id: int
+    connection: asyncmy.Connection, *, id: int
 ) -> models.InvoicesStatus:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_GET_INVOICE_STATUS, (id,))
         match await _typed(cur).fetchmany(2):
             case [row]:
@@ -194,9 +194,9 @@ class GetInvoiceWithCustomerRow:
 
 
 async def get_invoice_with_customer(
-    conn: asyncmy.Connection, *, id: int
+    connection: asyncmy.Connection, *, id: int
 ) -> GetInvoiceWithCustomerRow:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_GET_INVOICE_WITH_CUSTOMER, (id,))
         match await _typed(cur).fetchmany(2):
             case [row]:
@@ -213,9 +213,12 @@ ORDER BY number"""
 
 
 async def list_invoices_by_status(
-    conn: asyncmy.Connection, *, statuses: list[models.InvoicesStatus], customer_id: int
+    connection: asyncmy.Connection,
+    *,
+    statuses: list[models.InvoicesStatus],
+    customer_id: int,
 ) -> list[models.Invoice]:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(
             _LIST_INVOICES_BY_STATUS.replace(
                 "/*SLICE:statuses*/%s",
@@ -230,8 +233,8 @@ async def list_invoices_by_status(
 _COUNT_INVOICES: Final = "SELECT CAST(COUNT(*) AS SIGNED) AS invoice_count FROM invoices WHERE customer_id = %s"
 
 
-async def count_invoices(conn: asyncmy.Connection, *, customer_id: int) -> int:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+async def count_invoices(connection: asyncmy.Connection, *, customer_id: int) -> int:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_COUNT_INVOICES, (customer_id,))
         match await _typed(cur).fetchmany(2):
             case [row]:
@@ -247,9 +250,9 @@ _ISSUE_INVOICE: Final = "UPDATE invoices SET status = 'issued', issued_on = %s W
 
 
 async def issue_invoice(
-    conn: asyncmy.Connection, *, issued_on: dt.date | None, id: int
+    connection: asyncmy.Connection, *, issued_on: dt.date | None, id: int
 ) -> int:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         return await _typed(cur).execute(_ISSUE_INVOICE, (issued_on, id))
 
 
@@ -266,9 +269,9 @@ class AddLineItemsParams:
 
 
 async def add_line_items(
-    conn: asyncmy.Connection, rows: Iterable[AddLineItemsParams]
+    connection: asyncmy.Connection, rows: Iterable[AddLineItemsParams]
 ) -> None:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).executemany(
             _ADD_LINE_ITEMS,
             [
@@ -282,9 +285,9 @@ _LIST_LINE_ITEMS: Final = "SELECT invoice_id, position, description, quantity, u
 
 
 async def list_line_items(
-    conn: asyncmy.Connection, *, invoice_id: int
+    connection: asyncmy.Connection, *, invoice_id: int
 ) -> list[models.LineItem]:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_LIST_LINE_ITEMS, (invoice_id,))
         return [models.LineItem.from_row(row) for row in await cur.fetchall()]
 
@@ -307,12 +310,14 @@ class ListCustomerLinesRow:
         return cls(id=row[0], number=row[1], description=row[2])
 
 
-async def list_customer_lines(conn: asyncmy.Connection) -> list[ListCustomerLinesRow]:
+async def list_customer_lines(
+    connection: asyncmy.Connection,
+) -> list[ListCustomerLinesRow]:
     """Every customer, with each line of an invoice of theirs, or none: what
     stands left of the RIGHT JOIN may be without a row, though sqlc reports
     the columns of a join there NOT NULL.
     """
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_LIST_CUSTOMER_LINES)
         return [ListCustomerLinesRow.from_row(row) for row in await cur.fetchall()]
 
@@ -322,8 +327,8 @@ SET total = (SELECT CAST(COALESCE(SUM(quantity * unit_price), 0) AS DECIMAL(12, 
 WHERE id = %s"""
 
 
-async def recalculate_total(conn: asyncmy.Connection, *, id: int) -> None:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+async def recalculate_total(connection: asyncmy.Connection, *, id: int) -> None:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_RECALCULATE_TOTAL, (id, id))
 
 
@@ -333,8 +338,8 @@ _DELETE_DRAFT_INVOICES: Final = (
 
 
 async def delete_draft_invoices(
-    conn: asyncmy.Connection, *, customer_id: int
+    connection: asyncmy.Connection, *, customer_id: int
 ) -> asyncmy.cursors.Cursor:
-    cur = conn.cursor(asyncmy.cursors.Cursor)
+    cur = connection.cursor(asyncmy.cursors.Cursor)
     await _typed(cur).execute(_DELETE_DRAFT_INVOICES, (customer_id,))
     return cur

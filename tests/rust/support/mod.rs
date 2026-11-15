@@ -1,7 +1,3 @@
-//! What the golden tests and the corpus sweep share: reading fixtures, the
-//! invariants every generated output must satisfy, and handing output to
-//! `cargo xtask` for the static gate.
-
 mod fixtures;
 mod models;
 mod module;
@@ -24,14 +20,11 @@ use models::models_follow_catalog;
 use module::{module_problems, prelude};
 use queries::{queries_follow_sqlc, stem};
 
-/// Every invariant of what `request` generated, as listed in `corpus.rs`;
-/// empty if it holds them all.
+/// Every invariant that what `request` generated breaks, as `corpus.rs` lists them.
 pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -> Vec<String> {
     let request = &renamed(request);
     let mut problems = Vec::new();
-    let stems: BTreeSet<String> = (request.queries.iter())
-        .map(|query| stem(&query.filename))
-        .collect();
+    let stems: BTreeSet<String> = (request.queries.iter()).map(|query| stem(&query.filename)).collect();
     let expected: BTreeSet<String> = ["__init__.py", "models.py"]
         .map(String::from)
         .into_iter()
@@ -43,13 +36,14 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
             "wrote {written:?}, not __init__, models and one module per query file: {expected:?}"
         ));
     }
+
     let mut names = BTreeSet::new();
     let mut modules = Vec::new();
     for plugin::File { name, contents } in files {
         if !names.insert(name) {
             problems.push(format!("{name}: written twice"));
         }
-        if !is_inside_out(name) {
+        if !is_inside_output_directory(name) {
             problems.push(format!("{name}: not a path inside the output directory"));
         }
         match std::str::from_utf8(contents).map(|source| (source, parse_module(source))) {
@@ -58,6 +52,7 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
             Err(error) => problems.push(format!("{name}: not UTF-8: {error}")),
         }
     }
+
     let body = |file: &str| -> Option<(&[Stmt], &str)> {
         (modules.iter())
             .find(|(name, ..)| *name == file)
@@ -68,6 +63,7 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
         let found = module_problems(parsed, source);
         problems.extend(found.into_iter().map(|p| format!("{name}: {p}")));
     }
+
     for stem in stems {
         let file = format!("{stem}.py");
         if let Some((module, source)) = body(&file) {
@@ -81,9 +77,8 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
     problems
 }
 
-/// `request` with each column and parameter its options `rename` named
-/// otherwise spelt as renamed, its SQL name kept as its `original_name`:
-/// what the naming checks hold the output to.
+/// We hold the naming checks to the names after the options' `rename`, so each renamed column and parameter takes its
+/// new name here and keeps its SQL name as `original_name`.
 fn renamed(request: &plugin::GenerateRequest) -> plugin::GenerateRequest {
     let mut request = request.clone();
     let Ok(config) = Config::from_request(&request) else {
@@ -98,11 +93,7 @@ fn renamed(request: &plugin::GenerateRequest) -> plugin::GenerateRequest {
         }
     };
     for schema in request.catalog.iter_mut().flat_map(|c| &mut c.schemas) {
-        schema
-            .tables
-            .iter_mut()
-            .flat_map(|t| &mut t.columns)
-            .for_each(rename);
+        schema.tables.iter_mut().flat_map(|t| &mut t.columns).for_each(rename);
     }
     for query in &mut request.queries {
         query.columns.iter_mut().for_each(rename);
@@ -115,9 +106,7 @@ fn renamed(request: &plugin::GenerateRequest) -> plugin::GenerateRequest {
     request
 }
 
-/// Whether a generated file name stays inside the output directory.
-fn is_inside_out(name: &str) -> bool {
+fn is_inside_output_directory(name: &str) -> bool {
     let path = Path::new(name);
-    path.components().next().is_some()
-        && path.components().all(|c| matches!(c, Component::Normal(_)))
+    path.components().next().is_some() && path.components().all(|c| matches!(c, Component::Normal(_)))
 }

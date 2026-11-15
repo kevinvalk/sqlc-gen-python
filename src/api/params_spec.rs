@@ -1,5 +1,3 @@
-//! Specification for a query's parameters.
-
 use super::*;
 use crate::api::fixtures::authors::{params, *};
 use crate::api::fixtures::*;
@@ -41,8 +39,7 @@ fn a_parameter_name_the_user_chose_is_never_numbered() {
         ..query(":exec", "SELECT $1, $2")
     });
     assert!(
-        error
-            .contains(r#"parameters "userId" and "user_id" both become the Python name "user_id""#),
+        error.contains(r#"parameters "userId" and "user_id" both become the Python name "user_id""#),
         "{error}"
     );
 }
@@ -68,9 +65,7 @@ fn a_parameter_sqlc_named_after_an_expression_is_an_error() {
             ..query(":exec", "SELECT $1")
         });
         assert!(
-            error.contains(&format!(
-                r#"sqlc named a parameter "{name}", which is no name"#
-            )),
+            error.contains(&format!(r#"sqlc named a parameter "{name}", which is no name"#)),
             "{error}"
         );
     }
@@ -131,9 +126,8 @@ fn an_unprobed_parameter_is_an_error_naming_its_number_and_name() {
         })
     };
     assert!(
-        unknown(column("p", "point", true)).contains(
-            r#"parameter $2 ("p") has type "point", which has no verified Python mapping"#
-        )
+        unknown(column("p", "point", true))
+            .contains(r#"parameter $2 ("p") has type "point", which has no verified Python mapping"#)
     );
     assert!(unknown(array).contains(r#"parameter $2 ("docs") is an array of "jsonb""#));
     // A parameter's cast is written on the placeholder, not coalesced.
@@ -148,10 +142,9 @@ fn an_unprobed_parameter_is_an_error_naming_its_number_and_name() {
 
 #[test]
 fn a_parameter_typed_by_a_guessed_overload_asks_for_a_cast() {
-    // sqlc types `abs(@x)` by the first overload of `abs` it lists, `bigint`,
-    // and `date_trunc('month', @d)` by `interval`: `x: int` would push a
-    // caller to drop an amount's cents. LIMIT and OFFSET are sqlc's own
-    // `integer`, which is right.
+    // sqlc types `abs(@x)` by the first overload of `abs` it lists, `bigint`, and `date_trunc('month', @d)` by
+    // `interval`, so `x: int` would push a caller to drop an amount's cents. LIMIT and OFFSET are sqlc's own `integer`,
+    // which is right.
     for (name, data_type) in [("x", "bigint"), ("d", "interval")] {
         let error = error(plugin::Query {
             params: vec![param(1, column(name, data_type, true))],
@@ -164,10 +157,7 @@ fn a_parameter_typed_by_a_guessed_overload_asks_for_a_cast() {
             "{error}"
         );
     }
-    let limit = params(
-        vec![param(1, column("lim", "integer", true))],
-        "SELECT 1 LIMIT $1",
-    );
+    let limit = params(vec![param(1, column("lim", "integer", true))], "SELECT 1 LIMIT $1");
     assert_eq!(limit.params[0].ty.element, Type::INT);
 }
 
@@ -216,10 +206,7 @@ fn a_name_the_user_chose_is_one_parameter_wherever_mysql_binds_it() {
         },
     )
     .unwrap_err();
-    assert!(
-        format!("{error:#}").contains("is used as str and as int"),
-        "{error:#}"
-    );
+    assert!(format!("{error:#}").contains("is used as str and as int"), "{error:#}");
 }
 
 #[test]
@@ -241,9 +228,7 @@ fn a_slice_is_a_list_of_its_type_bound_one_placeholder_per_item() {
     .unwrap();
     assert!(resolved.sql.is_slice("ids"));
     assert_eq!(
-        resolved.params[0]
-            .ty
-            .describe(crate::python::Scope::Queries),
+        resolved.params[0].ty.describe(crate::python::Scope::Queries),
         "list[int]"
     );
     assert!(resolved.sql.0.contains(&Piece::Slice {

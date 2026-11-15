@@ -1,13 +1,11 @@
-# Failures the runtime sweep must keep finding in what the generator emits for
-# corpus cases, because sqlc reports something PostgreSQL does not do, and the
-# generator is right to follow sqlc (AGENTS.md: never re-infer what sqlc
-# reports). Each is a documented limitation (docs/python-output.md, "Known
-# limitations") or a sqlc catalog bug. Each names the function (from its
-# leading `.`, so that it matches it and its coroutine) or model and
-# the field, and matches only a value outside its annotation (an
-# AssertionError from deep.check), with any list index written `[]`. `verify`
-# counts each one where it happens and goes on; one that no longer happens
-# fails it, so it is removed once sqlc or the generator changes.
+# Failures the runtime sweep must keep finding in what the generator emits for corpus cases, because sqlc reports
+# something PostgreSQL does not do and the generator is right to follow sqlc (AGENTS.md: never re-infer what sqlc
+# reports). Each is a documented limitation (docs/python-output.md, "Known limitations") or a sqlc catalog bug.
+#
+# A line names the function (from its leading `.`, so it matches both the function and its coroutine) or the model and
+# the field, with any list index written as `[]`, and it only matches a value outside its annotation (an AssertionError
+# from deep.check). `verify` counts each one where it happens and goes on, but one that no longer happens fails it, so
+# we remove it once sqlc or the generator changes.
 #
 # corpus case	text of the failure	why
 create_table_as/postgresql	Foo.from_row on public.second_table.val: NoneType None is not <class 'str'>	sqlc copies NOT NULL into CREATE TABLE AS; PostgreSQL does not

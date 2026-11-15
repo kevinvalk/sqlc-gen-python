@@ -20,7 +20,7 @@ RETURNING id, invoice_id, method, amount, "from", received_at"""
 
 
 def record_payment(
-    conn: psycopg.Connection[Any],
+    connection: psycopg.Connection[Any],
     *,
     invoice_id: UUID,
     method: models.BillingPaymentMethod,
@@ -28,7 +28,7 @@ def record_payment(
     from_: str | None,
     received_at: dt.datetime,
 ) -> models.BillingPayment:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_RECORD_PAYMENT, (invoice_id, method, amount, from_, received_at))
         match cur.fetchmany(2):
             case [row]:
@@ -45,9 +45,9 @@ ORDER BY received_at"""
 
 
 def list_payments_by_methods(
-    conn: psycopg.Connection[Any], *, methods: list[models.BillingPaymentMethod]
+    connection: psycopg.Connection[Any], *, methods: list[models.BillingPaymentMethod]
 ) -> list[models.BillingPayment]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_PAYMENTS_BY_METHODS, (methods,))
         return [models.BillingPayment.from_row(row) for row in cur.fetchall()]
 
@@ -58,10 +58,10 @@ _LIST_INVOICE_PAYMENT_METHODS: Final = """SELECT ARRAY(
 
 
 def list_invoice_payment_methods(
-    conn: psycopg.Connection[Any], *, invoice_id: UUID
+    connection: psycopg.Connection[Any], *, invoice_id: UUID
 ) -> list[models.BillingPaymentMethod]:
     """An unnamed column: PostgreSQL names it `array`, and sqlc nothing."""
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_INVOICE_PAYMENT_METHODS, (invoice_id,))
         match cur.fetchmany(2):
             case [row]:
@@ -76,9 +76,9 @@ _LIST_INVOICE_BALANCES: Final = "SELECT invoice_id, customer_id, number, paid FR
 
 
 def list_invoice_balances(
-    conn: psycopg.Connection[Any], *, customer_id: UUID
+    connection: psycopg.Connection[Any], *, customer_id: UUID
 ) -> list[models.InvoiceBalance]:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_INVOICE_BALANCES, (customer_id,))
         return [models.InvoiceBalance.from_row(row) for row in cur.fetchall()]
 
@@ -102,13 +102,13 @@ class ListCustomerPaymentsRow:
 
 
 def list_customer_payments(
-    conn: psycopg.Connection[Any],
+    connection: psycopg.Connection[Any],
 ) -> list[ListCustomerPaymentsRow]:
     """Every customer, with each payment of an invoice of theirs, or none: what
     stands left of the RIGHT JOIN may be without a row, though sqlc reports
     the columns of a join there NOT NULL.
     """
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_CUSTOMER_PAYMENTS)
         return [ListCustomerPaymentsRow.from_row(row) for row in cur.fetchall()]
 
@@ -131,11 +131,11 @@ class ListCustomersIssuedRow:
 
 
 def list_customers_issued(
-    conn: psycopg.Connection[Any],
+    connection: psycopg.Connection[Any],
 ) -> list[ListCustomersIssuedRow]:
     """Every customer, with the number of each issued invoice of theirs, or none:
     sqlc reports the column of a subquery NOT NULL, as its table's.
     """
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_CUSTOMERS_ISSUED)
         return [ListCustomersIssuedRow.from_row(row) for row in cur.fetchall()]

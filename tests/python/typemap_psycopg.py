@@ -1,10 +1,8 @@
-"""The psycopg backend's part of the type-truth probe: every PostgreSQL type
-it alone maps (``TEXT`` and the ranges of ``src/backend/psycopg.rs``), a
-column of ``examples/pgtext``, at its edges, through psycopg and psycopg
-async as the backend reads them (``typemap_columns.py``).
+"""The psycopg backend's part of the type-truth probe: every PostgreSQL type it alone maps (``TEXT`` and the ranges of
+``src/backend/psycopg.rs``) is a column of ``examples/pgtext``, read through psycopg and psycopg async.
 
-Every other type the backend maps is the engine's, which SQLAlchemy hands
-through from the same driver: ``typemap_postgres.py`` probes those.
+Every other type the backend maps is the engine's, which SQLAlchemy hands through from the same driver, so
+``typemap_postgres.py`` probes those.
 """
 
 from __future__ import annotations
@@ -28,8 +26,7 @@ if TYPE_CHECKING:
 
 SCHEMA = EXAMPLES / "pgtext/schema.sql"
 
-# SQL expressions at the edges of each type's domain, by the type as
-# PostgreSQL spells it (`format_type`).
+# SQL expressions at the edges of each type, by the type as PostgreSQL spells it (`format_type`).
 EDGES: dict[str, tuple[str, ...]] = {
     "hstore": ("''", "'a=>1, b=>NULL'", "'\"a b\"=>\"c, d\", \"ü\"=>\"\\\\\"'"),
     "bit(3)": ("B'000'", "B'101'"),
@@ -58,33 +55,28 @@ EDGES: dict[str, tuple[str, ...]] = {
 }  # fmt: skip
 
 
-# Each session commits every statement: one the probe expects to fail must
-# not fail those after it.
+# Each session commits every statement, so that one we expect to fail does not fail those after it.
 @asynccontextmanager
 async def sync(url: sqlalchemy.URL) -> AsyncIterator[tuple[object, Any]]:
-    """A session on a psycopg connection, as the ``psycopg`` backend takes one."""
-    with psycopg.connect(postgres.conninfo(url), autocommit=True) as conn:
+    with psycopg.connect(postgres.conninfo(url), autocommit=True) as connection:
 
         async def run(sql: str) -> list[tuple[Any, ...]]:
-            cur = conn.execute(sql.encode())
-            return cur.fetchall() if cur.description else []
+            cursor = connection.execute(sql.encode())
+            return cursor.fetchall() if cursor.description is not None else []
 
-        yield conn, run
+        yield connection, run
 
 
 @asynccontextmanager
 async def asynchronous(url: sqlalchemy.URL) -> AsyncIterator[tuple[object, Any]]:
-    """The same, of the backend's coroutines."""
-    connecting = psycopg.AsyncConnection.connect(
-        postgres.conninfo(url), autocommit=True
-    )
-    async with await connecting as conn:
+    connecting = psycopg.AsyncConnection.connect(postgres.conninfo(url), autocommit=True)
+    async with await connecting as connection:
 
         async def run(sql: str) -> list[tuple[Any, ...]]:
-            cur = await conn.execute(sql.encode())
-            return await cur.fetchall() if cur.description else []
+            cursor = await connection.execute(sql.encode())
+            return await cursor.fetchall() if cursor.description is not None else []
 
-        yield conn, run
+        yield connection, run
 
 
 ENGINE = Engine(
@@ -104,10 +96,10 @@ ENGINE = Engine(
 
 
 def probe(server: sqlalchemy.URL) -> Section:
-    """Probe every type of ``examples/pgtext`` on ``server``."""
     with postgres.database(server, SCHEMA.read_text()) as url:
         probes = typemap_columns.probe(ENGINE, url)
-    # As `typemap_postgres` names the server.
+
+    # We name the server as `typemap_postgres` does.
     major = postgres.version(server).split(".", maxsplit=1)[0]
     return Section(
         "psycopg-only PostgreSQL",

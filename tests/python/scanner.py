@@ -1,23 +1,7 @@
-"""Prove the SQL rewriting for SQLAlchemy's ``text()``
-(``src/backend/sqlalchemy/text.rs``) against PostgreSQL's own scanner.
+"""Prove the SQL rewriting for SQLAlchemy's ``text()`` (``src/backend/sqlalchemy/text.rs``) against PostgreSQL's own
+scanner, as ``docs/python-output.md`` describes under Proof. No database is needed, so ``cargo xtask check`` runs it.
 
 usage: scanner.py
-
-Hypothesis draws SQL from a grammar of what PostgreSQL scans specially:
-standard, ``E``, ``U&`` and bit strings, with ``''``, backslashes and
-continuations across a newline; dollar quotes and their tags; nested
-``/* */`` and ``--`` comments ending at ``\\n``, ``\\r`` or the end; quoted
-identifiers; casts, colons and ``:name``-like text; identifiers holding
-``$``; and placeholders glued to all of them. For every text PostgreSQL scans
-(pglast is libpg_query, the scanner sqlc parses with), ``text`` (through
-``cargo xtask sql-text``) rewrites it for exactly the placeholders
-PostgreSQL found, and SQLAlchemy's ``text()`` must bind exactly those, at
-exactly their positions, and compile back to the input byte for byte: as
-SQLAlchemy renders it, and as its asyncpg dialect sends it, each bind a
-``$N`` of its own. The rewriting may refuse only what ``text()`` cannot
-represent (``docs/python-output.md`` §6, "On SQLAlchemy", rule 2), and a
-named parameter sqlc left as written (rule 1). No database is needed:
-``cargo xtask check`` runs it.
 """
 
 from __future__ import annotations
@@ -40,23 +24,19 @@ from pglast import parser
 ROOT = Path(__file__).resolve().parents[2]
 SCANNED = 4000
 ASYNCPG = sqlalchemy.URL.create("postgresql+asyncpg").get_dialect()()
-# A placeholder's parameter name: no fragment below spells it, so in what
-# SQLAlchemy compiles, every match is a bind.
+# No fragment below spells this parameter name, so every match in what SQLAlchemy compiles is a bind.
 NAME = "zq{}"
 BIND = re.compile(r":zq(\d+)")
-# sqlc's functions, as the tokens of a call, which sqlc rewrites wherever it
-# analyses a statement.
+# The tokens of a call to one of sqlc's functions, which sqlc rewrites wherever it analyses a statement.
 SQLC_FUNCTIONS = {f"sqlc . {name}" for name in ("arg", "narg", "slice", "embed")}
 
 
-# A letter of Unicode 14 (Python 3.11+) and a code point not yet assigned:
-# `\w` on some supported Python, not on Python 3.10. Every colon escaped, the
-# rewriting reads the same on all of them: drawing these proves it on the
-# one Python this layer runs on.
+# A letter of Unicode 14 (Python 3.11+) and a code point not yet assigned, so `\w` on some supported Python but not on
+# 3.10. As every colon is escaped the rewriting reads the same on all of them, and drawing these proves that on the one
+# Python we run on.
 UNSETTLED = ["\u0870", "\u0378"]
 
-# The grammar. Inside a quote or a comment, anything another fragment would
-# end, start or bind.
+# Inside a quote or a comment we draw anything another fragment would end, start or bind.
 BODY = [
     *["$1", "$2", "$", "$$", "$a$", "$a", ":", ":x", "::", "\\", "'", '"'],
     *["--", "/*", "*/", "\n", "\r", " ", "a", "é", "Ⓐ", "\u0345", "%", "%(x)s"],
@@ -72,18 +52,16 @@ CODE = [
 ]
 PLACEHOLDER = st.sampled_from(["$1", "$2", "$3", "$01"])
 TAG = st.sampled_from(["", "a", "ab", "é", "_1", "A"])
-# Between two strings: whitespace holding a newline continues the first into
-# the second; a space does not, nor, to libpg_query, a comment.
+# Whitespace holding a newline between two strings continues the first into the second. A space does not, and to
+# libpg_query neither does a comment!
 NEWLINE = st.sampled_from(["\n", " \r\n", "\r", " -- c\n", "\n-- c\n\t", "\v\n\f", " "])
 
 
 def body(pieces: list[str]) -> st.SearchStrategy[str]:
-    """Some of ``pieces``, joined."""
     return st.lists(st.sampled_from(pieces), max_size=6).map("".join)
 
 
 def quoted(quote: str, prefixes: list[str]) -> st.SearchStrategy[str]:
-    """A ``quote``-delimited token, its quotes in it doubled."""
     return st.builds(
         lambda prefix, text: prefix + quote + text.replace(quote, 2 * quote) + quote,
         st.sampled_from(prefixes),
@@ -91,7 +69,7 @@ def quoted(quote: str, prefixes: list[str]) -> st.SearchStrategy[str]:
     )
 
 
-# The inside of an E string, where a quote may also be `\'`.
+# Inside an E string a quote may also be `\'`.
 E_BODY = body([*BODY, "''", "\\'", "\\\\", "\\n", "\\x41", "\\u00e9"]).map(
     lambda text: re.sub(r"(?<!\\)'(?!')", "''", text)
 )
@@ -101,9 +79,8 @@ CONTINUED = st.builds(
     lambda first, newline, rest: f"{first}{newline}{rest}",
     STRING,
     NEWLINE,
-    # A next string that ends elsewhere if it continues an E string.
-    E_BODY.map(lambda text: f"'{text}'")
-    | st.sampled_from(["'\\' $1 '", "'\\' $1 ''", "'\\\\' $1 '", "'\\'' $1 '"]),
+    # A next string that ends elsewhere when it continues an E string.
+    E_BODY.map(lambda text: f"'{text}'") | st.sampled_from(["'\\' $1 '", "'\\' $1 ''", "'\\\\' $1 '", "'\\'' $1 '"]),
 )
 DOLLAR = st.builds(
     lambda tag, text: f"${tag}${text}${tag}$",
@@ -113,15 +90,15 @@ DOLLAR = st.builds(
 IDENTIFIER = quoted('"', ["", "U&"])
 LINE_COMMENT = st.builds(
     lambda text, end: f"--{text}{end}",
-    body([p for p in BODY if p not in "\n\r"]),
+    body([piece for piece in BODY if piece not in "\n\r"]),
     st.sampled_from(["\n", "\r", "\r\n", ""]),
 )
 # Nested, with text between the two ends.
 BLOCK_COMMENT = st.builds(
     lambda before, inner, after: f"/*{before}/*{inner}*/{after}*/",
     body(BODY),
-    body([p for p in BODY if p not in {"/*", "*/"}]),
-    body([p for p in BODY if p not in {"/*", "*/"}]),
+    body([piece for piece in BODY if piece not in {"/*", "*/"}]),
+    body([piece for piece in BODY if piece not in {"/*", "*/"}]),
 )
 FRAGMENT = st.one_of(
     st.sampled_from(CODE),
@@ -133,42 +110,34 @@ FRAGMENT = st.one_of(
     LINE_COMMENT,
     BLOCK_COMMENT,
 )
-TEXT = st.lists(FRAGMENT, min_size=1, max_size=16).map(
-    lambda fragments: "SELECT " + "".join(fragments)
-)
+TEXT = st.lists(FRAGMENT, min_size=1, max_size=16).map(lambda fragments: "SELECT " + "".join(fragments))
 
 
 @dataclass(frozen=True)
 class Placeholder:
-    """A ``PARAM`` token of PostgreSQL's scanner."""
-
     start: int
     text: str
 
     @property
     def number(self) -> int:
-        """The parameter it binds."""
         return int(self.text[1:])
 
 
 def placeholders(sql: str) -> list[Placeholder] | None:
-    """The placeholders PostgreSQL scans in ``sql``, or ``None`` if it cannot
-    scan it, so that sqlc would not have parsed it.
+    """The ``PARAM`` tokens PostgreSQL scans in ``sql``, or ``None`` when it cannot scan it, as sqlc would not have
+    parsed it either.
     """
     try:
         tokens = parser.scan(sql)
     except parser.ParseError:
         return None
-    # Offsets count characters, and `end` is the token's last one.
-    return [
-        Placeholder(t.start, sql[t.start : t.end + 1])
-        for t in tokens
-        if t.name == "PARAM"
-    ]
+
+    # NOTE: Offsets count characters, and `end` is the token's last one.
+    return [Placeholder(token.start, sql[token.start : token.end + 1]) for token in tokens if token.name == "PARAM"]
 
 
 class Rewriter:
-    """SQLAlchemy's ``text`` rewriting in a process of its own."""
+    """The plugin's rewriting for SQLAlchemy's ``text()``, in a ``cargo xtask sql-text`` process of its own."""
 
     def __init__(self) -> None:
         cargo = os.environ.get("CARGO", "cargo")
@@ -180,86 +149,88 @@ class Rewriter:
             text=True,
             encoding="utf-8",
         )
-        # Both are pipes.
+        # Both are pipes, so never None.
         self.stdin = cast("IO[str]", self.process.stdin)
         self.stdout = cast("IO[str]", self.process.stdout)
 
     def __call__(self, sql: str, numbers: set[int]) -> dict[str, str]:
-        """``sql`` rewritten for ``numbers``: ``{"Ok": text}`` or ``{"Err": why}``."""
-        params = [[n, NAME.format(n)] for n in sorted(numbers)]
-        self.stdin.write(json.dumps([sql, params]) + "\n")
+        """Rewrite ``sql`` for the parameter ``numbers`` into ``{"Ok": text}`` or ``{"Err": reason}``."""
+        parameters = [[number, NAME.format(number)] for number in sorted(numbers)]
+        self.stdin.write(json.dumps([sql, parameters]) + "\n")
         self.stdin.flush()
-        if not (line := self.stdout.readline()):
+        if (line := self.stdout.readline()) == "":
             message = "cargo xtask sql-text exited"
             raise RuntimeError(message)
         result: dict[str, str] = json.loads(line)
         return result
 
     def close(self) -> None:
-        """Let the process finish."""
         self.stdin.close()
         self.process.wait()
 
 
 def refusal(sql: str, found: list[Placeholder]) -> str | None:
-    """Why the rewriting must refuse ``sql``, if it must.
-
-    In the order the rewriting checks: sqlc left a named parameter as written,
-    as it does in a statement it does not analyse (a lone ``@`` operator
-    directly before what starts an identifier, or ``sqlc.arg`` and its kin); or
-    a placeholder directly follows ``:``, ``\\`` or a word character (a digit
-    of another placeholder, say), or runs into a word character, which
-    ``text()`` would read as part of its bind.
+    """Why the rewriting must refuse ``sql``, if it must, checked in the order the rewriting checks. It may refuse only
+    these two (``docs/python-output.md`` §6, "On SQLAlchemy", rules 1 and 2).
     """
-    code = [t for t in parser.scan(sql) if t.name not in {"C_COMMENT", "SQL_COMMENT"}]
-    texts = [sql[t.start : t.end + 1] for t in code]
+    code = [token for token in parser.scan(sql) if token.name not in {"C_COMMENT", "SQL_COMMENT"}]
+    texts = [sql[token.start : token.end + 1] for token in code]
+
+    # sqlc leaves a named parameter as written in a statement it does not analyse: a lone `@` operator directly before
+    # what starts an identifier, or `sqlc.arg` and its kin.
     for i, token in enumerate(code):
         follows = sql[token.end + 1 : token.end + 2]
-        at = (texts[i], token.name) == ("@", "Op")
-        if at and (follows == '"' or identifier(follows)):
+        is_at = (texts[i], token.name) == ("@", "Op")
+        if is_at and (follows == '"' or identifier(follows)):
             return "sqlc did not rewrite"
         if " ".join(texts[i : i + 3]).lower() in SQLC_FUNCTIONS:
             return "sqlc did not rewrite"
-    before = (sql[p.start - 1] for p in found)
-    after = (sql[p.start + len(p.text) :][:1] for p in found)
+
+    # `text()` would read a placeholder as part of its bind when it directly follows `:`, `\\` or a word character (a
+    # digit of another placeholder, say), or runs into a word character.
+    before = (sql[placeholder.start - 1] for placeholder in found)
+    after = (sql[placeholder.start + len(placeholder.text) :][:1] for placeholder in found)
     if any(c in {":", "\\"} or word(c) for c in before) or any(word(c) for c in after):
         return "SQLAlchemy text() cannot"
+
     return None
 
 
-def identifier(c: str) -> bool:
-    """Whether PostgreSQL starts an identifier with ``c`` (``ident_start``)."""
-    return c == "_" or (c.isascii() and c.isalpha()) or not c.isascii()
+def identifier(character: str) -> bool:
+    """Whether PostgreSQL starts an identifier with ``character`` (``ident_start``)."""
+    return character == "_" or (character.isascii() and character.isalpha()) or not character.isascii()
 
 
-def word(c: str) -> bool:
-    """Whether ``c`` may be a character of ``\\w``, as SQLAlchemy matches
-    binds, on any supported Python: an ASCII one, or any outside ASCII.
+def word(character: str) -> bool:
+    """Whether ``character`` may match ``\\w``, as SQLAlchemy matches binds, on any supported Python. We take every
+    non-ASCII character as one, as which of them match differs per Python.
     """
-    return not c.isascii() or re.fullmatch(r"\w", c) is not None
+    return not character.isascii() or re.fullmatch(r"\w", character) is not None
 
 
 def check(sql: str, rewrite: Rewriter, tally: Counter[str]) -> None:
-    """Hold the rewriting of ``sql`` to PostgreSQL's scanner and SQLAlchemy."""
     found = placeholders(sql)
     if found is None:
         tally["not scanned by PostgreSQL"] += 1
         return
-    result = rewrite(sql, {p.number for p in found})
+
+    result = rewrite(sql, {placeholder.number for placeholder in found})
     reason = refusal(sql, found)
-    if error := result.get("Err"):
-        # For that reason, not some other, such as a placeholder it did not find.
+    if (error := result.get("Err")) is not None:
+        # It must refuse for that reason and not some other, such as a placeholder it did not find.
         expect(reason is not None and reason in error, f"refused {sql!r}: {error}")
         tally[f"refused: {reason}"] += 1
         return
+
     rewritten = result["Ok"]
     expect(reason is None, f"did not refuse {sql!r}: {rewritten!r}")
     compiled = str(sqlalchemy.text(rewritten).compile())
-    # Each bind back as the placeholder PostgreSQL found, noting where it lands.
+
+    # We put each bind back as the placeholder PostgreSQL found, noting where it lands.
     pieces = BIND.split(compiled)
-    numbers = [int(n) for n in pieces[1::2]]
+    numbers = [int(number) for number in pieces[1::2]]
     expect(
-        numbers == [p.number for p in found],
+        numbers == [placeholder.number for placeholder in found],
         f"{sql!r} rewritten {rewritten!r} binds {numbers}",
     )
     undone, starts = pieces[0], list[int]()
@@ -267,34 +238,29 @@ def check(sql: str, rewrite: Rewriter, tally: Counter[str]) -> None:
         starts.append(len(undone))
         undone += placeholder.text + text
     expect(
-        (undone, starts) == (sql, [p.start for p in found]),
+        (undone, starts) == (sql, [placeholder.start for placeholder in found]),
         f"{sql!r} rewritten {rewritten!r} compiles to {compiled!r}",
     )
-    # asyncpg is sent each bind as `$k`, numbered by its first appearance, and
-    # the values in that order.
+
+    # SQLAlchemy sends asyncpg each bind as `$k`, numbered by its first appearance, and the values in that order.
     on_asyncpg = sqlalchemy.text(rewritten).compile(dialect=ASYNCPG)
     order = list(dict.fromkeys(numbers))
-    sent = pieces[0] + "".join(
-        f"${order.index(n) + 1}{text}"
-        for n, text in zip(numbers, pieces[2::2], strict=True)
-    )
+    sent = pieces[0] + "".join(f"${order.index(n) + 1}{text}" for n, text in zip(numbers, pieces[2::2], strict=True))
     expect(
-        (str(on_asyncpg), on_asyncpg.positiontup)
-        == (sent, [NAME.format(n) for n in order]),
+        (str(on_asyncpg), on_asyncpg.positiontup) == (sent, [NAME.format(n) for n in order]),
         f"{sql!r} rewritten {rewritten!r} compiles on asyncpg to {on_asyncpg!r}",
     )
     tally["scanned and rewritten"] += 1
 
 
 def expect(holds: bool, discrepancy: str) -> None:  # noqa: FBT001
-    """Fail the example unless ``holds``."""
     if not holds:
         raise AssertionError(discrepancy)
 
 
 def prove() -> str:
-    """Run the property; raise on a discrepancy, shrunk, or if too few
-    examples were held to anything. Return a line of tallies.
+    """Run the property and return a line of tallies. We raise on a discrepancy (shrunk), and also when too few examples
+    were held to anything, as then the property proves little.
     """
     scanned = Counter[str]()
     rewrite = Rewriter()
@@ -315,11 +281,10 @@ def prove() -> str:
     finally:
         rewrite.close()
     expect(scanned["scanned and rewritten"] > SCANNED // 4, f"too few: {scanned}")
-    return ", ".join(f"{n} {what}" for what, n in sorted(scanned.items()))
+    return ", ".join(f"{count} {outcome}" for outcome, count in sorted(scanned.items()))
 
 
 def main() -> int:
-    """Prove the rewriting, raising on a discrepancy."""
     print(prove())
     return 0
 

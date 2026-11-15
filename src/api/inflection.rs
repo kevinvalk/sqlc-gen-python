@@ -1,10 +1,7 @@
-//! Singularising table names exactly as sqlc does, so a model class has the
-//! name sqlc's Go codegen gives the same table's struct (`media` is `Medium`).
-//!
-//! This ports sqlc's `internal/inflection`: its corrections, then the rules of
-//! `github.com/jinzhu/inflection` v1.0.0 in the order that library tries them,
-//! quirks included (`leaves` is `leafe`). `tests/sqlc/endtoend/inflection.tsv`,
-//! captured from sqlc's own code, holds the port to it.
+//! A port of sqlc's `internal/inflection`, so a model class gets the name sqlc's Go codegen gives the same table's
+//! struct (`media` is `Medium`). That is sqlc's own corrections, then the rules of `github.com/jinzhu/inflection`
+//! v1.0.0 in the order that library tries them, quirks included (`leaves` is `leafe`).
+//! `tests/sqlc/endtoend/inflection.tsv`, captured from sqlc's own code, holds the port to it.
 
 use std::sync::LazyLock;
 
@@ -37,7 +34,7 @@ const IRREGULAR: &[(&str, &str)] = &[
     ("mombie", "mombies"),
 ];
 
-/// `(find, replace)`, tried last to first.
+/// `(find, replace)`, which jinzhu tries last to first.
 const SINGULAR: &[(&str, &str)] = &[
     ("s$", ""),
     ("(ss)$", "${1}"),
@@ -72,9 +69,8 @@ const SINGULAR: &[(&str, &str)] = &[
     ("(database)s$", "${1}"),
 ];
 
-/// jinzhu's rules as it compiles them: uncountables, then irregulars and
-/// regular rules each in an upper-case, an as-written and a case-insensitive
-/// form. The first that matches decides.
+/// The rules as jinzhu compiles them: the uncountables, then every irregular and regular rule in an upper-case, an
+/// as-written and a case-insensitive form. The first that matches decides.
 static RULES: LazyLock<Vec<(Regex, String)>> = LazyLock::new(|| {
     let title = |word: &str| word[..1].to_uppercase() + &word[1..];
     let uncountable = (UNCOUNTABLE.iter()).map(|word| (format!("^(?i)({word})$"), "${1}".into()));
@@ -97,9 +93,8 @@ static RULES: LazyLock<Vec<(Regex, String)>> = LazyLock::new(|| {
         .collect()
 });
 
-/// The singular of a table name, as sqlc's `inflection.Singular` gives it.
 pub fn singular(name: &str) -> String {
-    // sqlc's corrections of jinzhu, each for an issue filed against sqlc.
+    // sqlc corrects jinzhu on these, each because of an issue filed against sqlc
     match name.to_lowercase().as_str() {
         "campus" | "meta" => return name.into(),
         "calories" => return "calorie".into(),
@@ -107,10 +102,8 @@ pub fn singular(name: &str) -> String {
         "metadata" => return "metadata".into(),
         _ => {}
     }
-    (RULES.iter())
-        .find(|(rule, _)| rule.is_match(name))
-        .map_or_else(
-            || name.into(),
-            |(rule, replace)| rule.replace_all(name, replace.as_str()).into_owned(),
-        )
+    (RULES.iter()).find(|(rule, _)| rule.is_match(name)).map_or_else(
+        || name.into(),
+        |(rule, replace)| rule.replace_all(name, replace.as_str()).into_owned(),
+    )
 }

@@ -1,9 +1,6 @@
-"""MySQL's part of the type-truth probe: every type in the generator's map
-(``TYPES`` in ``src/engine/mysql/types.rs``), a column of
-``examples/mysqltypes``, at its edges, through PyMySQL and asyncmy as the
-``pymysql`` backend reads them, asyncmy also with the statements it prepares
-on the server when asked to, and through SQLAlchemy on either
-(``typemap_columns.py``).
+"""MySQL's part of the type-truth probe: every type in the generator's map (``TYPES`` in ``src/engine/mysql/types.rs``)
+is a column of ``examples/mysqltypes``, read through PyMySQL and asyncmy as the ``pymysql`` backend reads them (asyncmy
+also with server-side prepared statements) and through SQLAlchemy on either.
 """
 
 from __future__ import annotations
@@ -25,15 +22,12 @@ if TYPE_CHECKING:
     from typemap_columns import Session
 
 SCHEMA = EXAMPLES / "mysqltypes/schema.sql"
-# The session's time zone. Not UTC, which would hide what a driver does with it.
-TIME_ZONE = "+05:30"
+TIME_ZONE = "+05:30"  # Not UTC, as that would hide what a driver does with the session's time zone
 
-# Every byte, as a literal.
 BYTES = f"x'{bytes(range(256)).hex()}'"
 
-# SQL expressions at the edges of each type's domain, by the type as MySQL
-# spells it (`information_schema.columns.column_type`). None holds a `%`,
-# which a driver would format.
+# SQL expressions at the edges of each type, by the type as MySQL spells it (`information_schema.columns.column_type`).
+# NOTE: No expression may hold a `%`, as a driver would format it!
 EDGES: dict[str, tuple[str, ...]] = {
     "tinyint(1)": ("TRUE", "FALSE", "2", "-128"),
     "tinyint": ("-128", "127"),
@@ -80,39 +74,37 @@ EDGES: dict[str, tuple[str, ...]] = {
 
 @asynccontextmanager
 async def pymysql(url: sqlalchemy.URL) -> AsyncIterator[tuple[object, Any]]:
-    """A session on a PyMySQL connection, as the ``pymysql`` backend takes one."""
-    conn = mysql.connect(url)
+    connection = mysql.connect(url)
     try:
 
         async def run(sql: str) -> list[tuple[Any, ...]]:
-            with conn.cursor() as cur:
-                cur.execute(sql)
-                return list(cur.fetchall())
+            with connection.cursor() as cursor:
+                cursor.execute(sql)
+                return list(cursor.fetchall())
 
-        yield conn, run
+        yield connection, run
     finally:
-        conn.close()
+        connection.close()
 
 
 def asyncmy(prepared: int) -> Callable[[sqlalchemy.URL], Session]:
-    """A session on an asyncmy connection, as the ``pymysql`` backend's
-    coroutines take one, which keeps up to ``prepared`` statements prepared
-    on the server: the values of one cross as binary, not as text.
+    """Make a session on an asyncmy connection that keeps up to ``prepared`` statements prepared on the server, as the
+    values of a prepared statement cross as binary instead of as text.
     """
 
     @asynccontextmanager
     async def connect(url: sqlalchemy.URL) -> AsyncIterator[tuple[object, Any]]:
-        conn = await mysql.connect_async(url, stmt_cache_size=prepared)
+        connection = await mysql.connect_async(url, stmt_cache_size=prepared)
         try:
 
             async def run(sql: str) -> list[tuple[Any, ...]]:
-                async with conn.cursor() as cur:
-                    await cur.execute(sql)
-                    return list(await cur.fetchall())
+                async with connection.cursor() as cursor:
+                    await cursor.execute(sql)
+                    return list(await cursor.fetchall())
 
-            yield conn, run
+            yield connection, run
         finally:
-            await conn.ensure_closed()
+            await connection.ensure_closed()
 
     return connect
 
@@ -145,20 +137,17 @@ ENGINE = Engine(
         " WHERE table_schema = DATABASE() AND table_name = 'scalars'"
         " ORDER BY ordinal_position"
     ),
-    # JSON holds any value exactly, and legibly: a `FLOAT` as the double it
-    # is, bytes as base64.
+    # JSON holds any value exactly and legibly: a `FLOAT` as the double it is, bytes as base64.
     held="SELECT JSON_UNQUOTE(JSON_EXTRACT(JSON_ARRAY({}), '$[0]')) FROM scalars",
 )
 
 
 def probe(server: sqlalchemy.URL) -> Section:
-    """Probe every type of ``examples/mysqltypes`` on ``server``."""
     with mysql.database(server, SCHEMA.read_text()) as url:
         probes = typemap_columns.probe(ENGINE, url)
     return Section(
         "MySQL",
-        f"MySQL {release(mysql.version(server))}, session time zone {TIME_ZONE}, with"
-        f" {versions('pymysql', 'asyncmy')}",
+        f"MySQL {release(mysql.version(server))}, session time zone {TIME_ZONE}, with {versions('pymysql', 'asyncmy')}",
         tuple(driver.name for driver in ENGINE.drivers),
         probes,
     )

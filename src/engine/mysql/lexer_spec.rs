@@ -1,9 +1,6 @@
-//! Specification for finding sqlc's placeholders as MySQL's lexer does.
-
 use crate::engine::{Piece, binds};
 
-/// The names of the parameters `sql` binds, in order, with `?` number `n`
-/// named `pn`.
+/// The names of the parameters `sql` binds in order, with `?` number `n` named `pn`.
 fn bound(sql: &str, count: i32) -> Vec<String> {
     let names: Vec<String> = (1..=count).map(|n| format!("p{n}")).collect();
     let params: Vec<(i32, &str)> = (1..=count).zip(names.iter().map(String::as_str)).collect();
@@ -38,18 +35,15 @@ fn a_placeholder_is_only_code() {
     ] {
         assert_eq!(bound(sql, 0), [""; 0], "{sql}");
     }
-    // `--` without a space is two minus signs, not a comment.
+    // `--` without a space is two minus signs, not a comment
     assert_eq!(bound("SELECT 1--?", 1), ["p1"]);
-    // A backslash escapes the quote in a string, never in an identifier.
+    // A backslash escapes the quote in a string, never in an identifier
     assert_eq!(bound(r"SELECT `a\`, ?", 1), ["p1"]);
 }
 
 #[test]
 fn a_mismatch_with_sqlcs_parameters_is_an_error() {
-    let error = format!(
-        "{:#}",
-        super::sql("SELECT '?'", &binds(&[(1, "a")])).unwrap_err()
-    );
+    let error = format!("{:#}", super::sql("SELECT '?'", &binds(&[(1, "a")])).unwrap_err());
     assert!(error.contains(r#"parameter ? #1 ("a")"#), "{error}");
     let error = format!("{:#}", super::sql("SELECT ?", &[]).unwrap_err());
     assert!(error.contains("uses ?"), "{error}");

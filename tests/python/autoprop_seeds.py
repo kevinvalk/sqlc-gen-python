@@ -1,9 +1,4 @@
-"""Seeding a table in the runtime sweep (see ``autoprop``).
-
-``draw_row`` draws a row for a table and ``insert`` writes the statement that
-stores it; ``read`` reads what the database returned through the table's
-generated model, which must agree with the row read by position.
-"""
+"""Seeding a table in the runtime sweep (see ``autoprop``)."""
 
 from __future__ import annotations
 
@@ -26,8 +21,8 @@ if TYPE_CHECKING:
 
 
 def read(table: Table, row: Sequence[object]) -> object:
-    """Read a row through its model's ``from_row``, which must agree with
-    reading it by position (§4) and inhabit the model's annotations.
+    """Read a row through its model's ``from_row``, which must agree with reading it by position (§4) and inhabit the
+    model's annotations.
     """
     record = table.model.from_row(row)
     where = f"{table.model.__name__}.from_row on {table.sql}"
@@ -38,59 +33,56 @@ def read(table: Table, row: Sequence[object]) -> object:
     return record
 
 
-def same(a: object, b: object) -> bool:
-    """Whether two records hold the same values, field by field, a value
-    being the same as itself: a NaN is not equal to itself, and since Python
-    3.13 a dataclass compares its fields by ``==`` alone.
+def same(left: object, right: object) -> bool:
+    """Whether two records hold the same values field by field, a value being the same as itself.
+
+    We need this as a NaN is not equal to itself, and since Python 3.13 a dataclass compares its fields by ``==`` alone.
     """
-    if dataclasses.is_dataclass(a) and type(a) is type(b):
-        return all(
-            same(getattr(a, f.name), getattr(b, f.name)) for f in dataclasses.fields(a)
-        )
-    return a is b or a == b
+    if dataclasses.is_dataclass(left) and type(left) is type(right):
+        return all(same(getattr(left, f.name), getattr(right, f.name)) for f in dataclasses.fields(left))
+    return left is right or left == right
 
 
 def draw_row(data: st.DataObject, table: Table, pool: Pool) -> dict[str, object]:
-    """Draw a row's values: foreign keys from rows seeded before, defaults
-    left out at random. Every draw is made whatever the pool holds (see
-    ``PICK``).
+    """Draw a row's values: foreign keys from rows seeded before, and defaults left out at random.
+
+    We make every draw whatever the pool holds (see ``PICK``).
     """
     values: dict[str, object] = {}
     for column in table.columns:
         if column.generated:
             continue
-        default = column.optional and data.draw(
-            st.booleans(), label=f"{column.name} default"
-        )
+        default = column.optional and data.draw(st.booleans(), label=f"{column.name} default")
         value = data.draw(_seeds(column), label=column.name)
         if not default:
             values[column.name] = value
+
     for columns, referenced, keys in table.references:
         i = data.draw(PICK, label=f"{table.sql} -> {referenced}")
-        if rows := pool.rows[referenced]:
+        rows = pool.rows[referenced]
+        if len(rows) > 0:
             row = rows[i % len(rows)]
-            values |= dict(zip(columns, (row[k] for k in keys), strict=True))
+            values |= dict(zip(columns, (row[key] for key in keys), strict=True))
     return values
 
 
 def _seeds(column: Column) -> st.SearchStrategy[object]:
     values = pgvalues.strategy(column.pg)
     if values is None:
-        return st.none()  # a type nobody has drawn: only NULL, or a refusal
+        return st.none()  # A type nobody draws yet, so only NULL or a refusal
     return st.none() | values if column.nullable else values
 
 
 def insert(
     table: Table, values: dict[str, object], *, ctid: bool = False
 ) -> tuple[sqlalchemy.TextualSelect, dict[str, object]]:
-    """``INSERT ... RETURNING *``, typed where a driver needs it (§6), and its
-    parameters, bound as ``p0``, ``p1``, ... whatever the column names; with
-    ``ctid``, the row's ``ctid`` after it, to read it again by.
+    """``INSERT ... RETURNING *``, typed where a driver needs it (§6), and its parameters bound as ``p0``, ``p1``, ...
+    whatever the column names. With ``ctid`` it returns the row's ``ctid`` after it too, to read it again by.
     """
-    types = {c.name: c.pg for c in table.columns}
+    types = {column.name: column.pg for column in table.columns}
     names = ", ".join('"{}"'.format(name.replace('"', '""')) for name in values)
     places = ", ".join(f":p{i}" for i in range(len(values)))
-    body = f"({names}) VALUES ({places})" if values else "DEFAULT VALUES"
+    body = f"({names}) VALUES ({places})" if len(values) > 0 else "DEFAULT VALUES"
     returning = "*, ctid::text" if ctid else "*"
     statement = sqlalchemy.text(f"INSERT INTO {table.sql} {body} RETURNING {returning}")
     binds = [
@@ -102,11 +94,12 @@ def insert(
         for i, name in enumerate(values)
         if (ranged := sqlalchemy_type(types[name])) is not None
     ]
-    if binds:
+    if len(binds) > 0:
         statement = statement.bindparams(*binds)
+
     columns = [
-        sqlalchemy.column(c.name, enum_array_type(c.pg) or sqlalchemy_type(c.pg))
-        for c in table.columns
+        sqlalchemy.column(column.name, enum_array_type(column.pg) or sqlalchemy_type(column.pg))
+        for column in table.columns
     ]
     typed = statement.columns(*columns, *[sqlalchemy.column("ctid")] * ctid)
     return typed, {f"p{i}": value for i, value in enumerate(values.values())}

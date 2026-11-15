@@ -1,13 +1,8 @@
-//! Specification for the classes of the models module: annotations, and a
-//! catalog's tables and enums as classes.
-
 use anyhow::Result;
 
 use super::*;
 use crate::api::fixtures::catalog::{resolve, *};
 use crate::api::fixtures::*;
-
-// -- Annotations -------------------------------------------------------------
 
 fn field(element: Type, array_dims: usize, optional: bool) -> FieldType {
     FieldType {
@@ -26,10 +21,7 @@ fn annotation(ty: &FieldType) -> String {
 fn a_plain_column_annotates_as_its_element_type() {
     assert_eq!(annotation(&field(Type::INT, 0, false)), "int");
     assert_eq!(annotation(&field(Type::DATE, 0, false)), "dt.date");
-    assert_eq!(
-        annotation(&field(Type::CIDR, 0, false)),
-        "IPv4Network | IPv6Network"
-    );
+    assert_eq!(annotation(&field(Type::CIDR, 0, false)), "IPv4Network | IPv6Network");
 }
 
 #[test]
@@ -52,10 +44,7 @@ fn a_generated_class_is_bare_in_the_models_module_and_qualified_outside_it() {
 #[test]
 fn each_array_dimension_adds_a_list() {
     assert_eq!(annotation(&field(Type::INT, 1, false)), "list[int]");
-    assert_eq!(
-        annotation(&field(Type::INT, 3, false)),
-        "list[list[list[int]]]"
-    );
+    assert_eq!(annotation(&field(Type::INT, 3, false)), "list[list[list[int]]]");
 }
 
 #[test]
@@ -96,10 +85,7 @@ fn inflection_exclude_keeps_the_tables_it_names_verbatim_in_any_case() {
     };
     let tables = || public(vec![table("authors", vec![]), table("media", vec![])]);
 
-    assert_eq!(
-        model_names(&resolve(tables(), &config)),
-        ["Author", "Media"]
-    );
+    assert_eq!(model_names(&resolve(tables(), &config)), ["Author", "Media"]);
     assert_eq!(
         model_names(&resolve(tables(), &ModelConfig::default())),
         ["Author", "Medium"]
@@ -128,11 +114,7 @@ fn enums_are_sorted_by_class_name_whatever_the_catalogs_order() {
         comment: String::new(),
     };
     let resolved = resolve(
-        vec![sql_schema(
-            "public",
-            vec![],
-            vec![named("zone"), named("area")],
-        )],
+        vec![sql_schema("public", vec![], vec![named("zone"), named("area")])],
         &ModelConfig::default(),
     );
 
@@ -155,17 +137,10 @@ fn an_enum_column_resolves_to_the_generated_enum_class() {
         &ModelConfig::default(),
     );
 
-    assert_eq!(
-        resolved.models[0].fields[0].ty.element,
-        Type::Enum("JobStatus".into())
-    );
+    assert_eq!(resolved.models[0].fields[0].ty.element, Type::Enum("JobStatus".into()));
     assert_eq!(resolved.enums[0].name, "JobStatus");
 
-    let members: Vec<&str> = resolved.enums[0]
-        .members
-        .iter()
-        .map(|m| m.name.as_str())
-        .collect();
+    let members: Vec<&str> = resolved.enums[0].members.iter().map(|m| m.name.as_str()).collect();
     assert_eq!(members, ["QUEUED", "IN_PROGRESS"]);
 }
 
@@ -181,11 +156,7 @@ fn enum_column(data_type: &str, array_dims: i32) -> Result<FieldType> {
         ..column("method", data_type, true)
     };
     let resolved = try_resolve(vec![
-        sql_schema(
-            "public",
-            vec![table("payments", vec![column])],
-            vec![payment_method()],
-        ),
+        sql_schema("public", vec![table("payments", vec![column])], vec![payment_method()]),
         sql_schema("billing", vec![], vec![payment_method()]),
     ])?;
     Ok(resolved.models[0].fields[0].ty.clone())
@@ -196,10 +167,7 @@ fn an_enum_is_found_in_the_schema_the_column_names_or_else_the_default_one() {
     // `docs/python-output.md` §5, rule 3: two schemas may declare one name.
     let class = |data_type| enum_column(data_type, 0).unwrap().element;
     assert_eq!(class("payment_method"), Type::Enum("PaymentMethod".into()));
-    assert_eq!(
-        class("public.payment_method"),
-        Type::Enum("PaymentMethod".into())
-    );
+    assert_eq!(class("public.payment_method"), Type::Enum("PaymentMethod".into()));
     assert_eq!(
         class("billing.payment_method"),
         Type::Enum("BillingPaymentMethod".into())
@@ -222,10 +190,7 @@ fn a_value_is_read_as_is_unless_it_holds_enum_labels() {
     let read = |ty: FieldType, scope| crate::python::unparse(&ty.read(row(), scope));
     let status = || Type::Enum("Status".into());
     assert_eq!(read(field(Type::DECIMAL, 1, true), Scope::Models), "row[3]");
-    assert_eq!(
-        read(field(status(), 0, false), Scope::Models),
-        "Status(row[3])"
-    );
+    assert_eq!(read(field(status(), 0, false), Scope::Models), "Status(row[3])");
     assert_eq!(
         read(field(status(), 0, true), Scope::Models),
         "None if row[3] is None else Status(row[3])"
@@ -243,10 +208,7 @@ fn a_value_is_read_as_is_unless_it_holds_enum_labels() {
         as_text: true,
         ..field(status(), 1, false)
     };
-    assert_eq!(
-        read(as_text, Scope::Queries),
-        "models.Status.from_array(row[3])"
-    );
+    assert_eq!(read(as_text, Scope::Queries), "models.Status.from_array(row[3])");
 }
 
 #[test]
@@ -254,11 +216,7 @@ fn a_type_nothing_declares_is_an_error_naming_the_column() {
     // AGENTS.md: never paper over an unknown with `Any`. A domain is one too:
     // sqlc sends its name, never its base type, so the error says what to
     // declare instead.
-    let error = try_resolve(public(vec![table(
-        "odd",
-        vec![column("value", "amount", true)],
-    )]))
-    .unwrap_err();
+    let error = try_resolve(public(vec![table("odd", vec![column("value", "amount", true)])])).unwrap_err();
 
     assert_eq!(
         format!("{error:#}"),
@@ -289,9 +247,8 @@ fn a_view_column_sqlc_typed_by_a_guessed_overload_asks_for_a_cast() {
         let view = table("v_totals", vec![column("total", guess, true)]);
         let error = try_resolve(public(vec![view])).unwrap_err();
         assert!(
-            format!("{error:#}").starts_with(
-                r#"table "v_totals": column "total" has a type sqlc could not infer; add a cast"#
-            ),
+            format!("{error:#}")
+                .starts_with(r#"table "v_totals": column "total" has a type sqlc could not infer; add a cast"#),
             "{guess}: {error:#}"
         );
     }
@@ -324,10 +281,7 @@ fn a_column_that_admits_null_is_optional() {
         not_null: false,
         ..column("bio", "text", true)
     };
-    let resolved = resolve(
-        public(vec![table("authors", vec![nullable])]),
-        &ModelConfig::default(),
-    );
+    let resolved = resolve(public(vec![table("authors", vec![nullable])]), &ModelConfig::default());
 
     assert!(resolved.models[0].fields[0].ty.optional);
 }
@@ -404,8 +358,5 @@ fn a_class_with_the_name_of_an_import_is_an_error() {
         ..plugin::Enum::default()
     };
     let error = try_resolve(vec![sql_schema("public", vec![], vec![decimal])]).unwrap_err();
-    assert!(
-        error.to_string().starts_with("`Decimal` is a name"),
-        "{error}"
-    );
+    assert!(error.to_string().starts_with("`Decimal` is a name"), "{error}");
 }

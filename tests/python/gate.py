@@ -1,24 +1,10 @@
-"""The static gate: is the generated Python correct, typed and idiomatic?
+"""The static gate: every generated file must pass ruff, pyright strict, mypy strict and a real import.
 
 usage: gate.py ROOT...
 
-Each ROOT holds one package per generated output (``ROOT/<package>/*.py``),
-and may hold modules beside them that use those packages, such as the
-runtime suite's ``usage.py``. ``cargo xtask check`` fills one from ``cargo test``;
-``verify.py`` passes the golden cases as generated. Under the lint contract
-in this project's ``pyproject.toml``, everything must pass:
-
-- ``ruff format --check``, and ``ruff check``, which obeys the one
-  directive generated code may hold, ``# ruff: noqa: S105`` (the Rust
-  invariants allow no other);
-- pyright strict, ``mypy --strict``, and a real import of every package module
-  with warnings as errors, under each of ``PYTHONS``: the oldest supported
-  Python and the newest stable one.
-
-Each Python has its own environment in ``target/py``, synced from ``uv.lock``,
-so the type checkers see what that Python installs: SQLAlchemy 2.0 on 3.10,
-2.1 later. Findings are collated per package into one report, and the exit
-status is 1 if there are any, or if a root holds no package to check.
+Each ROOT holds one package per generated output (``ROOT/<package>/*.py``), and may hold modules beside them that use
+those packages, such as the runtime suite's ``usage.py``. We check under each of ``PYTHONS`` in its own environment
+synced from ``uv.lock``, so the type checkers see what that Python installs: SQLAlchemy 2.0 on 3.10, 2.1 later.
 """
 
 from __future__ import annotations
@@ -39,15 +25,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-# The oldest supported Python, and the newest stable one.
-PYTHONS = ("3.10", "3.15")
+PYTHONS = ("3.10", "3.15")  # The oldest supported Python and the newest stable one
 
 PROJECT = Path(__file__).resolve().parent
 CONFIG = PROJECT / "pyproject.toml"
 RUFF_OPTIONS = ("--output-format=json", "--no-cache", f"--config={CONFIG}")
 
-# Run inside an environment: import every module below a directory with
-# warnings as errors, printing a JSON line for each that fails.
+# We run this inside an environment, so it imports with warnings as errors and prints a JSON line per failing module.
 IMPORT_ALL = """
 import importlib, json, pathlib, sys, traceback, warnings
 warnings.simplefilter("error")
@@ -64,22 +48,17 @@ for path in sorted(root.glob("*/**/*.py")):
 
 
 @dataclass(frozen=True)
-class Env:
-    """The environment for one Python version."""
-
+class Environment:
     python: str
 
     @property
     def path(self) -> Path:
-        """Where the environment lives."""
         return PROJECT.parents[1] / "target" / "py" / self.python
 
     def bin(self, name: str) -> str:
-        """Locate an executable installed in the environment."""
         return str(self.path / "bin" / name)
 
     def installed(self, package: str) -> str:
-        """The version of ``package`` installed in the environment."""
         site = [str(path) for path in self.path.glob("lib/python*/site-packages")]
         (found,) = importlib.metadata.distributions(name=package, path=site)
         return found.version
@@ -87,8 +66,6 @@ class Env:
 
 @dataclass(frozen=True)
 class Diagnostic:
-    """One complaint about one file."""
-
     path: Path
     where: str
     message: str
@@ -96,42 +73,37 @@ class Diagnostic:
 
 @dataclass(frozen=True)
 class Run:
-    """What one tool said."""
-
     tool: str
     diagnostics: list[Diagnostic]
-    # What a tool that failed without a diagnostic printed instead.
-    error: str
+    error: str  # What a tool that failed without a diagnostic printed instead
 
 
 def main() -> int:
-    """Run every check over the roots and report the findings."""
-    roots = [Path(arg).resolve() for arg in sys.argv[1:]]
-    if not roots:
+    roots = [Path(argument).resolve() for argument in sys.argv[1:]]
+    if len(roots) <= 0:
         sys.exit("usage: gate.py ROOT...")
     for root in roots:
         if not any(root.glob("*/**/*.py")):
             sys.exit(f"gate: {root} holds no package to check")
     files = sum(1 for root in roots for _ in root.glob("**/*.py"))
-    packages = [p for root in roots for p in sorted(root.iterdir()) if p.is_dir()]
-    envs = [sync(Env(python)) for python in PYTHONS]
-    ruff = envs[0].bin("ruff")
+    packages = [path for root in roots for path in sorted(root.iterdir()) if path.is_dir()]
+    environments = [sync(Environment(python)) for python in PYTHONS]
+    ruff = environments[0].bin("ruff")
 
     jobs: list[Callable[[], Run]] = [
         partial(ruff_format, ruff, roots),
         partial(ruff_check, ruff, roots),
     ]
-    for env in envs:
-        jobs += [partial(pyright, env, roots, files), partial(mypy, env, roots)]
-        jobs += [partial(import_all, env, root) for root in roots]
+    for environment in environments:
+        jobs += [partial(pyright, environment, roots, files), partial(mypy, environment, roots)]
+        jobs += [partial(import_all, environment, root) for root in roots]
     with ThreadPoolExecutor(len(jobs)) as pool:
         runs = [future.result() for future in [pool.submit(job) for job in jobs]]
 
     return report(roots, len(packages), runs)
 
 
-def sync(env: Env) -> Env:
-    """Create or update an environment from the lock file."""
+def sync(environment: Environment) -> Environment:
     subprocess.run(
         [
             "uv",
@@ -139,42 +111,40 @@ def sync(env: Env) -> Env:
             "--quiet",
             "--locked",
             "--managed-python",
-            f"--python={env.python}",
+            f"--python={environment.python}",
         ],
         cwd=PROJECT,
-        env=os.environ | {"UV_PROJECT_ENVIRONMENT": str(env.path)},
+        env=os.environ | {"UV_PROJECT_ENVIRONMENT": str(environment.path)},
         check=True,
     )
-    return env
+    return environment
 
 
 def ruff_format(ruff: str, roots: list[Path]) -> Run:
-    """Files must already be formatted as ruff formats them."""
     command = [ruff, "format", "--check", *RUFF_OPTIONS, *map(str, roots)]
     return run("ruff format", command, parse_ruff)
 
 
 def ruff_check(ruff: str, roots: list[Path]) -> Run:
-    """Every lint rule the contract selects."""
+    # NOTE: Generated code may hold exactly one directive, a file-wide noqa for S105 (the Rust invariants allow no
+    # other), and ruff check obeys it.
     command = [ruff, "check", *RUFF_OPTIONS, *map(str, roots)]
     return run("ruff check", command, parse_ruff)
 
 
-def parse_ruff(out: str) -> list[Diagnostic]:
-    """Read ruff's JSON output, which ``format`` and ``check`` share."""
+def parse_ruff(output: str) -> list[Diagnostic]:
     return [
         Diagnostic(
             Path(d["filename"]),
             f"{d['location']['row']}:{d['location']['column']}",
             f"{d['code']} {d['message']}",
         )
-        for d in json.loads(out or "[]")
+        for d in json.loads(output or "[]")
     ]
 
 
-def parse_pyright(out: str) -> tuple[int, list[Diagnostic]]:
-    """Pyright's report: files analysed, and each finding."""
-    report = json.loads(out or "{}")
+def parse_pyright(output: str) -> tuple[int, list[Diagnostic]]:
+    report = json.loads(output or "{}")
     return report.get("summary", {}).get("filesAnalyzed", 0), [
         Diagnostic(
             Path(d["file"]).resolve(),
@@ -186,9 +156,8 @@ def parse_pyright(out: str) -> tuple[int, list[Diagnostic]]:
     ]
 
 
-def parse_mypy(out: str) -> list[Diagnostic]:
-    """Mypy's findings, notes aside."""
-    lines = [json.loads(line) for line in out.splitlines() if line.startswith("{")]
+def parse_mypy(output: str) -> list[Diagnostic]:
+    lines = [json.loads(line) for line in output.splitlines() if line.startswith("{")]
     return [
         Diagnostic(
             Path(d["file"]).resolve(),
@@ -201,106 +170,100 @@ def parse_mypy(out: str) -> list[Diagnostic]:
     ]
 
 
-def pyright(env: Env, roots: list[Path], files: int) -> Run:
-    """Pyright strict: the stricter type checker, and the one editors run.
-
-    Its command line cannot add import roots, so a configuration extending the
-    contract does, like ``MYPYPATH`` for mypy. It must analyse all ``files``.
-    """
+def pyright(environment: Environment, roots: list[Path], files: int) -> Run:
+    """Pyright strict, the stricter type checker and the one editors run, which must analyse all ``files``."""
     analyzed: list[int] = []
 
-    def parse(out: str) -> list[Diagnostic]:
-        count, findings = parse_pyright(out)
+    def parse(output: str) -> list[Diagnostic]:
+        count, findings = parse_pyright(output)
         analyzed.append(count)
         return findings
 
-    with tempfile.TemporaryDirectory() as tmp:
-        config = Path(tmp, "pyrightconfig.json")
+    # Pyright's command line cannot add import roots (what ``MYPYPATH`` does for mypy), so we write a configuration that
+    # extends the contract and adds them.
+    with tempfile.TemporaryDirectory() as directory:
+        config = Path(directory, "pyrightconfig.json")
         paths = [str(root) for root in roots]
         config.write_text(json.dumps({"extends": str(CONFIG), "extraPaths": paths}))
         command = [
-            *[env.bin("pyright"), "--outputjson", f"--project={config}"],
-            *[f"--pythonversion={env.python}", f"--pythonpath={env.bin('python')}"],
+            *[environment.bin("pyright"), "--outputjson", f"--project={config}"],
+            *[f"--pythonversion={environment.python}", f"--pythonpath={environment.bin('python')}"],
             *paths,
         ]
-        result = run(f"pyright {env.python}", command, parse)
-    if analyzed != [files] and not result.error:
+        result = run(f"pyright {environment.python}", command, parse)
+    if analyzed != [files] and result.error == "":
         error = f"analysed {analyzed[0]} of {files} files"
         return replace(result, error=error)
     return result
 
 
-def mypy(env: Env, roots: list[Path]) -> Run:
-    """``mypy --strict``: what most users of the generated code run."""
-    # A module is named after its path below its root.
+def mypy(environment: Environment, roots: list[Path]) -> Run:
+    # We name a module after its path below its root, hence the explicit package bases.
     command = [
-        *[env.bin("python"), "-m", "mypy", f"--config-file={CONFIG}", "--output=json"],
-        *[f"--python-version={env.python}", f"--cache-dir={env.path / '.mypy_cache'}"],
+        *[environment.bin("python"), "-m", "mypy", f"--config-file={CONFIG}", "--output=json"],
+        *[f"--python-version={environment.python}", f"--cache-dir={environment.path / '.mypy_cache'}"],
         "--explicit-package-bases",
     ]
     return run(
-        f"mypy {env.python}",
+        f"mypy {environment.python}",
         [*command, *map(str, roots)],
         parse_mypy,
         MYPYPATH=os.pathsep.join(map(str, roots)),
     )
 
 
-def import_all(env: Env, root: Path) -> Run:
-    """Import every module: annotations and class bodies run on import."""
+def import_all(environment: Environment, root: Path) -> Run:
+    """Import every module, as annotations and class bodies only run on import."""
 
-    def parse(out: str) -> list[Diagnostic]:
-        lines = map(json.loads, out.splitlines())
+    def parse(output: str) -> list[Diagnostic]:
+        lines = map(json.loads, output.splitlines())
         return [Diagnostic(Path(d["path"]), "", d["message"]) for d in lines]
 
-    command = [env.bin("python"), "-I", "-c", IMPORT_ALL, str(root)]
-    return run(f"import {env.python}", command, parse)
+    command = [environment.bin("python"), "-I", "-c", IMPORT_ALL, str(root)]
+    return run(f"import {environment.python}", command, parse)
 
 
 def run(
     tool: str,
     command: list[str],
     parse: Callable[[str], list[Diagnostic]],
-    **env: str,
+    **environment: str,
 ) -> Run:
-    """Run a tool to completion and parse what it reports."""
     result = subprocess.run(
         command,
         capture_output=True,
         text=True,
         check=False,
-        env=os.environ | env,
+        env=os.environ | environment,
     )
     diagnostics = parse(result.stdout)
-    failed = result.returncode != 0 and not diagnostics
-    error = (
-        result.stderr or result.stdout or f"exit status {result.returncode}"
-    ).strip()
+    failed = result.returncode != 0 and len(diagnostics) <= 0
+    error = (result.stderr or result.stdout or f"exit status {result.returncode}").strip()
     return Run(tool, diagnostics, error if failed else "")
 
 
 def report(roots: list[Path], packages: int, runs: list[Run]) -> int:
-    """Print the findings per package; return the exit status."""
     by_package: defaultdict[str, list[tuple[str, str, str]]] = defaultdict(list)
     for run in runs:
-        for d in run.diagnostics:
-            path = d.path.resolve()
-            # A diagnostic may point outside the roots, e.g. into a stub.
+        for diagnostic in run.diagnostics:
+            path = diagnostic.path.resolve()
+
+            # A diagnostic may point outside the roots, into a stub for example.
             root = next((root for root in roots if path.is_relative_to(root)), None)
-            package, *file = path.relative_to(root).parts if root else (str(path),)
-            where = "/".join(file) + (f":{d.where}" if d.where else "")
-            by_package[package].append((run.tool, where, " ".join(d.message.split())))
+            package, *file = path.relative_to(root).parts if root is not None else (str(path),)
+            where = "/".join(file) + (f":{diagnostic.where}" if diagnostic.where != "" else "")
+            by_package[package].append((run.tool, where, " ".join(diagnostic.message.split())))
 
     for package, findings in sorted(by_package.items()):
         print(package)
         for tool, where, message in sorted(findings):
             print(f"  {tool:<12} {where:<18} {message}")
-    errors = [run for run in runs if run.error]
+    errors = [run for run in runs if run.error != ""]
     for run in errors:
         print(f"\n{run.tool} failed:\n{run.error}")
 
     print(f"\ngate: {len(by_package)} of {packages} packages failed")
-    return 1 if by_package or errors else 0
+    return 1 if len(by_package) > 0 or len(errors) > 0 else 0
 
 
 if __name__ == "__main__":

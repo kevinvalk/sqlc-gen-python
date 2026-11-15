@@ -1,6 +1,5 @@
-# Native is the default so `cargo test` works without a flag; the WASM plugin is
-# an explicit `cargo wasm`. `--locked`: the plugin, released ones included, is
-# built from the committed Cargo.lock or not at all, never a re-resolved one.
+# We keep native as the default target so `cargo test` needs no flag, and build the WASM plugin with `cargo wasm`. It
+# is `--locked` so a plugin, released ones included, is built from the committed Cargo.lock or not at all.
 [alias]
 wasm = "build --locked --release --target wasm32-wasip1 --package sqlc-gen-python"
 xtask = "run --quiet --package xtask --"

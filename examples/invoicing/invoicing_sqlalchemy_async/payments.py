@@ -21,7 +21,7 @@ RETURNING id, invoice_id, method, amount, "from", received_at""")
 
 
 async def record_payment(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
     *,
     invoice_id: UUID,
     method: models.BillingPaymentMethod,
@@ -31,7 +31,7 @@ async def record_payment(
 ) -> models.BillingPayment:
     return models.BillingPayment.from_row(
         (
-            await conn.execute(
+            await connection.execute(
                 _RECORD_PAYMENT,
                 {
                     "invoice_id": invoice_id,
@@ -51,11 +51,13 @@ ORDER BY received_at""")
 
 
 async def list_payments_by_methods(
-    conn: AsyncConnection, *, methods: list[models.BillingPaymentMethod]
+    connection: AsyncConnection, *, methods: list[models.BillingPaymentMethod]
 ) -> list[models.BillingPayment]:
     return [
         models.BillingPayment.from_row(row)
-        for row in await conn.execute(_LIST_PAYMENTS_BY_METHODS, {"methods": methods})
+        for row in await connection.execute(
+            _LIST_PAYMENTS_BY_METHODS, {"methods": methods}
+        )
     ]
 
 
@@ -69,11 +71,13 @@ _LIST_INVOICE_PAYMENT_METHODS: Final = sqlalchemy.text("""SELECT ARRAY(
 
 
 async def list_invoice_payment_methods(
-    conn: AsyncConnection, *, invoice_id: UUID
+    connection: AsyncConnection, *, invoice_id: UUID
 ) -> list[models.BillingPaymentMethod] | None:
     """An unnamed column: PostgreSQL names it `array`, and sqlc nothing."""
     value = (
-        await conn.execute(_LIST_INVOICE_PAYMENT_METHODS, {"invoice_id": invoice_id})
+        await connection.execute(
+            _LIST_INVOICE_PAYMENT_METHODS, {"invoice_id": invoice_id}
+        )
     ).scalar_one_or_none()
     return None if value is None else [models.BillingPaymentMethod(v) for v in value]
 
@@ -84,11 +88,11 @@ _LIST_INVOICE_BALANCES: Final = sqlalchemy.text(
 
 
 async def list_invoice_balances(
-    conn: AsyncConnection, *, customer_id: UUID
+    connection: AsyncConnection, *, customer_id: UUID
 ) -> list[models.InvoiceBalance]:
     return [
         models.InvoiceBalance.from_row(row)
-        for row in await conn.execute(
+        for row in await connection.execute(
             _LIST_INVOICE_BALANCES, {"customer_id": customer_id}
         )
     ]
@@ -113,7 +117,7 @@ class ListCustomerPaymentsRow:
 
 
 async def list_customer_payments(
-    conn: AsyncConnection,
+    connection: AsyncConnection,
 ) -> list[ListCustomerPaymentsRow]:
     """Every customer, with each payment of an invoice of theirs, or none: what
     stands left of the RIGHT JOIN may be without a row, though sqlc reports
@@ -121,7 +125,7 @@ async def list_customer_payments(
     """
     return [
         ListCustomerPaymentsRow.from_row(row)
-        for row in await conn.execute(_LIST_CUSTOMER_PAYMENTS)
+        for row in await connection.execute(_LIST_CUSTOMER_PAYMENTS)
     ]
 
 
@@ -142,11 +146,13 @@ class ListCustomersIssuedRow:
         return cls(name=row[0], number=row[1])
 
 
-async def list_customers_issued(conn: AsyncConnection) -> list[ListCustomersIssuedRow]:
+async def list_customers_issued(
+    connection: AsyncConnection,
+) -> list[ListCustomersIssuedRow]:
     """Every customer, with the number of each issued invoice of theirs, or none:
     sqlc reports the column of a subquery NOT NULL, as its table's.
     """
     return [
         ListCustomersIssuedRow.from_row(row)
-        for row in await conn.execute(_LIST_CUSTOMERS_ISSUED)
+        for row in await connection.execute(_LIST_CUSTOMERS_ISSUED)
     ]

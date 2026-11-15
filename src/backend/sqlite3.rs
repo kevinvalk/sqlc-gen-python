@@ -1,14 +1,10 @@
-//! `sqlite3`, and `aiosqlite` for coroutines, on SQLite: each statement runs
-//! on a cursor of the connection, of tuples whatever the connection's row
-//! factory, with a bare `?` per value: `?N` would not mix with a `sqlc.slice`'s
-//! items (`docs/python-output.md` §6).
-
 use ruff_python_ast as ast;
 
 use super::dbapi::{Driver, Flavor, Placeholders};
-use crate::python::vocabulary::{AIOSQLITE, CONN, CONTEXTLIB, CUR, SQLITE3};
+use crate::python::vocabulary::{AIOSQLITE, CONNECTION, CONTEXTLIB, CUR, SQLITE3};
 use crate::python::{Expression, assign_to, none};
 
+/// We write a bare `?` per value, as `?N` would not mix with a `sqlc.slice`'s items (`docs/python-output.md` §6).
 pub const DRIVER: Driver = Driver {
     sync: Flavor {
         connection: || SQLITE3.attr("Connection"),
@@ -39,13 +35,11 @@ pub const DRIVER: Driver = Driver {
     plain_rows: Some(plain_rows),
 };
 
-/// `conn.cursor()`.
 fn cursor() -> ast::Expr {
-    CONN.attr("cursor").call([])
+    CONNECTION.attr("cursor").call([])
 }
 
-/// `cur.row_factory = None`: rows as tuples, whatever the connection's row
-/// factory.
+/// Rows as tuples, whatever the connection's row factory.
 fn plain_rows() -> ast::Stmt {
     assign_to(CUR.attr("row_factory"), none())
 }

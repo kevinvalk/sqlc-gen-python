@@ -1,5 +1,3 @@
-//! Specification for what the plugin prints when it fails.
-
 use super::*;
 
 #[test]

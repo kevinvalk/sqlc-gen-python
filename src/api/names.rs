@@ -1,7 +1,3 @@
-//! The Python names of SQL names that share one scope: a table's columns, a
-//! result's, a query's parameters, an enum's labels (`docs/python-output.md`
-//! §3).
-
 use std::collections::HashMap;
 
 use anyhow::{Result, bail};
@@ -11,25 +7,23 @@ use ruff_python_stdlib::keyword::is_keyword;
 use super::models::Member;
 use crate::python;
 use crate::python::vocabulary::{
-    BOOL, BYTES, CLASSMETHOD, CONN, CUR, DICT, FLOAT, FROM_ROW, INT, LEN, LIST, OBJECT, ROW, STR,
-    Symbol, TUPLE, VALUE,
+    BOOL, BYTES, CLASSMETHOD, CONNECTION, CUR, DICT, FLOAT, FROM_ROW, INT, LEN, LIST, OBJECT, ROW, STR, Symbol, TUPLE,
+    VALUE,
 };
 
 #[cfg(test)]
 #[path = "names_spec.rs"]
 mod spec;
 
-/// The builtins and locals generated code reads, which a field or parameter
-/// must not hide (`docs/python-output.md` §3.1). In a class body, `str: str`
-/// makes every later `str` annotation mean the field to mypy and pyright, and
-/// `classmethod: str` the `from_row` decorator; in a function, a parameter
-/// `row` would hide the row being read. What the code imports is
-/// [`python::is_imported`]'s to say.
+/// The builtins and locals the generated code reads, which a field or parameter must not hide
+/// (`docs/python-output.md` §3.1). In a class body `str: str` makes every later `str` annotation mean the field to mypy
+/// and pyright, and `classmethod: str` the decorator of `from_row`; in a function a parameter `row` would hide the row
+/// we read. What the code imports is [`python::is_imported`]'s to say.
 const RESERVED: &[Symbol] = &[
     BOOL,
     BYTES,
     CLASSMETHOD,
-    CONN,
+    CONNECTION,
     CUR,
     DICT,
     FLOAT,
@@ -44,23 +38,19 @@ const RESERVED: &[Symbol] = &[
     VALUE,
 ];
 
-/// Whether a list of names may repeat one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Repeats {
-    /// A table's columns: two columns that spell one field are an error.
+    /// A table's columns, where two columns that spell one field are an error.
     Forbidden,
-    /// A result's columns or a query's parameters, where sqlc's Go codegen
-    /// numbers repeats (`columnsToStruct`): `issued_on`, `issued_on_2`, ...
+    /// A result's columns or a query's parameters, where we number repeats as sqlc's Go codegen does
+    /// (`columnsToStruct`): `issued_on`, `issued_on_2`, ...
     Numbered,
 }
 
-/// The Python names of a list of columns or parameters, in order
-/// (`docs/python-output.md` §3): each one's snake_case spelling, or
-/// `column_<n>` for one sqlc left unnamed, as sqlc's Go codegen does. A
-/// keyword, or a name the generated code itself reads ([`RESERVED`], or an
-/// import), takes PEP 8's trailing underscore (`from_`, `str_`). Anything else
-/// that is not a public Python name is an error, never a guess, and so are two
-/// that end up the same.
+/// The Python names of a list of columns or parameters, in order (`docs/python-output.md` §3). Each is its snake_case
+/// spelling, or `column_<n>` for one sqlc left unnamed as sqlc's Go codegen does, and a keyword or a name the generated
+/// code reads itself ([`RESERVED`], or an import) takes PEP 8's trailing underscore (`from_`, `str_`). Anything else
+/// that is not a public Python name is an error and never a guess, and so are two names that end up the same.
 pub fn names(spellings: &[&str], repeats: Repeats) -> Result<Vec<String>> {
     let mut seen: HashMap<String, usize> = HashMap::new();
     let names = (spellings.iter().enumerate())
@@ -75,8 +65,7 @@ pub fn names(spellings: &[&str], repeats: Repeats) -> Result<Vec<String>> {
                 (Repeats::Numbered, repeat @ 2..) => format!("{name}_{repeat}"),
                 _ => name,
             };
-            let reserved = RESERVED.iter().any(|reserved| reserved.as_ref() == name)
-                || python::is_imported(&name);
+            let reserved = RESERVED.iter().any(|reserved| reserved.as_ref() == name) || python::is_imported(&name);
             let name = match is_keyword(&name) || reserved {
                 true => name + "_",
                 false => name,
@@ -87,20 +76,14 @@ pub fn names(spellings: &[&str], repeats: Repeats) -> Result<Vec<String>> {
     distinct(spellings, names)
 }
 
-/// An enum's members, in order: each label's words, as `spelling` spells
-/// the label, in UPPER_SNAKE_CASE, split as snake_case splits them (`in
-/// shock`, `in-shock` and `inShock` are `IN_SHOCK`), with anything not an
-/// ASCII letter, digit or `_` dropped.
+/// An enum's members, in order: the words of each label, as `spelling` spells it, in UPPER_SNAKE_CASE and split as
+/// snake_case splits them (`in shock`, `in-shock` and `inShock` are all `IN_SHOCK`), dropping anything that is not an
+/// ASCII letter, digit or `_`.
 ///
-/// A name that is not public is an error: one that is empty or starts with a
-/// digit is not an identifier, and one starting with `_` is reserved
-/// (`_sunder_`), mangled (`__x`) or private to pyright and ruff (`_1ST`). So
-/// are two labels that make one name: Go numbers them `value_<i>`, which
-/// would be a member nobody could guess.
-pub fn members<'l>(
-    labels: &'l [String],
-    spelling: impl Fn(&'l str) -> &'l str,
-) -> Result<Vec<Member>> {
+/// A name that is not public is an error: an empty one or one starting with a digit is no identifier, and one starting
+/// with `_` is reserved (`_sunder_`), mangled (`__x`) or private to pyright and ruff (`_1ST`). Two labels that make one
+/// name are an error too, as Go's `value_<i>` numbering gives a member nobody could guess.
+pub fn members<'l>(labels: &'l [String], spelling: impl Fn(&'l str) -> &'l str) -> Result<Vec<Member>> {
     let names = (labels.iter())
         .map(|label| {
             let name = (spelling(label).to_shouty_snake_case().chars())
@@ -118,7 +101,6 @@ pub fn members<'l>(
         .collect())
 }
 
-/// `name`, made from `spelling`, if it is a public Python name.
 fn usable(spelling: &str, name: String) -> Result<String> {
     match python::is_public_name(&name) {
         true => Ok(name),
@@ -129,8 +111,7 @@ fn usable(spelling: &str, name: String) -> Result<String> {
     }
 }
 
-/// `names`, made from `spellings` in order, unless two are one name: in one
-/// scope, the second would silently replace the first.
+/// Fails when two of the names are one, as in one scope the second would silently replace the first.
 fn distinct(spellings: &[impl AsRef<str>], names: Vec<String>) -> Result<Vec<String>> {
     let mut seen: HashMap<&str, &str> = HashMap::new();
     for (spelling, name) in spellings.iter().zip(&names) {

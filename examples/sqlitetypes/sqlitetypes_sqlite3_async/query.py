@@ -14,9 +14,9 @@ _LIST_SCALARS: Final = "SELECT c_integer, c_bigint, c_text, c_varchar, c_clob, c
 
 
 async def list_scalars(
-    conn: aiosqlite.Connection, *, limit: int
+    connection: aiosqlite.Connection, *, limit: int
 ) -> list[models.Scalar]:
-    async with conn.cursor() as cur:
+    async with connection.cursor() as cur:
         cur.row_factory = None
         await cur.execute(_LIST_SCALARS, (limit,))
         return [models.Scalar.from_row(row) for row in await cur.fetchall()]
@@ -31,7 +31,7 @@ _ADD_SCALARS: Final = """INSERT INTO scalars (
 
 
 async def add_scalars(
-    conn: aiosqlite.Connection,
+    connection: aiosqlite.Connection,
     *,
     c_integer: int | None,
     c_bigint: int | None,
@@ -45,7 +45,7 @@ async def add_scalars(
     c_bool: bool | None,
     c_boolean: bool | None,
 ) -> None:
-    async with conn.cursor() as cur:
+    async with connection.cursor() as cur:
         await cur.execute(
             _ADD_SCALARS,
             (
@@ -92,11 +92,11 @@ class ListDerivedRow:
         )
 
 
-async def list_derived(conn: aiosqlite.Connection) -> list[ListDerivedRow]:
+async def list_derived(connection: aiosqlite.Connection) -> list[ListDerivedRow]:
     """What sqlc types otherwise than a column: a comparison is its `bool`, a
     cast its type in lowercase.
     """
-    async with conn.cursor() as cur:
+    async with connection.cursor() as cur:
         cur.row_factory = None
         await cur.execute(_LIST_DERIVED)
         return [ListDerivedRow.from_row(row) for row in await cur.fetchall()]

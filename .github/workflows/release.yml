@@ -1,9 +1,5 @@
-# Every commit on main that passes CI becomes the `unstable` prerelease, which
-# moves with main. A `v*` tag on main becomes a GitHub Release once it names
-# Cargo.toml's version and CI passes on it. What is published is the plugin CI
-# ran under sqlc and rebuilt to the same bytes, with its checksum, a signed
-# build provenance attestation, and release notes holding the `sqlc.yaml`
-# block to paste.
+# NOTE: Every commit on main that passes CI becomes the `unstable` prerelease, and a `v*` tag on main a GitHub Release.
+# Both publish the very plugin CI ran under sqlc and rebuilt to the same bytes.
 name: Release
 
 on:
@@ -13,10 +9,8 @@ on:
 
 permissions: {}
 
-# One at a time, and each to its end: cancelled between deleting `unstable`
-# and making it anew, a run would leave none. Of the commits on main that
-# wait, only the newest runs. Not CI's group, which this would then wait on
-# itself for.
+# One at a time and each to its end, as a run cancelled between deleting `unstable` and creating it again would leave
+# none. Of the commits on main that wait, only the newest runs. It is not CI's group, as this would then wait on itself.
 concurrency:
   group: publish-${{ github.ref }}
   cancel-in-progress: false
@@ -30,7 +24,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      # Full history, no file contents: enough to ask whether main contains it.
+      # Full history without file contents is enough to ask whether main contains the tag
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -49,9 +43,9 @@ jobs:
 
   ci:
     needs: version
-    # `version` is skipped on main, which must not skip this.
+    # `version` is skipped on main, which must not skip this job
     if: ${{ !failure() && !cancelled() }}
-    # Not `$/`: actionlint does not know it yet, and `./` is this commit too.
+    # Not `$/` as actionlint does not know it yet, and `./` is this commit too
     uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
     permissions:
       contents: read
@@ -59,8 +53,7 @@ jobs:
   publish:
     name: publish the release
     needs: ci
-    # Only what CI passed, said outright: `version`, skipped on main, would
-    # otherwise skip this too.
+    # Only what CI passed, said outright, as `version` (skipped on main) would otherwise skip this too
     if: ${{ !cancelled() && needs.ci.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -71,7 +64,7 @@ jobs:
       id-token: write # sign the attestation with a Sigstore certificate
       attestations: write # store the attestation
     steps:
-      # Only what the release notes are made from.
+      # We only need what the release notes are made from
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -83,13 +76,13 @@ jobs:
         with:
           name: sqlc-gen-python.wasm
           path: dist
-      # One digest: the attestation signs what SHA256SUMS states.
+      # One digest, so the attestation signs what SHA256SUMS states
       - run: sha256sum sqlc-gen-python.wasm > SHA256SUMS
         working-directory: dist
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-checksums: dist/SHA256SUMS
-      # Only these variables are substituted; any other `$` in the template stays.
+      # Only these variables are substituted, any other `$` in the template stays
       - name: Write the release notes
         env:
           SERVER: ${{ github.server_url }}
@@ -107,8 +100,8 @@ jobs:
           --notes-file dist/notes.md dist/sqlc-gen-python.wasm dist/SHA256SUMS
         env:
           GH_TOKEN: ${{ github.token }}
-      # The tag moves with main, so the release is made anew; never the latest
-      # one, which is the last version.
+      # The tag moves with main, so we create the release anew, and never as the latest release, which stays the last
+      # version
       - if: github.ref_type == 'branch'
         run: |
           if gh release view "$TAG" > /dev/null 2>&1; then
@@ -116,8 +109,8 @@ jobs:
           fi
           gh release create "$TAG" --target "$GITHUB_SHA" --prerelease --latest=false \
             --title "$TAG" --notes-file dist/notes.md dist/sqlc-gen-python.wasm dist/SHA256SUMS
-          # `--target` is ignored for a tag that is there already: one a
-          # delete left behind would keep this plugin on an older commit.
+          # `--target` is ignored for a tag that already exists, so one a delete left behind would keep this plugin on
+          # an older commit!
           tagged=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)
           if [ "$tagged" != "$GITHUB_SHA" ]; then
             echo "::error::$TAG is at $tagged, not this commit"

@@ -1,39 +1,28 @@
-//! The fixtures the tests read: the golden cases under `examples/`, the
-//! requests sqlc sends for them, and `GEN_DIR`, where `cargo xtask` collects
-//! what the tests generate.
-
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use sqlc_gen_python::plugin;
 
-/// The repository root, as cargo reports it to this run rather than to the
-/// build: a `target/` reused by another copy of the tree would otherwise test
-/// the first copy's fixtures.
+/// We ask cargo for the root of this run rather than of the build, as a `target/` reused by another copy of the tree
+/// would otherwise test the first copy's fixtures.
 pub fn root() -> PathBuf {
     PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("run by cargo"))
 }
 
-/// Reads a JSON fixture, panicking with the path if it is missing or invalid.
 pub fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> T {
-    let contents = fs::read_to_string(path).unwrap_or_else(|error| {
-        panic!("reading {path:?}: {error} (fixtures come from `cargo xtask capture`)")
-    });
+    let contents = fs::read_to_string(path)
+        .unwrap_or_else(|error| panic!("reading {path:?}: {error} (fixtures come from `cargo xtask capture`)"));
     serde_json::from_str(&contents).unwrap_or_else(|error| panic!("parsing {path:?}: {error}"))
 }
 
-/// A golden case: one `codegen` entry of an example's `sqlc.yaml`, whose
-/// `out` directory beside it holds what it generates.
+/// A golden case is one `codegen` entry of an example's `sqlc.yaml`: `name` is its `out`, the directory beside the
+/// `sqlc.yaml` that holds what it generates, and `options` are what sqlc hands the plugin.
 pub struct Case {
-    /// The example's directory, under `examples/`.
     pub example: PathBuf,
-    /// The entry's `out`, a directory named for the case.
     pub name: String,
-    /// The entry's `options`, as sqlc hands them to the plugin.
     pub options: serde_json::Value,
 }
 
-/// An example's `sqlc.yaml`, as far as the cases need it.
 #[derive(serde::Deserialize)]
 struct SqlcYaml {
     sql: Vec<Package>,
@@ -52,21 +41,21 @@ struct Codegen {
     options: serde_json::Value,
 }
 
-/// Every golden case: each `codegen` entry of each `examples/*/sqlc.yaml`.
 pub fn cases() -> Vec<Case> {
-    let examples = root().join("examples");
-    let mut dirs: Vec<PathBuf> = (fs::read_dir(&examples).unwrap())
+    let examples_directory = root().join("examples");
+    let mut examples: Vec<PathBuf> = (fs::read_dir(&examples_directory).unwrap())
         .map(|entry| entry.unwrap().path())
         .filter(|path| path.join("sqlc.yaml").is_file())
         .collect();
-    dirs.sort();
-    let cases: Vec<Case> = (dirs.into_iter())
+    examples.sort();
+
+    let cases: Vec<Case> = (examples.into_iter())
         .flat_map(|example| {
             let path = example.join("sqlc.yaml");
-            let text = fs::read_to_string(&path).unwrap();
-            let config: SqlcYaml = serde_yaml_ng::from_str(&text)
-                .unwrap_or_else(|error| panic!("parsing {path:?}: {error}"));
-            (config.sql.into_iter().flat_map(|package| package.codegen))
+            let yaml = fs::read_to_string(&path).unwrap();
+            let sqlc_yaml: SqlcYaml =
+                serde_yaml_ng::from_str(&yaml).unwrap_or_else(|error| panic!("parsing {path:?}: {error}"));
+            (sqlc_yaml.sql.into_iter().flat_map(|package| package.codegen))
                 .map(move |codegen| Case {
                     example: example.clone(),
                     name: codegen.out,
@@ -75,11 +64,10 @@ pub fn cases() -> Vec<Case> {
                 .collect::<Vec<_>>()
         })
         .collect();
-    assert!(!cases.is_empty(), "no cases found in {examples:?}");
+    assert!(!cases.is_empty(), "no cases found in {examples_directory:?}");
     cases
 }
 
-/// The golden case named `name`.
 pub fn case(name: &str) -> Case {
     (cases().into_iter())
         .find(|case| case.name == name)
@@ -87,13 +75,11 @@ pub fn case(name: &str) -> Case {
 }
 
 impl Case {
-    /// The directory holding what the case generates.
-    pub fn dir(&self) -> PathBuf {
+    pub fn directory(&self) -> PathBuf {
         self.example.join(&self.name)
     }
 
-    /// The request the case generates from: what sqlc sends for its example
-    /// (`tests/sqlc/examples/`, captured by `cargo xtask capture`), with its
+    /// What sqlc sends for the case's example (`tests/sqlc/examples/`, from `cargo xtask capture`), with the case's own
     /// options and `out`.
     pub fn request(&self) -> plugin::GenerateRequest {
         let example = self.example.file_name().unwrap().to_string_lossy();
@@ -110,16 +96,18 @@ impl Case {
     }
 }
 
-/// The files a golden case holds as generated, as a plugin returns them, by
-/// name: all but what tools hide there (`.ruff_cache`).
-pub fn generated_files(dir: &Path) -> Vec<plugin::File> {
-    // A case not yet blessed has nothing generated.
-    let Ok(entries) = fs::read_dir(dir) else {
+/// The files a golden case holds, by name, as a plugin returns them.
+pub fn generated_files(directory: &Path) -> Vec<plugin::File> {
+    // A case that was never blessed has no directory yet.
+    let Ok(entries) = fs::read_dir(directory) else {
         return Vec::new();
     };
+
+    // NOTE: We skip dot files as tools hide their own there (`.ruff_cache`). Keep this in sync with `mirror_generated`
+    // in xtask, which blesses a case.
     let mut files: Vec<plugin::File> = (entries)
         .map(|entry| entry.unwrap().path())
-        .filter(|path| is_generated(path))
+        .filter(|path| path.is_file() && !path.file_name().unwrap_or_default().to_string_lossy().starts_with('.'))
         .map(|path| plugin::File {
             name: path.file_name().unwrap().to_string_lossy().into_owned(),
             contents: fs::read(&path).unwrap(),
@@ -129,24 +117,17 @@ pub fn generated_files(dir: &Path) -> Vec<plugin::File> {
     files
 }
 
-/// Whether a file of a golden case is one the plugin generated.
-fn is_generated(path: &Path) -> bool {
-    let name = path.file_name().unwrap_or_default().to_string_lossy();
-    path.is_file() && !name.starts_with('.')
-}
-
 /// `GEN_DIR`, where `cargo xtask` collects what the tests generate.
 pub fn gen_dir() -> Option<PathBuf> {
     std::env::var_os("GEN_DIR").map(PathBuf::from)
 }
 
-/// Writes one generated output as the package `<GEN_DIR>/<package>/`, where
-/// `cargo xtask check` runs the Python toolchain over it. Does nothing unless
-/// `GEN_DIR` is set.
+/// Writes one output as the package `<GEN_DIR>/<package>/`, for `cargo xtask check` to run the Python toolchain over.
+/// Without `GEN_DIR` we write nothing.
 pub fn export(package: &str, files: &[plugin::File]) {
-    let Some(dir) = gen_dir() else { return };
+    let Some(directory) = gen_dir() else { return };
     for file in files {
-        let path = dir.join(package).join(&file.name);
+        let path = directory.join(package).join(&file.name);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, &file.contents).unwrap();
     }

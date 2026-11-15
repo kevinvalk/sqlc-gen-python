@@ -1,15 +1,8 @@
-"""PostgreSQL types and tables as a database reports them, and values each
-type accepts.
+"""PostgreSQL types and tables as a database reports them, and Hypothesis strategies of the values each type accepts.
 
-``resolve`` reads a type from the catalog: domains become their base type,
-arrays their element type and depth, enums their labels. ``tables`` reads every
-user table, its columns and foreign keys, and the generated model that reads
-it. ``strategy`` is a Hypothesis strategy of Python values that PostgreSQL
-accepts for such a type and that bind through psycopg and asyncpg as the type
-map's annotation (docs/python-output.md §5). It draws ordinary values; the
-edges (NaN, infinity, extremes) are ``typemap.py``'s concern. ``json_type``,
-``enum_array_type`` and ``sqlalchemy_type`` are how SQLAlchemy must bind or read a
-type, as the generated code does (§6).
+A strategy draws Python values that PostgreSQL accepts for a type and that bind through psycopg and asyncpg as the type
+map's annotation (docs/python-output.md §5). It only draws ordinary values, as ``typemap.py`` probes the edges (NaN,
+infinity, extremes).
 """
 
 from __future__ import annotations
@@ -33,7 +26,7 @@ if TYPE_CHECKING:
 
     from hypothesis.strategies import SearchStrategy
 
-# The catalog row of a type, with an enum's labels in their order.
+# The catalog row of a type, with an enum's labels in their order
 TYPE_ROW = sqlalchemy.text("""
     SELECT t.typname, t.typtype, t.typcategory, t.typelem, t.typbasetype,
            t.typtypmod,
@@ -45,41 +38,37 @@ TYPE_ROW = sqlalchemy.text("""
 
 @dataclass(frozen=True)
 class Pg:
-    """A type as the database knows it: the base type's name, its array depth,
-    an enum's labels, and the modifier that bounds a length or precision.
-    """
+    """A type as the database knows it, with domains resolved to their base type and arrays to their element type."""
 
     name: str
     dims: int = 0
-    labels: tuple[str, ...] = ()
-    typmod: int = -1
+    labels: tuple[str, ...] = ()  # An enum's labels
+    typmod: int = -1  # The modifier that bounds a length or precision
 
 
-def resolve(conn: sqlalchemy.Connection, oid: int, typmod: int = -1) -> Pg:
-    """Read the type ``oid`` from the catalog, through domains and arrays."""
+def resolve(connection: sqlalchemy.Connection, oid: int, typmod: int = -1) -> Pg:
     dims = 0
     while True:
-        name, kind, category, element, base, base_typmod, labels = conn.execute(
-            TYPE_ROW, {"oid": oid}
-        ).one()
+        name, kind, category, element, base, base_typmod, labels = connection.execute(TYPE_ROW, {"oid": oid}).one()
         if kind == "d":
             oid, typmod = base, typmod if typmod != -1 else base_typmod
-        elif category == "A" and element:
+        elif category == "A" and element != 0:
             oid, dims = element, dims + 1
         else:
             return Pg(name, dims, tuple(labels), typmod)
 
 
-def resolve_name(conn: sqlalchemy.Connection, name: str) -> Pg | None:
-    """Resolve a type as sqlc spells it (``pg_catalog.int4``, ``serial``,
-    ``billing.payment_method``, or a name that needs quoting, ``weird enum``).
+def resolve_name(connection: sqlalchemy.Connection, name: str) -> Pg | None:
+    """Resolve a type as sqlc spells it: ``pg_catalog.int4``, ``serial``, ``billing.payment_method``, or a name that
+    needs quoting such as ``weird enum``.
     """
     name = SERIALS.get(name.removeprefix("pg_catalog."), name)
-    if not name:
+    if name == "":
         return None
-    # A declared name, as `schema.name` or `name`, quoted part by part; else
-    # SQL's own spelling (`double precision`), which takes no quotes.
-    found = conn.execute(
+
+    # A declared name (`schema.name` or `name`) is quoted part by part, else we try SQL's own spelling (`double
+    # precision`), which takes no quotes.
+    found = connection.execute(
         sqlalchemy.text("""
             SELECT coalesce(
                 to_regtype(array_to_string(
@@ -89,32 +78,26 @@ def resolve_name(conn: sqlalchemy.Connection, name: str) -> Pg | None:
         """),
         {"name": name},
     ).scalar_one_or_none()
-    return None if found is None else resolve(conn, found)
+    return None if found is None else resolve(connection, found)
 
 
 @dataclass(frozen=True)
 class Column:
-    """A table column as the database declares it."""
-
     name: str
     pg: Pg
     nullable: bool
-    # Has a default, so an insert may leave it out.
-    optional: bool
-    # Generated, or an identity column that refuses values.
-    generated: bool
+    optional: bool  # Has a default, so an insert may leave it out
+    generated: bool  # Generated, or an identity column that refuses values
 
 
 @dataclass(frozen=True)
 class Table:
-    """A table to seed, its foreign keys, and the model that reads it."""
-
     name: str
     sql: str
     columns: list[Column]
-    # Each key: its columns, the table it references and the columns there.
+    # Each foreign key as its columns, the table it references and the columns there.
     references: list[tuple[list[str], str, list[str]]]
-    model: Any
+    model: Any  # The generated model that reads the table
 
 
 TABLES = sqlalchemy.text("""
@@ -133,93 +116,86 @@ COLUMNS = sqlalchemy.text("""
     FROM pg_attribute WHERE attrelid = :oid AND attnum > 0 AND NOT attisdropped
     ORDER BY attnum
 """)
-KEYS = sqlalchemy.text(
-    "SELECT conrelid, conkey, confrelid, confkey FROM pg_constraint WHERE contype = 'f'"
-)
+KEYS = sqlalchemy.text("SELECT conrelid, conkey, confrelid, confkey FROM pg_constraint WHERE contype = 'f'")
 
 
-def tables(conn: sqlalchemy.Connection, models: ModuleType | None) -> list[Table]:
-    """Every user table, its columns and foreign keys, in seeding order."""
-    relations = conn.execute(TABLES).all()
+def tables(connection: sqlalchemy.Connection, models: ModuleType | None) -> list[Table]:
+    """Every user table with its columns and foreign keys, in seeding order."""
+    relations = connection.execute(TABLES).all()
     sql = {oid: qualified for oid, _, qualified in relations}
     columns = {
         oid: {
-            num: Column(name, column_type(conn, typ, typmod, ndims), *flags)
-            for num, name, typ, typmod, ndims, *flags in conn.execute(
-                COLUMNS, {"oid": oid}
-            )
+            number: Column(name, column_type(connection, type_oid, typmod, ndims), *flags)
+            for number, name, type_oid, typmod, ndims, *flags in connection.execute(COLUMNS, {"oid": oid})
         }
         for oid in sql
     }
+
     references = defaultdict(list)
-    for oid, keys, other, other_keys in conn.execute(KEYS):
+    for oid, keys, other, other_keys in connection.execute(KEYS):
         if oid in sql and other in sql:
-            names = [columns[oid][k].name for k in keys]
-            other_names = [columns[other][k].name for k in other_keys]
+            names = [columns[oid][key].name for key in keys]
+            other_names = [columns[other][key].name for key in other_keys]
             references[oid].append((names, sql[other], other_names))
+
     found = [
-        Table(name, sql[oid], cs, references[oid], model_for(models, cs))
+        Table(name, sql[oid], table_columns, references[oid], model_for(models, table_columns))
         for oid, name, _ in relations
-        if (cs := [*columns[oid].values()])  # `RETURNING *` needs a column
+        if len(table_columns := [*columns[oid].values()]) > 0  # `RETURNING *` needs a column
     ]
     return seed_order(found)
 
 
-def column_type(conn: sqlalchemy.Connection, oid: int, typmod: int, ndims: int) -> Pg:
-    """A column's type, read from the catalog; its declared array depth wins."""
-    pg = resolve(conn, oid, typmod)
-    return dataclasses.replace(pg, dims=max(pg.dims, ndims)) if pg.dims else pg
+def column_type(connection: sqlalchemy.Connection, oid: int, typmod: int, ndims: int) -> Pg:
+    pg = resolve(connection, oid, typmod)
+    # The column's declared array depth wins over its type's.
+    return dataclasses.replace(pg, dims=max(pg.dims, ndims)) if pg.dims > 0 else pg
 
 
 def seed_order(found: list[Table]) -> list[Table]:
-    """Referenced tables first; tables in a cycle in name order, last."""
+    """Order tables so that a referenced table comes first, and tables in a cycle come last in name order."""
     ordered: list[Table] = []
     pending = list(found)
-    while pending:
+    while len(pending) > 0:
         done = {t.sql for t in ordered}
-        ready = [
-            t
-            for t in pending
-            if all(r in done or r == t.sql for _, r, _ in t.references)
-        ] or pending[:1]
+        ready = [t for t in pending if all(r in done or r == t.sql for _, r, _ in t.references)] or pending[:1]
         ordered += ready
         pending = [t for t in pending if t not in ready]
     return ordered
 
 
 def model_for(models: ModuleType | None, columns: list[Column]) -> Any:
-    """The model whose fields are these columns, or ``None`` if there is none,
-    or several that read them differently.
+    """Find the model whose fields are these columns, or ``None`` when there is none or several that read them
+    differently.
     """
     if models is None:
         return None
+
     names = [_bare(c.name) for c in columns]
     candidates = [
-        cls
-        for cls in vars(models).values()
-        if isinstance(cls, type)
-        and dataclasses.is_dataclass(cls)
-        and [_bare(f.name) for f in dataclasses.fields(cls)] == names
+        model
+        for model in vars(models).values()
+        if isinstance(model, type)
+        and dataclasses.is_dataclass(model)
+        and [_bare(f.name) for f in dataclasses.fields(model)] == names
     ]
     readings = {repr(list(typing.get_type_hints(c).values())) for c in candidates}
     return candidates[0] if len(readings) == 1 else None
 
 
 def _bare(name: str) -> str:
-    """A name without case or separators, the same in SQL and Python."""
+    # Without case or separators, a name is the same in SQL and Python.
     return re.sub(r"[^0-9a-z]", "", name.lower())
 
 
 def json_type(pg: Pg) -> Any:
-    """What a JSON parameter must be bound as (§6, typed statements)."""
-    base = (postgresql.JSONB if pg.name == "jsonb" else postgresql.JSON)(
-        none_as_null=True
-    )
-    return postgresql.ARRAY(base, dimensions=pg.dims) if pg.dims else base
+    """What a JSON parameter must be bound as (docs/python-output.md §6, typed statements)."""
+    base = (postgresql.JSONB if pg.name == "jsonb" else postgresql.JSON)(none_as_null=True)
+    return postgresql.ARRAY(base, dimensions=pg.dims) if pg.dims > 0 else base
 
 
-# SQLAlchemy's type of each range, which makes every driver's range its
-# `Range`, and of `hstore`, which makes every driver's a `dict`.
+# SQLAlchemy's type of each range makes every driver's range its `Range`, and its `hstore` makes every driver's a
+# `dict`.
 LIBRARY_TYPES: dict[str, Any] = {
     "int4range": postgresql.INT4RANGE,
     "int8range": postgresql.INT8RANGE,
@@ -232,23 +208,24 @@ LIBRARY_TYPES: dict[str, Any] = {
 
 
 def sqlalchemy_type(pg: Pg) -> Any:
-    """How a range or an `hstore` must be bound and read, as the generated
-    code does (§6), so that every driver's value is SQLAlchemy's.
+    """How a range or an `hstore` must be bound and read, as the generated code does (§6), so that every driver's value
+    is SQLAlchemy's.
     """
-    kind = LIBRARY_TYPES.get(pg.name)
-    return kind() if kind is not None and not pg.dims else None
+    library_type = LIBRARY_TYPES.get(pg.name)
+    return library_type() if library_type is not None and pg.dims <= 0 else None
 
 
 def enum_array_type(pg: Pg) -> Any:
     """How an enum array result must be read for psycopg to make it a list (§6)."""
-    if not (pg.labels and pg.dims):
+    if not (len(pg.labels) > 0 and pg.dims > 0):
         return None
+
     return postgresql.ARRAY(sqlalchemy.Enum(*pg.labels), dimensions=pg.dims)
 
 
-# A length's or precision's type modifier counts from this header size.
-VARHDRSZ = 4
-# Pseudo-types only a column declaration knows.
+VARHDRSZ = 4  # PostgreSQL counts a length's or precision's type modifier from this header size
+
+# Pseudo-types only a column declaration knows
 SERIALS = {
     "smallserial": "int2",
     "serial2": "int2",
@@ -260,22 +237,22 @@ SERIALS = {
 
 
 def strategy(pg: Pg, dims: int | None = None) -> SearchStrategy[object] | None:
-    """Values of ``pg``, as arrays ``dims`` deep (its own depth by default),
-    or ``None`` if nobody has said what the type's values are.
+    """Values of ``pg`` as arrays ``dims`` deep (its own depth by default), or ``None`` when nobody has said what the
+    type's values are.
     """
-    scalar = st.sampled_from(pg.labels) if pg.labels else _scalar(pg)
+    scalar = st.sampled_from(pg.labels) if len(pg.labels) > 0 else _scalar(pg)
     if scalar is None:
         return None
     return arrays(scalar, pg.dims if dims is None else dims)
 
 
 def arrays(element: SearchStrategy[object], dims: int) -> SearchStrategy[object]:
-    """Rectangular arrays ``dims`` deep, as PostgreSQL requires; no NULL items."""
-    if not dims:
+    """Rectangular arrays ``dims`` deep, as PostgreSQL requires, without NULL items."""
+    if dims <= 0:
         return element
 
     def nest(shape: list[int]) -> SearchStrategy[object]:
-        if not shape:
+        if len(shape) <= 0:
             return element
         size, *rest = shape
         return st.lists(nest(rest), min_size=size, max_size=size)
@@ -284,11 +261,7 @@ def arrays(element: SearchStrategy[object], dims: int) -> SearchStrategy[object]
 
 
 def _scalar(pg: Pg) -> SearchStrategy[object] | None:
-    length = (
-        pg.typmod - VARHDRSZ
-        if pg.name in {"bpchar", "varchar"} and pg.typmod > 0
-        else 8
-    )
+    length = pg.typmod - VARHDRSZ if pg.name in {"bpchar", "varchar"} and pg.typmod > 0 else 8
     if pg.name == "bpchar" and pg.typmod == -1:
         length = 1  # `char` is `char(1)`
     if pg.name in TEXT:
@@ -301,62 +274,44 @@ def _scalar(pg: Pg) -> SearchStrategy[object] | None:
 
 
 def text(max_size: int = 8) -> SearchStrategy[str]:
-    """Strings PostgreSQL stores: any character but NUL and lone surrogates."""
+    # PostgreSQL stores any character but NUL and lone surrogates.
     alphabet = st.characters(codec="utf-8", exclude_characters="\x00")
     return st.text(alphabet, max_size=max_size)
 
 
 def ints(bits: int) -> SearchStrategy[object]:
-    """Signed integers of a width."""
     return st.integers(-(2 ** (bits - 1)), 2 ** (bits - 1) - 1)
 
 
 def json() -> SearchStrategy[object]:
-    """JSON documents, as Python values both drivers encode."""
-    leaves = (
-        st.none()
-        | st.booleans()
-        | ints(53)
-        | st.floats(allow_nan=False, allow_infinity=False)
-        | text()
-    )
+    leaves = st.none() | st.booleans() | ints(53) | st.floats(allow_nan=False, allow_infinity=False) | text()
     return st.recursive(
         leaves,
-        lambda inner: (
-            st.lists(inner, max_size=3) | st.dictionaries(text(), inner, max_size=3)
-        ),
+        lambda inner: st.lists(inner, max_size=3) | st.dictionaries(text(), inner, max_size=3),
         max_leaves=6,
     )
 
 
 def offsets() -> SearchStrategy[dt.timezone]:
-    """Fixed UTC offsets, to the second, within PostgreSQL's ±15:59:59."""
-    limit = 16 * 3600 - 1
-    return st.integers(-limit, limit).map(
-        lambda s: dt.timezone(dt.timedelta(seconds=s))
-    )
+    limit = 16 * 3600 - 1  # PostgreSQL's ±15:59:59
+    return st.integers(-limit, limit).map(lambda s: dt.timezone(dt.timedelta(seconds=s)))
 
 
 def hexbytes(size: int) -> SearchStrategy[object]:
     """MAC addresses of ``size`` bytes, as PostgreSQL writes them."""
-    return st.binary(min_size=size, max_size=size).map(
-        lambda raw: ":".join(f"{b:02x}" for b in raw)
-    )
+    return st.binary(min_size=size, max_size=size).map(lambda raw: ":".join(f"{b:02x}" for b in raw))
 
 
 def interfaces() -> SearchStrategy[ipaddress.IPv4Interface | ipaddress.IPv6Interface]:
-    """Addresses with a prefix, of either IP version."""
     return st.builds(
-        lambda address, prefix: ipaddress.ip_interface(
-            (address, prefix % (address.max_prefixlen + 1))
-        ),
+        lambda address, prefix: ipaddress.ip_interface((address, prefix % (address.max_prefixlen + 1))),
         st.ip_addresses(),
         st.integers(0, 128),
     )
 
 
 def ranges(bounds: SearchStrategy[Any]) -> SearchStrategy[object]:
-    """SQLAlchemy ranges of ``bounds``: empty, or ordered, either end open."""
+    """SQLAlchemy ranges of ``bounds``: empty, or ordered with either end open."""
     ends = st.none() | bounds
     shapes = st.sampled_from(["[)", "[]", "()", "(]"])
 
@@ -377,9 +332,7 @@ SCALARS: dict[str, SearchStrategy[object]] = {
     "oid": st.integers(0, 2**32 - 1),
     "float4": st.floats(width=32),
     "float8": st.floats(),
-    "numeric": st.decimals(allow_nan=False, allow_infinity=False, places=4).filter(
-        lambda d: abs(d) < 10**20
-    ),
+    "numeric": st.decimals(allow_nan=False, allow_infinity=False, places=4).filter(lambda d: abs(d) < 10**20),
     "money": st.decimals(-(10**12), 10**12, places=2).map(str),
     "bytea": st.binary(max_size=16),
     "uuid": st.uuids(),
@@ -401,21 +354,13 @@ SCALARS: dict[str, SearchStrategy[object]] = {
     "macaddr": hexbytes(6),
     "macaddr8": hexbytes(8),
     "xml": st.sampled_from(["<a/>", "<b>ü &amp; ß</b>", "plain text", ""]),
-    "tsvector": st.lists(st.from_regex(r"[a-z]{1,6}", fullmatch=True), max_size=4).map(
-        " ".join
-    ),
+    "tsvector": st.lists(st.from_regex(r"[a-z]{1,6}", fullmatch=True), max_size=4).map(" ".join),
     "hstore": st.dictionaries(text(), st.none() | text(), max_size=3),
-    "ltree": st.from_regex(
-        r"[A-Za-z0-9_]{1,5}(\.[A-Za-z0-9_]{1,5}){0,3}", fullmatch=True
-    ),
+    "ltree": st.from_regex(r"[A-Za-z0-9_]{1,5}(\.[A-Za-z0-9_]{1,5}){0,3}", fullmatch=True),
     "regclass": st.sampled_from(["pg_class", "pg_type", "pg_namespace"]),
     "int4range": ranges(ints(31)),
     "int8range": ranges(ints(63)),
-    "numrange": ranges(
-        st.decimals(allow_nan=False, allow_infinity=False, places=2).filter(
-            lambda d: abs(d) < 10**12
-        )
-    ),
+    "numrange": ranges(st.decimals(allow_nan=False, allow_infinity=False, places=2).filter(lambda d: abs(d) < 10**12)),
     "daterange": ranges(st.dates(dt.date(1900, 1, 1), dt.date(2200, 1, 1))),
     "tsrange": ranges(st.datetimes(dt.datetime(1900, 1, 1), dt.datetime(2200, 1, 1))),  # noqa: DTZ001
     "tstzrange": ranges(

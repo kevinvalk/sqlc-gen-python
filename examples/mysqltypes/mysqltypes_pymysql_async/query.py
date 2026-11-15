@@ -31,8 +31,10 @@ def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:
 _LIST_SCALARS: Final = "SELECT c_bool, c_tinyint, c_tinyint_unsigned, c_smallint, c_smallint_unsigned, c_mediumint, c_mediumint_unsigned, c_int, c_int_unsigned, c_bigint, c_bigint_unsigned, c_year, c_float, c_double, c_decimal, c_char, c_varchar, c_tinytext, c_text, c_mediumtext, c_longtext, c_json, c_binary, c_varbinary, c_tinyblob, c_blob, c_mediumblob, c_longblob, c_bit_1, c_bit_64, c_date, c_datetime, c_timestamp, c_time FROM scalars LIMIT %s"
 
 
-async def list_scalars(conn: asyncmy.Connection, *, limit: int) -> list[models.Scalar]:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+async def list_scalars(
+    connection: asyncmy.Connection, *, limit: int
+) -> list[models.Scalar]:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_LIST_SCALARS, (limit,))
         return [models.Scalar.from_row(row) for row in await cur.fetchall()]
 
@@ -51,7 +53,7 @@ _ADD_SCALARS: Final = """INSERT INTO scalars (
 
 
 async def add_scalars(
-    conn: asyncmy.Connection,
+    connection: asyncmy.Connection,
     *,
     c_bool: bool | None,
     c_tinyint: int | None,
@@ -88,7 +90,7 @@ async def add_scalars(
     c_timestamp: dt.datetime | None,
     c_time: dt.timedelta | None,
 ) -> None:
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(
             _ADD_SCALARS,
             (
@@ -146,10 +148,10 @@ class ListDerivedRow:
         return cls(filled=bool(row[0]), as_signed=row[1])
 
 
-async def list_derived(conn: asyncmy.Connection) -> list[ListDerivedRow]:
+async def list_derived(connection: asyncmy.Connection) -> list[ListDerivedRow]:
     """What sqlc types otherwise than a column: a comparison is its `bool`, a
     cast to an integer its `bigint signed`.
     """
-    async with conn.cursor(asyncmy.cursors.Cursor) as cur:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(_LIST_DERIVED)
         return [ListDerivedRow.from_row(row) for row in await cur.fetchall()]

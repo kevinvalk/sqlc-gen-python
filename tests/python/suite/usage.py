@@ -1,9 +1,8 @@
-"""What application code sees: checked by the static gate, never executed.
+"""What application code sees, checked by the static gate and never executed.
 
-Each `assert_type` pins a public type. Each `# type: ignore[...]` line is a
-mistake that must stay a type error: both checkers run with unused-ignore
-reporting, so if the generated API ever stops rejecting it, this file fails.
-`known_holes` holds the mistakes no annotation can reject.
+Each `assert_type` pins a public type. Each `# type: ignore[...]` line is a mistake that must stay a type error: both
+checkers report unused ignores, so this file fails if the generated API ever stops rejecting it. `known_holes` holds
+the mistakes no annotation can reject.
 """
 
 import contextlib
@@ -132,9 +131,9 @@ def mistakes(
 def known_holes(
     conn: sqlalchemy.Connection, some: UUID, now: dt.datetime, customer: models.Customer
 ) -> None:
-    # None is a type error, though each goes wrong at runtime (docs/
-    # python-output.md, Known limitations). If one ever becomes one, move it
-    # to `mistakes`.
+    # None of these is a type error, though each goes wrong at runtime (docs/python-output.md, "Known limitations"). If
+    # one ever becomes one, move it to `mistakes`.
+
     # A `datetime` is a `date`; the drivers store different days.
     invoices.issue_invoice(conn, issued_on=now, id=some)
     # A `bool` is an `int`; asyncpg writes 1, psycopg raises.

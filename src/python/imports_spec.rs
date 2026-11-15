@@ -1,10 +1,7 @@
-//! Specification for the import block.
-
 use super::*;
 use crate::python::vocabulary::{ASYNCMY, DATE, MODELS};
 use crate::python::{Expression, assign, name, render, tuple};
 
-/// The imports of a module whose body reads `reads`.
 fn imports_for(reads: Vec<ast::Expr>) -> String {
     let rendered = render(&[assign("x", tuple(reads))], &[]);
     rendered[..rendered.find("x = ").unwrap()].trim_end().into()
@@ -43,15 +40,12 @@ fn datetime_is_imported_as_dt_by_ruffs_import_conventions() {
 
 #[test]
 fn a_submodule_is_imported_by_its_path_which_binds_its_package() {
-    // No `as`: `import asyncmy.cursors` binds `asyncmy`, the name read.
+    // No `as` is needed, as `import asyncmy.cursors` binds `asyncmy`, the name we read.
     assert_eq!(
         imports_for(vec![ASYNCMY.attr("cursors").attr("Cursor")]),
         "import asyncmy.cursors"
     );
-    assert_eq!(
-        imports_for(vec![ASYNCMY.attr("Connection")]),
-        "import asyncmy.cursors"
-    );
+    assert_eq!(imports_for(vec![ASYNCMY.attr("Connection")]), "import asyncmy.cursors");
 }
 
 #[test]
@@ -70,15 +64,9 @@ fn plain_imports_come_before_from_imports_and_one_modules_names_merge() {
 fn sections_go_standard_library_third_party_relative_with_a_blank_line_between() {
     assert_eq!(
         imports_for(
-            [
-                "models",
-                "AsyncConnection",
-                "sqlalchemy",
-                "Sequence",
-                "postgresql"
-            ]
-            .map(name)
-            .to_vec()
+            ["models", "AsyncConnection", "sqlalchemy", "Sequence", "postgresql"]
+                .map(name)
+                .to_vec()
         ),
         "from collections.abc import Sequence\n\n\
          import sqlalchemy\n\

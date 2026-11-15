@@ -1,9 +1,8 @@
 """A throwaway MySQL server in Docker, and databases on it.
 
-The runtime proof of the MySQL golden cases uses ``IMAGE``, or the server
-``SQLC_TEST_MYSQL_URL`` names (a SQLAlchemy URL such as
-``mysql+pymysql://root:pw@127.0.0.1:3306/``). There is no silent skip: no
-Docker and no such variable ends the program with an error.
+The runtime proof of the MySQL golden cases uses ``IMAGE`` or the server ``SQLC_TEST_MYSQL_URL`` names (a SQLAlchemy URL
+such as ``mysql+pymysql://root:pw@127.0.0.1:3306/``). We never skip silently: without Docker and without that variable,
+the program ends with an error.
 """
 
 from __future__ import annotations
@@ -25,29 +24,27 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Iterator
 
 READY_SECONDS = 120
-# The long-term support release.
-IMAGE = "mysql:8.4"
+IMAGE = "mysql:8.4"  # The long-term support release
 ENV = "SQLC_TEST_MYSQL_URL"
-# Connections in a row that make the server ready (see `wait_for`).
-READY_STREAK = 2
+READY_STREAK = 2  # Connections in a row that make the server ready (see `wait_for`)
 PASSWORD = "sqlc"  # noqa: S105 -- a throwaway container's
 
 
 @contextmanager
 def server() -> Iterator[sqlalchemy.URL]:
-    """Yield a server's ``mysql+pymysql`` URL, without a database, valid for as
-    long as the context lasts: ``ENV``'s, if set, or else a container of
-    ``IMAGE``, removed with its volumes afterwards.
+    """Yield a server's ``mysql+pymysql`` URL without a database, valid for as long as the context lasts: the one
+    ``ENV`` names when it is set, else a container of ``IMAGE`` that we remove with its volumes afterwards.
     """
     if given := os.environ.get(ENV):
         yield sqlalchemy.make_url(given).set(drivername="mysql+pymysql", database=None)
         return
-    args = [
+
+    arguments = [
         f"--env=MYSQL_ROOT_PASSWORD={PASSWORD}",
         IMAGE,
         *["--skip-log-bin", "--innodb-flush-log-at-trx-commit=0"],
     ]
-    with container("MySQL", ENV, 3306, args) as port:
+    with container("MySQL", ENV, 3306, arguments) as port:
         url = sqlalchemy.URL.create(
             "mysql+pymysql",
             username="root",
@@ -60,7 +57,6 @@ def server() -> Iterator[sqlalchemy.URL]:
 
 
 def connect(url: sqlalchemy.URL) -> pymysql.Connection[pymysql.cursors.Cursor]:
-    """A PyMySQL connection to ``url``."""
     return pymysql.connect(
         host=url.host or "127.0.0.1",
         port=url.port or 3306,
@@ -71,7 +67,6 @@ def connect(url: sqlalchemy.URL) -> pymysql.Connection[pymysql.cursors.Cursor]:
 
 
 def connect_async(url: sqlalchemy.URL, **options: Any) -> Awaitable[asyncmy.Connection]:
-    """An asyncmy connection to ``url``, as ``options`` make it."""
     return asyncmy.connect(
         host=url.host,
         port=url.port,
@@ -88,43 +83,40 @@ def database(server: sqlalchemy.URL, schema: str) -> Iterator[sqlalchemy.URL]:
     name = f"sqlcdx_{secrets.token_hex(6)}"
     admin = connect(server)
     try:
-        with admin.cursor() as cur:
-            cur.execute(f"CREATE DATABASE {name}")
+        with admin.cursor() as cursor:
+            cursor.execute(f"CREATE DATABASE {name}")
+
         url = server.set(database=name)
         try:
-            conn = connect(url)
+            connection = connect(url)
             try:
-                with conn.cursor() as cur:
+                with connection.cursor() as cursor:
                     for statement in statements(schema):
-                        cur.execute(statement)
-                conn.commit()
+                        cursor.execute(statement)
+                connection.commit()
             finally:
-                conn.close()
+                connection.close()
             yield url
         finally:
-            with admin.cursor() as cur:
-                cur.execute(f"DROP DATABASE {name}")
+            with admin.cursor() as cursor:
+                cursor.execute(f"DROP DATABASE {name}")
     finally:
         admin.close()
 
 
 def version(url: sqlalchemy.URL) -> str:
-    """Return the server's version, such as ``8.4.13``."""
-    conn = connect(url)
+    connection = connect(url)
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT VERSION()")
-            return str(cur.fetchall()[0][0])
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT VERSION()")
+            return str(cursor.fetchall()[0][0])
     finally:
-        conn.close()
+        connection.close()
 
 
 def wait_for(url: sqlalchemy.URL) -> None:
-    """Block until ``url`` accepts connections, for at most ``READY_SECONDS``.
-
-    The image's init phase runs a temporary server without networking, then
-    restarts it, so a connection must succeed twice in a row, a second apart.
-    """
+    # The image's init phase runs a temporary server without networking and then restarts it, so a connection must
+    # succeed twice in a row, a second apart.
     deadline = time.monotonic() + READY_SECONDS
     streak = 0
     while streak < READY_STREAK:

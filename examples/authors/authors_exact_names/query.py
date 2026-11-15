@@ -12,8 +12,8 @@ _GET_AUTHOR: Final = sqlalchemy.text("""SELECT id, name, bio FROM authors
 WHERE id = :id LIMIT 1""")
 
 
-def get_author(conn: sqlalchemy.Connection, *, id: int) -> models.Authors | None:
-    row = conn.execute(_GET_AUTHOR, {"id": id}).one_or_none()
+def get_author(connection: sqlalchemy.Connection, *, id: int) -> models.Authors | None:
+    row = connection.execute(_GET_AUTHOR, {"id": id}).one_or_none()
     return None if row is None else models.Authors.from_row(row)
 
 
@@ -21,8 +21,8 @@ _LIST_AUTHORS: Final = sqlalchemy.text("""SELECT id, name, bio FROM authors
 ORDER BY name""")
 
 
-def list_authors(conn: sqlalchemy.Connection) -> list[models.Authors]:
-    return [models.Authors.from_row(row) for row in conn.execute(_LIST_AUTHORS)]
+def list_authors(connection: sqlalchemy.Connection) -> list[models.Authors]:
+    return [models.Authors.from_row(row) for row in connection.execute(_LIST_AUTHORS)]
 
 
 _CREATE_AUTHOR: Final = sqlalchemy.text("""INSERT INTO authors (
@@ -34,10 +34,10 @@ RETURNING id, name, bio""")
 
 
 def create_author(
-    conn: sqlalchemy.Connection, *, name: str, bio: str | None
+    connection: sqlalchemy.Connection, *, name: str, bio: str | None
 ) -> models.Authors:
     return models.Authors.from_row(
-        conn.execute(_CREATE_AUTHOR, {"name": name, "bio": bio}).one()
+        connection.execute(_CREATE_AUTHOR, {"name": name, "bio": bio}).one()
     )
 
 
@@ -45,5 +45,5 @@ _DELETE_AUTHOR: Final = sqlalchemy.text("""DELETE FROM authors
 WHERE id = :id""")
 
 
-def delete_author(conn: sqlalchemy.Connection, *, id: int) -> None:
-    conn.execute(_DELETE_AUTHOR, {"id": id})
+def delete_author(connection: sqlalchemy.Connection, *, id: int) -> None:
+    connection.execute(_DELETE_AUTHOR, {"id": id})
