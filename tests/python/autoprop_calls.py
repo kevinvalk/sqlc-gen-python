@@ -89,8 +89,8 @@ class Call:
 
     async def run(
         self,
-        conn: Any,  # noqa: ANN401
-        callee: Any,  # noqa: ANN401
+        conn: Any,
+        callee: Any,
         data: st.DataObject,
         *,
         pool: Pool,
@@ -364,7 +364,7 @@ def _writes_first(call: Call) -> int:
 def argument(
     conn: sqlalchemy.Connection,
     name: str,
-    hint: Any,  # noqa: ANN401
+    hint: Any,
     column: Json,
 ) -> Argument:
     """Draw values for a parameter as sqlc typed it, in the annotation's form."""

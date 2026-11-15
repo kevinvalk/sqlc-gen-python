@@ -34,6 +34,7 @@ import typemap
 import typemap_postgres
 from examples import ROOT
 from gate import PYTHONS, Env, sync
+from typemap_probe import release
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -56,7 +57,9 @@ TYPEMAP = "typemap"
 SWEEP = "autoprop"
 
 
-# `-E` drops PYTHONDONTWRITEBYTECODE, so `-B` keeps tests/python clean.
+# Every layer's Python is the caller's in nothing: it reads no `PYTHON*`
+# variable (`-E`) or user site (`-s`), and so needs `-B` to keep tests/python
+# clean of bytecode.
 PYTHON_FLAGS = ("-B", "-E", "-s")
 
 
@@ -85,22 +88,18 @@ def workspace(root: Path, cases: Path, mutant: Mutant | None = None) -> Path:
     return root
 
 
-def layer_env(root: Path, database: str) -> dict[str, str]:
-    """The environment every layer runs in: the cases at ``root``, and the
-    database server.
+def failure(command: list[str], root: Path, *, quiet: bool) -> str | None:
+    """Run ``command``, a layer, on the cases at ``root`` and the servers
+    ``main`` put in the environment: what it said if it failed, which with
+    ``quiet`` is not printed, else ``None``.
     """
-    return os.environ | {"SQLC_CASES": str(root), "SQLC_TEST_DATABASE_URL": database}
-
-
-def failure(
-    command: list[str], root: Path, database: str, *, quiet: bool
-) -> str | None:
-    """Run ``command`` on the cases at ``root``: what it said if it failed,
-    which with ``quiet`` is not printed, else ``None``.
-    """
-    env = layer_env(root, database) | {"PYTHONDONTWRITEBYTECODE": "1"}
     done = subprocess.run(
-        command, env=env, cwd=HERE, capture_output=quiet, text=True, check=False
+        command,
+        env=os.environ | {"SQLC_CASES": str(root)},
+        cwd=HERE,
+        capture_output=quiet,
+        text=True,
+        check=False,
     )
     return f"{done.stdout or ''}{done.stderr or ''}" if done.returncode else None
 
@@ -110,9 +109,16 @@ def gate(root: Path) -> list[str]:
     return [sys.executable, *PYTHON_FLAGS, str(HERE / "gate.py"), str(root)]
 
 
-def pytest(*options: str) -> list[str]:
-    """The runtime suite, with ``options``."""
-    return [sys.executable, "-m", "pytest", "-q", *options, str(SUITE)]
+def pytest(*options: str, python: str = sys.executable) -> list[str]:
+    """The runtime suite, with ``options``, on ``python``."""
+    return [python, *PYTHON_FLAGS, "-m", "pytest", "-q", *options, str(SUITE)]
+
+
+def probe(root: Path, python: str = sys.executable) -> list[str]:
+    """The type-truth probe of the cases at ``root``, on ``python``: only its
+    verdict.
+    """
+    return [python, *PYTHON_FLAGS, str(HERE / "typemap.py"), str(root)]
 
 
 def ruff_format(source: str) -> str:
@@ -238,7 +244,7 @@ MUTANTS = {
     # does, and takes the first of several rows.
     ":one or none takes the first row": Mutant(
         RUNTIME,
-        "DID NOT RAISE",
+        "Failed: DID NOT RAISE MultipleResultsFound",
         "customers.py",
         '{"name": name})).one_or_none()',
         '{"name": name})).first()',
@@ -246,7 +252,7 @@ MUTANTS = {
     ),
     "JSON None written as JSON null": Mutant(
         RUNTIME,
-        "SELECT metadata IS NULL FROM customers",
+        "AssertionError: metadata=None is stored as JSON null",
         "customers.py",
         "JSONB(none_as_null=True)",
         "JSONB()",
@@ -285,6 +291,24 @@ MUTANTS = {
         "    price: str\n",
         "    price: Decimal\n",
         case=typemap_postgres.PGTYPES,
+    ),
+    # sqlc reports what stands left of a RIGHT JOIN of several tables NOT
+    # NULL: a customer without payments has no number.
+    "a column left of a RIGHT JOIN as sqlc reports it": Mutant(
+        RUNTIME,
+        "list_customer_payments() ->[1].number: NoneType None is not <class 'str'>",
+        "payments.py",
+        "    number: str | None\n    amount: Decimal | None\n",
+        "    number: str\n    amount: Decimal | None\n",
+    ),
+    # psycopg returns a geometric type as its text; asyncpg, an object.
+    "psycopg point as a tuple": Mutant(
+        TYPEMAP,
+        ".c_point: '(0,0)' is not tuple[float, float]",
+        "models.py",
+        "    c_point: str | None\n",
+        "    c_point: tuple[float, float] | None\n",
+        case="pgtext_psycopg",
     ),
     # MySQL's TIME is a duration, which may be negative or over a day.
     "MySQL TIME as time": Mutant(
@@ -374,7 +398,7 @@ MUTANTS = {
     ),
     # asyncmy's stubs leave what a statement runs through untyped, which
     # strict pyright rejects a call of. Once they type it, this is no longer
-    # caught: the bridge is then to be removed (`CLAUDE.md`, "Workarounds").
+    # caught: the bridge is then to be removed (`AGENTS.md`, "Workarounds").
     "asyncmy's execute called without the bridge": Mutant(
         GATE,
         'Type of "execute" is partially unknown',
@@ -422,17 +446,17 @@ def main() -> int:
         mysql.server() as mysql_server,
         tempfile.TemporaryDirectory() as tmpdir,
     ):
-        # One MySQL server for every layer and Python that runs the suite.
+        # One server of each for every layer and Python that runs the suite.
+        os.environ[postgres.ENV] = server.render_as_string(hide_password=False)
         os.environ[mysql.ENV] = mysql_server.render_as_string(hide_password=False)
         tmp = Path(tmpdir)
-        database = server.render_as_string(hide_password=False)
         cases = golden(generated, tmp / "golden")
         control = workspace(tmp / "control", cases)
         summary = [
-            static_and_pytest(control, database),
+            static_and_pytest(control),
             types(control, server, mysql_server, write),
             sweep(control, generated, server),
-            newer(control, database),
+            newer(control),
         ]
         if args.mutants:
             summary.append(mutants(tmp, cases, generated, server))
@@ -446,13 +470,13 @@ def main() -> int:
 Row = tuple[str, bool, str]
 
 
-def static_and_pytest(control: Path, database: str) -> Row:
+def static_and_pytest(control: Path) -> Row:
     """The gate and the runtime suite, over the cases as generated."""
     print("gate and pytest:", flush=True)
     fails = [
         layer
         for layer, command in [(GATE, gate(control)), ("pytest", pytest())]
-        if failure(command, control, database, quiet=False) is not None
+        if failure(command, control, quiet=False) is not None
     ]
     cases = sum(1 for p in control.iterdir() if p.name != "usage")
     detail = f"failed: {', '.join(fails)}" if fails else f"{cases} cases"
@@ -466,12 +490,15 @@ def types(
     print("\ntype-truth probe:", flush=True)
     sys.path.insert(0, str(control))
     sections = typemap.probe(server, mysql_server)
-    written, stale = write(
-        ROOT / "docs/typemap.md", typemap.render(sections, newer_versions())
-    )
     mismatches = [m for section in sections for m in section.mismatches]
     for mismatch in mismatches:
         print(f"  {mismatch}")
+    # A document of mismatches is no record of what the drivers do.
+    written, stale = (
+        ("not written", False)
+        if mismatches
+        else write(ROOT / "docs/typemap.md", typemap.render(sections, newer_versions()))
+    )
     probed = ", ".join(
         f"{len(s.probes)} {s.engine} types on {len(s.drivers)} drivers"
         for s in sections
@@ -503,28 +530,26 @@ def sweep(control: Path, generated: Path, server: sqlalchemy.URL) -> Row:
 def newer_versions() -> str:
     """Each newer Python, and the SQLAlchemy it installs."""
     return ", ".join(
-        f"Python {v} with sqlalchemy {Env(v).installed('sqlalchemy')}"
+        f"Python {v} with sqlalchemy {release(Env(v).installed('sqlalchemy'))}"
         for v in PYTHONS[1:]
     )
 
 
-def newer(control: Path, database: str) -> Row:
+def newer(control: Path) -> Row:
     """pytest and the type-truth probe again on each newer Python, which
     installs SQLAlchemy 2.1. Only the verdicts: the document records the
     oldest Python. The drivers are the same on every Python, so the corpus
     sweep runs once.
     """
-    env = layer_env(control, database)
     failed = []
     for version in PYTHONS[1:]:
         print(f"\nPython {version}:", flush=True)
-        python = [sync(Env(version)).bin("python"), *PYTHON_FLAGS]
+        python = str(sync(Env(version)).bin("python"))
         for layer, command in [
-            ("pytest", ["-m", "pytest", "-q", str(SUITE)]),
-            ("typemap", [str(HERE / "typemap.py"), str(control)]),
+            ("pytest", pytest(python=python)),
+            ("typemap", probe(control, python)),
         ]:
-            run = subprocess.run([*python, *command], env=env, cwd=HERE, check=False)
-            if run.returncode:
+            if failure(command, control, quiet=False) is not None:
                 failed.append(f"{layer} on {version}")
     detail = ", ".join(failed) or f"pytest and typemap on {', '.join(PYTHONS[1:])}"
     return "newer", bool(failed), detail
@@ -545,11 +570,10 @@ def document(path: Path, text: str, *, check: bool) -> tuple[str, bool]:
 def mutants(tmp: Path, cases: Path, generated: Path, server: sqlalchemy.URL) -> Row:
     """Plant every mutant; each must be caught by the layer named for it."""
     print("\nmutants:", flush=True)
-    database = server.render_as_string(hide_password=False)
     wrong: list[str] = []
     for i, (name, mutant) in enumerate(MUTANTS.items()):
         root = workspace(tmp / f"mutant{i}", cases, mutant)
-        said = caught(mutant, root, generated, server, database)
+        said = caught(mutant, root, generated, server)
         if said is not None and mutant.says in said:
             print(f"  caught by {mutant.caught_by}: {name}", flush=True)
             continue
@@ -562,7 +586,7 @@ def mutants(tmp: Path, cases: Path, generated: Path, server: sqlalchemy.URL) -> 
 
 
 def caught(
-    mutant: Mutant, root: Path, generated: Path, server: sqlalchemy.URL, database: str
+    mutant: Mutant, root: Path, generated: Path, server: sqlalchemy.URL
 ) -> str | None:
     """What the layer named for ``mutant`` said, failing on the cases at
     ``root`` it is planted in; ``None`` if it passed.
@@ -577,9 +601,9 @@ def caught(
         GATE: gate(root),
         RUNTIME: pytest("-x", "-k", RUNTIME),
         MYSQL_RUNTIME: pytest("-x", "-k", MYSQL_RUNTIME),
-        TYPEMAP: [sys.executable, *PYTHON_FLAGS, str(HERE / "typemap.py"), str(root)],
+        TYPEMAP: probe(root),
     }[mutant.caught_by]
-    return failure(command, root, database, quiet=True)
+    return failure(command, root, quiet=True)
 
 
 if __name__ == "__main__":

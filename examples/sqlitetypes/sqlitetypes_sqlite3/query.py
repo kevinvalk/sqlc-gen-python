@@ -44,7 +44,6 @@ def add_scalars(
     c_boolean: bool | None,
 ) -> None:
     with contextlib.closing(conn.cursor()) as cur:
-        cur.row_factory = None
         cur.execute(
             _ADD_SCALARS,
             (

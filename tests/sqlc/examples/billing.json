@@ -3039,6 +3039,99 @@
       "insert_into_table": null
     },
     {
+      "text": "SELECT customers.id, invoices.number, line_items.description\nFROM line_items\nJOIN invoices ON invoices.id = line_items.invoice_id\nRIGHT JOIN customers ON customers.id = invoices.customer_id\nORDER BY customers.id, invoices.number, line_items.position",
+      "name": "ListCustomerLines",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "id",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "customers"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "id",
+          "unsigned": true,
+          "array_dims": 0
+        },
+        {
+          "name": "number",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": 20,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "invoices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "varchar"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "number",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "description",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "line_items"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "description",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [
+        " Every customer, with each line of an invoice of theirs, or none: what",
+        " stands left of the RIGHT JOIN may be without a row, though sqlc reports",
+        " the columns of a join there NOT NULL."
+      ],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
       "text": "UPDATE invoices\nSET total = (SELECT CAST(COALESCE(SUM(quantity * unit_price), 0) AS DECIMAL(12, 2)) FROM line_items WHERE invoice_id = ?)\nWHERE id = ?",
       "name": "RecalculateTotal",
       "cmd": ":exec",

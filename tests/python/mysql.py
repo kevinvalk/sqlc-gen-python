@@ -12,8 +12,9 @@ import os
 import secrets
 import time
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import asyncmy
 import pymysql
 import sqlalchemy
 
@@ -21,7 +22,7 @@ from containers import container
 from examples import statements
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Awaitable, Iterator
 
 READY_SECONDS = 120
 # The long-term support release.
@@ -66,6 +67,18 @@ def connect(url: sqlalchemy.URL) -> pymysql.Connection[pymysql.cursors.Cursor]:
         user=url.username or "root",
         password=url.password or "",
         database=url.database,
+    )
+
+
+def connect_async(url: sqlalchemy.URL, **options: Any) -> Awaitable[asyncmy.Connection]:
+    """An asyncmy connection to ``url``, as ``options`` make it."""
+    return asyncmy.connect(
+        host=url.host,
+        port=url.port,
+        user=url.username,
+        password=url.password,
+        database=url.database,
+        **options,
     )
 
 

@@ -14,7 +14,7 @@ SQLite's, and `examples/billing/` MySQL's. When this
 document and those files disagree, that is a bug in one of them.
 
 Every rule cites the source of truth it rests on, using the ranking in
-`CLAUDE.md`:
+`AGENTS.md`:
 
 | Tag | Source |
 |---|---|
@@ -23,7 +23,7 @@ Every rule cites the source of truth it rests on, using the ranking in
 | **[3]** | what each database and its drivers return at runtime (the versions recorded in `docs/typemap.md`) |
 | **[4]** | sqlc-gen-go and sqlc's inflection rules |
 | **[5]** | pyright strict, `mypy --strict`, ruff `ALL` (the [lint contract](#lint-contract)), all targeting Python 3.10 |
-| **[D]** | a decision recorded in `CLAUDE.md` or below, with its reason |
+| **[D]** | a decision recorded in `AGENTS.md` or below, with its reason |
 
 ## 1. Files
 
@@ -86,7 +86,7 @@ Every rule cites the source of truth it rests on, using the ranking in
    | `Any`, `Final` | `from typing import ...` |
    | SQLAlchemy | `import sqlalchemy`, `from sqlalchemy.dialects import postgresql`, `from sqlalchemy.ext.asyncio import AsyncConnection` |
    | psycopg | `import psycopg`, `from psycopg.rows import tuple_row`, `from psycopg.types.json import Json, Jsonb`, `from psycopg.types.range import Range` |
-   | PyMySQL, asyncmy | `import pymysql`, `import asyncmy.cursors` (which binds `asyncmy`, and makes its cursors known to a type checker), `import typing` (for the protocol asyncmy's cursor is called through, §6) |
+   | PyMySQL, asyncmy | `import pymysql`, `import asyncmy.cursors` (which binds `asyncmy`, and makes its cursors known to a type checker), `import typing` (for what the stubs of either need said: PyMySQL's connection, and the protocol asyncmy's cursor is called through, §6) |
    | SQLite | `import sqlite3`, `import aiosqlite`, `import contextlib` (to close a `sqlite3` cursor) |
    | the models, and the errors of `:one` | `from . import MultipleRowsError, NoRowError, models` |
 
@@ -117,8 +117,8 @@ Every rule cites the source of truth it rests on, using the ranking in
    module imports (§2: `dataclasses`, `dt`, `enum`, `models`, `postgresql`,
    `sqlalchemy`, and the rest), or one of the builtins and locals the
    generated code reads (`bool`, `bytes`, `classmethod`, `conn`, `cur`,
-   `dict`, `float`, `from_row`, `int`, `len`, `list`, `object`, `row`, `rows`,
-   `str`, `tuple`, `value`) MUST get a trailing `_`. In a class body, a field `str` would make every later `str` annotation
+   `dict`, `float`, `from_row`, `int`, `len`, `list`, `object`, `row`, `str`,
+   `tuple`, `value`) MUST get a trailing `_`. In a class body, a field `str` would make every later `str` annotation
    mean the field, and a field `classmethod` the decorator of `from_row`. The
    renamed name is also the bind name (`:from_`), so no mapping is needed.
    *PEP 8; [5]*
@@ -211,14 +211,19 @@ Every rule cites the source of truth it rests on, using the ranking in
 
 ### Type map
 
-This is PostgreSQL's; SQLite's follows. The annotation follows what the
-drivers return, not what the old plugins assumed. psycopg as a backend returns
-what it returns under SQLAlchemy, which hands its values through untouched. *[3]: every row was observed through SQLAlchemy `text()` on psycopg
-(sync and async) and asyncpg; see the evidence column. This is enforced:
-`examples/pgtypes` has a column of every mapped type and an array
-column of every type whose arrays are allowed (a Rust spec fails otherwise),
-and `tests/python/typemap.py` reads every one back through all three drivers, at
-its edges.*
+This is PostgreSQL's; SQLite's and MySQL's follow. The annotation follows
+what the drivers return, not what the old plugins assumed. psycopg as a
+backend returns what it returns under SQLAlchemy, which hands its values
+through untouched, but for the types it alone maps: those it returns as
+their text, and a range, which SQLAlchemy reads through its own type. *[3]:
+every row was observed through SQLAlchemy `text()` on psycopg (sync and
+async) and asyncpg; see the evidence column. This is enforced:
+`examples/pgtypes` has a column of every mapped type and an array column of
+every type whose arrays are allowed, and `examples/pgtext` one of every type
+only the psycopg backend maps (a Rust spec fails otherwise), and
+`tests/python/typemap.py` reads every one back, at its edges: the first
+through all three drivers, the second through the generated functions on
+psycopg, sync and async.*
 
 | PostgreSQL (`schema.name` with `pg_catalog.` stripped) | Annotation | Evidence and notes |
 |---|---|---|
@@ -249,7 +254,7 @@ its edges.*
    multi-dimensional enums, and `json`/`jsonb` array parameters (each
    backend binds only a scalar one, §6). The drivers disagree on these, or
    nobody has probed them. A type is added only together with driver
-   evidence. *[3]; CLAUDE.md: never paper over an unknown with `Any`.* A
+   evidence. *[3]; AGENTS.md: never paper over an unknown with `Any`.* A
    domain (`CREATE DOMAIN amount AS numeric(12, 2) CHECK (VALUE >= 0)`)
    arrives as its bare name, never its base type *[2]*: override it.
 2. A column whose type sqlc could not infer MUST be an error that asks for a
@@ -265,9 +270,11 @@ its edges.*
      as `bigint`, `avg(numeric)` as `double precision`, `length(text)` as
      `double precision` and `date_trunc('month', timestamptz)` as `interval`.
      A result column that is a bare `count(...)` in the statement's
-     top-level select list (with at most an alias) is the exception, on every
-     engine: its type is the engine's whatever it counts (`bigint`, MySQL's
-     `BIGINT`, SQLite's integer), so it is `int`. `sum`, `avg` and the rest
+     top-level select list (with at most a `FILTER (...)`, an `OVER` and an
+     alias) is the exception, on every engine: its type is the engine's
+     whatever it counts, of the rows a filter keeps or a window holds as of
+     all (`bigint`, MySQL's `BIGINT`, SQLite's integer), so it is `int`. (On
+     MySQL sqlc types no window function at all: cast one.) `sum`, `avg` and the rest
      depend on their argument and the engine (`sum` of a `numeric` column is
      `numeric`, MySQL's `SUM` of integers a `DECIMAL`): cast them;
    - a column or parameter whose type is spelled with SQL's standard name:
@@ -555,11 +562,23 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      | `sqlalchemy` | `sqlalchemy.Connection` | `AsyncConnection` |
      | `psycopg` | `psycopg.Connection[Any]` | `psycopg.AsyncConnection[Any]` |
      | `sqlite3` | `sqlite3.Connection` | `aiosqlite.Connection` |
-     | `pymysql` | `pymysql.Connection` | `asyncmy.Connection` |
+     | `pymysql` | `_Connection` | `asyncmy.Connection` |
 
-     PyMySQL's `Connection` is generic only in its stubs, over a cursor class
-     defaulting to the plain one: subscripted, it raises at import, and so
-     would quoted, for `typing.get_type_hints`. The `pymysql` backend's
+     PyMySQL's `Connection` is generic only in its stubs, over the class of
+     its cursors: bare, it is to a type checker a connection of plain cursors
+     alone, which a connection made with `cursorclass=DictCursor` is not;
+     subscripted, it raises at import, and so would quoted, for
+     `typing.get_type_hints`. So a query module on PyMySQL MUST name it once
+     for both, between its imports and its queries:
+
+     ```python
+     if typing.TYPE_CHECKING:
+         _Connection = pymysql.Connection[Any]
+     else:
+         _Connection = pymysql.Connection
+     ```
+
+     The `pymysql` backend's
      coroutines are asyncmy's, which is PyMySQL's protocol and conversions
      in Cython: it returns and binds every type as PyMySQL does. No other
      async driver does: aiomysql has no types, and cannot bind `bytes` with
@@ -592,8 +611,8 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      not mix with a `sqlc.slice`'s items. A name the user chose and used
      twice is one parameter, in both places. The cursor is
      `psycopg.RawCursor(conn, row_factory=tuple_row)` on psycopg,
-     `contextlib.closing(conn.cursor())` then `cur.row_factory = None` on
-     `sqlite3` (`conn.cursor()` on aiosqlite), and
+     `contextlib.closing(conn.cursor())` on `sqlite3` (`conn.cursor()` on
+     aiosqlite), then `cur.row_factory = None` where rows are read, and
      `conn.cursor(pymysql.cursors.Cursor)` on PyMySQL
      (`asyncmy.cursors.Cursor` on asyncmy): each makes rows tuples
      whatever the connection's row factory or cursor class, and is closed
@@ -630,7 +649,8 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      protocol only while its methods take what generated code passes them.
      Planted bug "asyncmy's execute called without the bridge".*
    - **`sqlc.slice`** arrives as `/*SLICE:<name>*/?`, of a parameter
-     `list[T]`. On SQLAlchemy it is `:<name>`, bound by
+     `list[T]`: a list, as an array's is, since a `Sequence[str]` would take
+     a `str`, and bind its characters. On SQLAlchemy it is `:<name>`, bound by
      `sqlalchemy.bindparam("<name>", expanding=True)`, which writes one
      placeholder per item in parentheses of its own, so it takes the place of
      the parentheses sqlc's marker MUST be written directly inside
@@ -714,14 +734,16 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    inner or cross join; or it is the table an `INSERT`, `UPDATE` or `DELETE`
    writes and returns, or one an `UPDATE`'s `FROM` so names. Nothing is
    proven of `t`:
-   - by a `LEFT JOIN` of it, or where it is named twice and either may be
+   - by a `LEFT JOIN` of it, a `FULL JOIN` of or after it, or a `RIGHT JOIN`
+     after it (back to the last comma: `k, t JOIN a ON ... RIGHT JOIN b ON
+     ...` proves `k` and `b`), or where it is named twice and either may be
      missing;
    - where the name may be another's: an alias that spells it (`LEFT JOIN c
      AS t`, a subquery or a function `AS t`), or a CTE of that name;
-   - by a statement with a `RIGHT` or `FULL` join, a join in parentheses, or
-     a join inside another's (`a LEFT JOIN b JOIN t ON ... ON ...`, where the
-     second join starts before the first's `ON`), a set operation, or a list
-     the generator cannot read (rule 6);
+   - by a statement with a join in parentheses, or a join inside another's
+     (`a LEFT JOIN b JOIN t ON ... ON ...`, where the second join starts
+     before the first's `ON`), a set operation, or a list the generator
+     cannot read (rule 6);
    - on SQLite and MySQL, in a statement that aggregates without grouping,
      where a column beside the aggregate is NULL of no rows.
 
@@ -731,12 +753,13 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
    top-level result list, item by item, and makes its column optional; in a
    set operation, a column is optional if it is in any branch. A word after
    a `.` or an `AS` is a name, whatever it spells (`k.group`, `AS order`),
-   and ends no clause. *[3]*
+   and ends no clause; but not after a number's dot (`1. GROUP BY`). *[3]*
    - **A scalar subquery**, wherever it stands in the item (`(SELECT ...)`,
      `(SELECT ...)::int`, `(SELECT ...) + 1`, `f((SELECT ...))`), is NULL
      when it finds no row. Only one that always has its row is not: a bare
-     `count(...)` alone, without a `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET`
-     or set operation. A subquery that is no value is not one: what
+     `count(...)` alone, filtered or not, without a `GROUP BY`, `HAVING`,
+     `LIMIT`, `OFFSET`, window or set operation, in or after its
+     parentheses, however many. A subquery that is no value is not one: what
      `EXISTS`, `IN`, `ANY`, `ALL` or `SOME` read, the elements of an
      `ARRAY(...)`, and one compared with `IS`.
    - **An aggregate of no rows** is NULL but for `count` (and SQLite's
@@ -744,20 +767,44 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      its manual lists them (`sum`, `avg`, `min`, `max`, `string_agg`,
      `array_agg`, `stddev`, `percentile_cont`, ...). An item that calls one
      outside a subquery is optional, unless the statement groups its rows
-     into groups of one at least: a `GROUP BY`, but not `GROUP BY ()`, a
+     into groups of one at least: a `GROUP BY`, but not `GROUP BY ()`
+     (`ALL` or `DISTINCT` as it may be), a
      `ROLLUP`, a `CUBE` or `GROUPING SETS`, whose empty grouping set is a
      row of no rows; nor a `HAVING` or a `WINDOW` alone. A call with `OVER`
      is a window function's, of each row. So
      `SELECT max(issued_on)::date FROM invoices` is `dt.date | None`, the
      cast notwithstanding.
-   - **A default guards both**: inside a `coalesce` (or `ifnull`) whose last
+   - **A `CASE` that may take no branch, or a NULL one**: one without an
+     `ELSE`, which is NULL where no `WHEN` holds, or with a `THEN` or an
+     `ELSE` that is the literal `NULL`, cast or not, wherever it stands in
+     the item; and an item that is that literal alone (`NULL::text AS
+     note`). sqlc reports a `CASE` by its `ELSE`, and every cast NOT NULL.
+     What a `count` counts is no part of it: `count(CASE WHEN paid THEN 1
+     END)` is a count.
+   - **A default guards them**, as a `count` does: inside a `coalesce` (or `ifnull`) whose last
      argument is a literal, cast or not (`coalesce(sum(x), 0)`,
-     `coalesce((SELECT ...), '')`), neither makes the column optional. Any
+     `coalesce(avg(x), 0.0)`, `coalesce((SELECT ...), ''::text)`), none
+     of them makes the column optional. Any
      other last argument may be NULL itself: `coalesce(max(x), max(y))`.
    - **On SQLite and MySQL, a column beside an aggregate** that nothing
      groups is NULL of no rows (`SELECT id, max(x) FROM t`; MySQL takes it
      without `ONLY_FULL_GROUP_BY`): every item that calls no aggregate is
-     optional there.
+     optional there. A `HAVING` alone aggregates the rows as much.
+   - **A column an outer join may leave without a row.** sqlc reports the
+     column of a `LEFT JOIN`'s table optional, but not: what stands left of
+     a `RIGHT` or `FULL` join of several tables (`a JOIN b ON ... RIGHT JOIN
+     c ON ...`: `a`'s and `b`'s); on SQLite and MySQL, what a `LEFT JOIN`
+     brings once a `JOIN` or a comma follows it; and a subquery's (`LEFT JOIN
+     (SELECT ...) s`), whose column it reports as its own table's. So an
+     item that is a column alone, with at most an alias, is optional where
+     every source it may be of is one an outer join may leave without a row
+     (rule 5): the one its qualifier names, by its alias or else its table;
+     or without a qualifier, those of the table sqlc reports it of, or, if
+     none names that, those that name none: the subqueries. An `UPDATE`'s
+     `FROM` and a `DELETE`'s `USING` are read so too, for `RETURNING`.
+     Anything else is as sqlc reports it: `coalesce(b.x, 0)` is the column
+     `b.x` to sqlc, and rightly NOT NULL. Planted bug "a column left of a
+     RIGHT JOIN as sqlc reports it".
    - **A list that is not read** as one item per column proves nothing:
      every column of the result is optional, and every embed (rule 5). sqlc
      writes out each `*` and embed, so this is a statement of a form the
@@ -782,6 +829,8 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
      a count that is wrong on one driver is worse than none.
    - sqlc rejects `ON CONFLICT`, `RETURNING` and non-parameter values in
      `:copyfrom`, but not MySQL's `ON DUPLICATE KEY UPDATE`. *[2], [3]*
+   - A `sqlc.slice` in the statement MUST be an error: every row runs the one
+     statement, and a slice makes it another for each number of items.
    - On MySQL, a `%` anywhere in the statement MUST be an error. A driver's
      `executemany` rewrites the `INSERT` into one statement of many rows, and
      formats what follows the `VALUES` list only in some versions (PyMySQL
@@ -790,12 +839,15 @@ The constant is `sqlalchemy.text("<sql>")`, as SQLAlchemy reads it.
 8. **Batches** (`:batchexec`, `:batchone`, `:batchmany`) run their command
    (`:exec`, `:one`, `:many`) once per row:
    `def f(conn, rows: Iterable[<Query>Params])`, returning `None`, `list[X]`
-   or `list[list[X]]`, one result per row in order; a `:batchone` row without
-   exactly one result raises, as `:one` does with `raise_on_none`: a list has
-   no place for a missing one. On psycopg every row is sent at
-   once, `cur.executemany(<constant>, [...], returning=True)` (without
-   `returning` for `:batchexec`), and each
-   result read from `cur.results()`; on SQLAlchemy the command runs per row.
+   or `list[list[X]]`, one result per row in order. A `:batchone` row's
+   result is its `:one`'s (rule 3): `None` in its place without a row
+   (`list[X | None]`), or with `raise_on_none` it raises; a second row
+   raises either way. On psycopg every row is sent at once,
+   `cur.executemany(<constant>, [...], returning=True)` (without `returning`
+   for `:batchexec`), and each result read from `cur.results()`; on
+   SQLAlchemy `:batchone` and `:batchmany` execute once per row, and
+   `:batchexec` is one `conn.execute(<constant>, [...])` of every row,
+   unless there is none.
    A batch MUST be an error on MySQL and SQLite, as in sqlc, and without
    parameters. *[2], [4]: pgx's batches.*
 9. **`sqlc.narg`** is a nullable parameter: `T | None`, still required. A
@@ -859,6 +911,20 @@ catalog as a whole (two classes of one name, an engine). Every error, and
 every rule above that makes one, is specified with its message in the unit
 specs (`src/*_spec.rs`).
 
+One run reports every problem of the schema and the queries, as sqlc shows a
+plugin's message only once it fails. What to do, the part after the first
+`; `, is then said once, under the problems it is the fix of: one override
+types every column of its type.
+
+```text
+3 problems:
+table "users": column "created_at" has type "DATETIME", which has no verified Python mapping
+auth.sql: query "CreateUser": parameter ?2 ("created_at") has type "DATETIME", which has no verified Python mapping
+  name its Python type with an override (db_type "DATETIME"); but SQLite stores ...
+stats.sql: query "CountUsers": column "share" is an expression sqlc typed by its form, not its operands
+  add a cast, as CAST(<expr> AS <type>)
+```
+
 ## Lint contract
 
 Generated files MUST pass `ruff format --check`, `ruff check` with `select =
@@ -902,14 +968,15 @@ sqlc reports *[2]*.
   (§6, "Functions", rule 6), but not this. Coalesce anything that can be
   NULL: `coalesce(bio, '')::text`, or `coalesce(sum(x), 0)::numeric(12, 2)`,
   as the fixture's `GetInvoiceTotals` does.
-- **Subqueries on the nullable side** are NOT NULL to sqlc: a subquery
-  joined with `LEFT JOIN (SELECT ...) s`, `LEFT JOIN LATERAL`, and a
-  scalar subquery or an aggregate of no rows read through a view, a CTE or
-  a subquery in `FROM`, all
-  annotate `note` as `str`, and return `None` where nothing matched.
-  Join the table itself instead: in `LEFT JOIN b ON b.a_id = a.id`, `b.note`
-  is `str | None`. Where a default will do, coalesce and cast the value
-  instead.
+- **Subqueries on the nullable side** are NOT NULL to sqlc. A column of one
+  an outer join brings (`LEFT JOIN (SELECT ...) s`, `LEFT JOIN LATERAL`) is
+  read as optional where it is selected alone (§6, "Functions", rule 6), but
+  not inside an expression (`s.note || '!'`), nor where another subquery of
+  the `FROM` has its row. And a scalar subquery or an aggregate of no rows
+  read through a view, a CTE or a subquery in `FROM` annotates `note` as
+  `str`, and returns `None` where nothing matched. Join the table itself
+  instead: in `LEFT JOIN b ON b.a_id = a.id`, `b.note` is `str | None`. Where
+  a default will do, coalesce and cast the value instead.
 - **`NULLIF`** is reported as a NOT NULL `bool`, whatever its arguments, and
   that is indistinguishable from a real `bool` column. Cast it, coalesced:
   `coalesce(nullif(discount, 0), 0)::numeric(12, 2)`.
@@ -923,12 +990,17 @@ sqlc reports *[2]*.
   only catches when it is spelled with SQL's standard name: `substr(@s, 2)`
   is `bytes`, since `substr(bytea, int)` is listed first. Cast the
   parameter: `d + @days::int`, `abs(@amount::numeric)`.
-- **Function results through a view, CTE or subquery** that §5, rule 2
-  cannot catch, because the guessed overload's type has the name a
-  declaration would give it: `string_agg`, `substr`, and `btrim`, `ltrim`
-  and `rtrim` of two arguments are `bytes` (the `bytea` overloads are listed
-  first). Cast every computed column inside a view, CTE or subquery, as in
-  a query.
+- **Computed columns through a view, CTE or subquery** that §5, rule 2
+  cannot catch. On PostgreSQL, a function whose guessed overload's type has
+  the name a declaration would give it: `string_agg`, `substr`, and `btrim`,
+  `ltrim` and `rtrim` of two arguments are `bytes` (the `bytea` overloads are
+  listed first). On MySQL and SQLite, every one: sqlc types arithmetic `int`
+  and a decimal literal `float` whatever the operands, and a function by its
+  first overload, and read through a view or a CTE nothing tells such a
+  column from a declared one, so `price * 2` of a `DECIMAL` is annotated
+  `int` and returns a `Decimal`, and `x / 2.0` on SQLite an `int` that
+  returns a `float`. Cast every computed column inside a view, CTE or
+  subquery, as in a query.
 - **sqlc's database-backed analysis** is not supported (§5, rule 2), and a
   request it made cannot always be told: one whose every type reads the same
   either way (`text`, `uuid`, `date` columns only) generates, with every
@@ -943,7 +1015,10 @@ sqlc reports *[2]*.
   `dt.datetime`. Cast each one: `(@after_at::timestamptz, @after_id::uuid)`.
 - **`CASE`** takes its `ELSE` branch's type and is NOT NULL to sqlc, whatever
   the other branches return: `CASE WHEN paid THEN total ELSE 0::int END` is
-  an `int` that comes back as a `Decimal`. Cast the whole expression,
+  an `int` that comes back as a `Decimal`, and `CASE WHEN paid THEN note
+  ELSE '' END` of a nullable `note` a `str` that comes back `None`. Only a
+  `CASE` without an `ELSE`, or with a branch that is `NULL` itself, is read
+  as optional (§6, "Functions", rule 6). Cast the whole expression,
   coalesced: `coalesce(CASE ... END, 0)::numeric(12, 2)`.
 - **Parameters of an `ARRAY[...]` constructor** take the array's type:
   `ARRAY[$1, $2]::int[]` types both `list[int]`, which PostgreSQL rejects,
@@ -961,20 +1036,27 @@ sqlc reports *[2]*.
   NOT NULL: `coalesce(qty, 1.5)` on a NOT NULL `int` column is annotated
   `int` and returns `Decimal`, and `coalesce(b.x, c.y)` with `b` and `c` on
   the nullable side of outer joins is annotated `str` and returns `None`
-  where neither matched. End every coalesce with a default of the type you
-  want, and cast it: `coalesce(b.x, c.y, '')::text`.
+  where neither matched. So does a coalesce of a nullable column read
+  through a view, a CTE or a subquery, which is then no column of its table
+  to tell it by: `WITH c AS (SELECT coalesce(qty, 1.5) AS q FROM t)` makes
+  `q` an `int` that returns a `Decimal`. End every coalesce with a default of
+  the type you want, and cast it: `coalesce(b.x, c.y, '')::text`.
 - **`UNION`, `INTERSECT` and `EXCEPT`** take the first branch's type and
-  nullability: `SELECT name FROM a UNION ALL SELECT NULL` is `list[str]` and
-  returns `None`, and an `int` branch then a `numeric` one is annotated `int`
-  and returns `Decimal`. A view or CTE over such a query inherits it. Coalesce
-  and cast the column in every branch.
+  nullability: `SELECT name FROM a UNION ALL SELECT bio FROM b`, of a
+  nullable `bio`, is `list[str]` and returns `None`, and an `int` branch
+  then a `numeric` one is annotated `int` and returns `Decimal`. (What rule
+  6 reads is read in every branch: `UNION ALL SELECT NULL` makes the column
+  optional.) A view or CTE over such a query inherits it. Coalesce and cast
+  the column in every branch.
 - **Parenthesised joins.** In `a LEFT JOIN (b JOIN c ON ...) ON ...`, sqlc
   reports `b`'s and `c`'s columns NOT NULL, and they are `None` for an
   unmatched row; so it does without the parentheses (`a LEFT JOIN b JOIN c
-  ON ... ON ...`), and for the columns of a table an `UPDATE`'s `FROM`
-  outer-joins. Write a chain instead: `a LEFT JOIN b ON ... LEFT JOIN c ON
-  ...`. (A `sqlc.embed` of such a table is optional: §6, "Functions", rule
-  5.)
+  ON ... ON ...`). Neither `FROM` is read (§6, "Functions", rule 6), so the
+  columns stay as sqlc reports them. Write a chain instead: `a LEFT JOIN b
+  ON ... LEFT JOIN c ON ...`. (A `sqlc.embed` of such a table is optional:
+  rule 5.) In a chain, a table named by an inner and an outer join without a
+  qualifier to tell which (`SELECT name FROM staff e LEFT JOIN staff m ON
+  ...`) is as sqlc reports it too.
 - **Aggregates the generator does not know** are read as any other
   function: one the schema defines (`CREATE AGGREGATE`), an extension's, or
   a function of an aggregate's name (a `count(text)` of the schema's own is
@@ -983,9 +1065,25 @@ sqlc reports *[2]*.
   NULL of no rows, and not read so.
 - **Rows the statement does not show.** A `:one` that is one row by its
   form raises without it: an `INSERT ... RETURNING` whose row a trigger, a
-  rule or SQLite's `RAISE(IGNORE)` drops, and a `SELECT` of aggregates
-  whose list also calls a set-returning function (`generate_series`,
-  `unnest`), which returns a row per element.
+  rule or SQLite's `RAISE(IGNORE)` drops, or whose `VALUES` call a
+  set-returning function (`VALUES (unnest(@ids::int[]), 1)` inserts a row
+  per element, and none of none); and a `SELECT` of aggregates whose list
+  also calls one (`generate_series`, `unnest`), which returns a row per
+  element.
+- **SQLite lets a primary key be NULL**, unless it is an `INTEGER PRIMARY
+  KEY`, declared `NOT NULL`, or of a `STRICT` or `WITHOUT ROWID` table: a
+  `TEXT PRIMARY KEY` column takes `NULL`, and sqlc reports it NOT NULL.
+  Declare it `NOT NULL`.
+- **`:copyfrom` on psycopg is a `COPY`**, not the `INSERT` written (§6,
+  "Functions", rule 7): PostgreSQL fires no rule for it (`CREATE RULE ... ON
+  INSERT`), copies into no view, and takes none in a pipeline of the
+  caller's (`conn.pipeline()`). Use `:batchexec` there, which runs the
+  statement.
+- **An override's module is imported with the third-party ones**: the
+  generator cannot tell `app.types` of the project from `pgvector`, and
+  ruff's isort (I001) wants a first-party module in a section of its own.
+  Exclude the generated package from that rule, or list the module under
+  ruff's `known-third-party`.
 - **`GROUP BY ROLLUP`, `CUBE` and `GROUPING SETS`** leave the grouped columns
   NOT NULL, and their total rows hold `None`. Coalesce and cast the grouped
   columns.
@@ -1028,9 +1126,9 @@ sqlc reports *[2]*.
 - **A `:one` that writes still writes** before it raises: an `UPDATE ...
   RETURNING` that matched two rows updated both, and then raises
   `MultipleRowsError`. Roll the transaction back, as the caller owns it.
-- **Batches are not atomic** by themselves: on psycopg every row is sent in
-  one pipeline, on SQLAlchemy one execution per row, and a failing row
-  leaves the rows before it run. Run a batch inside a transaction.
+- **Batches are not atomic** by themselves: a failing row leaves the rows
+  before it run, on psycopg, which sends every row in one pipeline, as on
+  SQLAlchemy. Run a batch inside a transaction.
 - **Row counts differ on MySQL.** PyMySQL counts the rows an `UPDATE`
   matched only with the `CLIENT.FOUND_ROWS` flag, and the rows it changed
   otherwise; SQLAlchemy's MySQL dialects set it. `:execrows` returns what the
@@ -1052,7 +1150,9 @@ sqlc reports *[2]*.
   `InterfaceError`, so close it. On a connection that prepares statements
   (`stmt_cache_size`), values cross as binary: a `FLOAT` then comes back as
   the single precision stored, `0.1` as `0.10000000149011612`, not as MySQL
-  prints it.
+  prints it. And to a type checker the cursor an `:execresult` returns
+  counts its rows as an `object` (`rowcount`, in asyncmy's stubs):
+  `:execrows` returns the count as an `int`.
 - **A boolean that is an integer hides a NULL.** On MySQL and SQLite,
   `from_row` converts a boolean with `bool(...)`. Where sqlc reports NOT NULL
   a comparison that is NULL (`qty > 0` of a NULL `qty`), it reads `False`,
@@ -1110,7 +1210,7 @@ runs the scanner proof:
   (`cargo xtask sql-text`) must bind exactly the placeholders it reports, at
   their positions, so that SQLAlchemy's `text()` compiles back to the input
   byte for byte, as SQLAlchemy renders it and as its asyncpg dialect sends
-  it, or refuse it for one of the reasons rules 2 and 3 name, read off
+  it, or refuse it for one of the reasons those rules name, read off
   pglast's tokens. This is what holds the PostgreSQL lexer to libpg_query: a placeholder
   taken for text, or text for a placeholder, still round-trips in `cargo
   test`. It needs no database, and runs on the oldest Python only: escaping
@@ -1151,6 +1251,8 @@ layers:
     data, and slices of several items, one and none. The driver's own
     connections make cursors of dicts, which generated code must not read
     rows through;
+  - `test_types.py` runs `custom_psycopg`, whose overrides and renames
+    name an extension's type, a domain, one column and a table;
   - `test_contract.py` checks that the copies of SQLAlchemy's expressions
     `cargo test` uses are SQLAlchemy's.
 
@@ -1162,12 +1264,13 @@ layers:
   two-dimensional arrays) are selected through all three drivers, and fail on
   a value outside the annotation the generator writes in
   `examples/pgtypes/pgtypes_sqlalchemy*`, or JSON that is not the decoded
-  document. MySQL's and SQLite's are stored in a column of
-  `examples/mysqltypes` and `examples/sqlitetypes`, read through the
-  generated functions of each of their cases on its driver (PyMySQL,
-  asyncmy with and without prepared statements, and SQLAlchemy on either;
-  `sqlite3`, `aiosqlite`, and SQLAlchemy on each), every value held to its
-  annotation, and written back through them.
+  document. Those the psycopg backend alone maps, and MySQL's and SQLite's,
+  are stored in a column of `examples/pgtext`, `examples/mysqltypes` and
+  `examples/sqlitetypes`, read through the generated functions of each of
+  their cases on its driver (psycopg, sync and async; PyMySQL, asyncmy with
+  and without prepared statements, and SQLAlchemy on either; `sqlite3`,
+  `aiosqlite`, and SQLAlchemy on each), every value held to its annotation,
+  and written back through them.
   What raises, or does not come back as the value it was, is recorded in
   `docs/typemap.md`.
 - **the runtime sweep** (`tests/python/autoprop.py`) applies the schema of every
@@ -1202,8 +1305,9 @@ layers:
 
 With `--mutants`, plausible generator bugs (`MUTANTS` in `verify.py`) are
 planted one at a time, and each must be caught by the layer named for it,
-which alone runs on it: the gate, `test_runtime.py` (with `-x`), the
-type-truth probe, or the runtime sweep over that golden case, whose
+which alone runs on it: the gate, `test_runtime.py` or `test_mysql.py`
+(with `-x`), the type-truth probe, or the runtime sweep over that golden
+case, whose
 comparison with sqlc's SQL run directly must catch two columns of one type
 swapped. It must fail saying what the mutant names: a part of that layer's
 failure, such as the field `deep.check` found wrong or the rule a checker
@@ -1214,7 +1318,6 @@ output to is specified by its own planted bugs, and what `usage.py` holds
 the types to, by its `# type: ignore` lines, which the gate fails on once
 they are unused. With `--check`, as CI runs
 it, a document that would change fails the run instead of being written.
-`cargo xtask bless` also runs `verify` before it accepts a change to an
-example the runtime layers read (every one but `authors` and `booktest`),
-since a wrong type that is still well typed passes the static gate, and so
-updates the documents with it.
+`cargo xtask bless` also runs `verify` before it accepts a change, since a
+wrong type that is still well typed passes the static gate, and so updates
+the documents with it.

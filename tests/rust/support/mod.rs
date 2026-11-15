@@ -21,7 +21,7 @@ pub use fixtures::{Case, case, cases, export, gen_dir, generated_files, read_jso
 pub use module::check_module;
 
 use models::models_follow_catalog;
-use module::{bridge, module_problems};
+use module::{module_problems, prelude};
 use queries::{queries_follow_sqlc, stem};
 
 /// Every invariant of what `request` generated, as listed in `corpus.rs`;
@@ -72,8 +72,8 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
         let file = format!("{stem}.py");
         if let Some((module, source)) = body(&file) {
             let mut found = Vec::new();
-            let bridge = bridge(module, source);
-            queries_follow_sqlc(request, &stem, (module, bridge), models, &mut found);
+            let prelude = prelude(module, source);
+            queries_follow_sqlc(request, &stem, (module, prelude), models, &mut found);
             problems.extend(found.into_iter().map(|p| format!("{file}: {p}")));
         }
     }

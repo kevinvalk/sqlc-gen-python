@@ -69,7 +69,6 @@ pub struct Config {
 
     /// The most parameters a query's function takes as keywords: one with
     /// more takes them as one `<Query>Params` record. No limit by default.
-    #[serde(default)]
     pub max_params: Option<usize>,
 }
 

@@ -8,13 +8,11 @@
 //! cannot drift apart.
 //!
 //! A generated file is a tree from the first node to the last: [`syntax`]
-//! builds each expression and statement as ruff's own node, so nothing this
-//! crate writes passes through a parser, and data (a column called `class`,
-//! SQL holding `"`) is a name or a string and nothing else. The one Python
-//! this crate reads is an override's annotation ([`Annotation`]), which is
-//! the user's.
-//!
-//! [`render()`] closes the loop: ruff unparses the tree, then ruff formats it.
+//! builds each expression and statement as ruff's own node, with no parser
+//! between, so data (a column called `class`, SQL holding `"`) is a name or
+//! a string and nothing else. Python is parsed in two places only: an
+//! override's annotation ([`Annotation`]), which is the user's, and a module
+//! [`render()`] has unparsed, to spell its strings and for ruff to format.
 
 mod imports;
 mod render;

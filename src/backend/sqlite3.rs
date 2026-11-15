@@ -15,7 +15,7 @@ pub const DRIVER: Driver = Driver {
         closing: || CONTEXTLIB.attr("closing").call([cursor()]),
         cursor,
         cursor_type: || SQLITE3.attr("Cursor"),
-        setup: Some(plain_rows),
+        generic: false,
         untyped: false,
     },
     asynchronous: Flavor {
@@ -23,7 +23,7 @@ pub const DRIVER: Driver = Driver {
         closing: cursor,
         cursor: || cursor().awaited(true),
         cursor_type: || AIOSQLITE.attr("Cursor"),
-        setup: Some(plain_rows),
+        generic: false,
         untyped: false,
     },
     placeholders: Some(Placeholders {
@@ -36,6 +36,7 @@ pub const DRIVER: Driver = Driver {
     bind: |_, value| value,
     text_arrays: false,
     copies: false,
+    plain_rows: Some(plain_rows),
 };
 
 /// `conn.cursor()`.

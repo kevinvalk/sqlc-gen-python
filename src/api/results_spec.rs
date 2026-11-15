@@ -11,8 +11,10 @@ use crate::python::Type;
 
 #[test]
 fn the_commands_that_return_no_rows_ignore_any_columns() {
-    assert_eq!(returning(":exec", vec![]), Command::Exec);
-    assert_eq!(returning(":execrows", vec![]), Command::ExecRows);
+    // A `RETURNING` list sqlc reports is not theirs to read.
+    let id = || vec![column("id", "int8", true)];
+    assert_eq!(returning(":exec", id()), Command::Exec);
+    assert_eq!(returning(":execrows", id()), Command::ExecRows);
     assert_eq!(returning(":execresult", vec![]), Command::ExecResult);
     // A `:copyfrom` is an `:exec` of each row.
     let copy = resolve(self::query(":copyfrom", "SELECT 1"));
@@ -26,6 +28,7 @@ fn a_single_column_is_returned_bare() {
         element: Type::INT,
         array_dims: 0,
         optional: false,
+        as_text: false,
     };
     assert_eq!(
         returning(":one", vec![column("id", "int8", true)]),
@@ -38,23 +41,6 @@ fn a_single_column_is_returned_bare() {
             ..id
         }))
     );
-}
-
-#[test]
-fn a_nullable_or_json_single_column_is_returned_bare_since_no_row_raises() {
-    // `None` can only mean NULL (or JSON `null`): a missing row raises.
-    for (name, ty, not_null) in [("bio", "text", false), ("body", "jsonb", true)] {
-        for cmd in [":one", ":many"] {
-            let command = returning(cmd, vec![column(name, ty, not_null)]);
-            assert!(
-                matches!(
-                    command,
-                    Command::One(Shape::Scalar(_)) | Command::Many(Shape::Scalar(_))
-                ),
-                "{cmd} {ty}: {command:?}"
-            );
-        }
-    }
 }
 
 #[test]
@@ -248,6 +234,7 @@ fn an_ungrouped_aggregate_is_optional_though_sqlc_reports_its_cast_not_null() {
         element: Type::DECIMAL,
         array_dims: 0,
         optional,
+        as_text: false,
     };
     // One row, whose value is NULL of no rows.
     assert_eq!(
@@ -330,9 +317,15 @@ fn a_mysql_cast_to_char_or_binary_says_why_it_has_no_type() {
 
 #[test]
 fn arithmetic_on_mysql_and_sqlite_asks_for_a_cast() {
-    // sqlc types `a + b` as `int`, and MySQL's `1.0` as `float`, of no table,
-    // whatever the operands; a cast it spells as declared.
-    for (engine, data_type) in [("mysql", "int"), ("mysql", "float"), ("sqlite", "int")] {
+    // sqlc types `a + b` as `int`, MySQL's `1.0` as `float` and its
+    // `BINARY x`, bytes, as `char`, of no table, whatever the operands; a
+    // cast it spells as declared.
+    for (engine, data_type) in [
+        ("mysql", "int"),
+        ("mysql", "float"),
+        ("mysql", "char"),
+        ("sqlite", "int"),
+    ] {
         let error = on(
             engine,
             plugin::Query {

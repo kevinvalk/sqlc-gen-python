@@ -128,8 +128,9 @@ module's rules are specified in a `_spec.rs` beside it.
 Every commit on `main` that passes CI is published as the `unstable`
 prerelease, which moves with `main`. A version:
 
-1. Set `version` in `Cargo.toml`, run `cargo check`, and get both onto `main`
-   with CI green.
+1. Set `version` in `Cargo.toml`, run `cargo xtask bless` (every generated
+   file's header names the version), and get it all onto `main` with CI
+   green.
 2. `git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z`
 
 `release.yml` reruns CI on the tag and publishes the WASM, `SHA256SUMS`, a
@@ -147,5 +148,6 @@ then is merged into `main` once CI passes on its branch, and so into
   the version sqlc's own tests run;
 - ruff: `cargo update` for the crates' new tag, then `cargo xtask bless` if
   the formatter writes anything differently;
-- PostgreSQL or MySQL: `cargo xtask verify` to rewrite `docs/typemap.md`;
+- PostgreSQL or MySQL, or a driver's minor release (the document names
+  each to its minor): `cargo xtask verify` to rewrite `docs/typemap.md`;
 - a uv minor: widen `required-version` in `tests/python/pyproject.toml`.

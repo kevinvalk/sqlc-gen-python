@@ -36,7 +36,7 @@ jobs:
     if: >-
       ${{ !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/')
       && github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -64,7 +64,7 @@ jobs:
     if: >-
       ${{ !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/')
       && github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -93,11 +93,13 @@ jobs:
 
   # Uncached, so the plugin sqlc ran is proven to be what the source and the
   # pinned toolchain make. Same host triple: cargo mixes it into crate hashes,
-  # so the bytes are reproducible per host, not across hosts.
+  # so the bytes are reproducible per host, not across hosts. And the same
+  # image, which is why every job names its release: `ubuntu-latest` becomes
+  # the next one runner by runner.
   reproduce:
     name: clean rebuild gives the same plugin
     needs: capture
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

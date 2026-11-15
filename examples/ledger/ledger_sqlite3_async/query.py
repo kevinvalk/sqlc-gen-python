@@ -74,7 +74,6 @@ _ARCHIVE_ACCOUNT: Final = (
 
 async def archive_account(conn: aiosqlite.Connection, *, id: int) -> int:
     async with conn.cursor() as cur:
-        cur.row_factory = None
         await cur.execute(_ARCHIVE_ACCOUNT, (id,))
         return cur.rowcount
 
@@ -139,7 +138,6 @@ class BookParams:
 
 async def book(conn: aiosqlite.Connection, params: BookParams) -> None:
     async with conn.cursor() as cur:
-        cur.row_factory = None
         await cur.execute(
             _BOOK,
             (
@@ -166,7 +164,6 @@ class BookManyParams:
 
 async def book_many(conn: aiosqlite.Connection, rows: Iterable[BookManyParams]) -> None:
     async with conn.cursor() as cur:
-        cur.row_factory = None
         await cur.executemany(
             _BOOK_MANY, [(r.account_id, r.amount_cents, r.memo) for r in rows]
         )
@@ -208,6 +205,95 @@ async def balance(conn: aiosqlite.Connection, *, account_id: int) -> int:
                 raise NoRowError
             case _:
                 raise MultipleRowsError
+
+
+_COUNT_ENTRIES: Final = """SELECT count(*) AS entries, count(*) FILTER (WHERE amount_cents < 0) AS debits
+FROM entries WHERE account_id = ?"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CountEntriesRow:
+    entries: int
+    debits: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CountEntriesRow":
+        return cls(entries=row[0], debits=row[1])
+
+
+async def count_entries(
+    conn: aiosqlite.Connection, *, account_id: int
+) -> CountEntriesRow:
+    """How many entries the account has, and how many of them are debits: a count
+    of the rows a filter keeps is as much a count.
+    """
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_COUNT_ENTRIES, (account_id,))
+        match await cur.fetchmany(2):
+            case [row]:
+                return CountEntriesRow.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
+
+
+_LIST_AMOUNTS: Final = """SELECT amount_cents, count(*) OVER () AS entries
+FROM entries WHERE account_id = ? ORDER BY id"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListAmountsRow:
+    amount_cents: int
+    entries: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListAmountsRow":
+        return cls(amount_cents=row[0], entries=row[1])
+
+
+async def list_amounts(
+    conn: aiosqlite.Connection, *, account_id: int
+) -> list[ListAmountsRow]:
+    """The account's amounts, each beside how many there are: a count over a
+    window.
+    """
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_LIST_AMOUNTS, (account_id,))
+        return [ListAmountsRow.from_row(row) for row in await cur.fetchall()]
+
+
+_LIST_SHARES: Final = """SELECT accounts.name, entries.amount_cents, ledger.total_cents
+FROM accounts
+LEFT JOIN entries ON entries.account_id = accounts.id
+JOIN (
+  SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS total_cents FROM entries
+) AS ledger
+ORDER BY accounts.id, entries.id"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListSharesRow:
+    name: str
+    amount_cents: int | None
+    total_cents: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListSharesRow":
+        return cls(name=row[0], amount_cents=row[1], total_cents=row[2])
+
+
+async def list_shares(conn: aiosqlite.Connection) -> list[ListSharesRow]:
+    """Each account's amounts beside the ledger's total. An account without
+    entries has no amount, though sqlc reports it NOT NULL once a JOIN follows
+    the LEFT JOIN.
+    """
+    async with conn.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_LIST_SHARES)
+        return [ListSharesRow.from_row(row) for row in await cur.fetchall()]
 
 
 _LIST_ENTRIES: Final = "SELECT id, account_id, amount_cents, rate, memo, receipt, booked_at FROM entries WHERE account_id = ? ORDER BY id"

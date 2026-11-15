@@ -114,11 +114,11 @@ def spelt(pg: Pg) -> str:
     return pg.name + "[]" * pg.dims
 
 
-def probe(server: sqlalchemy.URL, package: str = PGTYPES) -> Section:
-    """Probe every type of a column of ``package``, the generated pgtypes
-    models, at every array depth a column has. Enums are the runtime suite's.
+def probe(server: sqlalchemy.URL) -> Section:
+    """Probe every type of a column of the generated pgtypes models, at every
+    array depth a column has. Enums are the runtime suite's.
     """
-    models = importlib.import_module(f"{package}.models")
+    models = importlib.import_module(f"{PGTYPES}.models")
     with database(server, SCHEMA.read_text()) as url:
         engine = sqlalchemy.create_engine(url.set(drivername="postgresql+psycopg"))
         with engine.connect() as conn:
@@ -131,7 +131,7 @@ def probe(server: sqlalchemy.URL, package: str = PGTYPES) -> Section:
             for t in tables(conn, models):
                 if t.model is None:
                     # Its types would otherwise go unprobed, and the verdict stay ok.
-                    message = f"{package}: no one model reads the table {t.sql}"
+                    message = f"{PGTYPES}: no one model reads the table {t.sql}"
                     raise LookupError(message)
                 hints = typing.get_type_hints(t.model).values()
                 for column, hint in zip(t.columns, hints, strict=True):
@@ -140,7 +140,7 @@ def probe(server: sqlalchemy.URL, package: str = PGTYPES) -> Section:
                     key = (column.pg.name, column.pg.dims)
                     annotation = strip_none(hint)[0]
                     if annotations.setdefault(key, annotation) != annotation:
-                        message = f"{package}: {column.pg.name} is annotated two ways"
+                        message = f"{PGTYPES}: {column.pg.name} is annotated two ways"
                         raise LookupError(message)
         engine.dispose()
         probes = [
@@ -204,7 +204,7 @@ def expressions(pg: Pg) -> list[tuple[str, str]]:
     return [("NULL", f"NULL::{spelt(pg)}"), *empty, *edges]
 
 
-async def _edge(conn: Any, probed: Typed, driver: str, edge: str, sql: str) -> str:  # noqa: ANN401
+async def _edge(conn: Any, probed: Typed, driver: str, edge: str, sql: str) -> str:
     """Select one edge, check it, bind it back; say what was notable."""
     pg, p = probed
     # JSON is also selected as the text of the document it holds.
@@ -244,7 +244,7 @@ def _undecoded(value: object, document: list[str]) -> str | None:
     return None if repr(value) == repr(decoded) else f"{value!r} is not {decoded!r}"
 
 
-async def _round_trip(conn: Any, pg: Pg, sql: str, value: object) -> str:  # noqa: ANN401
+async def _round_trip(conn: Any, pg: Pg, sql: str, value: object) -> str:
     """Bind ``value`` back; empty if PostgreSQL reads what it sent."""
     # JSON is compared as `jsonb`: `json` keeps the text it was given verbatim.
     own = spelt(pg)

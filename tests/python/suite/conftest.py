@@ -1,36 +1,40 @@
-"""Shared fixtures: a real PostgreSQL, and no silent skip.
+"""Shared fixtures: real databases, and no silent skip.
 
 The suite proves the golden cases of the examples (`examples/*/<case>/`)
-correct against a live database; `api.py` loads them. The database is
-`postgres.server()`'s: `SQLC_TEST_DATABASE_URL`, or a throwaway Docker
-container of the newest PostgreSQL.
+correct against a live database; `api.py` loads them. The databases are
+`postgres.server()`'s and `mysql.server()`'s: the server a variable names
+(`SQLC_TEST_DATABASE_URL`, `SQLC_TEST_MYSQL_URL`), or a throwaway Docker
+container.
 """
 
-from collections.abc import Awaitable, Iterator
-from typing import Any
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager
 
+import mysql
 import postgres
 import pytest
 import sqlalchemy
 from examples import golden_cases
 
 
-async def no_row(api: Any, call: Awaitable[object]) -> None:  # noqa: ANN401
-    """A `:one` without a row: `None`, or with `raise_on_none`, the error."""
-    if api.raises:
-        with pytest.raises(api.NoRow):
-            await call
-    else:
-        assert await call is None
+def _running(
+    server: Callable[[], AbstractContextManager[sqlalchemy.URL]],
+) -> Iterator[sqlalchemy.URL]:
+    try:
+        with server() as url:
+            yield url
+    except SystemExit as error:  # end the session once, not fail every test
+        pytest.exit(str(error), returncode=1)
 
 
 @pytest.fixture(scope="session")
 def server() -> Iterator[sqlalchemy.URL]:
-    try:
-        with postgres.server() as url:
-            yield url
-    except SystemExit as error:  # end the session once, not fail every test
-        pytest.exit(str(error), returncode=1)
+    yield from _running(postgres.server)
+
+
+@pytest.fixture(scope="session")
+def mysql_server() -> Iterator[sqlalchemy.URL]:
+    yield from _running(mysql.server)
 
 
 def pytest_sessionfinish(session: pytest.Session) -> None:

@@ -15,7 +15,7 @@ pub const DRIVER: Driver = Driver {
         closing: || cursor("RawCursor"),
         cursor: || cursor("RawCursor"),
         cursor_type: || cursor_type("RawCursor"),
-        setup: None,
+        generic: false,
         untyped: false,
     },
     asynchronous: Flavor {
@@ -23,7 +23,7 @@ pub const DRIVER: Driver = Driver {
         closing: || cursor("AsyncRawCursor"),
         cursor: || cursor("AsyncRawCursor"),
         cursor_type: || cursor_type("AsyncRawCursor"),
-        setup: None,
+        generic: false,
         untyped: false,
     },
     // PostgreSQL's own `$N`, as sqlc writes them.
@@ -34,6 +34,7 @@ pub const DRIVER: Driver = Driver {
     // psycopg knows no type the schema declares.
     text_arrays: true,
     copies: true,
+    plain_rows: None,
 };
 
 /// `psycopg.<class>(conn, row_factory=tuple_row)`: a cursor of `class` on
@@ -49,8 +50,8 @@ fn cursor_type(class: &str) -> ast::Expr {
 }
 
 /// The types whose value psycopg returns as its text, where asyncpg returns
-/// an object of its own (`tests/python/typemap.py`).
-const TEXT: &[&str] = &[
+/// an object of its own (`tests/python/typemap_psycopg.py`).
+pub(super) const TEXT: &[&str] = &[
     "hstore", "bit", "varbit", "point", "line", "lseg", "box", "path", "polygon", "circle", "cid",
     "xid", "xid8", "tid", "pg_lsn",
 ];

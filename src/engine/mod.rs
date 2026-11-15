@@ -194,15 +194,16 @@ impl Engine {
 
     /// Whether a result `column` is an expression sqlc typed by its form, not
     /// its operands: on MySQL and SQLite, arithmetic of any operands is `int`
-    /// (`price * 1.1` too), and MySQL's `1.0`, a `DECIMAL`, is `float`. A
-    /// cast is spelt as declared (`INTEGER`, `SIGNED`, `REAL`, `DOUBLE`).
+    /// (`price * 1.1` too), and MySQL's `1.0`, a `DECIMAL`, is `float`, and
+    /// its `BINARY x`, bytes, is `char`. A cast is spelt as declared
+    /// (`INTEGER`, `SIGNED`, `REAL`, `DOUBLE`), and a column has its table.
     pub fn is_untyped_expression(self, column: &plugin::Column) -> bool {
-        match self {
-            Self::PostgreSql => false,
-            Self::Sqlite | Self::MySql => {
-                column.table.is_none() && ["int", "float"].contains(&column.data_type().as_str())
-            }
-        }
+        let forms: &[&str] = match self {
+            Self::PostgreSql => &[],
+            Self::Sqlite => &["int", "float"],
+            Self::MySql => &["int", "float", "char"],
+        };
+        column.table.is_none() && forms.contains(&column.data_type().as_str())
     }
 
     /// What to do about a column of `data_type` that has no Python type, for
@@ -266,10 +267,11 @@ impl Engine {
         }
     }
 
-    /// What each of the `columns` items of `text`'s result list is, by
-    /// position, if it is read ([`select::items`]).
-    pub fn items(self, text: &str, columns: usize) -> Option<Vec<select::Item>> {
-        select::items(&self.words(text), columns, &self.aggregates())
+    /// What each item of `text`'s result list is, by position, `tables`
+    /// naming the table sqlc reports each one's column of, if it is read
+    /// ([`select::items`]).
+    pub fn items(self, text: &str, tables: &[&str]) -> Option<Vec<select::Item>> {
+        select::items(&self.words(text), tables, &self.aggregates())
     }
 
     /// Whether `text` returns exactly one row, whatever the data

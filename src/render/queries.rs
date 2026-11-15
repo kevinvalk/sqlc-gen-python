@@ -5,7 +5,7 @@ use ruff_python_ast as ast;
 
 use super::{Attribute, documentation, record};
 use crate::api::models::Field;
-use crate::api::queries::{Command, Module, Query, RowField, Shape, Takes};
+use crate::api::queries::{Module, Query, RowField, Takes};
 use crate::config::Config;
 use crate::python::vocabulary::{CONN, FINAL, FROM_ROW, ITERABLE, MODELS, PARAMS, ROW, ROWS};
 use crate::python::{
@@ -18,12 +18,7 @@ use crate::python::{
 pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
     let queries = (module.queries.iter()).flat_map(|query| {
         let params = (query.takes.class()).map(|class| params_class(class, &query.params));
-        let row = match &query.command {
-            Command::One(Shape::Row(class, fields)) | Command::Many(Shape::Row(class, fields)) => {
-                Some(row_class(class, fields, config.backend.text_arrays()))
-            }
-            _ => None,
-        };
+        let row = query.row().map(|(class, fields)| row_class(class, fields));
         let statement = ann_assign(&query.constant, FINAL, config.backend.statement(query));
         let function = function(query, config);
         std::iter::once(statement)
@@ -38,7 +33,7 @@ pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
 
 /// `<Query>Row`, whose fields are the result's, an embed taking its model's
 /// columns.
-fn row_class(class: &str, fields: &[RowField], text_arrays: bool) -> ast::Stmt {
+fn row_class(class: &str, fields: &[RowField]) -> ast::Stmt {
     let mut offset = 0;
     let attributes: Vec<Attribute> = (fields.iter())
         .map(|field| {
@@ -46,7 +41,7 @@ fn row_class(class: &str, fields: &[RowField], text_arrays: bool) -> ast::Stmt {
             match field {
                 RowField::Column(field) => {
                     offset += 1;
-                    Attribute::column(field, start, Scope::Queries, text_arrays)
+                    Attribute::column(field, start, Scope::Queries)
                 }
                 RowField::Embed {
                     name,

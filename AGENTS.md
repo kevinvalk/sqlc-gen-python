@@ -52,9 +52,7 @@ and renders it with ruff's formatter. Read `docs/development.md` for the archite
 - Types follow driver reality; enums are coerced into the enum class.
 - `cargo test` stays hermetic: no Python, Docker or network. Python tooling lives
   in a uv project under `tests/python`; Docker is needed for `capture`, `verify`,
-  CI, and a `bless` that changes a case the runtime proof reads
-  (every example but `authors` and `booktest`), and they fail
-  loudly without it.
+  CI, and a `bless` that changes anything, and they fail loudly without it.
 - The sqlc endtoend corpus (pinned sqlc version) is committed as test input.
 
 ## Workarounds
@@ -71,10 +69,11 @@ Each is for someone else's bug, and goes when the bug does.
     bridge".
   - Then remove `Flavor::untyped`, `prelude` and `Body::typed`
     (`src/backend/dbapi.rs`), `Backend::prelude` and its call
-    (`src/render/queries.rs`), the names only they read
-    (`src/python/vocabulary.rs`), `BRIDGE` (`tests/rust/support/`), the
-    mutant, their specs and the rule; make the fixed release the minimum
-    asyncmy ("Known limitations"), and re-bless.
+    (`src/render/queries.rs`) if no other prelude is left, the names only
+    they read (`src/python/vocabulary.rs`), `ASYNCMY`
+    (`tests/rust/support/module.rs`), the mutant, their specs and the rule;
+    make the fixed release the minimum asyncmy ("Known limitations"), and
+    re-bless.
 
 ## Testing conventions
 
@@ -90,9 +89,10 @@ Each is for someone else's bug, and goes when the bug does.
 - An example's `out` directories hold only what the generator produces, and
   `cargo xtask bless` owns them. The invoicing cases are the acceptance
   fixture: `cargo xtask verify` proves them with the runtime suite in
-  `tests/python/suite/`, and bless will not accept a change to them, or to another
-  case the runtime proof reads, that it fails.
+  `tests/python/suite/`, and bless will not accept a change that it fails.
 - An unknown or unprobed type is an error, never `Any`; the tests reject an
-  `Any` field. A type joins an engine's map (`src/engine/*/types.rs`) only
-  with driver evidence, recorded in `docs/python-output.md` §5 and proven by
-  `tests/python/typemap.py`.
+  `Any` field. A type joins an engine's map (`src/engine/*/types.rs`), or a
+  backend's own (`src/backend/psycopg.rs`), only with driver evidence,
+  recorded in `docs/python-output.md` §5 and proven by
+  `tests/python/typemap.py`: a Rust spec holds each map to an example with a
+  column of every type in it.

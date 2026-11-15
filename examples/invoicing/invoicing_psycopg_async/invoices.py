@@ -337,6 +337,88 @@ async def count_invoices(
                 raise MultipleRowsError
 
 
+_COUNT_INVOICES_ISSUED: Final = """SELECT count(*) AS total, count(*) FILTER (WHERE status = 'issued') AS issued
+FROM invoices WHERE customer_id = $1"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CountInvoicesIssuedRow:
+    total: int
+    issued: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CountInvoicesIssuedRow":
+        return cls(total=row[0], issued=row[1])
+
+
+async def count_invoices_issued(
+    conn: psycopg.AsyncConnection[Any], *, customer_id: UUID
+) -> CountInvoicesIssuedRow:
+    """How many invoices the customer has, and how many of them are issued: a
+    count of the rows a filter keeps is as much a count.
+    """
+    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+        await cur.execute(_COUNT_INVOICES_ISSUED, (customer_id,))
+        match await cur.fetchmany(2):
+            case [row]:
+                return CountInvoicesIssuedRow.from_row(row)
+            case []:
+                raise NoRowError
+            case _:
+                raise MultipleRowsError
+
+
+_LIST_ISSUED_NUMBERS: Final = """SELECT id, (CASE WHEN issued_on IS NOT NULL THEN number END)::text AS issued_number
+FROM invoices WHERE customer_id = $1 ORDER BY number"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListIssuedNumbersRow:
+    id: UUID
+    issued_number: str | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListIssuedNumbersRow":
+        return cls(id=row[0], issued_number=row[1])
+
+
+async def list_issued_numbers(
+    conn: psycopg.AsyncConnection[Any], *, customer_id: UUID
+) -> list[ListIssuedNumbersRow]:
+    """Each of the customer's invoices, with its number once it has an issue
+    date: a CASE without an ELSE is NULL where no WHEN holds, though sqlc
+    reports its cast NOT NULL.
+    """
+    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+        await cur.execute(_LIST_ISSUED_NUMBERS, (customer_id,))
+        return [ListIssuedNumbersRow.from_row(row) for row in await cur.fetchall()]
+
+
+_LIST_INVOICE_NUMBERS_PAGE: Final = """SELECT number, count(*) OVER () AS total FROM invoices
+WHERE customer_id = $1 ORDER BY number LIMIT $2"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListInvoiceNumbersPageRow:
+    number: str
+    total: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListInvoiceNumbersPageRow":
+        return cls(number=row[0], total=row[1])
+
+
+async def list_invoice_numbers_page(
+    conn: psycopg.AsyncConnection[Any], *, customer_id: UUID, limit: int
+) -> list[ListInvoiceNumbersPageRow]:
+    """A page of the customer's invoice numbers, each beside how many there are
+    in all: a count over a window.
+    """
+    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+        await cur.execute(_LIST_INVOICE_NUMBERS_PAGE, (customer_id, limit))
+        return [ListInvoiceNumbersPageRow.from_row(row) for row in await cur.fetchall()]
+
+
 _ISSUE_INVOICE: Final = "UPDATE invoices SET status = 'issued', issued_on = $1 WHERE id = $2 AND status = 'draft'"
 
 
@@ -456,7 +538,7 @@ class GetInvoicesBatchParams:
 async def get_invoices_batch(
     conn: psycopg.AsyncConnection[Any], rows: Iterable[GetInvoicesBatchParams]
 ) -> list[models.Invoice | None]:
-    """Several invoices at once: each id must exist."""
+    """Several invoices at once, each in the place of its id."""
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.executemany(
             _GET_INVOICES_BATCH, [(r.id,) for r in rows], returning=True

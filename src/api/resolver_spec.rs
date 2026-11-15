@@ -293,6 +293,41 @@ fn no_field_takes_the_name_of_a_module_an_override_imports() {
 }
 
 #[test]
+fn a_rows_field_hides_an_overrides_module_as_a_models_does_and_a_lone_column_does_not() {
+    use crate::api::fixtures::authors::{of_authors, query, try_resolve_with};
+    let config = options(r#""overrides": [{"column": "authors.name", "python_type": "author.T"}]"#);
+    let resolve = |columns: Vec<plugin::Column>, text: &str| {
+        let query = plugin::Query {
+            columns,
+            ..query(":many", text)
+        };
+        try_resolve_with("postgresql", vec![query], &config)
+    };
+    let embed = plugin::Column {
+        name: "authors".into(),
+        embed_table: Some(plugin::Identifier {
+            name: "authors".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    // The embed's field is `author`, beside one annotated `author.T`.
+    let name = || of_authors(column("name", "text", true));
+    let error = error_of(resolve(
+        vec![embed, name()],
+        "SELECT authors.id, authors.name, authors.bio, authors.name FROM authors",
+    ));
+    assert!(error.contains("`author` would hide the module"), "{error}");
+    // A lone column is no field of a class.
+    let lone = plugin::Column {
+        name: "author".into(),
+        original_name: "name".into(),
+        ..name()
+    };
+    resolve(vec![lone], "SELECT name AS author FROM authors").unwrap();
+}
+
+#[test]
 fn a_bare_db_type_override_names_the_default_schemas_type_too() {
     // sqlc reports an extension's type created in `public` as `public.vector`.
     let schemas = public(vec![table(

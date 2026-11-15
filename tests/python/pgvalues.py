@@ -187,7 +187,7 @@ def seed_order(found: list[Table]) -> list[Table]:
     return ordered
 
 
-def model_for(models: ModuleType | None, columns: list[Column]) -> Any:  # noqa: ANN401
+def model_for(models: ModuleType | None, columns: list[Column]) -> Any:
     """The model whose fields are these columns, or ``None`` if there is none,
     or several that read them differently.
     """
@@ -210,7 +210,7 @@ def _bare(name: str) -> str:
     return re.sub(r"[^0-9a-z]", "", name.lower())
 
 
-def json_type(pg: Pg) -> Any:  # noqa: ANN401
+def json_type(pg: Pg) -> Any:
     """What a JSON parameter must be bound as (§6, typed statements)."""
     base = (postgresql.JSONB if pg.name == "jsonb" else postgresql.JSON)(
         none_as_null=True
@@ -231,7 +231,7 @@ LIBRARY_TYPES: dict[str, Any] = {
 }
 
 
-def sqlalchemy_type(pg: Pg) -> Any:  # noqa: ANN401
+def sqlalchemy_type(pg: Pg) -> Any:
     """How a range or an `hstore` must be bound and read, as the generated
     code does (§6), so that every driver's value is SQLAlchemy's.
     """
@@ -239,7 +239,7 @@ def sqlalchemy_type(pg: Pg) -> Any:  # noqa: ANN401
     return kind() if kind is not None and not pg.dims else None
 
 
-def enum_array_type(pg: Pg) -> Any:  # noqa: ANN401
+def enum_array_type(pg: Pg) -> Any:
     """How an enum array result must be read for psycopg to make it a list (§6)."""
     if not (pg.labels and pg.dims):
         return None
@@ -360,7 +360,7 @@ def ranges(bounds: SearchStrategy[Any]) -> SearchStrategy[object]:
     ends = st.none() | bounds
     shapes = st.sampled_from(["[)", "[]", "()", "(]"])
 
-    def make(lower: Any, upper: Any, shape: str) -> object:  # noqa: ANN401
+    def make(lower: Any, upper: Any, shape: str) -> object:
         if lower is not None and upper is not None and lower > upper:
             lower, upper = upper, lower
         return postgresql.Range(lower, upper, bounds=shape)  # type: ignore[arg-type]

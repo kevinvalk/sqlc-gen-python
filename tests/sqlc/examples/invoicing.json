@@ -5445,6 +5445,304 @@
       "insert_into_table": null
     },
     {
+      "text": "SELECT count(*) AS total, count(*) FILTER (WHERE status = 'issued') AS issued\nFROM invoices WHERE customer_id = $1",
+      "name": "CountInvoicesIssued",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "total",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "issued",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "customer_id",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "invoices"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "uuid"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "customer_id",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [
+        " How many invoices the customer has, and how many of them are issued: a",
+        " count of the rows a filter keeps is as much a count."
+      ],
+      "filename": "invoices.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT id, (CASE WHEN issued_on IS NOT NULL THEN number END)::text AS issued_number\nFROM invoices WHERE customer_id = $1 ORDER BY number",
+      "name": "ListIssuedNumbers",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "id",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "invoices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "uuid"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "id",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "issued_number",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "customer_id",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "invoices"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "uuid"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "customer_id",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [
+        " Each of the customer's invoices, with its number once it has an issue",
+        " date: a CASE without an ELSE is NULL where no WHEN holds, though sqlc",
+        " reports its cast NOT NULL."
+      ],
+      "filename": "invoices.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT number, count(*) OVER () AS total FROM invoices\nWHERE customer_id = $1 ORDER BY number LIMIT $2",
+      "name": "ListInvoiceNumbersPage",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "number",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "invoices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "number",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "total",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "customer_id",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "invoices"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "uuid"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "customer_id",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 2,
+          "column": {
+            "name": "limit",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": null,
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "integer"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [
+        " A page of the customer's invoice numbers, each beside how many there are",
+        " in all: a count over a window."
+      ],
+      "filename": "invoices.sql",
+      "insert_into_table": null
+    },
+    {
       "text": "UPDATE invoices SET status = 'issued', issued_on = $1 WHERE id = $2 AND status = 'draft'",
       "name": "IssueInvoice",
       "cmd": ":execrows",
@@ -6349,7 +6647,7 @@
         }
       ],
       "comments": [
-        " Several invoices at once: each id must exist."
+        " Several invoices at once, each in the place of its id."
       ],
       "filename": "invoices.sql",
       "insert_into_table": null
@@ -7590,6 +7888,165 @@
         }
       ],
       "comments": [],
+      "filename": "payments.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT customers.name, invoices.number, payments.amount\nFROM billing.payments\nJOIN invoices ON invoices.id = payments.invoice_id\nRIGHT JOIN customers ON customers.id = invoices.customer_id\nORDER BY customers.name, invoices.number, payments.amount",
+      "name": "ListCustomerPayments",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "name",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "customers"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "name",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "number",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "invoices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "number",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "amount",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "billing",
+            "name": "payments"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "pg_catalog",
+            "name": "numeric"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "amount",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [
+        " Every customer, with each payment of an invoice of theirs, or none: what",
+        " stands left of the RIGHT JOIN may be without a row, though sqlc reports",
+        " the columns of a join there NOT NULL."
+      ],
+      "filename": "payments.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT customers.name, issued.number\nFROM customers\nLEFT JOIN (SELECT customer_id, number FROM invoices WHERE status = 'issued') AS issued\n    ON issued.customer_id = customers.id\nORDER BY customers.name, issued.number",
+      "name": "ListCustomersIssued",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "name",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "customers"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "name",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "number",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "invoices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "number",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [
+        " Every customer, with the number of each issued invoice of theirs, or none:",
+        " sqlc reports the column of a subquery NOT NULL, as its table's."
+      ],
       "filename": "payments.sql",
       "insert_into_table": null
     }

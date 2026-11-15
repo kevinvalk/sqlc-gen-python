@@ -59,7 +59,7 @@ class Pool:
         elif value is not None and not isinstance(value, sqlalchemy.CursorResult):
             self.add(type(value), value)
 
-    def fitting(self, keys: tuple[str, ...], hint: Any) -> list[object]:  # noqa: ANN401
+    def fitting(self, keys: tuple[str, ...], hint: Any) -> list[object]:
         """Pooled values under the first of ``keys`` that has any (the most
         precise first), or of ``hint``'s type, that fit it.
         """

@@ -61,13 +61,19 @@ pub struct Query {
 }
 
 impl Query {
+    /// The `<Query>Row` class the query defines, if it does, and its fields.
+    pub fn row(&self) -> Option<(&str, &[RowField])> {
+        match &self.command {
+            Command::One(Shape::Row(class, fields)) | Command::Many(Shape::Row(class, fields)) => {
+                Some((class, fields))
+            }
+            _ => None,
+        }
+    }
+
     /// The classes the query defines: its `Params`, then its `Row`.
     pub fn classes(&self) -> impl Iterator<Item = &str> {
-        let row = match &self.command {
-            Command::One(Shape::Row(class, _)) | Command::Many(Shape::Row(class, _)) => Some(class),
-            _ => None,
-        };
-        (self.takes.class().into_iter()).chain(row.map(String::as_str))
+        (self.takes.class().into_iter()).chain(self.row().map(|(class, _)| class))
     }
 }
 
@@ -157,9 +163,9 @@ impl Shape {
 
     /// What `row`, as the database returns it, becomes: its only column, or
     /// its record.
-    pub fn read(&self, row: impl Into<ast::Expr>, text_arrays: bool) -> ast::Expr {
+    pub fn read(&self, row: impl Into<ast::Expr>) -> ast::Expr {
         match self {
-            Self::Scalar(ty) => ty.read(row.index(int(0)), Scope::Queries, text_arrays),
+            Self::Scalar(ty) => ty.read(row.index(int(0)), Scope::Queries),
             record => record.annotation(false).attr(FROM_ROW).call([row.into()]),
         }
     }
@@ -179,6 +185,15 @@ pub enum RowField {
         width: usize,
         missing: Option<usize>,
     },
+}
+
+impl RowField {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Column(field) => &field.name,
+            Self::Embed { name, .. } => name,
+        }
+    }
 }
 
 /// The modules of `queries`, in the order sqlc lists them.
@@ -247,9 +262,7 @@ fn module_name(file: &str) -> Result<String> {
         .unwrap_or("")
         .replace('-', "_");
     if ["models", "__init__"].contains(&stem.to_lowercase().as_str()) {
-        bail!(
-            "{file}: query file \"{file}\" would overwrite the generated module \"{stem}.py\"; rename it"
-        );
+        bail!("{file}: would overwrite the generated module \"{stem}.py\"; rename the file");
     }
     if !python::is_module_name(&stem) {
         bail!("{file}: \"{stem}\" is not a lowercase Python module name; rename the file");
@@ -299,6 +312,15 @@ fn resolve(
         })
         .collect();
     let sql = resolver.engine.sql(&query.text, &binds)?;
+    // Every row runs the one statement, which a slice makes another of for
+    // each number of items.
+    if batch && (sql.0.iter()).any(|piece| matches!(piece, Piece::Slice { .. })) {
+        bail!(
+            "{} runs one statement for every row, and a sqlc.slice makes it another for each \
+             number of items; use :exec, once per row",
+            query.cmd
+        )
+    }
     let placeholders = (sql.0.iter())
         .filter(|piece| !matches!(piece, Piece::Text(_)))
         .count();

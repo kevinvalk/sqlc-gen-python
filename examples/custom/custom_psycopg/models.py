@@ -2,11 +2,21 @@
 # versions:
 #   sqlc-gen-python v0.1.0
 #   sqlc v1.31.1
+# ruff: noqa: S105
 import dataclasses
+import enum
 import ipaddress
 from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
+
+
+class SignIn(str, enum.Enum):
+    PASSWORD = "password"
+    TOKEN = "token"
+
+    def __str__(self) -> str:
+        return str.__str__(self)
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
@@ -15,7 +25,14 @@ class Machine:
     address: ipaddress.IPv4Address
     location: str | None
     budget: Decimal
+    sign_in: SignIn
 
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "Machine":
-        return cls(id=row[0], address=row[1], location=row[2], budget=row[3])
+        return cls(
+            id=row[0],
+            address=row[1],
+            location=row[2],
+            budget=row[3],
+            sign_in=SignIn(row[4]),
+        )

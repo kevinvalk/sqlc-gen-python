@@ -16,7 +16,7 @@ use crate::config::Config;
 use crate::plugin;
 use crate::python::vocabulary::{
     ANY, CLASSMETHOD, CLS, DATACLASSES, FROM_ROW, LOOKUP_ERROR, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR,
-    ROW, SEQUENCE, Symbol,
+    ROW, SEQUENCE,
 };
 use crate::python::{
     self, Expression, Function, Scope, annotate, class, docstring, forward, int, keyword, name,
@@ -38,15 +38,15 @@ pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File
             contents: contents.into_bytes(),
         }
     };
-    let init = errors(config.backend.errors());
+    let init = match config.backend.defines_errors() {
+        true => errors(),
+        false => Vec::new(),
+    };
     // The generated package owns `out`, so it is a regular package: relative
     // imports resolve, and mypy and ruff (INP001) need no configuration.
     let mut files = vec![
         file("__init__.py".into(), &init),
-        file(
-            "models.py".into(),
-            &models::module(api, config.backend.text_arrays()),
-        ),
+        file("models.py".into(), &models::module(api)),
     ];
     files.extend((api.modules.iter()).map(|module| {
         file(
@@ -82,9 +82,9 @@ fn header(sqlc_version: &str, config: &Config) -> String {
     )
 }
 
-/// The errors of `names`, which a `:one` raises without exactly one row,
-/// where the backend's library has none (§6, "Functions", rule 3).
-fn errors(names: &[Symbol]) -> Vec<ast::Stmt> {
+/// The errors a `:one` raises without exactly one row, where the backend's
+/// library has none (§6, "Functions", rule 3).
+fn errors() -> Vec<ast::Stmt> {
     [
         (NO_ROW_ERROR, "A `:one` query returned no row."),
         (
@@ -93,7 +93,6 @@ fn errors(names: &[Symbol]) -> Vec<ast::Stmt> {
         ),
     ]
     .into_iter()
-    .filter(|(error, _)| names.contains(error))
     .map(|(error, doc)| class(error, [], [LOOKUP_ERROR.into()], [docstring(doc)]))
     .collect()
 }
@@ -109,12 +108,12 @@ struct Attribute {
 
 impl Attribute {
     /// `field`, read from `row[at]`, without its comment.
-    fn column(field: &Field, at: usize, scope: Scope, text_arrays: bool) -> Self {
+    fn column(field: &Field, at: usize, scope: Scope) -> Self {
         Self {
             name: field.name.clone(),
             annotation: field.ty.annotation(scope),
             comment: String::new(),
-            read: Some(field.ty.read(row(at), scope, text_arrays)),
+            read: Some(field.ty.read(row(at), scope)),
         }
     }
 }

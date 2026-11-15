@@ -22,8 +22,8 @@ impl Identifier {
 }
 
 impl Column {
-    /// The `schema.name` of the column's type, which the type map
-    /// (`engine/postgresql/types.rs`) reads.
+    /// The `schema.name` of the column's type, which each engine's type map
+    /// reads.
     pub fn data_type(&self) -> String {
         match &self.r#type {
             Some(ty) if !ty.schema.is_empty() => format!("{}.{}", ty.schema, ty.name),

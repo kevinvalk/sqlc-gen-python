@@ -89,6 +89,9 @@ CAPTURED = (
     "protos/sqlc.proto",
 )
 WASM = "target/wasm32-wasip1/release/sqlc-gen-python.wasm"
+# Taken out of the environment: only `fetch` needs it, not what this script
+# runs (sqlc over test cases it does not trust, go, docker).
+GITHUB_TOKEN = os.environ.pop("GITHUB_TOKEN", None)
 REPO = "sqlc-dev/sqlc"
 TESTDATA = "internal/endtoend/testdata"
 PROTO = "protos/plugin/codegen.proto"
@@ -273,13 +276,13 @@ def main() -> None:
 
 def wire_contract(sqlc: Path) -> None:
     """Run the WASM plugin under sqlc, in scratch copies of the examples, and
-    hold it to what sqlc does with its answers (CLAUDE.md, source 1).
+    hold it to what sqlc does with its answers (AGENTS.md, source 1).
 
     In each example, `sqlc generate`, its `process` plugin replaced by the
     WASM, writes exactly its golden cases (every codegen `out`, byte for byte)
     and nothing outside them. No options (so empty `plugin_options` bytes,
-    which name no backend), no `async`, an unknown option, a backend without
-    coroutines asked for them, and an unsupported feature each fail sqlc (exit
+    which name no backend), no `async`, an unknown option, an unsupported
+    feature, and a backend that does not run the engine each fail sqlc (exit
     1) with the plugin's message on stderr, which sqlc shows only on failure,
     and write nothing.
     """
@@ -468,14 +471,14 @@ def download_sqlc(version: str, work: Path) -> Path:
 def fetch(url: str) -> bytes:
     """Return the body behind `https://<url>`.
 
-    Calls to GitHub's API carry `GITHUB_TOKEN` if it is set: unauthenticated,
+    Calls to GitHub's API carry `GITHUB_TOKEN` if it was set: unauthenticated,
     the API allows a CI runner's shared address too few requests.
     """
-    token = os.environ.get("GITHUB_TOKEN")
-    api = token and url.startswith("api.github.com/")
-    headers = {"Authorization": f"Bearer {token}"} if api else {}
+    api = GITHUB_TOKEN and url.startswith("api.github.com/")
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}"} if api else {}
     request = urllib.request.Request(f"https://{url}", headers=headers)
-    with urllib.request.urlopen(request) as response:  # noqa: S310 -- always https
+    # A download that stalls fails the run, rather than hold it.
+    with urllib.request.urlopen(request, timeout=120) as response:  # noqa: S310 -- always https
         body: bytes = response.read()
         return body
 

@@ -1,7 +1,6 @@
 sqlc = "1.31.1"
 
-# Each at a commit, not a branch: what a plugin says decides which binary is
+# At a commit, not a branch: what a plugin says decides which binary is
 # downloaded and run.
 [plugins.tools]
-protoc = "https://raw.githubusercontent.com/b4nst/proto-plugins/6574ad30cb7bd59b3429b0e2c51fe245d350ef70/toml/protoc.toml"
 sqlc = "https://raw.githubusercontent.com/jamesukiyo/proto-plugins/27f04f3299b6aaf44863f01869f358f7661b44e9/sqlc.toml"

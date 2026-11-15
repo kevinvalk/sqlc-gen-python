@@ -57,8 +57,8 @@ fn a_column_named_like_a_name_generated_code_reads_takes_a_trailing_underscore()
     // `RESERVED`, so a name dropped from it fails here. In a class body,
     // `str: str` makes every later `str` annotation mean the field to mypy and
     // pyright, and `classmethod` the decorator of `from_row`; every module the
-    // generated code imports is a name it reads, and `conn`, `row`, `rows` and
-    // `value` are its locals.
+    // generated code imports is a name it reads, and `conn`, `row` and `value`
+    // are its locals.
     let reserved = [
         "dataclasses",
         "dt",
@@ -76,7 +76,6 @@ fn a_column_named_like_a_name_generated_code_reads_takes_a_trailing_underscore()
         "list",
         "object",
         "row",
-        "rows",
         "str",
         "value",
     ];
@@ -84,9 +83,11 @@ fn a_column_named_like_a_name_generated_code_reads_takes_a_trailing_underscore()
     assert_eq!(field_names(&reserved), renamed);
     // Classes are imported by their PascalCase name, which a snake_case field
     // cannot take, so `uuid` and `decimal` are free; `id` is §3, rule 2.
+    // And `rows` is a parameter only of a function whose others are a
+    // record's fields.
     assert_eq!(
-        field_names(&["uuid", "decimal", "datetime", "id"]),
-        ["uuid", "decimal", "datetime", "id"]
+        field_names(&["uuid", "decimal", "datetime", "id", "rows"]),
+        ["uuid", "decimal", "datetime", "id", "rows"]
     );
 }
 

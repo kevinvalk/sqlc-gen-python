@@ -26,9 +26,7 @@ use serde::Deserialize;
 use crate::api::models::Enum;
 use crate::api::queries::{Command, Query, Takes};
 use crate::engine::Engine;
-use crate::python::vocabulary::{
-    DATE, DATETIME, DECIMAL, INT, LIST, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, PARAMS, R, Symbol,
-};
+use crate::python::vocabulary::{DATE, DATETIME, DECIMAL, INT, LIST, PARAMS, R, Symbol};
 use crate::python::{Expression, Type, name, none};
 use dbapi::Driver;
 
@@ -125,14 +123,11 @@ impl Backend {
         self.driver().is_some_and(|driver| driver.text_arrays)
     }
 
-    /// The errors a `:one` raises that the package defines itself, as a
+    /// Whether the package defines the errors a `:one` raises itself, as a
     /// driver has none: always both, so that what a package exports does not
     /// change with its queries.
-    pub fn errors(self) -> &'static [Symbol] {
-        match self.driver() {
-            None => &[],
-            Some(_) => &[MULTIPLE_ROWS_ERROR, NO_ROW_ERROR],
-        }
+    pub fn defines_errors(self) -> bool {
+        self.driver().is_some()
     }
 
     /// What a query module defines before its queries, if anything.
@@ -155,7 +150,7 @@ impl Backend {
     pub fn connection(self, asynchronous: bool) -> ast::Expr {
         match self.driver() {
             None => sqlalchemy::connection(asynchronous),
-            Some(driver) => (driver.flavor(asynchronous).connection)(),
+            Some(driver) => driver.flavor(asynchronous).connection_type(),
         }
     }
 

@@ -24,6 +24,7 @@ use anyhow::{Context, Result, bail};
 use crate::config::Config;
 use crate::plugin;
 use crate::python::Type;
+use queries::RowField;
 
 /// Everything a codegen entry generates, decided.
 #[derive(Debug, Clone, PartialEq)]
@@ -61,23 +62,26 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
         .map(|module| module.split('.').next().unwrap_or_default().to_string())
         .collect();
     let queries = api.modules.iter().flat_map(|module| &module.queries);
-    let names = (api.models.iter().flat_map(|model| &model.fields))
-        .chain(queries.clone().flat_map(|query| &query.columns))
-        .chain(
-            queries
-                .clone()
-                .filter(|query| query.takes.class().is_some())
-                .flat_map(|query| &query.params),
-        )
-        .map(|field| &field.name)
-        .chain(queries.map(|query| &query.function));
-    if let Some(name) = names.into_iter().find(|name| roots.contains(name)) {
+    let models = api.models.iter().flat_map(|model| &model.fields);
+    let rows = (queries.clone())
+        .filter_map(|query| query.row())
+        .flat_map(|(_, fields)| fields.iter().map(RowField::name));
+    let records = (queries.clone())
+        .filter(|query| query.takes.class().is_some())
+        .flat_map(|query| &query.params);
+    let names = (models.chain(records).map(|field| field.name.as_str()))
+        .chain(rows)
+        .chain(queries.map(|query| query.function.as_str()));
+    if let Some(name) = names
+        .into_iter()
+        .find(|name| roots.iter().any(|root| root == name))
+    {
         bail!(
             "`{name}` would hide the module an override imports; name it otherwise with the \
              rename option"
         );
     }
-    let arrays = api.array_enums();
+    let arrays = api.text_array_enums();
     for sql_enum in (api.enums.iter()).filter(|e| arrays.contains(e.name.as_str())) {
         (config.backend.check_array_enum(sql_enum))
             .with_context(|| format!("enum class `{}`", sql_enum.name))?;
@@ -88,6 +92,10 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
 /// Every problem of the schema and queries, so that one run reports them all:
 /// sqlc shows a plugin's message only once it fails, and a problem at a time
 /// would take a run each.
+///
+/// A problem says what is wrong where, and after a `; ` what to do about it.
+/// Of several, what to do is said once, under the problems it is the fix
+/// of: an override types every column of its type.
 #[derive(Default)]
 pub struct Problems(Vec<String>);
 
@@ -106,23 +114,40 @@ impl Problems {
 
     /// An error naming every problem, if there is one.
     pub fn check(self) -> Result<()> {
-        match self.0.as_slice() {
-            [] => Ok(()),
+        let all = match self.0.as_slice() {
+            [] => return Ok(()),
             [one] => bail!("{one}"),
-            all => bail!("{} problems:\n{}", all.len(), all.join("\n")),
+            all => all,
+        };
+        // What to do, and the problems it is the fix of, each in the order
+        // they were found.
+        let mut fixes: Vec<(&str, Vec<&str>)> = Vec::new();
+        for problem in all {
+            let (wrong, fix) = problem.split_once("; ").unwrap_or((problem, ""));
+            match fixes.iter_mut().find(|(known, _)| *known == fix) {
+                Some((_, problems)) => problems.push(wrong),
+                None => fixes.push((fix, vec![wrong])),
+            }
         }
+        let lines: Vec<String> = (fixes.iter())
+            .flat_map(|(fix, problems)| {
+                let fix = (!fix.is_empty()).then(|| format!("  {fix}"));
+                problems.iter().map(|wrong| wrong.to_string()).chain(fix)
+            })
+            .collect();
+        bail!("{} problems:\n{}", all.len(), lines.join("\n"))
     }
 }
 
 impl Api {
-    /// The enum classes some result reads an array of.
-    pub fn array_enums(&self) -> BTreeSet<&str> {
+    /// The enum classes some result reads an array of from the array's text.
+    pub fn text_array_enums(&self) -> BTreeSet<&str> {
         let models = self.models.iter().flat_map(|model| &model.fields);
         let columns = (self.modules.iter())
             .flat_map(|module| &module.queries)
             .flat_map(|query| &query.columns);
         (models.chain(columns))
-            .filter(|field| field.ty.array_dims > 0)
+            .filter(|field| field.ty.as_text)
             .filter_map(|field| match &field.ty.element {
                 Type::Enum(class) => Some(class.as_str()),
                 _ => None,

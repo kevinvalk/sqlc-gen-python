@@ -257,10 +257,7 @@ impl<'a> Resolver<'a> {
             }
             Some(rule) => Type::Custom {
                 annotation: rule.python_type.expr.clone(),
-                json: match self.engine.scalar_type(column) {
-                    Some(Type::Json(json)) => Some(json),
-                    _ => None,
-                },
+                json: (self.engine.scalar_type(column)).and_then(|ty| ty.json()),
             },
             None => {
                 if column.is_func_call {
@@ -281,7 +278,10 @@ impl<'a> Resolver<'a> {
                         let name = self.engine.type_name(&data_type);
                         self.backend.scalar_type(self.engine, &name)
                     })
-                    .or_else(|| self.declared_type(&data_type))
+                    .or_else(|| {
+                        let (schema, sql_enum) = sql_enum?;
+                        Some(Type::Enum(self.class_name(schema, &sql_enum.name)))
+                    })
                 else {
                     let hint = self.engine.unmapped(&data_type);
                     let default = format!("{}.", self.catalog.default_schema);
@@ -291,7 +291,7 @@ impl<'a> Resolver<'a> {
                          name its Python type with an override (db_type \"{named}\"){hint}"
                     )
                 };
-                if let Some(sql_enum) = sql_enum
+                if let Some((_, sql_enum)) = sql_enum
                     && let Some(problem) = self.engine.enum_problem(column, &sql_enum.vals)
                 {
                     bail!("{what} {problem}")
@@ -316,28 +316,24 @@ impl<'a> Resolver<'a> {
             )
         }
         Ok(FieldType {
+            as_text: array_dims > 0
+                && matches!(element, Type::Enum(_))
+                && self.backend.text_arrays(),
             element,
             array_dims,
             optional: !column.not_null,
         })
     }
 
-    /// Looks for an enum the schema itself declares.
+    /// The enum the schema itself declares that `data_type` names, and its
+    /// schema, if any.
     ///
     /// A column names its type `schema.name`, or bare for the default schema
     /// (`docs/python-output.md` §5, rule 3). Composite types get no class yet,
     /// so a column of one is as unknown as a type nothing declares.
-    fn declared_type(&self, data_type: &str) -> Option<Type> {
-        let (schema, _) = data_type.rsplit_once('.').unwrap_or(("", data_type));
-        let sql_enum = self.declared_enum(data_type)?;
-        Some(Type::Enum(
-            self.class_name(self.catalog.schema(schema)?, &sql_enum.name),
-        ))
-    }
-
-    /// The enum of the catalog `data_type` names, if any.
-    fn declared_enum(&self, data_type: &str) -> Option<&'a plugin::Enum> {
+    fn declared_enum(&self, data_type: &str) -> Option<(&'a plugin::Schema, &'a plugin::Enum)> {
         let (schema, name) = data_type.rsplit_once('.').unwrap_or(("", data_type));
-        (self.catalog.schema(schema)?.enums.iter()).find(|e| e.name == name)
+        let schema = self.catalog.schema(schema)?;
+        Some((schema, schema.enums.iter().find(|e| e.name == name)?))
     }
 }

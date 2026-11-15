@@ -176,38 +176,51 @@ fn only_dunders_and_module_constants_may_start_with_an_underscore() {
 }
 
 #[test]
-fn the_bridge_to_asyncmys_untyped_methods_is_private_to_the_letter_and_only_on_asyncmy() {
-    let bridged = "billing_pymysql_async";
-    assert_eq!(planted(bridged, "query.py", "", ""), Vec::<String>::new());
-    for (old, new, problem) in [
-        // The bridge, a letter off, is a private class of `Any`s like another.
+fn a_prelude_is_its_librarys_to_the_letter_and_no_other_module_has_one() {
+    let needs = "its prelude is not the one its library's stubs need";
+    for (case, old, new, problem) in [
+        // asyncmy's bridge, a letter off, is a private class of `Any`s like
+        // another; and half of it is none.
         (
+            "billing_pymysql_async",
             "async def fetchmany(self, size: int)",
             "async def fetchmany(self, size: Any)",
             "module: `_Cursor` is private",
         ),
         (
+            "billing_pymysql_async",
             "def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:",
             "def _typed(cursor: Any) -> _Cursor:",
             "parameter `cursor` of `_typed` is annotated with `Any`",
         ),
-        // Half of it is none.
         (
+            "billing_pymysql_async",
             "def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:\n    return cursor\n\n\n",
             "",
-            "does not bridge the methods asyncmy leaves untyped",
+            needs,
+        ),
+        // PyMySQL's connection, named any other way, is a private name.
+        (
+            "billing_pymysql",
+            "    _Connection = pymysql.Connection[Any]\n",
+            "    _Connection = pymysql.Connection[pymysql.cursors.Cursor]\n",
+            "module: `_Connection` is private",
         ),
     ] {
-        let problems = planted(bridged, "query.py", old, new).join("\n");
+        assert_eq!(planted(case, "query.py", "", ""), Vec::<String>::new());
+        let problems = planted(case, "query.py", old, new).join("\n");
         assert!(problems.contains(problem), "{new:?} not caught: {problems}");
     }
-    // PyMySQL's stubs type what a statement runs through.
-    let (_, files) = plant(bridged, "query.py", &[]);
-    let problems = support::check_output(&support::case("billing_pymysql").request(), &files);
-    assert!(
-        (problems.join("\n")).contains("bridges methods only asyncmy leaves untyped"),
-        "{problems:?}"
-    );
+    // Each is its own library's: PyMySQL's stubs type what a statement runs
+    // through, and no other connection is generic in its stubs alone.
+    for (case, other) in [
+        ("billing_pymysql_async", "billing_pymysql"),
+        ("billing_pymysql", "billing_sqlalchemy"),
+    ] {
+        let (_, files) = plant(case, "query.py", &[]);
+        let problems = support::check_output(&support::case(other).request(), &files);
+        assert!(problems.join("\n").contains(needs), "{problems:?}");
+    }
 }
 
 #[test]

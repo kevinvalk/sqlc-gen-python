@@ -11,8 +11,8 @@ use ruff_python_stdlib::keyword::is_keyword;
 use super::models::Member;
 use crate::python;
 use crate::python::vocabulary::{
-    BOOL, BYTES, CLASSMETHOD, CONN, CUR, DICT, FLOAT, FROM_ROW, INT, LEN, LIST, OBJECT, ROW, ROWS,
-    STR, Symbol, TUPLE, VALUE,
+    BOOL, BYTES, CLASSMETHOD, CONN, CUR, DICT, FLOAT, FROM_ROW, INT, LEN, LIST, OBJECT, ROW, STR,
+    Symbol, TUPLE, VALUE,
 };
 
 #[cfg(test)]
@@ -39,7 +39,6 @@ const RESERVED: &[Symbol] = &[
     LIST,
     OBJECT,
     ROW,
-    ROWS,
     STR,
     TUPLE,
     VALUE,

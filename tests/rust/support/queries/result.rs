@@ -33,17 +33,24 @@ pub(super) fn result_follows_sqlc(
     let Some(returns) = function.returns.as_deref() else {
         return problems.push(format!("{}: no return annotation", query.name));
     };
-    // A scalar subquery that may find no row, and an aggregate of no rows, are
-    // NULL, though sqlc reports them NOT NULL; and so may every column of a
-    // list that is not read. An embed is one column here and each of its
-    // table's in the statement's list.
+    // A scalar subquery that may find no row, an aggregate of no rows, and a
+    // column of a table an outer join left without a row are NULL, though
+    // sqlc reports them NOT NULL; and so may every column of a list that is
+    // not read. An embed is one column here and each of its table's in the
+    // statement's list.
     let width = |column: &plugin::Column| {
         let embed = column.embed_table.as_ref().filter(|_| is_embed(column));
         embed.map_or(1, |embed| {
             table(request, embed).map_or(0, |t| t.columns.len())
         })
     };
-    let items = engine.items(&query.text, query.columns.iter().map(width).sum());
+    let tables: Vec<&str> = (query.columns.iter())
+        .flat_map(|column| match is_embed(column) {
+            true => vec![""; width(column)],
+            false => vec![column.table.as_ref().map_or("", |table| &table.name)],
+        })
+        .collect();
+    let items = engine.items(&query.text, &tables);
     let columns: Vec<plugin::Column> = (query.columns.iter().enumerate())
         .map(|(i, column)| {
             let at: usize = query.columns[..i].iter().map(width).sum();

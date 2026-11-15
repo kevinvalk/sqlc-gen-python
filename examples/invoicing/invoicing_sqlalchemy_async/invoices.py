@@ -334,6 +334,88 @@ async def count_invoices(conn: AsyncConnection, *, customer_id: UUID) -> int:
     return value
 
 
+_COUNT_INVOICES_ISSUED: Final = sqlalchemy.text("""SELECT count(*) AS total, count(*) FILTER (WHERE status = 'issued') AS issued
+FROM invoices WHERE customer_id = :customer_id""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CountInvoicesIssuedRow:
+    total: int
+    issued: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CountInvoicesIssuedRow":
+        return cls(total=row[0], issued=row[1])
+
+
+async def count_invoices_issued(
+    conn: AsyncConnection, *, customer_id: UUID
+) -> CountInvoicesIssuedRow:
+    """How many invoices the customer has, and how many of them are issued: a
+    count of the rows a filter keeps is as much a count.
+    """
+    return CountInvoicesIssuedRow.from_row(
+        (await conn.execute(_COUNT_INVOICES_ISSUED, {"customer_id": customer_id})).one()
+    )
+
+
+_LIST_ISSUED_NUMBERS: Final = sqlalchemy.text("""SELECT id, (CASE WHEN issued_on IS NOT NULL THEN number END)\\:\\:text AS issued_number
+FROM invoices WHERE customer_id = :customer_id ORDER BY number""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListIssuedNumbersRow:
+    id: UUID
+    issued_number: str | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListIssuedNumbersRow":
+        return cls(id=row[0], issued_number=row[1])
+
+
+async def list_issued_numbers(
+    conn: AsyncConnection, *, customer_id: UUID
+) -> list[ListIssuedNumbersRow]:
+    """Each of the customer's invoices, with its number once it has an issue
+    date: a CASE without an ELSE is NULL where no WHEN holds, though sqlc
+    reports its cast NOT NULL.
+    """
+    return [
+        ListIssuedNumbersRow.from_row(row)
+        for row in await conn.execute(
+            _LIST_ISSUED_NUMBERS, {"customer_id": customer_id}
+        )
+    ]
+
+
+_LIST_INVOICE_NUMBERS_PAGE: Final = sqlalchemy.text("""SELECT number, count(*) OVER () AS total FROM invoices
+WHERE customer_id = :customer_id ORDER BY number LIMIT :limit""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListInvoiceNumbersPageRow:
+    number: str
+    total: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListInvoiceNumbersPageRow":
+        return cls(number=row[0], total=row[1])
+
+
+async def list_invoice_numbers_page(
+    conn: AsyncConnection, *, customer_id: UUID, limit: int
+) -> list[ListInvoiceNumbersPageRow]:
+    """A page of the customer's invoice numbers, each beside how many there are
+    in all: a count over a window.
+    """
+    return [
+        ListInvoiceNumbersPageRow.from_row(row)
+        for row in await conn.execute(
+            _LIST_INVOICE_NUMBERS_PAGE, {"customer_id": customer_id, "limit": limit}
+        )
+    ]
+
+
 _ISSUE_INVOICE: Final = sqlalchemy.text(
     "UPDATE invoices SET status = 'issued', issued_on = :issued_on WHERE id = :id AND status = 'draft'"
 )
@@ -448,7 +530,7 @@ class GetInvoicesBatchParams:
 async def get_invoices_batch(
     conn: AsyncConnection, rows: Iterable[GetInvoicesBatchParams]
 ) -> list[models.Invoice | None]:
-    """Several invoices at once: each id must exist."""
+    """Several invoices at once, each in the place of its id."""
     values: list[models.Invoice | None] = []
     for r in rows:
         row = (await conn.execute(_GET_INVOICES_BATCH, {"id": r.id})).one_or_none()

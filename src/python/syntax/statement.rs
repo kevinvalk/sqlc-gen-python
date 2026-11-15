@@ -31,6 +31,12 @@ impl Statements for Vec<ast::Stmt> {
     }
 }
 
+impl Statements for Option<Vec<ast::Stmt>> {
+    fn append_to(self, body: &mut Vec<ast::Stmt>) {
+        body.extend(self.into_iter().flatten());
+    }
+}
+
 /// A body: its parts in order, each a statement, an optional one, or
 /// several.
 macro_rules! stmts {
@@ -122,6 +128,23 @@ pub fn if_(test: impl Into<ast::Expr>, body: Vec<ast::Stmt>) -> ast::Stmt {
         test: Box::new(test.into()),
         body: body.into(),
         elif_else_clauses: vec![],
+    })
+    .into()
+}
+
+/// `if test:` and its body, then `else:` and `orelse`.
+pub fn if_else(
+    test: impl Into<ast::Expr>,
+    body: Vec<ast::Stmt>,
+    orelse: Vec<ast::Stmt>,
+) -> ast::Stmt {
+    node!(ast::StmtIf {
+        test: Box::new(test.into()),
+        body: body.into(),
+        elif_else_clauses: vec![node!(ast::ElifElseClause {
+            test: None,
+            body: orelse.into(),
+        })],
     })
     .into()
 }

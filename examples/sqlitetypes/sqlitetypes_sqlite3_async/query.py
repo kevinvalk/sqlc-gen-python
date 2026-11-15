@@ -46,7 +46,6 @@ async def add_scalars(
     c_boolean: bool | None,
 ) -> None:
     async with conn.cursor() as cur:
-        cur.row_factory = None
         await cur.execute(
             _ADD_SCALARS,
             (

@@ -6,20 +6,11 @@ members = ["xtask"]
 name = "sqlc-gen-python"
 version = "0.1.0"
 edition = "2024"
-build = "build.rs"
 license = "AGPL-3.0-or-later OR LicenseRef-KevinValk-Commercial"
 description = "A sqlc codegen plugin that generates Python"
 repository = "https://github.com/kevinvalk/sqlc-gen-python"
 # `examples/` holds sqlc projects, not Rust programs.
 autoexamples = false
-
-[lib]
-name = "sqlc_gen_python"
-path = "src/lib.rs"
-
-[[bin]]
-name = "sqlc-gen-python"
-path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.104"

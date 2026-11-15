@@ -13,11 +13,10 @@ import asyncio
 import datetime as dt
 import functools
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Coroutine
 from decimal import Decimal
 from typing import Any
 
-import asyncmy
 import asyncmy.cursors
 import mysql
 import pymysql
@@ -25,9 +24,7 @@ import pytest
 import sqlalchemy
 from examples import GoldenCase
 from sqlalchemy.ext.asyncio import create_async_engine
-from suite.api import cases, functions, queries
-
-from conftest import no_row
+from suite.api import cases, functions, no_row, queries
 
 SCHEMA = cases("billing")[0].schema_sql.read_text()
 # Characters PyMySQL's `%` formatting, SQLAlchemy's `:name` binds or a careless
@@ -40,6 +37,9 @@ FIRST_ID = 2**63 + 5
 # asks it to: their values then cross as binary, not as text. A caller's
 # connection may be either, so the `pymysql` backend's coroutines run on both.
 PREPARED = (0, 8)
+
+# Runs the scenario through a case's functions, on a database's URL.
+Run = Callable[[GoldenCase, sqlalchemy.URL, set[str]], Coroutine[Any, Any, None]]
 
 RUNS = [
     pytest.param(
@@ -58,15 +58,6 @@ RUNS = [
 ]
 
 
-@pytest.fixture(scope="session")
-def mysql_server() -> Iterator[sqlalchemy.URL]:
-    try:
-        with mysql.server() as url:
-            yield url
-    except SystemExit as error:  # end the session once, not fail every test
-        pytest.exit(str(error), returncode=1)
-
-
 @pytest.mark.parametrize(("case", "driver", "prepared"), RUNS)
 def test_every_function_against_mysql(
     case: GoldenCase, driver: str, prepared: int, mysql_server: sqlalchemy.URL
@@ -75,13 +66,13 @@ def test_every_function_against_mysql(
     with mysql.database(mysql_server, SCHEMA) as database:
         _setup(database)
         url = database.set(drivername=f"mysql+{driver}")
-        run = {
+        runs: dict[tuple[str, bool], Run] = {
             ("pymysql", False): _pymysql,
             ("pymysql", True): functools.partial(_asyncmy, prepared=prepared),
             ("sqlalchemy", False): _sqlalchemy_sync,
             ("sqlalchemy", True): _sqlalchemy_async,
-        }[case.backend, case.is_async]
-        asyncio.run(run(case, url, called))
+        }
+        asyncio.run(runs[case.backend, case.is_async](case, url, called))
     public = functions(case)
     assert called == public, f"never called: {sorted(public - called)}"
 
@@ -112,12 +103,8 @@ async def _pymysql(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> N
 async def _asyncmy(
     case: GoldenCase, url: sqlalchemy.URL, called: set[str], *, prepared: int
 ) -> None:
-    conn = await asyncmy.connect(
-        host=url.host,
-        port=url.port,
-        user=url.username,
-        password=url.password,
-        database=url.database,
+    conn = await mysql.connect_async(
+        url,
         # As PyMySQL's above.
         cursor_cls=asyncmy.cursors.DictCursor,
         stmt_cache_size=prepared,
@@ -153,7 +140,7 @@ async def _sqlalchemy_async(
         await engine.dispose()
 
 
-async def scenario(api: Any) -> None:  # noqa: ANN401, PLR0915
+async def scenario(api: Any) -> None:  # noqa: PLR0915
     m, q = api.models, api.query
     metadata = '{"vip": true, "note": "50%: \'ok\'"}'
     acme = await q.create_customer(
@@ -287,6 +274,15 @@ async def scenario(api: Any) -> None:  # noqa: ANN401, PLR0915
         ("fee", Decimal("2.000"), Decimal("0.10")),
     ]
     assert str(items[1].quantity) == "2.000"
+    # What stands left of a RIGHT JOIN is None for a customer without lines,
+    # though sqlc says NOT NULL.
+    lines = await q.list_customer_lines()
+    assert [(row.id, row.number, row.description) for row in lines] == [
+        (acme, "2026-001", AWKWARD),
+        (acme, "2026-001", "fee"),
+        (bare, None, None),
+        (twin, None, None),
+    ]
     assert await q.recalculate_total(id=invoice_id) is None
     total = (await q.get_invoice(id=invoice_id)).total
     assert (total, str(total)) == (Decimal("18.95"), "18.95")

@@ -13,7 +13,7 @@
   // Every update waits for CI on its branch (ci.yml runs on `renovate/**`): a new driver, ruff, sqlc or database can
   // change what is generated or proven. One that fails becomes a pull request, to finish by hand: for sqlc,
   // `cargo xtask capture`; for a database, `cargo xtask verify` (docs/development.md).
-  enabledManagers: ["cargo", "pep621", "github-actions", "proto", "custom.regex"],
+  enabledManagers: ["cargo", "pep621", "github-actions", "custom.regex"],
   packageRules: [
     {
       groupName: "github-actions",
@@ -78,8 +78,8 @@
       datasourceTemplate: "github-releases",
     },
     {
-      // sqlc, a plugin's tool, which the proto manager skips. CI fails on a new one until `cargo xtask capture`
-      // has captured what it sends.
+      // sqlc, a plugin's tool, which Renovate's proto manager skips. CI fails on a new one until
+      // `cargo xtask capture` has captured what it sends.
       customType: "regex",
       managerFilePatterns: ["/^\\.prototools$/"],
       matchStrings: ["sqlc = \"(?<currentValue>[0-9.]+)\""],

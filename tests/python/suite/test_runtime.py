@@ -23,9 +23,7 @@ import sqlalchemy
 from examples import GoldenCase
 from postgres import aw, conninfo
 from sqlalchemy.ext.asyncio import create_async_engine
-from suite.api import cases, functions, queries
-
-from conftest import no_row
+from suite.api import cases, functions, no_row, queries
 
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 # Characters that SQLAlchemy, a driver or a careless generator could misread.
@@ -105,7 +103,7 @@ async def _psycopg_async(
         await conn.rollback()
 
 
-def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
+def _api(case: GoldenCase, conn: object, called: set[str]) -> Any:
     """The case's API on ``conn``, with a pipeline to batch calls in."""
     api = queries(case, conn, called)
     api.pipeline = lambda: _pipeline(conn)
@@ -127,7 +125,7 @@ async def _pipeline(conn: object) -> AsyncIterator[None]:
         yield
 
 
-def _sqlalchemy_sql(conn: Any) -> Callable[..., Awaitable[Any]]:  # noqa: ANN401
+def _sqlalchemy_sql(conn: Any) -> Callable[..., Awaitable[Any]]:
     """Raw SQL for looking behind the API, e.g. at SQL NULL versus JSON null."""
 
     async def scalar(statement: str, **params: object) -> object:
@@ -137,7 +135,7 @@ def _sqlalchemy_sql(conn: Any) -> Callable[..., Awaitable[Any]]:  # noqa: ANN401
     return scalar
 
 
-def _psycopg_sql(conn: Any) -> Callable[..., Awaitable[Any]]:  # noqa: ANN401
+def _psycopg_sql(conn: Any) -> Callable[..., Awaitable[Any]]:
     """The same, on a psycopg connection: ``:name`` becomes ``%(name)s``."""
 
     async def scalar(statement: str, **params: object) -> object:
@@ -149,7 +147,7 @@ def _psycopg_sql(conn: Any) -> Callable[..., Awaitable[Any]]:  # noqa: ANN401
     return scalar
 
 
-async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noqa: ANN401, PLR0915
+async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noqa: PLR0915
     m = api.models
     today = dt.date(2026, 11, 11)
     now = dt.datetime(2026, 11, 11, 9, 30, 15, 123456, tzinfo=AMSTERDAM)
@@ -192,7 +190,10 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         metadata=None,
     )
     assert (bob.tags, bob.accepted_methods, bob.metadata) == ([], [], None)
-    assert await sql("SELECT metadata IS NULL FROM customers WHERE id = :id", id=bob.id)
+    stored = await sql(
+        "SELECT metadata IS NULL FROM customers WHERE id = :id", id=bob.id
+    )
+    assert stored, "metadata=None is stored as JSON null"
     # Bare enums, converted one by one, NULL kept as `None`.
     assert await api.customers.list_preferred_methods() == [
         m.BillingPaymentMethod.DIRECT_DEBIT,
@@ -265,6 +266,12 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
 
     assert await api.invoices.get_invoice(id=first.id) == first
     await no_row(api, api.invoices.get_invoice(id=uuid4()))
+    # A CASE that takes no branch is None, though sqlc says NOT NULL.
+    numbers = await api.invoices.list_issued_numbers(customer_id=ada.id)
+    assert [(row.id, row.issued_number) for row in numbers] == [
+        (first.id, None),
+        (second.id, "2026-0002"),
+    ]
     assert await api.invoices.get_invoice_status(id=first.id) is m.InvoiceStatus.DRAFT
     await no_row(api, api.invoices.get_invoice_status(id=uuid4()))
 
@@ -409,6 +416,23 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     ]
     assert await api.invoices.count_invoices(customer_id=ada.id) == 2
     assert await api.invoices.count_invoices(customer_id=uuid4()) == 0
+    # A count of the rows a filter keeps, and one over a window.
+    counted = await api.invoices.count_invoices_issued(customer_id=ada.id)
+    assert (counted.total, counted.issued) == (2, 1)
+    none = await api.invoices.count_invoices_issued(customer_id=uuid4())
+    assert (none.total, none.issued) == (0, 0)
+    page = await api.invoices.list_invoice_numbers_page(customer_id=ada.id, limit=1)
+    assert [(row.number, row.total) for row in page] == [("2026-0001", 2)]
+    assert (
+        await api.invoices.list_invoice_numbers_page(customer_id=uuid4(), limit=1) == []
+    )
+    # A subquery an outer join leaves without a row: its column is None,
+    # though sqlc says NOT NULL.
+    issued_numbers = await api.payments.list_customers_issued()
+    assert [(row.name, row.number) for row in issued_numbers] == [
+        ("Ada", "2026-0001"),
+        ("Bob", None),
+    ]
 
     # Payments: a keyword column, a non-public enum array parameter.
     payment = await api.payments.record_payment(
@@ -442,6 +466,13 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         )
         == []
     )
+    # What stands left of a RIGHT JOIN is None for a customer without
+    # payments, though sqlc says NOT NULL.
+    paid_by = await api.payments.list_customer_payments()
+    assert [(row.name, row.number, row.amount) for row in paid_by] == [
+        ("Ada", "2026-0001", Decimal("169.47")),
+        ("Bob", None, None),
+    ]
 
     assert await api.invoices.mark_invoice_paid(paid_at=now, id=first.id) is None
     paid = await api.invoices.get_invoice(id=first.id)

@@ -14,6 +14,7 @@ use sqlc_gen_python::config::Config;
 use sqlc_gen_python::engine::Engine;
 use sqlc_gen_python::plugin;
 
+use super::module::{ASYNCMY, PYMYSQL};
 use super::python::{fields, is_name};
 use execution::{runs_its_statement, sql_round_trips};
 use result::result_follows_sqlc;
@@ -22,8 +23,8 @@ use signature::function_follows_sqlc;
 /// Checks that the module of query file `stem` implements sqlc's queries of
 /// it (`docs/python-output.md` §6).
 ///
-/// After its bridge at `bridge`, which it has exactly on asyncmy, the pymysql
-/// backend's coroutines, whose stubs alone leave a cursor's methods untyped,
+/// After its `prelude`, which it holds exactly where its library's stubs
+/// need one (PyMySQL's, or asyncmy's for the pymysql backend's coroutines),
 /// the module holds one statement constant and one function per query, in
 /// sqlc's order, so they pair up without repeating any naming rule. Each pair
 /// must run exactly the SQL sqlc wrote, and its signature must say what sqlc
@@ -34,7 +35,7 @@ use signature::function_follows_sqlc;
 pub(super) fn queries_follow_sqlc(
     request: &plugin::GenerateRequest,
     stem: &str,
-    (body, bridge): (&[Stmt], Option<usize>),
+    (body, prelude): (&[Stmt], Option<(usize, &[&str])>),
     models: &[Stmt],
     problems: &mut Vec<String>,
 ) {
@@ -42,15 +43,15 @@ pub(super) fn queries_follow_sqlc(
         return problems.push("generated from options that do not parse".into());
     };
     let (backend, asynchronous) = (config.backend, config.asynchronous);
-    match (
-        bridge.is_some(),
-        backend == Backend::Pymysql && asynchronous,
-    ) {
-        (true, false) => problems.push("bridges methods only asyncmy leaves untyped".into()),
-        (false, true) => problems.push("does not bridge the methods asyncmy leaves untyped".into()),
-        _ => {}
+    let needed = match (backend, asynchronous) {
+        (Backend::Pymysql, false) => Some(PYMYSQL),
+        (Backend::Pymysql, true) => Some(ASYNCMY),
+        (Backend::SqlAlchemy | Backend::Psycopg | Backend::Sqlite3, _) => None,
+    };
+    if prelude.map(|(_, held)| held) != needed {
+        problems.push("its prelude is not the one its library's stubs need".into());
     }
-    let body = &body[bridge.map_or(0, |at| at + 2)..];
+    let body = &body[prelude.map_or(0, |(at, held)| at + held.len())..];
     let Ok(engine) = Engine::of(request) else {
         return problems.push("generated for an engine it does not support".into());
     };

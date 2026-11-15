@@ -52,11 +52,12 @@ fn a_parameter_sqlc_named_after_an_expression_is_an_error() {
     // `@day::date AT TIME ZONE 'Europe/Amsterdam'`: sqlc replaced the whole
     // expression with `$1`, dropping the time zone, and named it so. With
     // 'UTC' the name is an identifier, but still a flattened function call;
-    // `@x + 1` is named "+x".
+    // `@x + 1` is named "+x". And `sqlc.arg('my id')` is named as written.
     for name in [
         "pg_catalogtimezoneEurope/Amsterdamdaydate",
         "pg_catalogtimezoneUTCdaytimestamptz",
         "+x",
+        "my id",
     ] {
         let named = plugin::Column {
             is_named_param: true,
@@ -68,7 +69,7 @@ fn a_parameter_sqlc_named_after_an_expression_is_an_error() {
         });
         assert!(
             error.contains(&format!(
-                r#"sqlc named a parameter "{name}" after an expression"#
+                r#"sqlc named a parameter "{name}", which is no name"#
             )),
             "{error}"
         );

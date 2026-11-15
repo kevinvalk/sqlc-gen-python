@@ -30,7 +30,10 @@ pub fn text(sql: &Sql) -> String {
     for piece in &sql.0 {
         match piece {
             Piece::Text(part) => {
-                let part = if slice { &part[1..] } else { part };
+                let part = match slice {
+                    true => part.strip_prefix(')').unwrap_or(part),
+                    false => part,
+                };
                 text += &part.replace(':', r"\:");
                 slice = false;
             }

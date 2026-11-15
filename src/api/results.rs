@@ -90,7 +90,8 @@ pub(super) fn columns(
 /// ([`crate::engine::select`]), and the tables every row has a row of: a
 /// `count(...)`'s type is the engine's whatever it counts, which sqlc
 /// reports as a guess like any call's; and a scalar subquery that finds no
-/// row, and an aggregate of no rows, are NULL, which sqlc reports NOT NULL.
+/// row, an aggregate of no rows, and a column of a table an outer join left
+/// without a row are NULL, which sqlc reports NOT NULL.
 ///
 /// A statement whose list is not read proves nothing: each of its columns
 /// may be NULL, and each table missing.
@@ -100,12 +101,14 @@ fn reported(
     embeds: &[Option<&Model>],
 ) -> (Vec<plugin::Column>, Vec<String>) {
     // An embed is one column of the report, and each of its table's in the
-    // statement's list.
-    let widths = embeds
-        .iter()
-        .map(|embed| embed.map(|model| model.fields.len()));
-    let width = widths.clone().map(|width| width.unwrap_or(1)).sum();
-    let Some(items) = resolver.engine.items(&query.text, width) else {
+    // statement's list, where its table is the embed's to tell missing.
+    let tables: Vec<&str> = (query.columns.iter().zip(embeds))
+        .flat_map(|(column, embed)| match embed {
+            Some(model) => vec![""; model.fields.len()],
+            None => vec![column.table.as_ref().map_or("", |table| &table.name)],
+        })
+        .collect();
+    let Some(items) = resolver.engine.items(&query.text, &tables) else {
         let nullable = |column: &plugin::Column| plugin::Column {
             not_null: false,
             ..column.clone()
@@ -114,13 +117,13 @@ fn reported(
     };
 
     let mut at = 0;
-    let columns = (query.columns.iter().zip(widths))
+    let columns = (query.columns.iter().zip(embeds))
         .map(|(column, embed)| {
-            let Some(item) = items.get(at).filter(|_| embed.is_none()) else {
-                at += embed.unwrap_or(1);
+            let item = items.get(at).filter(|_| embed.is_none());
+            at += embed.map_or(1, |model| model.fields.len());
+            let Some(item) = item else {
                 return column.clone();
             };
-            at += 1;
             let count = item.count && column.is_func_call;
             plugin::Column {
                 is_func_call: column.is_func_call && !count,

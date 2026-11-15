@@ -3,36 +3,60 @@
 #   sqlc-gen-python v0.1.0
 #   sqlc v1.31.1
 import dataclasses
+import datetime as dt
 from collections.abc import Sequence
+from decimal import Decimal
 from typing import Any
+
+from psycopg.types.range import Range
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
-class Shape:
-    id: int
-    flags: str
-    mask: str
-    spot: str
-    edge: str
-    segment: str
-    frame: str
-    route: str
-    outline: str
-    area: str
-    lsn: str
+class Scalar:
+    c_hstore: str | None
+    c_bit: str | None
+    c_varbit: str | None
+    c_point: str | None
+    c_line: str | None
+    c_lseg: str | None
+    c_box: str | None
+    c_path: str | None
+    c_polygon: str | None
+    c_circle: str | None
+    c_cid: str | None
+    c_xid: str | None
+    c_xid8: str | None
+    c_tid: str | None
+    c_pg_lsn: str | None
+    c_int4range: Range[int] | None
+    c_int8range: Range[int] | None
+    c_numrange: Range[Decimal] | None
+    c_daterange: Range[dt.date] | None
+    c_tsrange: Range[dt.datetime] | None
+    c_tstzrange: Range[dt.datetime] | None
 
     @classmethod
-    def from_row(cls, row: Sequence[Any]) -> "Shape":
+    def from_row(cls, row: Sequence[Any]) -> "Scalar":
         return cls(
-            id=row[0],
-            flags=row[1],
-            mask=row[2],
-            spot=row[3],
-            edge=row[4],
-            segment=row[5],
-            frame=row[6],
-            route=row[7],
-            outline=row[8],
-            area=row[9],
-            lsn=row[10],
+            c_hstore=row[0],
+            c_bit=row[1],
+            c_varbit=row[2],
+            c_point=row[3],
+            c_line=row[4],
+            c_lseg=row[5],
+            c_box=row[6],
+            c_path=row[7],
+            c_polygon=row[8],
+            c_circle=row[9],
+            c_cid=row[10],
+            c_xid=row[11],
+            c_xid8=row[12],
+            c_tid=row[13],
+            c_pg_lsn=row[14],
+            c_int4range=row[15],
+            c_int8range=row[16],
+            c_numrange=row[17],
+            c_daterange=row[18],
+            c_tsrange=row[19],
+            c_tstzrange=row[20],
         )

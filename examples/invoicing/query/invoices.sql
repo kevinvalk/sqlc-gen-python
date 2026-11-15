@@ -67,6 +67,25 @@ SELECT status, count(*)::bigint AS count FROM invoices GROUP BY status ORDER BY 
 -- name: CountInvoices :one
 SELECT count(*)::bigint FROM invoices WHERE customer_id = $1;
 
+-- name: CountInvoicesIssued :one
+-- How many invoices the customer has, and how many of them are issued: a
+-- count of the rows a filter keeps is as much a count.
+SELECT count(*) AS total, count(*) FILTER (WHERE status = 'issued') AS issued
+FROM invoices WHERE customer_id = $1;
+
+-- name: ListIssuedNumbers :many
+-- Each of the customer's invoices, with its number once it has an issue
+-- date: a CASE without an ELSE is NULL where no WHEN holds, though sqlc
+-- reports its cast NOT NULL.
+SELECT id, (CASE WHEN issued_on IS NOT NULL THEN number END)::text AS issued_number
+FROM invoices WHERE customer_id = $1 ORDER BY number;
+
+-- name: ListInvoiceNumbersPage :many
+-- A page of the customer's invoice numbers, each beside how many there are
+-- in all: a count over a window.
+SELECT number, count(*) OVER () AS total FROM invoices
+WHERE customer_id = $1 ORDER BY number LIMIT $2;
+
 -- name: IssueInvoice :execrows
 UPDATE invoices SET status = 'issued', issued_on = @issued_on WHERE id = @id AND status = 'draft';
 
@@ -91,7 +110,7 @@ SELECT id, filename, uploaded_at FROM media WHERE invoice_id = $1 ORDER BY uploa
 SELECT DISTINCT status FROM invoices ORDER BY status;
 
 -- name: GetInvoicesBatch :batchone
--- Several invoices at once: each id must exist.
+-- Several invoices at once, each in the place of its id.
 SELECT * FROM invoices WHERE id = $1;
 
 -- name: ListInvoiceNumbersBatch :batchmany

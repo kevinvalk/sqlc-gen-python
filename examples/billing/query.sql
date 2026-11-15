@@ -49,6 +49,16 @@ INSERT INTO line_items (invoice_id, position, description, quantity, unit_price)
 -- name: ListLineItems :many
 SELECT * FROM line_items WHERE invoice_id = ? ORDER BY position;
 
+-- name: ListCustomerLines :many
+-- Every customer, with each line of an invoice of theirs, or none: what
+-- stands left of the RIGHT JOIN may be without a row, though sqlc reports
+-- the columns of a join there NOT NULL.
+SELECT customers.id, invoices.number, line_items.description
+FROM line_items
+JOIN invoices ON invoices.id = line_items.invoice_id
+RIGHT JOIN customers ON customers.id = invoices.customer_id
+ORDER BY customers.id, invoices.number, line_items.position;
+
 -- name: RecalculateTotal :exec
 UPDATE invoices
 SET total = (SELECT CAST(COALESCE(SUM(quantity * unit_price), 0) AS DECIMAL(12, 2)) FROM line_items WHERE invoice_id = sqlc.arg(id))

@@ -15,8 +15,9 @@ PostgreSQL found, and SQLAlchemy's ``text()`` must bind exactly those, at
 exactly their positions, and compile back to the input byte for byte: as
 SQLAlchemy renders it, and as its asyncpg dialect sends it, each bind a
 ``$N`` of its own. The rewriting may refuse only what ``text()`` cannot
-represent (``docs/python-output.md`` §6, rule 3), and a named parameter sqlc
-left as written (rule 2). No database is needed: ``cargo xtask check`` runs it.
+represent (``docs/python-output.md`` §6, "On SQLAlchemy", rule 2), and a
+named parameter sqlc left as written (rule 1). No database is needed:
+``cargo xtask check`` runs it.
 """
 
 from __future__ import annotations
@@ -50,7 +51,8 @@ SQLC_FUNCTIONS = {f"sqlc . {name}" for name in ("arg", "narg", "slice", "embed")
 
 # A letter of Unicode 14 (Python 3.11+) and a code point not yet assigned:
 # `\w` on some supported Python, not on Python 3.10. Every colon escaped, the
-# rewriting reads the same on all of them, which this layer proves on each.
+# rewriting reads the same on all of them: drawing these proves it on the
+# one Python this layer runs on.
 UNSETTLED = ["\u0870", "\u0378"]
 
 # The grammar. Inside a quote or a comment, anything another fragment would

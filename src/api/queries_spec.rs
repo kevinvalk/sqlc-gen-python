@@ -100,6 +100,30 @@ fn every_problem_is_reported_at_once() {
 }
 
 #[test]
+fn what_to_do_about_several_problems_is_said_once_under_them() {
+    let column = |name: &str, data_type: &str| plugin::Query {
+        name: name.into(),
+        columns: vec![column("v", data_type, true)],
+        ..query(":one", "SELECT v FROM t")
+    };
+    let queries = vec![
+        column("A", "geometry"),
+        column("B", "integer"),
+        column("C", "geometry"),
+    ];
+    let error = format!("{:#}", try_resolve_all(queries).unwrap_err());
+    assert_eq!(
+        error,
+        r#"3 problems:
+authors.sql: query "A": column "v" has type "geometry", which has no verified Python mapping
+authors.sql: query "C": column "v" has type "geometry", which has no verified Python mapping
+  name its Python type with an override (db_type "geometry"), or, for a domain, declare the column with its base type and a CHECK constraint
+authors.sql: query "B": column "v" has a type sqlc could not infer
+  add a cast, as <expr>::<type>, or coalesce(<expr>, <default>)::<type> if it can be NULL, as sqlc reports every cast NOT NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess"#
+    );
+}
+
+#[test]
 fn queries_that_spell_one_function_are_an_error() {
     let named = |name: &str| plugin::Query {
         name: name.into(),
@@ -293,6 +317,30 @@ fn a_mysql_copyfrom_has_no_percent_sign() {
         "{error}"
     );
     copy("INSERT INTO authors (name) VALUES (?)").unwrap();
+}
+
+#[test]
+fn a_copyfrom_takes_no_slice() {
+    // sqlc accepts one, and `executemany` would run the statement with its
+    // marker still in it.
+    let slice = plugin::Column {
+        is_sqlc_slice: true,
+        ..column("ids", "integer", true)
+    };
+    let error = error_of(on(
+        "sqlite",
+        plugin::Query {
+            params: vec![param(1, slice)],
+            ..query(":copyfrom", "INSERT INTO t (a) VALUES (/*SLICE:ids*/?)")
+        },
+    ));
+    assert!(
+        error.ends_with(
+            ":copyfrom runs one statement for every row, and a sqlc.slice makes it another for \
+             each number of items; use :exec, once per row"
+        ),
+        "{error}"
+    );
 }
 
 #[test]

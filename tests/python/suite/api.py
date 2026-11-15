@@ -12,10 +12,12 @@ import os
 import pkgutil
 import sys
 import typing
+from collections.abc import Awaitable
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
 
+import pytest
 import sqlalchemy
 from examples import GoldenCase, golden_cases
 from suite.deep import checked
@@ -29,9 +31,10 @@ sys.dont_write_bytecode = True  # keep the golden cases free of __pycache__
 
 
 def cases(example: str = "invoicing") -> list[GoldenCase]:
-    """The cases of ``example``: the suite is written for the invoicing,
-    ledger, billing and custom fixtures. The other golden cases beside them
-    are for the static gate and the runtime sweep.
+    """The cases of ``example``. The suite's scenarios are written for the
+    invoicing, ledger, billing and custom fixtures, and the type-truth probe
+    reads the examples of types; the other golden cases beside them are for
+    the static gate and the runtime sweep.
     """
     return [case for case in golden_cases() if case.example == example]
 
@@ -60,14 +63,14 @@ def public_functions(case: GoldenCase, stem: str) -> dict[str, Any]:
     }
 
 
-def queries(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: ANN401
+def queries(case: GoldenCase, conn: object, called: set[str]) -> Any:
     """The case's API on ``conn``: ``await api.<module>.<function>(...)`` runs
     a sync or an async case alike, each function checked by `deep.checked`,
     which records it in ``called``. Every module's names are there too
     (``api.<module>.<Row>``), and the package's ``models``.
     """
 
-    def bind(function: Any) -> Any:  # noqa: ANN401
+    def bind(function: Any) -> Any:
         # A function of more parameters than `max_params` takes one record
         # of them: the scenario's keywords make it.
         parameter = inspect.signature(function).parameters.get("params")
@@ -99,6 +102,15 @@ def queries(case: GoldenCase, conn: object, called: set[str]) -> Any:  # noqa: A
         api.NoRow = getattr(package, "NoRowError", None)
         api.MultipleRows = package.MultipleRowsError
     return api
+
+
+async def no_row(api: Any, call: Awaitable[object]) -> None:
+    """A `:one` without a row: `None`, or with `raise_on_none`, the error."""
+    if api.raises:
+        with pytest.raises(api.NoRow):
+            await call
+    else:
+        assert await call is None
 
 
 def functions(case: GoldenCase) -> set[str]:

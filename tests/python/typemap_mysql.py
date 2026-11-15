@@ -11,13 +11,11 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
-import asyncmy
-
 import mysql
 import typemap_columns
 from examples import EXAMPLES
 from typemap_columns import Driver, Engine, sqlalchemy_async, sqlalchemy_sync
-from typemap_probe import Section, versions
+from typemap_probe import Section, release, versions
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
@@ -96,7 +94,7 @@ async def pymysql(url: sqlalchemy.URL) -> AsyncIterator[tuple[object, Any]]:
         conn.close()
 
 
-def asyncmy_(prepared: int) -> Callable[[sqlalchemy.URL], Session]:
+def asyncmy(prepared: int) -> Callable[[sqlalchemy.URL], Session]:
     """A session on an asyncmy connection, as the ``pymysql`` backend's
     coroutines take one, which keeps up to ``prepared`` statements prepared
     on the server: the values of one cross as binary, not as text.
@@ -104,14 +102,7 @@ def asyncmy_(prepared: int) -> Callable[[sqlalchemy.URL], Session]:
 
     @asynccontextmanager
     async def connect(url: sqlalchemy.URL) -> AsyncIterator[tuple[object, Any]]:
-        conn = await asyncmy.connect(
-            host=url.host,
-            port=url.port,
-            user=url.username,
-            password=url.password,
-            database=url.database,
-            stmt_cache_size=prepared,
-        )
+        conn = await mysql.connect_async(url, stmt_cache_size=prepared)
         try:
 
             async def run(sql: str) -> list[tuple[Any, ...]]:
@@ -130,11 +121,11 @@ ENGINE = Engine(
     example="mysqltypes",
     drivers=(
         Driver("PyMySQL", "mysqltypes_pymysql", pymysql),
-        Driver("asyncmy", "mysqltypes_pymysql_async", asyncmy_(prepared=0)),
+        Driver("asyncmy", "mysqltypes_pymysql_async", asyncmy(prepared=0)),
         Driver(
             "asyncmy, prepared",
             "mysqltypes_pymysql_async",
-            asyncmy_(prepared=8),
+            asyncmy(prepared=8),
         ),
         Driver(
             "SQLAlchemy, PyMySQL",
@@ -164,12 +155,9 @@ def probe(server: sqlalchemy.URL) -> Section:
     """Probe every type of ``examples/mysqltypes`` on ``server``."""
     with mysql.database(server, SCHEMA.read_text()) as url:
         probes = typemap_columns.probe(ENGINE, url)
-    # As the image is tagged, so that a patch release does not change the
-    # document.
-    release = ".".join(mysql.version(server).split(".")[:2])
     return Section(
         "MySQL",
-        f"MySQL {release}, session time zone {TIME_ZONE}, with"
+        f"MySQL {release(mysql.version(server))}, session time zone {TIME_ZONE}, with"
         f" {versions('pymysql', 'asyncmy')}",
         tuple(driver.name for driver in ENGINE.drivers),
         probes,

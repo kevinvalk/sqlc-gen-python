@@ -16,6 +16,7 @@ fn field(name: &str, element: Type) -> Field {
             element,
             array_dims: 0,
             optional: false,
+            as_text: false,
         },
     }
 }
@@ -76,9 +77,28 @@ fn a_driver_binds_each_parameter_by_position_json_wrapped_on_psycopg() {
     assert_eq!(
         body,
         "async with conn.cursor() as cur:\n    \
-         cur.row_factory = None\n    \
          await cur.execute(_GET, (id,))"
     );
+}
+
+#[test]
+fn sqlite3_makes_a_cursors_rows_tuples_only_where_they_are_read() {
+    let body =
+        |command| python::unparse_stmts(&Backend::Sqlite3.body(&query(command, Vec::new()), false));
+    let scalar = crate::api::queries::Shape::Scalar(field("n", Type::INT).ty);
+    for reads in [
+        Command::One(scalar.clone()),
+        Command::Many(scalar),
+        // By whoever the cursor is returned to.
+        Command::ExecResult,
+    ] {
+        let body = body(reads);
+        assert!(body.contains("cur.row_factory = None\n"), "{body}");
+    }
+    for runs in [Command::Exec, Command::ExecRows] {
+        let body = body(runs);
+        assert!(!body.contains("row_factory"), "{body}");
+    }
 }
 
 #[test]
@@ -176,6 +196,42 @@ fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
 }
 
 #[test]
+fn only_a_library_whose_stubs_need_it_has_a_prelude() {
+    for (backend, asynchronous) in [
+        (Backend::SqlAlchemy, false),
+        (Backend::SqlAlchemy, true),
+        (Backend::Psycopg, false),
+        (Backend::Psycopg, true),
+        (Backend::Sqlite3, false),
+        (Backend::Sqlite3, true),
+    ] {
+        assert!(backend.prelude(asynchronous).is_empty(), "{backend:?}");
+    }
+}
+
+#[test]
+fn pymysqls_connection_is_named_once_for_a_type_checker_and_for_python() {
+    // Bare, the class is a connection of plain cursors alone to a type
+    // checker; subscripted, it raises: it is generic only in its stubs.
+    let prelude = python::render(&Backend::Pymysql.prelude(false), &[]);
+    assert_eq!(
+        prelude,
+        r"import typing
+from typing import Any
+
+import pymysql
+
+if typing.TYPE_CHECKING:
+    _Connection = pymysql.Connection[Any]
+else:
+    _Connection = pymysql.Connection
+"
+    );
+    let annotation = python::unparse(&Backend::Pymysql.connection(false));
+    assert_eq!(annotation, "_Connection");
+}
+
+#[test]
 fn asyncmys_untyped_methods_are_called_through_a_protocol_of_the_modules_own() {
     let prelude = python::render(&Backend::Pymysql.prelude(true), &[]);
     assert_eq!(
@@ -201,15 +257,6 @@ def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:
     return cursor
 "
     );
-    // What a library's stubs type is called as it is.
-    for (backend, asynchronous) in [
-        (Backend::Pymysql, false),
-        (Backend::Psycopg, true),
-        (Backend::Sqlite3, true),
-        (Backend::SqlAlchemy, true),
-    ] {
-        assert!(backend.prelude(asynchronous).is_empty(), "{backend:?}");
-    }
 
     let scalar = crate::api::queries::Shape::Scalar(field("n", Type::INT).ty);
     let one = query(Command::One(scalar.clone()), Vec::new());
@@ -272,7 +319,10 @@ fn a_one_returns_none_without_a_row_and_raises_on_a_second_by_default() {
     let body = python::unparse_stmts(&Backend::Sqlite3.body(&query, false));
     assert_eq!(python::unparse(&returns), "int | None");
     assert!(
-        body.contains("case []:\n            return None\n        case _:\n            raise MultipleRowsError"),
+        body.contains(
+            "case []:\n            return None\n        \
+             case _:\n            raise MultipleRowsError"
+        ),
         "{body}"
     );
 }

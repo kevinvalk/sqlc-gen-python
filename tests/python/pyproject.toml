@@ -78,9 +78,14 @@ reportUnnecessaryTypeIgnoreComment = "error"
 [tool.mypy]
 python_version = "3.10"
 strict = true
-# Without paths, the developer scripts (`cargo xtask check`); the gate names
-# the generated packages it checks.
-files = ["$MYPY_CONFIG_FILE_DIR/*.py"]
+# Without paths, the developer scripts and the suite (`cargo xtask check`);
+# the gate names the generated packages it checks, and `suite/usage.py`,
+# which is written against them.
+files = ["$MYPY_CONFIG_FILE_DIR/*.py", "$MYPY_CONFIG_FILE_DIR/suite"]
+exclude = ['suite/usage\.py$']
+# `suite` is a directory of pytest's, not a package.
+mypy_path = "$MYPY_CONFIG_FILE_DIR"
+explicit_package_bases = true
 
 [tool.pytest.ini_options]
 # The runtime suite's tests import the shared `postgres` module from here.

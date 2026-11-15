@@ -1,6 +1,6 @@
 {
   "sqlalchemy": { "backend": "sqlalchemy", "async": false },
-  "sqlalchemy_async": { "backend": "sqlalchemy", "async": true, "raise_on_none": true },
+  "sqlalchemy_async": { "backend": "sqlalchemy", "async": true, "raise_on_none": true, "omit_sqlc_version": true, "models": { "inflection_exclude": ["authors", "users"] } },
   "psycopg": { "backend": "psycopg", "async": false, "raise_on_none": true },
   "psycopg_async": { "backend": "psycopg", "async": true, "max_params": 2 },
   "sqlite3": { "backend": "sqlite3", "async": false, "max_params": 1 },

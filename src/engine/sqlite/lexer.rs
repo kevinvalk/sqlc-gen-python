@@ -18,11 +18,11 @@ mod spec;
 pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
     let chars: Vec<char> = text.chars().collect();
     let mut placeholders = Vec::new();
-    let mut largest = 0;
+    let mut largest = 0i32;
     for (start, end) in tokens(&chars) {
         match chars[start..end] {
             ['?'] => {
-                largest += 1;
+                largest = largest.saturating_add(1);
                 placeholders.push((start..end, largest));
             }
             ['?', ref digits @ ..] => {

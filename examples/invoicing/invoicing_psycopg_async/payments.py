@@ -4,6 +4,7 @@
 #   sqlc v1.31.1
 import dataclasses
 import datetime as dt
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any, Final
 from uuid import UUID
@@ -92,3 +93,61 @@ async def list_invoice_balances(
     async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_INVOICE_BALANCES, (customer_id,))
         return [models.InvoiceBalance.from_row(row) for row in await cur.fetchall()]
+
+
+_LIST_CUSTOMER_PAYMENTS: Final = """SELECT customers.name, invoices.number, payments.amount
+FROM billing.payments
+JOIN invoices ON invoices.id = payments.invoice_id
+RIGHT JOIN customers ON customers.id = invoices.customer_id
+ORDER BY customers.name, invoices.number, payments.amount"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListCustomerPaymentsRow:
+    name: str
+    number: str | None
+    amount: Decimal | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListCustomerPaymentsRow":
+        return cls(name=row[0], number=row[1], amount=row[2])
+
+
+async def list_customer_payments(
+    conn: psycopg.AsyncConnection[Any],
+) -> list[ListCustomerPaymentsRow]:
+    """Every customer, with each payment of an invoice of theirs, or none: what
+    stands left of the RIGHT JOIN may be without a row, though sqlc reports
+    the columns of a join there NOT NULL.
+    """
+    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+        await cur.execute(_LIST_CUSTOMER_PAYMENTS)
+        return [ListCustomerPaymentsRow.from_row(row) for row in await cur.fetchall()]
+
+
+_LIST_CUSTOMERS_ISSUED: Final = """SELECT customers.name, issued.number
+FROM customers
+LEFT JOIN (SELECT customer_id, number FROM invoices WHERE status = 'issued') AS issued
+    ON issued.customer_id = customers.id
+ORDER BY customers.name, issued.number"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListCustomersIssuedRow:
+    name: str
+    number: str | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListCustomersIssuedRow":
+        return cls(name=row[0], number=row[1])
+
+
+async def list_customers_issued(
+    conn: psycopg.AsyncConnection[Any],
+) -> list[ListCustomersIssuedRow]:
+    """Every customer, with the number of each issued invoice of theirs, or none:
+    sqlc reports the column of a subquery NOT NULL, as its table's.
+    """
+    async with psycopg.AsyncRawCursor(conn, row_factory=tuple_row) as cur:
+        await cur.execute(_LIST_CUSTOMERS_ISSUED)
+        return [ListCustomersIssuedRow.from_row(row) for row in await cur.fetchall()]

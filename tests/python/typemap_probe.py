@@ -39,7 +39,7 @@ class Section:
     """What the probe of one engine observed: its part of ``docs/typemap.md``."""
 
     engine: str
-    # Where, and with what: ``PostgreSQL 18, session TimeZone ..., with psycopg 3.3.8``.
+    # Where, and with what: ``PostgreSQL 18, session TimeZone ..., with psycopg 3.3``.
     observed: str
     drivers: tuple[str, ...]
     probes: list[Probe]
@@ -49,9 +49,18 @@ class Section:
         return [f"{self.engine}: {m}" for p in self.probes for m in p.mismatches]
 
 
+def release(version: str) -> str:
+    """A version's major and minor, ``3.3`` of ``3.3.8``: what the document
+    names, so that a patch release does not change it.
+    """
+    return ".".join(version.split(".")[:2])
+
+
 def versions(*packages: str) -> str:
-    """Each package and the version installed: ``psycopg 3.3.8, asyncpg 0.32.0``."""
-    return ", ".join(f"{name} {importlib.metadata.version(name)}" for name in packages)
+    """Each package and the release installed: ``psycopg 3.3, asyncpg 0.32``."""
+    return ", ".join(
+        f"{name} {release(importlib.metadata.version(name))}" for name in packages
+    )
 
 
 def raised(error: Exception) -> str:
@@ -59,9 +68,14 @@ def raised(error: Exception) -> str:
     return type(getattr(error, "orig", None) or error).__name__
 
 
-def short(text: str | None, width: int = 32) -> str:
-    text = "NULL" if text is None else text
-    return f"`{text if len(text) <= width else text[: width - 3] + '...'}`"
+def cut(text: str, width: int) -> str:
+    """``text``, cut to ``width`` where it is longer."""
+    return text if len(text) <= width else text[: width - 3] + "..."
+
+
+def short(text: str | None) -> str:
+    """What a database holds, as it says it, in brief."""
+    return f"`{cut('NULL' if text is None else text, 32)}`"
 
 
 def describe(value: object) -> str:

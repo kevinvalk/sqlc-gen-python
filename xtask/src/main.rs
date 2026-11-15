@@ -27,24 +27,24 @@ commands:
           ledger, or with CASE names only those cases; refuses if the unit
           specs, the sweep or the static gate fail, if anything else would
           change, or if a corpus request stops generating (unless
-          --allow-regressions); a change to a case the runtime proof reads
-          back (of every example but authors and booktest) also needs verify
-          to pass (docker or SQLC_TEST_DATABASE_URL), which rewrites
-          docs/typemap.md to match
+          --allow-regressions), or if verify fails on what would change,
+          which rewrites docs/typemap.md to match (docker, or
+          SQLC_TEST_DATABASE_URL and SQLC_TEST_MYSQL_URL)
   capture [--sqlc-bin PATH] [--check]
           re-capture tests/sqlc/endtoend and tests/sqlc/examples/*.json from the sqlc
           .prototools pins (downloaded, or the binary at PATH; several
           minutes), or with --check fail if that would change anything, then
           run the WASM plugin under that sqlc and fail unless it keeps the
-          wire contract (writing exactly the invoicing and pgtypes golden
-          cases; options, paths, errors); needs uv, git, go, network, and
-          docker or POSTGRESQL_SERVER_URI
+          wire contract (writing exactly each example's golden cases;
+          options, paths, errors); needs uv, git, go, network, and docker or
+          POSTGRESQL_SERVER_URI
   verify [--mutants] [--check]
-          prove what the generator emits against PostgreSQL (docker or
-          SQLC_TEST_DATABASE_URL), on every supported Python, rewriting
-          docs/typemap.md (docs/python-output.md, Proof);
-          with --mutants, also plant bugs that must each be caught; with
-          --check, fail instead of writing a document that would change
+          prove what the generator emits against PostgreSQL and MySQL
+          (docker, or SQLC_TEST_DATABASE_URL and SQLC_TEST_MYSQL_URL) and
+          SQLite, on the oldest supported Python and the newest, rewriting
+          docs/typemap.md (docs/python-output.md, Proof); with --mutants,
+          also plant bugs that must each be caught; with --check, fail
+          instead of writing a document that would change
   generate REQUEST OPTIONS [OUT]
           run the plugin on a request as JSON (tests/sqlc/...) with OPTIONS as
           JSON, printing each file, or writing them into OUT
@@ -133,8 +133,8 @@ fn check(generated: &GenDir) -> Result<(), String> {
 /// everything generated passes the static gate, nothing outside `names` would
 /// change, and no corpus request stops generating unless `allow_regressions`
 /// says that is intended. The static gate cannot see a wrong type that is
-/// still well typed, so a change to a case of a [`PROVEN`] example must also
-/// pass the runtime proof.
+/// still well typed, so what changes must also pass the runtime proof, every
+/// layer of which reads a golden case or a corpus output.
 fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<(), String> {
     if let Some(name) = names.iter().find(|name| case_dir(name).is_none()) {
         return Err(format!(
@@ -173,7 +173,7 @@ fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<
         ));
     }
     generated.gate()?;
-    if changed.iter().any(|name| proven(name)) {
+    if !changed.is_empty() || ledger_changed {
         run(uv_python("tests/python/verify.py").arg(&generated.0))?;
     }
 
@@ -211,26 +211,6 @@ fn verify(generated: &GenDir, options: &[&str]) -> Result<(), String> {
     run(uv_python("tests/python/verify.py")
         .arg(&generated.0)
         .args(options))
-}
-
-/// The examples whose cases the runtime proof reads back: the models the
-/// type-truth probe reads every type through (`tests/python/typemap.py`), and
-/// the acceptance fixtures the runtime suite runs (`tests/python/suite/`).
-const PROVEN: [&str; 8] = [
-    "billing",
-    "custom",
-    "invoicing",
-    "ledger",
-    "mysqltypes",
-    "pgtext",
-    "pgtypes",
-    "sqlitetypes",
-];
-
-/// Whether golden case `name` is of a [`PROVEN`] example.
-fn proven(name: &str) -> bool {
-    (case_dir(name).and_then(|dir| dir.parent()?.file_name().map(ToOwned::to_owned)))
-        .is_some_and(|example| PROVEN.iter().any(|proven| example == *proven))
 }
 
 /// The directory of golden case `name`: the `out` of a codegen entry of an
@@ -313,7 +293,8 @@ impl GenDir {
 
 /// `python <arg>` in the `tests/python` uv project, in the Python 3.10
 /// environment the static gate also uses, so nothing is created under
-/// `tests/python`. `-B -E -s` writes no bytecode and keeps out the caller's
+/// `tests/python`, nor in the tree: what Hypothesis keeps of its draws goes
+/// to `target/` too. `-B -E -s` writes no bytecode and keeps out the caller's
 /// `PYTHON*` variables and user site-packages; a script's own directory stays
 /// importable.
 fn uv_python(arg: &str) -> Command {
@@ -330,6 +311,10 @@ fn uv_python(arg: &str) -> Command {
         ])
         .arg(arg)
         .env("UV_PROJECT_ENVIRONMENT", root().join("target/py/3.10"))
+        .env(
+            "HYPOTHESIS_STORAGE_DIRECTORY",
+            root().join("target/py/hypothesis"),
+        )
         .current_dir(root());
     command
 }

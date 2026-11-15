@@ -90,6 +90,7 @@ pub const MODELS: Symbol = Symbol("models");
 /// Read through [`TYPING`]: imported by name, a table `protocols` could not
 /// be the class `Protocol`.
 pub const PROTOCOL: Symbol = Symbol("typing.Protocol");
+pub const TYPE_CHECKING: Symbol = Symbol("typing.TYPE_CHECKING");
 
 /// `datetime`'s classes, read through [`DT`].
 pub const DATE: Symbol = Symbol("dt.date");
@@ -209,6 +210,8 @@ pub const LABEL: Symbol = Symbol("label");
 /// One element of an array.
 pub const V: Symbol = Symbol("v");
 
+/// The connection's class, where it is generic in the library's stubs alone.
+pub const CONNECTION: Symbol = Symbol("_Connection");
 /// A cursor's methods as generated code calls them, where the driver's own
 /// stubs leave them untyped; what views a cursor so; and the cursor it views.
 pub const TYPED_CURSOR: Symbol = Symbol("_Cursor");

@@ -15,12 +15,12 @@
             "rel": {
               "catalog": "",
               "schema": "",
-              "name": "shapes"
+              "name": "scalars"
             },
             "columns": [
               {
-                "name": "id",
-                "not_null": true,
+                "name": "c_hstore",
+                "not_null": false,
                 "is_array": false,
                 "comment": "",
                 "length": -1,
@@ -30,13 +30,13 @@
                 "table": {
                   "catalog": "",
                   "schema": "",
-                  "name": "shapes"
+                  "name": "scalars"
                 },
                 "table_alias": "",
                 "type": {
                   "catalog": "",
                   "schema": "",
-                  "name": "bigserial"
+                  "name": "hstore"
                 },
                 "is_sqlc_slice": false,
                 "embed_table": null,
@@ -45,8 +45,8 @@
                 "array_dims": 0
               },
               {
-                "name": "flags",
-                "not_null": true,
+                "name": "c_bit",
+                "not_null": false,
                 "is_array": false,
                 "comment": "",
                 "length": -1,
@@ -56,7 +56,7 @@
                 "table": {
                   "catalog": "",
                   "schema": "",
-                  "name": "shapes"
+                  "name": "scalars"
                 },
                 "table_alias": "",
                 "type": {
@@ -71,8 +71,8 @@
                 "array_dims": 0
               },
               {
-                "name": "mask",
-                "not_null": true,
+                "name": "c_varbit",
+                "not_null": false,
                 "is_array": false,
                 "comment": "",
                 "length": -1,
@@ -82,7 +82,7 @@
                 "table": {
                   "catalog": "",
                   "schema": "",
-                  "name": "shapes"
+                  "name": "scalars"
                 },
                 "table_alias": "",
                 "type": {
@@ -97,8 +97,8 @@
                 "array_dims": 0
               },
               {
-                "name": "spot",
-                "not_null": true,
+                "name": "c_point",
+                "not_null": false,
                 "is_array": false,
                 "comment": "",
                 "length": -1,
@@ -108,7 +108,7 @@
                 "table": {
                   "catalog": "",
                   "schema": "",
-                  "name": "shapes"
+                  "name": "scalars"
                 },
                 "table_alias": "",
                 "type": {
@@ -123,8 +123,8 @@
                 "array_dims": 0
               },
               {
-                "name": "edge",
-                "not_null": true,
+                "name": "c_line",
+                "not_null": false,
                 "is_array": false,
                 "comment": "",
                 "length": -1,
@@ -134,7 +134,7 @@
                 "table": {
                   "catalog": "",
                   "schema": "",
-                  "name": "shapes"
+                  "name": "scalars"
                 },
                 "table_alias": "",
                 "type": {
@@ -149,8 +149,8 @@
                 "array_dims": 0
               },
               {
-                "name": "segment",
-                "not_null": true,
+                "name": "c_lseg",
+                "not_null": false,
                 "is_array": false,
                 "comment": "",
                 "length": -1,
@@ -160,7 +160,7 @@
                 "table": {
                   "catalog": "",
                   "schema": "",
-                  "name": "shapes"
+                  "name": "scalars"
                 },
                 "table_alias": "",
                 "type": {
@@ -175,8 +175,8 @@
                 "array_dims": 0
               },
               {
-                "name": "frame",
-                "not_null": true,
+                "name": "c_box",
+                "not_null": false,
                 "is_array": false,
                 "comment": "",
                 "length": -1,
@@ -186,7 +186,7 @@
                 "table": {
                   "catalog": "",
                   "schema": "",
-                  "name": "shapes"
+                  "name": "scalars"
                 },
                 "table_alias": "",
                 "type": {
@@ -201,8 +201,8 @@
                 "array_dims": 0
               },
               {
-                "name": "route",
-                "not_null": true,
+                "name": "c_path",
+                "not_null": false,
                 "is_array": false,
                 "comment": "",
                 "length": -1,
@@ -212,7 +212,7 @@
                 "table": {
                   "catalog": "",
                   "schema": "",
-                  "name": "shapes"
+                  "name": "scalars"
                 },
                 "table_alias": "",
                 "type": {
@@ -227,8 +227,8 @@
                 "array_dims": 0
               },
               {
-                "name": "outline",
-                "not_null": true,
+                "name": "c_polygon",
+                "not_null": false,
                 "is_array": false,
                 "comment": "",
                 "length": -1,
@@ -238,7 +238,7 @@
                 "table": {
                   "catalog": "",
                   "schema": "",
-                  "name": "shapes"
+                  "name": "scalars"
                 },
                 "table_alias": "",
                 "type": {
@@ -253,8 +253,8 @@
                 "array_dims": 0
               },
               {
-                "name": "area",
-                "not_null": true,
+                "name": "c_circle",
+                "not_null": false,
                 "is_array": false,
                 "comment": "",
                 "length": -1,
@@ -264,7 +264,7 @@
                 "table": {
                   "catalog": "",
                   "schema": "",
-                  "name": "shapes"
+                  "name": "scalars"
                 },
                 "table_alias": "",
                 "type": {
@@ -279,8 +279,8 @@
                 "array_dims": 0
               },
               {
-                "name": "lsn",
-                "not_null": true,
+                "name": "c_cid",
+                "not_null": false,
                 "is_array": false,
                 "comment": "",
                 "length": -1,
@@ -290,13 +290,273 @@
                 "table": {
                   "catalog": "",
                   "schema": "",
-                  "name": "shapes"
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "cid"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_xid",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "xid"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_xid8",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "xid8"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_tid",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "tid"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_pg_lsn",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
                 },
                 "table_alias": "",
                 "type": {
                   "catalog": "",
                   "schema": "",
                   "name": "pg_lsn"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_int4range",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "int4range"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_int8range",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "int8range"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_numrange",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "numrange"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_daterange",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "daterange"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_tsrange",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "tsrange"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "c_tstzrange",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "tstzrange"
                 },
                 "is_sqlc_slice": false,
                 "embed_table": null,
@@ -322,13 +582,13 @@
   },
   "queries": [
     {
-      "text": "INSERT INTO shapes (flags, mask, spot, edge, segment, frame, route, outline, area, lsn)\nVALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\nRETURNING id, flags, mask, spot, edge, segment, frame, route, outline, area, lsn",
-      "name": "AddShape",
-      "cmd": ":one",
+      "text": "SELECT c_hstore, c_bit, c_varbit, c_point, c_line, c_lseg, c_box, c_path, c_polygon, c_circle, c_cid, c_xid, c_xid8, c_tid, c_pg_lsn, c_int4range, c_int8range, c_numrange, c_daterange, c_tsrange, c_tstzrange FROM scalars LIMIT $1",
+      "name": "ListScalars",
+      "cmd": ":many",
       "columns": [
         {
-          "name": "id",
-          "not_null": true,
+          "name": "c_hstore",
+          "not_null": false,
           "is_array": false,
           "comment": "",
           "length": -1,
@@ -338,23 +598,23 @@
           "table": {
             "catalog": "",
             "schema": "",
-            "name": "shapes"
+            "name": "scalars"
           },
           "table_alias": "",
           "type": {
             "catalog": "",
             "schema": "",
-            "name": "bigserial"
+            "name": "hstore"
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "id",
+          "original_name": "c_hstore",
           "unsigned": false,
           "array_dims": 0
         },
         {
-          "name": "flags",
-          "not_null": true,
+          "name": "c_bit",
+          "not_null": false,
           "is_array": false,
           "comment": "",
           "length": -1,
@@ -364,7 +624,7 @@
           "table": {
             "catalog": "",
             "schema": "",
-            "name": "shapes"
+            "name": "scalars"
           },
           "table_alias": "",
           "type": {
@@ -374,13 +634,13 @@
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "flags",
+          "original_name": "c_bit",
           "unsigned": false,
           "array_dims": 0
         },
         {
-          "name": "mask",
-          "not_null": true,
+          "name": "c_varbit",
+          "not_null": false,
           "is_array": false,
           "comment": "",
           "length": -1,
@@ -390,7 +650,7 @@
           "table": {
             "catalog": "",
             "schema": "",
-            "name": "shapes"
+            "name": "scalars"
           },
           "table_alias": "",
           "type": {
@@ -400,13 +660,13 @@
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "mask",
+          "original_name": "c_varbit",
           "unsigned": false,
           "array_dims": 0
         },
         {
-          "name": "spot",
-          "not_null": true,
+          "name": "c_point",
+          "not_null": false,
           "is_array": false,
           "comment": "",
           "length": -1,
@@ -416,7 +676,7 @@
           "table": {
             "catalog": "",
             "schema": "",
-            "name": "shapes"
+            "name": "scalars"
           },
           "table_alias": "",
           "type": {
@@ -426,13 +686,13 @@
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "spot",
+          "original_name": "c_point",
           "unsigned": false,
           "array_dims": 0
         },
         {
-          "name": "edge",
-          "not_null": true,
+          "name": "c_line",
+          "not_null": false,
           "is_array": false,
           "comment": "",
           "length": -1,
@@ -442,7 +702,7 @@
           "table": {
             "catalog": "",
             "schema": "",
-            "name": "shapes"
+            "name": "scalars"
           },
           "table_alias": "",
           "type": {
@@ -452,13 +712,13 @@
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "edge",
+          "original_name": "c_line",
           "unsigned": false,
           "array_dims": 0
         },
         {
-          "name": "segment",
-          "not_null": true,
+          "name": "c_lseg",
+          "not_null": false,
           "is_array": false,
           "comment": "",
           "length": -1,
@@ -468,7 +728,7 @@
           "table": {
             "catalog": "",
             "schema": "",
-            "name": "shapes"
+            "name": "scalars"
           },
           "table_alias": "",
           "type": {
@@ -478,13 +738,13 @@
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "segment",
+          "original_name": "c_lseg",
           "unsigned": false,
           "array_dims": 0
         },
         {
-          "name": "frame",
-          "not_null": true,
+          "name": "c_box",
+          "not_null": false,
           "is_array": false,
           "comment": "",
           "length": -1,
@@ -494,7 +754,7 @@
           "table": {
             "catalog": "",
             "schema": "",
-            "name": "shapes"
+            "name": "scalars"
           },
           "table_alias": "",
           "type": {
@@ -504,13 +764,13 @@
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "frame",
+          "original_name": "c_box",
           "unsigned": false,
           "array_dims": 0
         },
         {
-          "name": "route",
-          "not_null": true,
+          "name": "c_path",
+          "not_null": false,
           "is_array": false,
           "comment": "",
           "length": -1,
@@ -520,7 +780,7 @@
           "table": {
             "catalog": "",
             "schema": "",
-            "name": "shapes"
+            "name": "scalars"
           },
           "table_alias": "",
           "type": {
@@ -530,13 +790,13 @@
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "route",
+          "original_name": "c_path",
           "unsigned": false,
           "array_dims": 0
         },
         {
-          "name": "outline",
-          "not_null": true,
+          "name": "c_polygon",
+          "not_null": false,
           "is_array": false,
           "comment": "",
           "length": -1,
@@ -546,7 +806,7 @@
           "table": {
             "catalog": "",
             "schema": "",
-            "name": "shapes"
+            "name": "scalars"
           },
           "table_alias": "",
           "type": {
@@ -556,13 +816,13 @@
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "outline",
+          "original_name": "c_polygon",
           "unsigned": false,
           "array_dims": 0
         },
         {
-          "name": "area",
-          "not_null": true,
+          "name": "c_circle",
+          "not_null": false,
           "is_array": false,
           "comment": "",
           "length": -1,
@@ -572,7 +832,7 @@
           "table": {
             "catalog": "",
             "schema": "",
-            "name": "shapes"
+            "name": "scalars"
           },
           "table_alias": "",
           "type": {
@@ -582,13 +842,13 @@
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "area",
+          "original_name": "c_circle",
           "unsigned": false,
           "array_dims": 0
         },
         {
-          "name": "lsn",
-          "not_null": true,
+          "name": "c_cid",
+          "not_null": false,
           "is_array": false,
           "comment": "",
           "length": -1,
@@ -598,7 +858,111 @@
           "table": {
             "catalog": "",
             "schema": "",
-            "name": "shapes"
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "cid"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_cid",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_xid",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "xid"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_xid",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_xid8",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "xid8"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_xid8",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_tid",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "tid"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_tid",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_pg_lsn",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
           },
           "table_alias": "",
           "type": {
@@ -608,7 +972,163 @@
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "lsn",
+          "original_name": "c_pg_lsn",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_int4range",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "int4range"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_int4range",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_int8range",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "int8range"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_int8range",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_numrange",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "numrange"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_numrange",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_daterange",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "daterange"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_daterange",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_tsrange",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "tsrange"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_tsrange",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "c_tstzrange",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "tstzrange"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "c_tstzrange",
           "unsigned": false,
           "array_dims": 0
         }
@@ -617,8 +1137,44 @@
         {
           "number": 1,
           "column": {
-            "name": "flags",
+            "name": "limit",
             "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": null,
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "integer"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "INSERT INTO scalars (\n  c_hstore, c_bit, c_varbit, c_point, c_line, c_lseg, c_box, c_path, c_polygon, c_circle,\n  c_cid, c_xid, c_xid8, c_tid, c_pg_lsn,\n  c_int4range, c_int8range, c_numrange, c_daterange, c_tsrange, c_tstzrange\n) VALUES (\n  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,\n  $11, $12, $13, $14, $15,\n  $16, $17, $18, $19, $20, $21\n)",
+      "name": "AddScalars",
+      "cmd": ":exec",
+      "columns": [],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "c_hstore",
+            "not_null": false,
             "is_array": false,
             "comment": "",
             "length": -1,
@@ -628,7 +1184,36 @@
             "table": {
               "catalog": "",
               "schema": "public",
-              "name": "shapes"
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "hstore"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_hstore",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 2,
+          "column": {
+            "name": "c_bit",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
             },
             "table_alias": "",
             "type": {
@@ -638,16 +1223,16 @@
             },
             "is_sqlc_slice": false,
             "embed_table": null,
-            "original_name": "flags",
+            "original_name": "c_bit",
             "unsigned": false,
             "array_dims": 0
           }
         },
         {
-          "number": 2,
+          "number": 3,
           "column": {
-            "name": "mask",
-            "not_null": true,
+            "name": "c_varbit",
+            "not_null": false,
             "is_array": false,
             "comment": "",
             "length": -1,
@@ -657,7 +1242,7 @@
             "table": {
               "catalog": "",
               "schema": "public",
-              "name": "shapes"
+              "name": "scalars"
             },
             "table_alias": "",
             "type": {
@@ -667,16 +1252,16 @@
             },
             "is_sqlc_slice": false,
             "embed_table": null,
-            "original_name": "mask",
+            "original_name": "c_varbit",
             "unsigned": false,
             "array_dims": 0
           }
         },
         {
-          "number": 3,
+          "number": 4,
           "column": {
-            "name": "spot",
-            "not_null": true,
+            "name": "c_point",
+            "not_null": false,
             "is_array": false,
             "comment": "",
             "length": -1,
@@ -686,7 +1271,7 @@
             "table": {
               "catalog": "",
               "schema": "public",
-              "name": "shapes"
+              "name": "scalars"
             },
             "table_alias": "",
             "type": {
@@ -696,16 +1281,16 @@
             },
             "is_sqlc_slice": false,
             "embed_table": null,
-            "original_name": "spot",
+            "original_name": "c_point",
             "unsigned": false,
             "array_dims": 0
           }
         },
         {
-          "number": 4,
+          "number": 5,
           "column": {
-            "name": "edge",
-            "not_null": true,
+            "name": "c_line",
+            "not_null": false,
             "is_array": false,
             "comment": "",
             "length": -1,
@@ -715,7 +1300,7 @@
             "table": {
               "catalog": "",
               "schema": "public",
-              "name": "shapes"
+              "name": "scalars"
             },
             "table_alias": "",
             "type": {
@@ -725,16 +1310,16 @@
             },
             "is_sqlc_slice": false,
             "embed_table": null,
-            "original_name": "edge",
+            "original_name": "c_line",
             "unsigned": false,
             "array_dims": 0
           }
         },
         {
-          "number": 5,
+          "number": 6,
           "column": {
-            "name": "segment",
-            "not_null": true,
+            "name": "c_lseg",
+            "not_null": false,
             "is_array": false,
             "comment": "",
             "length": -1,
@@ -744,7 +1329,7 @@
             "table": {
               "catalog": "",
               "schema": "public",
-              "name": "shapes"
+              "name": "scalars"
             },
             "table_alias": "",
             "type": {
@@ -754,16 +1339,16 @@
             },
             "is_sqlc_slice": false,
             "embed_table": null,
-            "original_name": "segment",
+            "original_name": "c_lseg",
             "unsigned": false,
             "array_dims": 0
           }
         },
         {
-          "number": 6,
+          "number": 7,
           "column": {
-            "name": "frame",
-            "not_null": true,
+            "name": "c_box",
+            "not_null": false,
             "is_array": false,
             "comment": "",
             "length": -1,
@@ -773,7 +1358,7 @@
             "table": {
               "catalog": "",
               "schema": "public",
-              "name": "shapes"
+              "name": "scalars"
             },
             "table_alias": "",
             "type": {
@@ -783,16 +1368,16 @@
             },
             "is_sqlc_slice": false,
             "embed_table": null,
-            "original_name": "frame",
+            "original_name": "c_box",
             "unsigned": false,
             "array_dims": 0
           }
         },
         {
-          "number": 7,
+          "number": 8,
           "column": {
-            "name": "route",
-            "not_null": true,
+            "name": "c_path",
+            "not_null": false,
             "is_array": false,
             "comment": "",
             "length": -1,
@@ -802,7 +1387,7 @@
             "table": {
               "catalog": "",
               "schema": "public",
-              "name": "shapes"
+              "name": "scalars"
             },
             "table_alias": "",
             "type": {
@@ -812,16 +1397,16 @@
             },
             "is_sqlc_slice": false,
             "embed_table": null,
-            "original_name": "route",
+            "original_name": "c_path",
             "unsigned": false,
             "array_dims": 0
           }
         },
         {
-          "number": 8,
+          "number": 9,
           "column": {
-            "name": "outline",
-            "not_null": true,
+            "name": "c_polygon",
+            "not_null": false,
             "is_array": false,
             "comment": "",
             "length": -1,
@@ -831,7 +1416,7 @@
             "table": {
               "catalog": "",
               "schema": "public",
-              "name": "shapes"
+              "name": "scalars"
             },
             "table_alias": "",
             "type": {
@@ -841,16 +1426,16 @@
             },
             "is_sqlc_slice": false,
             "embed_table": null,
-            "original_name": "outline",
+            "original_name": "c_polygon",
             "unsigned": false,
             "array_dims": 0
           }
         },
         {
-          "number": 9,
+          "number": 10,
           "column": {
-            "name": "area",
-            "not_null": true,
+            "name": "c_circle",
+            "not_null": false,
             "is_array": false,
             "comment": "",
             "length": -1,
@@ -860,7 +1445,7 @@
             "table": {
               "catalog": "",
               "schema": "public",
-              "name": "shapes"
+              "name": "scalars"
             },
             "table_alias": "",
             "type": {
@@ -870,16 +1455,16 @@
             },
             "is_sqlc_slice": false,
             "embed_table": null,
-            "original_name": "area",
+            "original_name": "c_circle",
             "unsigned": false,
             "array_dims": 0
           }
         },
         {
-          "number": 10,
+          "number": 11,
           "column": {
-            "name": "lsn",
-            "not_null": true,
+            "name": "c_cid",
+            "not_null": false,
             "is_array": false,
             "comment": "",
             "length": -1,
@@ -889,7 +1474,123 @@
             "table": {
               "catalog": "",
               "schema": "public",
-              "name": "shapes"
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "cid"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_cid",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 12,
+          "column": {
+            "name": "c_xid",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "xid"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_xid",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 13,
+          "column": {
+            "name": "c_xid8",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "xid8"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_xid8",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 14,
+          "column": {
+            "name": "c_tid",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "tid"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_tid",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 15,
+          "column": {
+            "name": "c_pg_lsn",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
             },
             "table_alias": "",
             "type": {
@@ -899,7 +1600,181 @@
             },
             "is_sqlc_slice": false,
             "embed_table": null,
-            "original_name": "lsn",
+            "original_name": "c_pg_lsn",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 16,
+          "column": {
+            "name": "c_int4range",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "int4range"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_int4range",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 17,
+          "column": {
+            "name": "c_int8range",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "int8range"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_int8range",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 18,
+          "column": {
+            "name": "c_numrange",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "numrange"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_numrange",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 19,
+          "column": {
+            "name": "c_daterange",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "daterange"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_daterange",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 20,
+          "column": {
+            "name": "c_tsrange",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "tsrange"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_tsrange",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 21,
+          "column": {
+            "name": "c_tstzrange",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "scalars"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "tstzrange"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "c_tstzrange",
             "unsigned": false,
             "array_dims": 0
           }
@@ -910,335 +1785,8 @@
       "insert_into_table": {
         "catalog": "",
         "schema": "",
-        "name": "shapes"
+        "name": "scalars"
       }
-    },
-    {
-      "text": "SELECT id, flags, mask, spot, edge, segment, frame, route, outline, area, lsn FROM shapes WHERE id = $1",
-      "name": "GetShape",
-      "cmd": ":one",
-      "columns": [
-        {
-          "name": "id",
-          "not_null": true,
-          "is_array": false,
-          "comment": "",
-          "length": -1,
-          "is_named_param": false,
-          "is_func_call": false,
-          "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "shapes"
-          },
-          "table_alias": "",
-          "type": {
-            "catalog": "",
-            "schema": "",
-            "name": "bigserial"
-          },
-          "is_sqlc_slice": false,
-          "embed_table": null,
-          "original_name": "id",
-          "unsigned": false,
-          "array_dims": 0
-        },
-        {
-          "name": "flags",
-          "not_null": true,
-          "is_array": false,
-          "comment": "",
-          "length": -1,
-          "is_named_param": false,
-          "is_func_call": false,
-          "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "shapes"
-          },
-          "table_alias": "",
-          "type": {
-            "catalog": "",
-            "schema": "pg_catalog",
-            "name": "bit"
-          },
-          "is_sqlc_slice": false,
-          "embed_table": null,
-          "original_name": "flags",
-          "unsigned": false,
-          "array_dims": 0
-        },
-        {
-          "name": "mask",
-          "not_null": true,
-          "is_array": false,
-          "comment": "",
-          "length": -1,
-          "is_named_param": false,
-          "is_func_call": false,
-          "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "shapes"
-          },
-          "table_alias": "",
-          "type": {
-            "catalog": "",
-            "schema": "",
-            "name": "varbit"
-          },
-          "is_sqlc_slice": false,
-          "embed_table": null,
-          "original_name": "mask",
-          "unsigned": false,
-          "array_dims": 0
-        },
-        {
-          "name": "spot",
-          "not_null": true,
-          "is_array": false,
-          "comment": "",
-          "length": -1,
-          "is_named_param": false,
-          "is_func_call": false,
-          "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "shapes"
-          },
-          "table_alias": "",
-          "type": {
-            "catalog": "",
-            "schema": "",
-            "name": "point"
-          },
-          "is_sqlc_slice": false,
-          "embed_table": null,
-          "original_name": "spot",
-          "unsigned": false,
-          "array_dims": 0
-        },
-        {
-          "name": "edge",
-          "not_null": true,
-          "is_array": false,
-          "comment": "",
-          "length": -1,
-          "is_named_param": false,
-          "is_func_call": false,
-          "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "shapes"
-          },
-          "table_alias": "",
-          "type": {
-            "catalog": "",
-            "schema": "",
-            "name": "line"
-          },
-          "is_sqlc_slice": false,
-          "embed_table": null,
-          "original_name": "edge",
-          "unsigned": false,
-          "array_dims": 0
-        },
-        {
-          "name": "segment",
-          "not_null": true,
-          "is_array": false,
-          "comment": "",
-          "length": -1,
-          "is_named_param": false,
-          "is_func_call": false,
-          "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "shapes"
-          },
-          "table_alias": "",
-          "type": {
-            "catalog": "",
-            "schema": "",
-            "name": "lseg"
-          },
-          "is_sqlc_slice": false,
-          "embed_table": null,
-          "original_name": "segment",
-          "unsigned": false,
-          "array_dims": 0
-        },
-        {
-          "name": "frame",
-          "not_null": true,
-          "is_array": false,
-          "comment": "",
-          "length": -1,
-          "is_named_param": false,
-          "is_func_call": false,
-          "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "shapes"
-          },
-          "table_alias": "",
-          "type": {
-            "catalog": "",
-            "schema": "",
-            "name": "box"
-          },
-          "is_sqlc_slice": false,
-          "embed_table": null,
-          "original_name": "frame",
-          "unsigned": false,
-          "array_dims": 0
-        },
-        {
-          "name": "route",
-          "not_null": true,
-          "is_array": false,
-          "comment": "",
-          "length": -1,
-          "is_named_param": false,
-          "is_func_call": false,
-          "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "shapes"
-          },
-          "table_alias": "",
-          "type": {
-            "catalog": "",
-            "schema": "",
-            "name": "path"
-          },
-          "is_sqlc_slice": false,
-          "embed_table": null,
-          "original_name": "route",
-          "unsigned": false,
-          "array_dims": 0
-        },
-        {
-          "name": "outline",
-          "not_null": true,
-          "is_array": false,
-          "comment": "",
-          "length": -1,
-          "is_named_param": false,
-          "is_func_call": false,
-          "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "shapes"
-          },
-          "table_alias": "",
-          "type": {
-            "catalog": "",
-            "schema": "",
-            "name": "polygon"
-          },
-          "is_sqlc_slice": false,
-          "embed_table": null,
-          "original_name": "outline",
-          "unsigned": false,
-          "array_dims": 0
-        },
-        {
-          "name": "area",
-          "not_null": true,
-          "is_array": false,
-          "comment": "",
-          "length": -1,
-          "is_named_param": false,
-          "is_func_call": false,
-          "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "shapes"
-          },
-          "table_alias": "",
-          "type": {
-            "catalog": "",
-            "schema": "",
-            "name": "circle"
-          },
-          "is_sqlc_slice": false,
-          "embed_table": null,
-          "original_name": "area",
-          "unsigned": false,
-          "array_dims": 0
-        },
-        {
-          "name": "lsn",
-          "not_null": true,
-          "is_array": false,
-          "comment": "",
-          "length": -1,
-          "is_named_param": false,
-          "is_func_call": false,
-          "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "shapes"
-          },
-          "table_alias": "",
-          "type": {
-            "catalog": "",
-            "schema": "",
-            "name": "pg_lsn"
-          },
-          "is_sqlc_slice": false,
-          "embed_table": null,
-          "original_name": "lsn",
-          "unsigned": false,
-          "array_dims": 0
-        }
-      ],
-      "params": [
-        {
-          "number": 1,
-          "column": {
-            "name": "id",
-            "not_null": true,
-            "is_array": false,
-            "comment": "",
-            "length": -1,
-            "is_named_param": false,
-            "is_func_call": false,
-            "scope": "",
-            "table": {
-              "catalog": "",
-              "schema": "",
-              "name": "shapes"
-            },
-            "table_alias": "",
-            "type": {
-              "catalog": "",
-              "schema": "",
-              "name": "bigserial"
-            },
-            "is_sqlc_slice": false,
-            "embed_table": null,
-            "original_name": "id",
-            "unsigned": false,
-            "array_dims": 0
-          }
-        }
-      ],
-      "comments": [],
-      "filename": "query.sql",
-      "insert_into_table": null
     }
   ],
   "sqlc_version": "v1.31.1"

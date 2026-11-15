@@ -121,12 +121,47 @@
                 "original_name": "",
                 "unsigned": false,
                 "array_dims": 0
+              },
+              {
+                "name": "sign_in",
+                "not_null": true,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "devices"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "sign_in"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
               }
             ],
             "comment": ""
           }
         ],
-        "enums": [],
+        "enums": [
+          {
+            "name": "sign_in",
+            "vals": [
+              "password",
+              "token"
+            ],
+            "comment": ""
+          }
+        ],
         "composite_types": []
       },
       {
@@ -140,7 +175,7 @@
   },
   "queries": [
     {
-      "text": "INSERT INTO devices (ip, location, budget) VALUES ($1, $2, $3) RETURNING id, ip, location, budget",
+      "text": "INSERT INTO devices (ip, location, budget) VALUES ($1, $2, $3) RETURNING id, ip, location, budget, sign_in",
       "name": "AddDevice",
       "cmd": ":one",
       "columns": [
@@ -247,6 +282,32 @@
           "original_name": "budget",
           "unsigned": false,
           "array_dims": 0
+        },
+        {
+          "name": "sign_in",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "devices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "sign_in"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "sign_in",
+          "unsigned": false,
+          "array_dims": 0
         }
       ],
       "params": [
@@ -347,7 +408,7 @@
       }
     },
     {
-      "text": "SELECT id, ip, location, budget FROM devices WHERE location <@ $1::ltree ORDER BY id",
+      "text": "SELECT id, ip, location, budget, sign_in FROM devices WHERE location <@ $1::ltree ORDER BY id",
       "name": "ListDevicesUnder",
       "cmd": ":many",
       "columns": [
@@ -454,6 +515,32 @@
           "original_name": "budget",
           "unsigned": false,
           "array_dims": 0
+        },
+        {
+          "name": "sign_in",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "devices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "sign_in"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "sign_in",
+          "unsigned": false,
+          "array_dims": 0
         }
       ],
       "params": [
@@ -483,6 +570,147 @@
           }
         }
       ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT id, ip, location, budget, sign_in FROM devices WHERE sign_in = 'token' ORDER BY id",
+      "name": "ListDevicesByToken",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "id",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "devices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigserial"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "id",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "ip",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "devices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "inet"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "ip",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "location",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "devices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "ltree"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "location",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "budget",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "devices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "positive_amount"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "budget",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "sign_in",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "devices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "sign_in"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "sign_in",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
       "comments": [],
       "filename": "query.sql",
       "insert_into_table": null

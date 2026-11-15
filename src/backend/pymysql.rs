@@ -17,13 +17,11 @@ use crate::python::vocabulary::{ASYNCMY, CONN, PYMYSQL, Symbol};
 
 pub const DRIVER: Driver = Driver {
     sync: Flavor {
-        // Generic only in its stubs, over a cursor class defaulting to the
-        // plain one.
         connection: || PYMYSQL.attr("Connection"),
         closing: || cursor(PYMYSQL),
         cursor: || cursor(PYMYSQL),
         cursor_type: || cursor_type(PYMYSQL),
-        setup: None,
+        generic: true,
         untyped: false,
     },
     asynchronous: Flavor {
@@ -31,7 +29,7 @@ pub const DRIVER: Driver = Driver {
         closing: || cursor(ASYNCMY),
         cursor: || cursor(ASYNCMY),
         cursor_type: || cursor_type(ASYNCMY),
-        setup: None,
+        generic: false,
         untyped: true,
     },
     placeholders: Some(Placeholders {
@@ -44,6 +42,7 @@ pub const DRIVER: Driver = Driver {
     bind: |_, value| value,
     text_arrays: false,
     copies: false,
+    plain_rows: None,
 };
 
 /// `conn.cursor(<library>.cursors.Cursor)`: a cursor of tuples, whatever the

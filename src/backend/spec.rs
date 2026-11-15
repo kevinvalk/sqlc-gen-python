@@ -41,7 +41,8 @@ fn a_backends_coroutines_take_the_connection_of_its_async_library() {
             "sqlite3.Connection",
             "aiosqlite.Connection",
         ),
-        (Backend::Pymysql, "pymysql.Connection", "asyncmy.Connection"),
+        // The module's own name for `pymysql.Connection`.
+        (Backend::Pymysql, "_Connection", "asyncmy.Connection"),
     ] {
         assert_eq!(connection(backend, false), sync);
         assert_eq!(connection(backend, true), asynchronous);
@@ -49,12 +50,34 @@ fn a_backends_coroutines_take_the_connection_of_its_async_library() {
 }
 
 #[test]
-fn only_a_driver_without_its_own_defines_the_errors_of_a_one() {
-    assert!(Backend::SqlAlchemy.errors().is_empty());
-    assert_eq!(
-        Backend::Psycopg.errors(),
-        [MULTIPLE_ROWS_ERROR, NO_ROW_ERROR]
-    );
+fn a_package_defines_the_errors_of_a_one_only_where_its_library_has_none() {
+    assert!(!Backend::SqlAlchemy.defines_errors());
+    for driver in [Backend::Psycopg, Backend::Sqlite3, Backend::Pymysql] {
+        assert!(driver.defines_errors(), "{driver:?}");
+    }
+}
+
+/// A type is in a map with driver evidence (`AGENTS.md`), which the runtime
+/// proof gets by reading a column of it (`tests/python/typemap_psycopg.py`).
+#[test]
+fn every_type_psycopg_alone_maps_has_a_column_the_runtime_proof_reads() {
+    // Where cargo runs the test from, not where it was built (a reused
+    // `target/` may come from another copy of the tree).
+    let path = std::path::Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").unwrap())
+        .join("tests/sqlc/examples/pgtext.json");
+    let request: crate::plugin::GenerateRequest =
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let columns: Vec<String> = (request.catalog.iter())
+        .flat_map(|catalog| &catalog.schemas)
+        .flat_map(|schema| &schema.tables)
+        .flat_map(|table| &table.columns)
+        .map(|column| Engine::PostgreSql.type_name(&column.data_type()))
+        .collect();
+    let mapped = (psycopg::TEXT.iter().copied()).chain(RANGES.iter().map(|(range, ..)| *range));
+    let missing: Vec<&str> = mapped
+        .filter(|name| !columns.iter().any(|column| column == name))
+        .collect();
+    assert!(missing.is_empty(), "no column of {missing:?}");
 }
 
 #[test]

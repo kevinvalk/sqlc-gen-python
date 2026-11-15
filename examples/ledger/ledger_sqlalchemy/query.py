@@ -155,6 +155,83 @@ def balance(conn: sqlalchemy.Connection, *, account_id: int) -> int:
     return value
 
 
+_COUNT_ENTRIES: Final = sqlalchemy.text("""SELECT count(*) AS entries, count(*) FILTER (WHERE amount_cents < 0) AS debits
+FROM entries WHERE account_id = :account_id""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CountEntriesRow:
+    entries: int
+    debits: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CountEntriesRow":
+        return cls(entries=row[0], debits=row[1])
+
+
+def count_entries(conn: sqlalchemy.Connection, *, account_id: int) -> CountEntriesRow:
+    """How many entries the account has, and how many of them are debits: a count
+    of the rows a filter keeps is as much a count.
+    """
+    return CountEntriesRow.from_row(
+        conn.execute(_COUNT_ENTRIES, {"account_id": account_id}).one()
+    )
+
+
+_LIST_AMOUNTS: Final = sqlalchemy.text("""SELECT amount_cents, count(*) OVER () AS entries
+FROM entries WHERE account_id = :account_id ORDER BY id""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListAmountsRow:
+    amount_cents: int
+    entries: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListAmountsRow":
+        return cls(amount_cents=row[0], entries=row[1])
+
+
+def list_amounts(
+    conn: sqlalchemy.Connection, *, account_id: int
+) -> list[ListAmountsRow]:
+    """The account's amounts, each beside how many there are: a count over a
+    window.
+    """
+    return [
+        ListAmountsRow.from_row(row)
+        for row in conn.execute(_LIST_AMOUNTS, {"account_id": account_id})
+    ]
+
+
+_LIST_SHARES: Final = sqlalchemy.text("""SELECT accounts.name, entries.amount_cents, ledger.total_cents
+FROM accounts
+LEFT JOIN entries ON entries.account_id = accounts.id
+JOIN (
+  SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS total_cents FROM entries
+) AS ledger
+ORDER BY accounts.id, entries.id""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListSharesRow:
+    name: str
+    amount_cents: int | None
+    total_cents: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListSharesRow":
+        return cls(name=row[0], amount_cents=row[1], total_cents=row[2])
+
+
+def list_shares(conn: sqlalchemy.Connection) -> list[ListSharesRow]:
+    """Each account's amounts beside the ledger's total. An account without
+    entries has no amount, though sqlc reports it NOT NULL once a JOIN follows
+    the LEFT JOIN.
+    """
+    return [ListSharesRow.from_row(row) for row in conn.execute(_LIST_SHARES)]
+
+
 _LIST_ENTRIES: Final = sqlalchemy.text(
     "SELECT id, account_id, amount_cents, rate, memo, receipt, booked_at FROM entries WHERE account_id = :account_id ORDER BY id"
 )

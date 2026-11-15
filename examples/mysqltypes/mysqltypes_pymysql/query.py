@@ -4,6 +4,7 @@
 #   sqlc v1.31.1
 import dataclasses
 import datetime as dt
+import typing
 from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any, Final
@@ -12,10 +13,15 @@ import pymysql
 
 from . import models
 
+if typing.TYPE_CHECKING:
+    _Connection = pymysql.Connection[Any]
+else:
+    _Connection = pymysql.Connection
+
 _LIST_SCALARS: Final = "SELECT c_bool, c_tinyint, c_tinyint_unsigned, c_smallint, c_smallint_unsigned, c_mediumint, c_mediumint_unsigned, c_int, c_int_unsigned, c_bigint, c_bigint_unsigned, c_year, c_float, c_double, c_decimal, c_char, c_varchar, c_tinytext, c_text, c_mediumtext, c_longtext, c_json, c_binary, c_varbinary, c_tinyblob, c_blob, c_mediumblob, c_longblob, c_bit_1, c_bit_64, c_date, c_datetime, c_timestamp, c_time FROM scalars LIMIT %s"
 
 
-def list_scalars(conn: pymysql.Connection, *, limit: int) -> list[models.Scalar]:
+def list_scalars(conn: _Connection, *, limit: int) -> list[models.Scalar]:
     with conn.cursor(pymysql.cursors.Cursor) as cur:
         cur.execute(_LIST_SCALARS, (limit,))
         return [models.Scalar.from_row(row) for row in cur.fetchall()]
@@ -35,7 +41,7 @@ _ADD_SCALARS: Final = """INSERT INTO scalars (
 
 
 def add_scalars(
-    conn: pymysql.Connection,
+    conn: _Connection,
     *,
     c_bool: bool | None,
     c_tinyint: int | None,
@@ -130,7 +136,7 @@ class ListDerivedRow:
         return cls(filled=bool(row[0]), as_signed=row[1])
 
 
-def list_derived(conn: pymysql.Connection) -> list[ListDerivedRow]:
+def list_derived(conn: _Connection) -> list[ListDerivedRow]:
     """What sqlc types otherwise than a column: a comparison is its `bool`, a
     cast to an integer its `bigint signed`.
     """

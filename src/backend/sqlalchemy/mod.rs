@@ -24,10 +24,11 @@ use crate::python::{
 /// asyncpg's row count off the command tag, with an expression that knows no
 /// `MERGE n`, so it would be -1 there and the real count on psycopg.
 pub fn check(engine: Engine, query: &Query) -> Result<()> {
+    text::check(&query.sql)?;
     let cmd = match query.command {
         Command::ExecRows => ":execrows",
         Command::ExecResult => ":execresult",
-        _ => return text::check(&query.sql),
+        _ => return Ok(()),
     };
     if engine.merges(&query.sql.text()) {
         bail!(
@@ -35,7 +36,7 @@ pub fn check(engine: Engine, query: &Query) -> Result<()> {
              and the real count on psycopg; use :exec"
         );
     }
-    text::check(&query.sql)
+    Ok(())
 }
 
 /// `sqlalchemy.text(...)`, typed only where a driver needs it (§6, "On SQLAlchemy",
@@ -184,24 +185,22 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
                 false => ann_assign(VALUE, ty.annotation(Scope::Queries), one),
                 true => assign(VALUE, one),
             };
-            (vec![line], ty.read(VALUE, Scope::Queries, false))
+            (vec![line], ty.read(VALUE, Scope::Queries))
         }
         Command::Many(Shape::Scalar(ty)) => {
             let values = executed.attr("scalars").call([]);
             let value = match ty.converts() {
                 false => LIST.call([values]),
-                true => list_of(ty.read(VALUE, Scope::Queries, false), each(VALUE, values)),
+                true => list_of(ty.read(VALUE, Scope::Queries), each(VALUE, values)),
             };
             (vec![], value)
         }
-        Command::One(shape) if query.raises => {
-            (vec![], shape.read(executed.attr("one").call([]), false))
-        }
+        Command::One(shape) if query.raises => (vec![], shape.read(executed.attr("one").call([]))),
         Command::One(shape) => {
             let row = assign(ROW, executed.attr("one_or_none").call([]));
-            (vec![row], unless_none(ROW, shape.read(ROW, false)))
+            (vec![row], unless_none(ROW, shape.read(ROW)))
         }
-        Command::Many(shape) => (vec![], list_of(shape.read(ROW, false), each(ROW, executed))),
+        Command::Many(shape) => (vec![], list_of(shape.read(ROW), each(ROW, executed))),
     };
     if !rows {
         return stmts![lines, return_(value)];

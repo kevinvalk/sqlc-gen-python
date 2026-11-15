@@ -1,6 +1,6 @@
 # Failures the runtime sweep must keep finding in what the generator emits for
 # corpus cases, because sqlc reports something PostgreSQL does not do, and the
-# generator is right to follow sqlc (CLAUDE.md: never re-infer what sqlc
+# generator is right to follow sqlc (AGENTS.md: never re-infer what sqlc
 # reports). Each is a documented limitation (docs/python-output.md, "Known
 # limitations") or a sqlc catalog bug. Each names the function (from its
 # leading `.`, so that it matches it and its coroutine) or model and

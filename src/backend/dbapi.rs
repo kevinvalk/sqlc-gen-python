@@ -9,13 +9,14 @@ use crate::api::models::{Enum, Field};
 use crate::api::queries::{Command, CopyInto, Query, Shape};
 use crate::engine::Piece;
 use crate::python::vocabulary::{
-    ANY, CONN, COPY, CUR, CURSOR, INT, LEN, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, OBJECT, PROTOCOL, R,
-    RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPED, TYPED_CURSOR, VALUE, VALUES,
+    ANY, CONN, CONNECTION, COPY, CUR, CURSOR, INT, LEN, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, OBJECT,
+    PROTOCOL, R, RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPE_CHECKING, TYPED,
+    TYPED_CURSOR, VALUE, VALUES,
 };
 use crate::python::{
     Each, Expression, Function, Scope, ann_assign, assign, class, each, ellipsis, expression, for_,
-    int, keyword, list, list_of, match_, name, none, parameter, pattern, raise, receiver, return_,
-    starred, stmts, string, true_, tuple, with,
+    if_else, int, keyword, list, list_of, match_, name, none, parameter, pattern, raise, receiver,
+    return_, starred, stmts, string, true_, tuple, with,
 };
 
 #[cfg(test)]
@@ -43,6 +44,9 @@ pub struct Driver {
     /// Whether a `:copyfrom` runs PostgreSQL's `COPY`, through the cursor's
     /// `copy()`, rather than one `INSERT` per row.
     pub copies: bool,
+    /// What makes the rows of the cursor tuples, where making the cursor
+    /// does not.
+    pub plain_rows: Option<fn() -> ast::Stmt>,
 }
 
 /// A driver's own placeholders: one per value, in the text's order.
@@ -60,20 +64,35 @@ pub struct Placeholders {
 /// A driver's blocking functions, or its coroutines: how each part of a
 /// query's function is written with them.
 pub struct Flavor {
-    /// The annotation of the connection.
+    /// The connection's class.
     pub connection: fn() -> ast::Expr,
+    /// Whether that class is generic in the library's stubs alone, over the
+    /// class of its cursors: bare, it is to a type checker a connection of
+    /// the default one only, and subscripted it raises when imported, or
+    /// when its annotation is read. Generated code then names it for both
+    /// ([`prelude`]). PyMySQL's is.
+    pub generic: bool,
     /// The cursor a statement runs on, from `conn`, as `with` enters it,
     /// which closes it after; and as `:execresult` returns it, open, and its
-    /// type. Either is then set up with `setup`, if any.
+    /// type.
     pub closing: fn() -> ast::Expr,
     pub cursor: fn() -> ast::Expr,
     pub cursor_type: fn() -> ast::Expr,
-    pub setup: Option<fn() -> ast::Stmt>,
     /// Whether the library's stubs leave untyped what a statement runs
     /// through (`execute`, `executemany`, `fetchmany`), which strict pyright
     /// rejects a call of: generated code then calls them through a protocol
-    /// of its own ([`prelude`]). asyncmy's do (`CLAUDE.md`, "Workarounds").
+    /// of its own ([`prelude`]). asyncmy's do (`AGENTS.md`, "Workarounds").
     pub untyped: bool,
+}
+
+impl Flavor {
+    /// The annotation of the connection.
+    pub fn connection_type(&self) -> ast::Expr {
+        match self.generic {
+            true => CONNECTION.into(),
+            false => (self.connection)(),
+        }
+    }
 }
 
 impl Driver {
@@ -146,9 +165,20 @@ fn copy(into: &CopyInto) -> String {
     format!("COPY {table} ({}) FROM STDIN", columns.join(", "))
 }
 
-/// What a query module defines before its queries: where the library's
-/// stubs are [`Flavor::untyped`], the methods a statement runs through as
-/// generated code calls them, and what views a cursor as having them.
+/// What a query module defines before its queries, for a library whose
+/// stubs need it. Where the connection's class is [`Flavor::generic`], its
+/// name for a type checker, a connection of any cursor class, and for
+/// Python, the class:
+///
+/// ```python
+/// if typing.TYPE_CHECKING:
+///     _Connection = pymysql.Connection[Any]
+/// else:
+///     _Connection = pymysql.Connection
+/// ```
+///
+/// Where they are [`Flavor::untyped`], the methods a statement runs through
+/// as generated code calls them, and what views a cursor as having them:
 ///
 /// ```python
 /// class _Cursor(typing.Protocol):
@@ -161,9 +191,23 @@ fn copy(into: &CopyInto) -> String {
 /// ```
 pub fn prelude(driver: &Driver, asynchronous: bool) -> Vec<ast::Stmt> {
     let flavor = driver.flavor(asynchronous);
-    if !flavor.untyped {
-        return Vec::new();
-    }
+    let connection = flavor.generic.then(|| {
+        let class = (flavor.connection)();
+        if_else(
+            TYPE_CHECKING,
+            vec![assign(CONNECTION, class.clone().index(ANY))],
+            vec![assign(CONNECTION, class)],
+        )
+    });
+    stmts![
+        connection,
+        (flavor.untyped).then(|| bridge(flavor, asynchronous)),
+    ]
+}
+
+/// A protocol of the methods of a cursor that `flavor`'s stubs leave untyped,
+/// and the function that views its cursor as one.
+fn bridge(flavor: &Flavor, asynchronous: bool) -> Vec<ast::Stmt> {
     let method = |name: &str, parameters: Vec<ast::ParameterWithDefault>, returns: ast::Expr| {
         Function {
             parameters: std::iter::once(receiver(SELF)).chain(parameters).collect(),
@@ -222,7 +266,7 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt
         (Command::ExecResult, _) => {
             return stmts![
                 assign(CUR, (body.flavor.cursor)()),
-                body.setup(),
+                body.plain_rows(),
                 body.counted(),
                 return_(CUR),
             ];
@@ -266,7 +310,7 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt
     vec![with(
         asynchronous,
         vec![cursor],
-        stmts![body.setup(), on_cursor],
+        stmts![body.plain_rows(), on_cursor],
     )]
 }
 
@@ -279,9 +323,14 @@ struct Body<'a> {
 }
 
 impl Body<'_> {
-    /// What sets a new cursor up, if the driver needs it.
-    fn setup(&self) -> Option<ast::Stmt> {
-        self.flavor.setup.map(|setup| setup())
+    /// What makes the cursor's rows tuples, if the driver needs it said and
+    /// the rows are read: by the function, or from the cursor it returns.
+    fn plain_rows(&self) -> Option<ast::Stmt> {
+        let read = matches!(
+            self.query.command,
+            Command::One(_) | Command::Many(_) | Command::ExecResult
+        );
+        self.driver.plain_rows.filter(|_| read).map(|rows| rows())
     }
 
     /// `cur`, as a statement runs through it: seen as typed, where the
@@ -326,7 +375,7 @@ impl Body<'_> {
     }
 
     /// PostgreSQL's `COPY` of the rows: its cursor and the copy entered in
-    /// one `with` (ruff's SIM117). Only psycopg copies, with no setup.
+    /// one `with` (ruff's SIM117).
     fn copy(&self) -> Vec<ast::Stmt> {
         let columns: Vec<&Field> = self.query.params.iter().collect();
         let write = (COPY.attr("write_row"))
@@ -391,7 +440,7 @@ impl Body<'_> {
     /// Every row of the result `cur` holds, as a list.
     fn many(&self, shape: &Shape, cur: Symbol) -> ast::Expr {
         let fetched = (cur.attr("fetchall").call([])).awaited(self.asynchronous);
-        list_of(shape.read(ROW, self.driver.text_arrays), each(ROW, fetched))
+        list_of(shape.read(ROW), each(ROW, fetched))
     }
 
     /// The only row of the result `cur` holds, handed to `emit` (`return x`,
@@ -405,7 +454,7 @@ impl Body<'_> {
                 ann_assign(VALUE, ty.annotation(Scope::Queries), ROW.index(int(0))),
                 emit(VALUE.into()),
             ],
-            shape => vec![emit(shape.read(ROW, self.driver.text_arrays))],
+            shape => vec![emit(shape.read(ROW))],
         };
         let missing = match self.query.raises {
             true => raise(NO_ROW_ERROR),

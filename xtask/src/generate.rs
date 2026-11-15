@@ -21,14 +21,16 @@ pub fn run(request: &str, options: &str, out: Option<&str>) -> Result<()> {
     });
     let files = sqlc_gen_python::generate(&request)?;
     for file in files {
-        let contents = String::from_utf8_lossy(&file.contents);
         match out {
             Some(out) => {
                 let path = Path::new(out).join(&file.name);
                 fs::create_dir_all(path.parent().unwrap_or(Path::new(out)))?;
-                fs::write(&path, contents.as_bytes())?;
+                fs::write(&path, &file.contents)?;
             }
-            None => println!("##### {}\n{contents}", file.name),
+            None => {
+                let contents = String::from_utf8_lossy(&file.contents);
+                println!("##### {}\n{contents}", file.name);
+            }
         }
     }
     Ok(())

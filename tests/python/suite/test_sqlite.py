@@ -15,14 +15,12 @@ from typing import Any
 import aiosqlite
 import pytest
 import sqlalchemy
-from examples import GoldenCase
+from examples import GoldenCase, statements
 from sqlalchemy.ext.asyncio import create_async_engine
-from suite.api import cases, functions, queries
-
-from conftest import no_row
+from suite.api import cases, functions, no_row, queries
 
 SCHEMA = cases("ledger")[0].schema_sql.read_text()
-STATEMENTS = [s for s in SCHEMA.split(";") if s.strip()]
+STATEMENTS = statements(SCHEMA)
 # Characters a driver or a careless generator could misread.
 AWKWARD = "it's :x $1 ?2 %s"
 
@@ -43,16 +41,19 @@ def test_every_function_against_sqlite(case: GoldenCase) -> None:
     assert called == public, f"never called: {sorted(public - called)}"
 
 
-def _dicts(cursor: sqlite3.Cursor, row: tuple[Any, ...]) -> dict[str, Any]:
-    """A row factory of the caller's, which generated code must not read."""
-    return {
-        column[0]: value for column, value in zip(cursor.description, row, strict=True)
-    }
+class _Dict(dict[str, Any]):
+    """A row factory of the caller's, which generated code must not read. A
+    class, which is all aiosqlite's stubs take for one.
+    """
+
+    def __init__(self, cursor: sqlite3.Cursor, row: tuple[Any, ...]) -> None:
+        names = (column[0] for column in cursor.description)
+        super().__init__(zip(names, row, strict=True))
 
 
 async def _sqlite3(case: GoldenCase, called: set[str]) -> None:
     conn = sqlite3.connect(":memory:")
-    conn.row_factory = _dicts
+    conn.row_factory = _Dict
     try:
         conn.executescript(SCHEMA)
         await scenario(queries(case, conn, called))
@@ -62,7 +63,7 @@ async def _sqlite3(case: GoldenCase, called: set[str]) -> None:
 
 async def _aiosqlite(case: GoldenCase, called: set[str]) -> None:
     async with aiosqlite.connect(":memory:") as conn:
-        conn.row_factory = _dicts
+        conn.row_factory = _Dict
         await conn.executescript(SCHEMA)
         await scenario(queries(case, conn, called))
 
@@ -89,7 +90,7 @@ async def _sqlalchemy_async(case: GoldenCase, called: set[str]) -> None:
         await engine.dispose()
 
 
-async def scenario(api: Any) -> None:  # noqa: ANN401
+async def scenario(api: Any) -> None:  # noqa: PLR0915
     q = api.query
     cash = await q.open_account(
         name="Cash", opened_on="2026-11-13", settings='{"a": 1}'
@@ -130,6 +131,14 @@ async def scenario(api: Any) -> None:  # noqa: ANN401
         (-250, None, None, None),
     ]
     assert entries[1].id == second
+    # A count of the rows a filter keeps, and one over a window.
+    counted = await q.count_entries(account_id=cash.id)
+    assert (counted.entries, counted.debits) == (2, 1)
+    none = await q.count_entries(account_id=cash.id + 1)
+    assert (none.entries, none.debits) == (0, 0)
+    amounts = await q.list_amounts(account_id=cash.id)
+    assert [(a.amount_cents, a.entries) for a in amounts] == [(1250, 2), (-250, 2)]
+    assert await q.list_amounts(account_id=cash.id + 1) == []
     assert (await q.get_last_amount(id=cash.id)).last_amount_cents == -250
     # A slice's items, then `?2`: each bound in its own place.
     ids = [e.id for e in entries]
@@ -150,10 +159,20 @@ async def scenario(api: Any) -> None:  # noqa: ANN401
     assert [(row.account, row.entry) for row in outer] == [
         (archived, entry) for entry in entries
     ]
+    shares = await q.list_shares()
+    assert [(s.name, s.amount_cents, s.total_cents) for s in shares] == [
+        ("Cash", 1250, 1000),
+        ("Cash", -250, 1000),
+    ]
     assert (await q.delete_entries(account_id=cash.id)).rowcount == 2
     assert await q.balance(account_id=cash.id) == 0
     outer = await q.list_accounts_with_entries()
     assert [(row.account, row.entry) for row in outer] == [(archived, None)]
+    # And so is its column, though sqlc says NOT NULL once a JOIN follows.
+    shares = await q.list_shares()
+    assert [(s.name, s.amount_cents, s.total_cents) for s in shares] == [
+        ("Cash", None, 0)
+    ]
     # A scalar subquery that finds no row is None, though sqlc says NOT NULL.
     last = await q.get_last_amount(id=cash.id)
     assert (last.name, last.last_amount_cents) == ("Cash", None)

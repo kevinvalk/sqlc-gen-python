@@ -265,6 +265,35 @@ async def list_line_items(
     ]
 
 
+_LIST_CUSTOMER_LINES: Final = sqlalchemy.text("""SELECT customers.id, invoices.number, line_items.description
+FROM line_items
+JOIN invoices ON invoices.id = line_items.invoice_id
+RIGHT JOIN customers ON customers.id = invoices.customer_id
+ORDER BY customers.id, invoices.number, line_items.position""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListCustomerLinesRow:
+    id: int
+    number: str | None
+    description: str | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListCustomerLinesRow":
+        return cls(id=row[0], number=row[1], description=row[2])
+
+
+async def list_customer_lines(conn: AsyncConnection) -> list[ListCustomerLinesRow]:
+    """Every customer, with each line of an invoice of theirs, or none: what
+    stands left of the RIGHT JOIN may be without a row, though sqlc reports
+    the columns of a join there NOT NULL.
+    """
+    return [
+        ListCustomerLinesRow.from_row(row)
+        for row in await conn.execute(_LIST_CUSTOMER_LINES)
+    ]
+
+
 _RECALCULATE_TOTAL: Final = sqlalchemy.text("""UPDATE invoices
 SET total = (SELECT CAST(COALESCE(SUM(quantity * unit_price), 0) AS DECIMAL(12, 2)) FROM line_items WHERE invoice_id = :id)
 WHERE id = :id""")

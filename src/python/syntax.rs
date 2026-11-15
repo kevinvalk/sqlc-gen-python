@@ -57,7 +57,6 @@ pub fn is_class_name(name: &str) -> bool {
     is_public_name(name)
         && name.starts_with(|c: char| c.is_ascii_uppercase())
         && !name.contains('_')
-        && !ruff_python_stdlib::keyword::is_keyword(name)
         && !(10..=14)
             .any(|minor| ruff_python_stdlib::builtins::is_python_builtin(name, minor, false))
 }

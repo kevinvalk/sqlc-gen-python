@@ -2,6 +2,7 @@
 # versions:
 #   sqlc-gen-python v0.1.0
 #   sqlc v1.31.1
+# ruff: noqa: S105
 import ipaddress
 from decimal import Decimal
 from typing import Any, Final
@@ -11,7 +12,7 @@ from psycopg.rows import tuple_row
 
 from . import MultipleRowsError, NoRowError, models
 
-_ADD_DEVICE: Final = "INSERT INTO devices (ip, location, budget) VALUES ($1, $2, $3) RETURNING id, ip, location, budget"
+_ADD_DEVICE: Final = "INSERT INTO devices (ip, location, budget) VALUES ($1, $2, $3) RETURNING id, ip, location, budget, sign_in"
 
 
 def add_device(
@@ -32,7 +33,7 @@ def add_device(
                 raise MultipleRowsError
 
 
-_LIST_DEVICES_UNDER: Final = "SELECT id, ip, location, budget FROM devices WHERE location <@ $1::ltree ORDER BY id"
+_LIST_DEVICES_UNDER: Final = "SELECT id, ip, location, budget, sign_in FROM devices WHERE location <@ $1::ltree ORDER BY id"
 
 
 def list_devices_under(
@@ -40,4 +41,13 @@ def list_devices_under(
 ) -> list[models.Machine]:
     with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
         cur.execute(_LIST_DEVICES_UNDER, (location,))
+        return [models.Machine.from_row(row) for row in cur.fetchall()]
+
+
+_LIST_DEVICES_BY_TOKEN: Final = "SELECT id, ip, location, budget, sign_in FROM devices WHERE sign_in = 'token' ORDER BY id"
+
+
+def list_devices_by_token(conn: psycopg.Connection[Any]) -> list[models.Machine]:
+    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+        cur.execute(_LIST_DEVICES_BY_TOKEN)
         return [models.Machine.from_row(row) for row in cur.fetchall()]

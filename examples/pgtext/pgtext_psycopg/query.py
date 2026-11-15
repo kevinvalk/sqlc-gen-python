@@ -2,56 +2,85 @@
 # versions:
 #   sqlc-gen-python v0.1.0
 #   sqlc v1.31.1
+import datetime as dt
+from decimal import Decimal
 from typing import Any, Final
 
 import psycopg
 from psycopg.rows import tuple_row
+from psycopg.types.range import Range
 
-from . import MultipleRowsError, NoRowError, models
+from . import models
 
-_ADD_SHAPE: Final = """INSERT INTO shapes (flags, mask, spot, edge, segment, frame, route, outline, area, lsn)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, flags, mask, spot, edge, segment, frame, route, outline, area, lsn"""
+_LIST_SCALARS: Final = "SELECT c_hstore, c_bit, c_varbit, c_point, c_line, c_lseg, c_box, c_path, c_polygon, c_circle, c_cid, c_xid, c_xid8, c_tid, c_pg_lsn, c_int4range, c_int8range, c_numrange, c_daterange, c_tsrange, c_tstzrange FROM scalars LIMIT $1"
 
 
-def add_shape(
+def list_scalars(conn: psycopg.Connection[Any], *, limit: int) -> list[models.Scalar]:
+    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
+        cur.execute(_LIST_SCALARS, (limit,))
+        return [models.Scalar.from_row(row) for row in cur.fetchall()]
+
+
+_ADD_SCALARS: Final = """INSERT INTO scalars (
+  c_hstore, c_bit, c_varbit, c_point, c_line, c_lseg, c_box, c_path, c_polygon, c_circle,
+  c_cid, c_xid, c_xid8, c_tid, c_pg_lsn,
+  c_int4range, c_int8range, c_numrange, c_daterange, c_tsrange, c_tstzrange
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+  $11, $12, $13, $14, $15,
+  $16, $17, $18, $19, $20, $21
+)"""
+
+
+def add_scalars(
     conn: psycopg.Connection[Any],
     *,
-    flags: str,
-    mask: str,
-    spot: str,
-    edge: str,
-    segment: str,
-    frame: str,
-    route: str,
-    outline: str,
-    area: str,
-    lsn: str,
-) -> models.Shape:
+    c_hstore: str | None,
+    c_bit: str | None,
+    c_varbit: str | None,
+    c_point: str | None,
+    c_line: str | None,
+    c_lseg: str | None,
+    c_box: str | None,
+    c_path: str | None,
+    c_polygon: str | None,
+    c_circle: str | None,
+    c_cid: str | None,
+    c_xid: str | None,
+    c_xid8: str | None,
+    c_tid: str | None,
+    c_pg_lsn: str | None,
+    c_int4range: Range[int] | None,
+    c_int8range: Range[int] | None,
+    c_numrange: Range[Decimal] | None,
+    c_daterange: Range[dt.date] | None,
+    c_tsrange: Range[dt.datetime] | None,
+    c_tstzrange: Range[dt.datetime] | None,
+) -> None:
     with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
         cur.execute(
-            _ADD_SHAPE,
-            (flags, mask, spot, edge, segment, frame, route, outline, area, lsn),
+            _ADD_SCALARS,
+            (
+                c_hstore,
+                c_bit,
+                c_varbit,
+                c_point,
+                c_line,
+                c_lseg,
+                c_box,
+                c_path,
+                c_polygon,
+                c_circle,
+                c_cid,
+                c_xid,
+                c_xid8,
+                c_tid,
+                c_pg_lsn,
+                c_int4range,
+                c_int8range,
+                c_numrange,
+                c_daterange,
+                c_tsrange,
+                c_tstzrange,
+            ),
         )
-        match cur.fetchmany(2):
-            case [row]:
-                return models.Shape.from_row(row)
-            case []:
-                raise NoRowError
-            case _:
-                raise MultipleRowsError
-
-
-_GET_SHAPE: Final = "SELECT id, flags, mask, spot, edge, segment, frame, route, outline, area, lsn FROM shapes WHERE id = $1"
-
-
-def get_shape(conn: psycopg.Connection[Any], *, id: int) -> models.Shape | None:
-    with psycopg.RawCursor(conn, row_factory=tuple_row) as cur:
-        cur.execute(_GET_SHAPE, (id,))
-        match cur.fetchmany(2):
-            case [row]:
-                return models.Shape.from_row(row)
-            case []:
-                return None
-            case _:
-                raise MultipleRowsError

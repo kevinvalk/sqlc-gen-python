@@ -81,7 +81,7 @@ fn a_mysql_statement_with_a_comment_that_is_code_is_not_read() {
     // MySQL runs what `/*! ... */` holds, which its lexer here leaves out:
     // this is a `LEFT JOIN`, and `b` may be missing.
     let sql = "SELECT a.id, b.id FROM a /*! LEFT */ JOIN b ON b.a_id = a.id";
-    assert_eq!(Engine::MySql.items(sql, 2), None);
+    assert_eq!(Engine::MySql.items(sql, &[""; 2]), None);
     assert!(Engine::MySql.present(sql).is_empty());
     assert!(!Engine::MySql.single_row("SELECT count(*) FROM a /*! GROUP BY id */"));
     // To PostgreSQL it is a comment.

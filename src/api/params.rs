@@ -33,9 +33,10 @@ pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Resul
             && (!resolver.engine.is_identifier(&c.name) || c.name.starts_with("pg_catalog"))
     }) {
         bail!(
-            "sqlc named a parameter \"{}\" after an expression, not a name: an operator that \
-             binds tighter than @, such as AT TIME ZONE or +, made @ take the expression, and \
-             sqlc may have replaced all of it; write sqlc.arg(name), or parenthesise (@name::type)",
+            "sqlc named a parameter \"{}\", which is no name: sqlc.arg was given one that is \
+             no identifier, or an operator that binds tighter than @, such as AT TIME ZONE or +, \
+             made @ take an expression, all of which sqlc may have replaced; write \
+             sqlc.arg(name), or parenthesise (@name::type)",
             column.name
         );
     }
@@ -45,12 +46,12 @@ pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Resul
     // the first: which use it repeats.
     let mut chosen: HashMap<String, usize> = HashMap::new();
     let repeats: Vec<Option<usize>> = (columns.iter().enumerate())
-        .map(|(i, c)| match c.is_named_param && !c.name.is_empty() {
-            true => match chosen.get(&c.name) {
-                Some(&first) => Some(first),
-                None => chosen.insert(c.name.clone(), i).and(None),
-            },
-            false => None,
+        .map(|(i, c)| {
+            if !c.is_named_param || c.name.is_empty() {
+                return None;
+            }
+            let first = *chosen.entry(c.name.clone()).or_insert(i);
+            (first != i).then_some(first)
         })
         .collect();
     let mut seen: HashMap<String, &plugin::Column> = HashMap::new();
@@ -102,7 +103,7 @@ pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Resul
             "{}, or {} if it can be NULL",
             resolver.engine.cast(&match resolver.engine {
                 Engine::PostgreSql => format!("@{name}"),
-                _ => format!("sqlc.arg({name})"),
+                Engine::MySql | Engine::Sqlite => format!("sqlc.arg({name})"),
             }),
             resolver.engine.cast(&format!("sqlc.narg('{name}')"))
         );
@@ -124,7 +125,6 @@ pub(super) fn params(params: &[plugin::Parameter], resolver: &Resolver) -> Resul
                 );
             }
             first.ty.optional |= ty.optional;
-            ty.optional = first.ty.optional;
         }
         if matches!(ty.element, Type::Json(_)) && ty.array_dims > 0 {
             bail!(

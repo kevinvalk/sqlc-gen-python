@@ -68,6 +68,9 @@ pub struct FieldType {
     pub array_dims: usize,
     /// Whether the column admits NULL.
     pub optional: bool,
+    /// Whether the backend returns the array, of enums, as its text, which
+    /// the enum's class then parses (`from_array`).
+    pub as_text: bool,
 }
 
 /// The enums and models of the catalog `resolver` reads: the classes of the
@@ -180,15 +183,14 @@ impl FieldType {
     /// The expression that turns `value`, as a driver returns it, into this
     /// type (`docs/python-output.md` §4, rule 4): the value itself, except
     /// that an enum's labels, which drivers return as `str`, become members,
-    /// and a [`Type::Converted`] value its type. A driver that returns an
-    /// array of enums as its text (`text_arrays`) has it parsed by the enum.
-    pub fn read(&self, value: impl Into<ast::Expr>, scope: Scope, text_arrays: bool) -> ast::Expr {
+    /// and a [`Type::Converted`] value its type.
+    pub fn read(&self, value: impl Into<ast::Expr>, scope: Scope) -> ast::Expr {
         let value = value.into();
         if !self.converts() {
             return value;
         }
         let class = self.element.annotation(scope);
-        let read = match (self.array_dims, text_arrays) {
+        let read = match (self.array_dims, self.as_text) {
             (0, _) => class.call([value.clone()]),
             (_, false) => list_of(class.call([V.into()]), each(V, value.clone())),
             (_, true) => class.attr(FROM_ARRAY).call([value.clone()]),

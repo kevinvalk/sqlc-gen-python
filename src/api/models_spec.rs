@@ -14,6 +14,7 @@ fn field(element: Type, array_dims: usize, optional: bool) -> FieldType {
         element,
         array_dims,
         optional,
+        as_text: false,
     }
 }
 
@@ -218,7 +219,7 @@ fn a_multi_dimensional_enum_array_is_an_error() {
 fn a_value_is_read_as_is_unless_it_holds_enum_labels() {
     // `docs/python-output.md` §4, rule 4: both drivers return labels as `str`.
     let row = || crate::python::name("row").index(crate::python::int(3));
-    let read = |ty: FieldType, scope| crate::python::unparse(&ty.read(row(), scope, false));
+    let read = |ty: FieldType, scope| crate::python::unparse(&ty.read(row(), scope));
     let status = || Type::Enum("Status".into());
     assert_eq!(read(field(Type::DECIMAL, 1, true), Scope::Models), "row[3]");
     assert_eq!(
@@ -238,15 +239,19 @@ fn a_value_is_read_as_is_unless_it_holds_enum_labels() {
         "None if row[3] is None else [Status(v) for v in row[3]]"
     );
     // psycopg returns an array of enums as its text.
+    let as_text = FieldType {
+        as_text: true,
+        ..field(status(), 1, false)
+    };
     assert_eq!(
-        crate::python::unparse(&field(status(), 1, false).read(row(), Scope::Queries, true)),
+        read(as_text, Scope::Queries),
         "models.Status.from_array(row[3])"
     );
 }
 
 #[test]
 fn a_type_nothing_declares_is_an_error_naming_the_column() {
-    // CLAUDE.md: never paper over an unknown with `Any`. A domain is one too:
+    // AGENTS.md: never paper over an unknown with `Any`. A domain is one too:
     // sqlc sends its name, never its base type, so the error says what to
     // declare instead.
     let error = try_resolve(public(vec![table(

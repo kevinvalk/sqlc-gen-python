@@ -205,8 +205,8 @@ class Sweep:
 
     async def example(
         self,
-        conn: Any,  # noqa: ANN401
-        callee: Any,  # noqa: ANN401
+        conn: Any,
+        callee: Any,
         data: st.DataObject,
     ) -> None:
         """Seed every table, call every function on ``callee``, roll back."""
@@ -234,7 +234,7 @@ class Sweep:
 
     async def seed(
         self,
-        conn: Any,  # noqa: ANN401
+        conn: Any,
         data: st.DataObject,
         table: Table,
         pool: Pool,

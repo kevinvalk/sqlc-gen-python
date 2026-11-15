@@ -2,6 +2,7 @@
 driver.
 
 Each engine's part says how it reads its types (``typemap_postgres.py``,
+and ``typemap_psycopg.py`` for those the psycopg backend alone maps,
 ``typemap_mysql.py``, ``typemap_sqlite.py``); what they hold in common is what
 makes a type's annotation true: every edge a database can hold of it comes
 back, through every driver, as a value of exactly that annotation, or the
@@ -22,8 +23,9 @@ import mysql
 import postgres
 import typemap_mysql
 import typemap_postgres
+import typemap_psycopg
 import typemap_sqlite
-from typemap_probe import versions
+from typemap_probe import cut, versions
 
 if TYPE_CHECKING:
     import sqlalchemy
@@ -37,6 +39,7 @@ def probe(postgresql: sqlalchemy.URL, mysql_server: sqlalchemy.URL) -> list[Sect
     """
     return [
         typemap_postgres.probe(postgresql),
+        typemap_psycopg.probe(postgresql),
         typemap_mysql.probe(mysql_server),
         typemap_sqlite.probe(),
     ]
@@ -95,7 +98,7 @@ def render(sections: list[Section], newer: str) -> str:
         for p in section.probes:
             for edge, by_driver in p.notes.items():
                 notes = [by_driver.get(d, "") for d in section.drivers]
-                lines.append(_row(f"`{p.type}`", f"`{_code(edge)}`", *notes))
+                lines.append(_row(f"`{p.type}`", f"`{cut(edge, 120)}`", *notes))
     return "\n".join(lines) + "\n"
 
 
@@ -104,12 +107,7 @@ def _row(*cells: str) -> str:
     return "| " + " | ".join(cell.replace("|", "\\|") for cell in cells) + " |"
 
 
-def _code(edge: str, width: int = 120) -> str:
-    """An edge as one line of code, cut where it is a long literal."""
-    return edge if len(edge) <= width else edge[: width - 3] + "..."
-
-
-def _annotation(hint: Any) -> str:  # noqa: ANN401
+def _annotation(hint: Any) -> str:
     if isinstance(hint, type) and not typing.get_args(hint):
         return hint.__name__
     return re.sub(r"\b(?:[a-z_]+\.)+", "", str(hint)).replace("NoneType", "None")

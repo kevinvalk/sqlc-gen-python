@@ -13,19 +13,15 @@ use crate::python::{
 };
 
 /// Each enum's class, then each table's.
-pub fn module(api: &Api, text_arrays: bool) -> Vec<ast::Stmt> {
-    let arrays = api.array_enums();
+pub fn module(api: &Api) -> Vec<ast::Stmt> {
+    let arrays = api.text_array_enums();
     (api.enums.iter())
-        .map(|e| enum_class(e, text_arrays && arrays.contains(e.name.as_str())))
-        .chain(
-            api.models
-                .iter()
-                .map(|model| model_class(model, text_arrays)),
-        )
+        .map(|e| enum_class(e, arrays.contains(e.name.as_str())))
+        .chain(api.models.iter().map(model_class))
         .collect()
 }
 
-/// A `str`-mixin enum: both drivers bind a member as its label, and
+/// A `str`-mixin enum: every driver binds a member as its label, and
 /// `enum.StrEnum` would need Python 3.11. Without the `__str__` override,
 /// `str(member)` changes between Python 3.10 and 3.12.
 ///
@@ -69,11 +65,11 @@ fn enum_class(sql_enum: &Enum, from_array: bool) -> ast::Stmt {
 }
 
 /// A table's record, read from a row of exactly its columns.
-fn model_class(model: &Model, text_arrays: bool) -> ast::Stmt {
+fn model_class(model: &Model) -> ast::Stmt {
     let attributes: Vec<Attribute> = (model.fields.iter().enumerate())
         .map(|(i, field)| Attribute {
             comment: field.comment.clone(),
-            ..Attribute::column(field, i, Scope::Models, text_arrays)
+            ..Attribute::column(field, i, Scope::Models)
         })
         .collect();
     record(&model.name, &model.comment, &attributes)

@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 READY_SECONDS = 60
+ENV = "SQLC_TEST_DATABASE_URL"
 # The data memory each server process may use, in bytes.
 BACKEND_MEMORY = 2**30
 # The runtime proof's server: the newest PostgreSQL.
@@ -34,9 +35,7 @@ NEWEST = "postgres:18"
 
 
 @contextmanager
-def server(
-    image: str = NEWEST, env: str = "SQLC_TEST_DATABASE_URL"
-) -> Iterator[sqlalchemy.URL]:
+def server(image: str = NEWEST, env: str = ENV) -> Iterator[sqlalchemy.URL]:
     """Yield a server's psycopg URL, valid for as long as the context lasts:
     ``env``'s, if that variable is set, or else a container of ``image``.
     """
@@ -94,7 +93,7 @@ def conninfo(url: sqlalchemy.URL) -> str:
     return url.set(drivername="postgresql").render_as_string(hide_password=False)
 
 
-async def aw(value: Any) -> Any:  # noqa: ANN401
+async def aw(value: Any) -> Any:
     """Await ``value`` if SQLAlchemy's async API returned it; the sync API's as is."""
     return await value if inspect.isawaitable(value) else value
 

@@ -1799,6 +1799,275 @@
       "insert_into_table": null
     },
     {
+      "text": "SELECT count(*) AS entries, count(*) FILTER (WHERE amount_cents < 0) AS debits\nFROM entries WHERE account_id = ?",
+      "name": "CountEntries",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "entries",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "integer"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "debits",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "integer"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "account_id",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "entries"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "INTEGER"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "account_id",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [
+        " How many entries the account has, and how many of them are debits: a count",
+        " of the rows a filter keeps is as much a count."
+      ],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT amount_cents, count(*) OVER () AS entries\nFROM entries WHERE account_id = ? ORDER BY id",
+      "name": "ListAmounts",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "amount_cents",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "entries"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "INTEGER"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "amount_cents",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "entries",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "integer"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "account_id",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "entries"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "INTEGER"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "account_id",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [
+        " The account's amounts, each beside how many there are: a count over a",
+        " window."
+      ],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT accounts.name, entries.amount_cents, ledger.total_cents\nFROM accounts\nLEFT JOIN entries ON entries.account_id = accounts.id\nJOIN (\n  SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS total_cents FROM entries\n) AS ledger\nORDER BY accounts.id, entries.id",
+      "name": "ListShares",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "name",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "accounts"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "TEXT"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "name",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "amount_cents",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "entries"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "INTEGER"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "amount_cents",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "total_cents",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "integer"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "total_cents",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [
+        " Each account's amounts beside the ledger's total. An account without",
+        " entries has no amount, though sqlc reports it NOT NULL once a JOIN follows",
+        " the LEFT JOIN."
+      ],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
       "text": "SELECT id, account_id, amount_cents, rate, memo, receipt, booked_at FROM entries WHERE account_id = ? ORDER BY id",
       "name": "ListEntries",
       "cmd": ":many",

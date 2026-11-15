@@ -22,13 +22,22 @@ pub fn check_module(source: &str) -> Vec<String> {
     }
 }
 
-/// What a query module on asyncmy holds between its imports and its queries
-/// (`docs/python-output.md` §6, "Functions", rule 2): the methods asyncmy's
-/// stubs leave untyped, as a protocol, and what views a cursor as having
-/// them. To the letter, these two statements alone may be private, annotate
-/// with an `Any` that is not the library's own, and be a class that is no
-/// record.
-const BRIDGE: [&str; 2] = [
+/// What a query module holds between its imports and its queries, on a
+/// library whose stubs need it (`docs/python-output.md` §6, "Functions",
+/// rules 1 and 2). To the letter, these statements alone may be private,
+/// annotate with an `Any` that is not the library's own, and be a class that
+/// is no record.
+///
+/// PyMySQL's connection, generic in its stubs alone: named once, for a type
+/// checker and for Python.
+pub(super) const PYMYSQL: &[&str] = &["if typing.TYPE_CHECKING:
+    _Connection = pymysql.Connection[Any]
+else:
+    _Connection = pymysql.Connection"];
+
+/// The methods asyncmy's stubs leave untyped, as a protocol, and what views
+/// a cursor as having them.
+pub(super) const ASYNCMY: &[&str] = &[
     "class _Cursor(typing.Protocol):
     async def execute(self, query: str, args: Sequence[Any] | None = None) -> int: ...
 
@@ -41,10 +50,14 @@ const BRIDGE: [&str; 2] = [
     return cursor",
 ];
 
-/// Where in `body` its bridge starts, if it has one.
-pub(super) fn bridge(body: &[Stmt], source: &str) -> Option<usize> {
-    body.windows(BRIDGE.len())
-        .position(|stmts| stmts.iter().map(|stmt| &source[stmt.range()]).eq(BRIDGE))
+/// The prelude `body` holds, and where it starts, if it holds one.
+pub(super) fn prelude(body: &[Stmt], source: &str) -> Option<(usize, &'static [&'static str])> {
+    [PYMYSQL, ASYNCMY].into_iter().find_map(|prelude| {
+        let held = |stmts: &[Stmt]| {
+            (stmts.iter().map(|stmt| &source[stmt.range()])).eq(prelude.iter().copied())
+        };
+        Some((body.windows(prelude.len()).position(held)?, prelude))
+    })
 }
 
 /// Every invariant of one parsed module, which each check sees as a tree as
@@ -52,8 +65,8 @@ pub(super) fn bridge(body: &[Stmt], source: &str) -> Option<usize> {
 pub(super) fn module_problems(parsed: &Parsed<ModModule>, source: &str) -> Vec<String> {
     let module = parsed.syntax();
     let mut own = module.body.clone();
-    if let Some(at) = bridge(&own, source) {
-        own.drain(at..at + BRIDGE.len());
+    if let Some((at, prelude)) = prelude(&own, source) {
+        own.drain(at..at + prelude.len());
     }
     let mut problems = Vec::new();
     match format_module_source(source, PyFormatOptions::default()) {
@@ -311,6 +324,14 @@ fn bindings(stmt: &Stmt) -> Vec<&str> {
             .collect(),
         Stmt::ImportFrom(import) => (import.names.iter())
             .map(|alias| alias.asname.as_ref().unwrap_or(&alias.name).as_str())
+            .collect(),
+        Stmt::If(stmt) => (stmt.body.iter())
+            .chain(
+                stmt.elif_else_clauses
+                    .iter()
+                    .flat_map(|clause| &clause.body),
+            )
+            .flat_map(bindings)
             .collect(),
         Stmt::ClassDef(class) => vec![class.name.as_str()],
         Stmt::FunctionDef(function) => vec![function.name.as_str()],

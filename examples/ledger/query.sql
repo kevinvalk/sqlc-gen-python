@@ -35,6 +35,30 @@ RETURNING id;
 SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS balance_cents
 FROM entries WHERE account_id = ?;
 
+-- name: CountEntries :one
+-- How many entries the account has, and how many of them are debits: a count
+-- of the rows a filter keeps is as much a count.
+SELECT count(*) AS entries, count(*) FILTER (WHERE amount_cents < 0) AS debits
+FROM entries WHERE account_id = ?;
+
+-- name: ListAmounts :many
+-- The account's amounts, each beside how many there are: a count over a
+-- window.
+SELECT amount_cents, count(*) OVER () AS entries
+FROM entries WHERE account_id = ? ORDER BY id;
+
+-- name: ListShares :many
+-- Each account's amounts beside the ledger's total. An account without
+-- entries has no amount, though sqlc reports it NOT NULL once a JOIN follows
+-- the LEFT JOIN.
+SELECT accounts.name, entries.amount_cents, ledger.total_cents
+FROM accounts
+LEFT JOIN entries ON entries.account_id = accounts.id
+JOIN (
+  SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS total_cents FROM entries
+) AS ledger
+ORDER BY accounts.id, entries.id;
+
 -- name: ListEntries :many
 SELECT * FROM entries WHERE account_id = ? ORDER BY id;
 

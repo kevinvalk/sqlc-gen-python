@@ -18,7 +18,7 @@ from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
 
-def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: ANN401, C901
+def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: C901
     """Fail with the offending path unless `value` inhabits `hint` exactly.
 
     `object` is what a JSON column is annotated: any value inhabits it, so
@@ -60,7 +60,7 @@ def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: ANN40
         )
 
 
-def bounds(value: object, hint: Any, path: str) -> None:  # noqa: ANN401
+def bounds(value: object, hint: Any, path: str) -> None:
     """Check what a generic value holds: a dict's keys and items (an
     `hstore`), or a range's bounds, psycopg's or SQLAlchemy's, each of the
     range's type or open (`None`).
@@ -79,7 +79,7 @@ def bounds(value: object, hint: Any, path: str) -> None:  # noqa: ANN401
             check(limit, bound, f"{path}.{end}")
 
 
-def failure(value: object, hint: Any, path: str = "value") -> str | None:  # noqa: ANN401
+def failure(value: object, hint: Any, path: str = "value") -> str | None:
     """Say why `value` does not inhabit `hint`, or None if it does."""
     try:
         check(value, hint, path)
@@ -121,7 +121,7 @@ def checked(fn: Callable[..., Any], called: set[str]) -> Callable[..., Any]:
     return wrapper
 
 
-def strip_none(hint: Any) -> tuple[Any, bool]:  # noqa: ANN401
+def strip_none(hint: Any) -> tuple[Any, bool]:
     """`T`, and whether the hint was `T | None`."""
     args = typing.get_args(hint)
     if type(None) not in args:
@@ -130,7 +130,7 @@ def strip_none(hint: Any) -> tuple[Any, bool]:  # noqa: ANN401
     return (rest[0] if len(rest) == 1 else typing.Union[tuple(rest)]), True  # noqa: UP007
 
 
-def build(model: Any, row: Sequence[Any]) -> object:  # noqa: ANN401
+def build(model: Any, row: Sequence[Any]) -> object:
     """Build a model by position, as `from_row` does (docs/python-output.md §4),
     to hold `from_row` to it.
     """
@@ -142,7 +142,7 @@ def build(model: Any, row: Sequence[Any]) -> object:  # noqa: ANN401
     )
 
 
-def coerce(value: object, hint: Any) -> object:  # noqa: ANN401
+def coerce(value: object, hint: Any) -> object:
     """Apply `from_row`'s one conversion: both drivers return enums as `str`."""
     origin = typing.get_origin(hint)
     if value is None:

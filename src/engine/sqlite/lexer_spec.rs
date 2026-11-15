@@ -27,6 +27,9 @@ fn a_bare_placeholder_takes_the_number_after_the_largest_before_it() {
     assert_eq!(bound("SELECT ?, ?", &[1, 2]), ["p1", "p2"]);
     assert_eq!(bound("SELECT ?2, ?1, ?", &[1, 2, 3]), ["p2", "p1", "p3"]);
     assert_eq!(bound("WHERE a = ?1 OR b = ?1", &[1]), ["p1", "p1"]);
+    // There is no number after the largest there is.
+    let error = cut("SELECT ?2147483647, ?", &[1]).unwrap_err();
+    assert!(error.to_string().contains("no placeholder"), "{error}");
 }
 
 #[test]

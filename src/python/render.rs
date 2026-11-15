@@ -23,8 +23,9 @@ mod spec;
 /// `Generator::generate` is `pub(crate)` to ruff, so there is no whole-module
 /// entry point that hands back its buffer; each top-level statement is unparsed
 /// on its own. Nothing is lost by that — the blank lines between them are the
-/// formatter's decision either way, but for the one between two sections of
-/// imports, which a tree cannot carry.
+/// formatter's decision either way, but for two a tree cannot carry and the
+/// formatter leaves as written: the one between two sections of imports, and
+/// the one after an `if`, which sets apart what follows its last branch.
 ///
 /// The unparsed text is parsed back to find its multi-line strings, which fails
 /// exactly when the tree was not valid Python. That is a bug in this crate,
@@ -32,7 +33,12 @@ mod spec;
 /// where names are made — so it panics.
 pub fn render(body: &[ast::Stmt], modules: &[String]) -> String {
     let unparse = |stmts: &[ast::Stmt]| -> String {
-        stmts.iter().map(|stmt| unparse_stmt(stmt) + "\n").collect()
+        (stmts.iter())
+            .map(|stmt| match stmt {
+                ast::Stmt::If(_) => unparse_stmt(stmt) + "\n\n",
+                _ => unparse_stmt(stmt) + "\n",
+            })
+            .collect()
     };
     let imports: Vec<String> = (imports(body, modules).iter())
         .map(|section| unparse(section))
