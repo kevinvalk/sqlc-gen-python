@@ -20,6 +20,7 @@ errors are a refusal ``autoprop_refusals``.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import sys
@@ -122,7 +123,7 @@ def sweep(server: sqlalchemy.URL, found: list[Target], roots: list[Path]) -> lis
             raise RuntimeError(message)
 
     workers = min(os.cpu_count() or 1, 8)
-    with ProcessPoolExecutor(workers, initializer=_importable, initargs=(roots,)) as pool:
+    with ProcessPoolExecutor(workers, initializer=_worker, initargs=(roots,)) as pool:
         return list(pool.map(partial(run, server), found))
 
 
@@ -155,6 +156,11 @@ def summarize(reports: list[Report]) -> tuple[bool, list[str]]:
     return failed > 0 or len(stale) > 0 or same <= 0 or share < FLOOR, totals
 
 
-def _importable(roots: list[Path]) -> None:
+def _worker(roots: list[Path]) -> None:
     sys.path[:0] = [str(root) for root in roots]
     sys.dont_write_bytecode = True
+
+    # A call the database refuses inside a generated `connection.pipeline()` leaves the pipeline aborted, so psycopg's
+    # sync on leaving it fails too, and psycopg logs that second error while it raises the first, which the sweep
+    # handles. Any other psycopg warning still prints.
+    logging.getLogger("psycopg").addFilter(lambda record: not record.msg.startswith("error ignored terminating"))
