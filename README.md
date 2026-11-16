@@ -16,8 +16,8 @@ version: "2"
 plugins:
   - name: python
     wasm:
-      url: https://github.com/kevinvalk/sqlc-gen-python/releases/download/vX.Y.Z/sqlc-gen-python.wasm
-      sha256: <from the release>
+      url: https://github.com/kevinvalk/sqlc-gen-python/releases/download/v1.0.0/sqlc-gen-python.wasm
+      sha256: 479211959e913c9f136f3cd21000833c885ddade9c216c423dfe9bad64d09e68
 sql:
   - engine: postgresql
     schema: schema.sql
