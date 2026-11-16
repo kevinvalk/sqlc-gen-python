@@ -84,7 +84,7 @@ jobs:
       attestations: write # store the attestation
     steps:
       # The history without file contents, for the commits a release lists and whether main has the tag, and only the
-      # files the release notes are made from and the version a tag must name
+      # files the release notes are made from
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
@@ -92,15 +92,9 @@ jobs:
           sparse-checkout: |
             /.github/release-notes.md
             /.prototools
-            /Cargo.toml
           sparse-checkout-cone-mode: false
       - if: github.ref_type == 'tag'
         run: |
-          version=$(yq -p toml -o yaml .package.version Cargo.toml)
-          if [ "$TAG" != "v$version" ]; then
-            echo "::error::tag $TAG is not v$version, the version in Cargo.toml"
-            exit 1
-          fi
           if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
             echo "::error::tag $TAG is not on main"
             exit 1

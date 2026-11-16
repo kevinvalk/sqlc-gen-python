@@ -116,10 +116,11 @@ With `--mutants`, `verify` plants plausible generator bugs (`MUTANTS` in `verify
 
 ## Releasing
 
-Every commit on `main` that passes CI is published as the `unstable` prerelease, which moves with `main`. To release a version:
+Every commit on `main` that passes CI is published as the `unstable` prerelease, which moves with `main`. A version is only its tag, on a commit of `main`:
 
-1. Set `version` in `Cargo.toml`, run `cargo xtask bless` (the header of every generated file names the version), and get it all onto `main` with CI green.
-2. `git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z`
+```sh
+git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z
+```
 
 CI runs on the tag, publishes the WASM, a build attestation and the notes in `.github/release-notes.md`, and then commits the release's URL and sha256 into the README on `main`.
 
