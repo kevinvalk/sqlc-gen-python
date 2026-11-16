@@ -92,6 +92,26 @@ fn a_nullable_parameter_may_be_left_out_as_none_in_either_form() {
     );
 }
 
+#[test]
+fn a_json_parameter_takes_a_document_and_not_its_text() {
+    use crate::api::fixtures::authors::{named, query};
+    let update = plugin::Query {
+        params: vec![named(1, "bio", "jsonb", true), named(2, "name", "text", true)],
+        ..query(":exec", "UPDATE authors SET bio = $1 WHERE name = $2")
+    };
+    let request = plugin::GenerateRequest {
+        plugin_options: br#"{"backend": "sqlalchemy", "async": false}"#.to_vec(),
+        ..crate::api::fixtures::request("postgresql", vec![], vec![update])
+    };
+    let files = crate::generate(&request).unwrap();
+    let file = files.into_iter().find(|file| file.name == "authors.py").unwrap();
+    let module = String::from_utf8(file.contents).unwrap();
+    assert!(
+        module.contains("bio: Mapping[str, object] | list[Any] | tuple[object, ...] | float,"),
+        "{module}"
+    );
+}
+
 /// The files `generate` writes for one query of `authors.sql`, by name.
 fn generated_query(options: &str) -> Vec<(String, String)> {
     use crate::api::fixtures::authors::query;
@@ -112,6 +132,25 @@ fn generated_query(options: &str) -> Vec<(String, String)> {
 fn a_package_is_its_models_and_its_query_modules_and_init_is_the_applications() {
     let names: Vec<String> = generated_query("").into_iter().map(|(name, _)| name).collect();
     assert_eq!(names, ["models.py", "authors.py"]);
+}
+
+#[test]
+fn an_entry_of_only_the_models_writes_them_alone_and_reads_no_query() {
+    use crate::api::fixtures::authors::query;
+    // sqlc's guess at the placeholder's type would be an error in a query module
+    let placeholder = plugin::Query {
+        columns: vec![crate::api::fixtures::column("one", "int", true)],
+        ..query(":one", "SELECT 1")
+    };
+    let request = plugin::GenerateRequest {
+        plugin_options: br#"{"backend": "psycopg", "async": false, "models": {"only": true}}"#.to_vec(),
+        ..crate::api::fixtures::request("postgresql", vec![], vec![placeholder])
+    };
+    let files = crate::generate(&request).unwrap();
+    assert_eq!(
+        files.iter().map(|file| file.name.as_str()).collect::<Vec<_>>(),
+        ["models.py"]
+    );
 }
 
 #[test]

@@ -100,6 +100,7 @@ A nullable parameter, such as a `sqlc.narg`, defaults to `None`, so a filter (`s
 | `overrides` | `[]` | The Python type of a database type, `{db_type: vector, python_type: str}`, or of one column, `{column: invoices.total, python_type: ...}`, which wins. A dotted name, `app.types.Embedding`, is imported, and `Any` is yours to choose |
 | `rename` | `{}` | Python names for SQL names: a table or enum (`schema.name`, or `name` in the default schema) to its class, a column or parameter to its name, an enum label to its member (`"+1": plus_one`) |
 | `models.module` | none | Import the models from this module (`app.models`), written by another entry of the same schema and backend, and write the query modules alone, beside your own code |
+| `models.only` | `false` | Write `models.py` alone, for the entries that set `models.module`. sqlc requires a query of every entry, so give this one a placeholder (`SELECT 1`), which writes nothing |
 | `models.exact_table_names` | `false` | Name model classes after their table, without singularising |
 | `models.inflection_exclude` | `[]` | Tables whose names are not singularised |
 | `unknown_type` | none | Annotate every type the plugin cannot verify `Any`, or `object`, which you then narrow before use, instead of failing on it. A project can generate first and type as it goes |
@@ -115,8 +116,8 @@ What sqlc reports is never second-guessed, but where the statement proves sqlc w
 - **A parameter inside an expression** takes sqlc's guess: `d + @days` is a `dt.date`, `(at, id) < (@at, @id)` makes both a `datetime`, and `issued_at::date = @day` a `datetime`. Cast the parameter: `@days::int`.
 - **A computed column read through a view, a CTE or a subquery** looks like a declared one, so sqlc's guess at its type goes unnoticed. Cast it inside.
 - **Arrays** may hold NULL elements and any number of dimensions, whatever the annotation says. Add a `CHECK` where it matters.
-- **Type checkers accept** a `datetime` for a `date`, a `bool` for an `int`, anything as a JSON parameter (a `Decimal` or `UUID` inside it raises, unless the engine's `json_serializer` takes it), and a record holding a list in a `set` (which raises).
-- **A JSON parameter is the document, not its text**: a `str` is stored as a JSON string, so `json.dumps(...)` is stored encoded twice, and nothing errors. Pass the value, or `json.loads(text)`.
+- **Type checkers accept** a `datetime` for a `date`, a `bool` for an `int`, a `Decimal` or `UUID` inside a JSON parameter (which raises, unless the engine's `json_serializer` takes it), and a record holding a list in a `set` (which raises).
+- **A JSON parameter takes the document, not its text**: a `Mapping`, `list`, `tuple` or number, but no `str`, as one would be stored as a JSON string and a `json.dumps(...)` encoded twice. Pass the value, or `json.loads(text)`; a document that is a bare string needs an override.
 - **Time**: an `interval` loses its months (`'1 mon'` is 30 days). psycopg and asyncpg disagree on a naive `datetime` and return a `timestamptz` in different zones: pass aware datetimes, and convert before `.date()`. Keep `'infinity'` out of a `timestamptz`.
 - **A `:one` that writes** has written before it raises on a second row, and a batch is not atomic: run them in a transaction you can roll back.
 - **psycopg** returns what the connection's adapters make: a loader registered on it (`register_hstore`, pgvector's) changes what the generated code gets. Its `:copyfrom` is a `COPY`, which fires no rule and copies into no view.

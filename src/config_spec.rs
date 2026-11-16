@@ -113,6 +113,13 @@ fn the_models_module_is_a_dotted_module_name() {
 }
 
 #[test]
+fn an_entry_writes_the_models_or_reads_them_from_another() {
+    let error = parse(r#"{"backend": "psycopg", "async": false, "models": {"only": true, "module": "app.models"}}"#)
+        .unwrap_err();
+    assert!(format!("{error:#}").contains("set one"), "{error:#}");
+}
+
+#[test]
 fn a_rename_names_a_public_python_name() {
     let rename = |name: &str| {
         parse(&format!(

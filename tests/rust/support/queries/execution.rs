@@ -204,25 +204,23 @@ fn pairs(dict: &ExprDict) -> Vec<(String, String)> {
         .collect()
 }
 
-/// A tuple's items, each as the placeholder `$N` of its position and its value unwrapped from a JSON type:
-/// `None if v is None else Jsonb(v)` is `v`.
+/// A tuple's items, each as the placeholder `$N` of its position and its value unwrapped from a JSON type: `Jsonb(v)`
+/// and `None if v is None else Jsonb(v)` are `v`.
 fn positions(items: &[Expr]) -> Vec<(String, String)> {
-    let unwrapped = |item: &Expr| {
-        let Expr::If(choice) = item else {
-            return unparse(item);
-        };
-        let wrapped = (choice.orelse.as_call_expr())
+    let json = |item: &Expr| {
+        (item.as_call_expr())
             .filter(|call| ["Json", "Jsonb"].iter().any(|json| is_name(&call.func, json)))
-            .and_then(|call| call.arguments.args.first());
-        match wrapped {
-            Some(value)
-                if choice.body.is_none_literal_expr()
-                    && unparse(&choice.test) == format!("{} is None", unparse(value)) =>
-            {
-                unparse(value)
-            }
-            _ => unparse(item),
+            .and_then(|call| call.arguments.args.first())
+            .map(unparse)
+    };
+    let unwrapped = |item: &Expr| match item {
+        Expr::If(choice)
+            if choice.body.is_none_literal_expr()
+                && json(&choice.orelse).is_some_and(|value| unparse(&choice.test) == format!("{value} is None")) =>
+        {
+            json(&choice.orelse).unwrap_or_default()
         }
+        _ => json(item).unwrap_or_else(|| unparse(item)),
     };
     (items.iter().enumerate())
         .map(|(i, item)| (format!("${}", i + 1), unwrapped(item)))

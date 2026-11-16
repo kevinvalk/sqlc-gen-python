@@ -2,7 +2,7 @@
 # versions:
 #   sqlc v1.31.1
 import dataclasses
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, Final
 from uuid import UUID
 
@@ -43,7 +43,11 @@ async def create_customer(
     tags: list[str],
     preferred_method: models.BillingPaymentMethod | None = None,
     accepted_methods: list[models.BillingPaymentMethod],
-    metadata: object | None = None,
+    metadata: Mapping[str, object]
+    | list[Any]
+    | tuple[object, ...]
+    | float
+    | None = None,
 ) -> models.Customer:
     return models.Customer.from_row(
         (

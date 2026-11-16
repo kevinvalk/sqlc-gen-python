@@ -7,6 +7,7 @@ the mistakes no annotation can reject.
 
 import contextlib
 import datetime as dt
+import json
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -130,6 +131,14 @@ def mistakes(
     invoice.status = models.InvoiceStatus.PAID  # type: ignore[misc]
     models.Medium(some, some, "a", b"", now)  # type: ignore[call-arg]
     invoices.list_invoices_by_ids(conn, ids=(some,))  # type: ignore[arg-type]
+    # A JSON document's text would be stored as a JSON string, encoded twice
+    customers.create_customer(
+        conn,
+        name="a",
+        tags=[],
+        accepted_methods=[],
+        metadata=json.dumps({}),  # type: ignore[arg-type]
+    )
 
 
 def known_holes(
@@ -149,7 +158,7 @@ def known_holes(
         unit_price=Decimal(1),
         vat_rate=Decimal(0),
     )
-    # A JSON parameter takes any object: every driver raises on a Decimal.
+    # A JSON document may hold any object: every driver raises on a Decimal.
     customers.create_customer(
         conn,
         name="a",

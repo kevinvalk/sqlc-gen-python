@@ -136,7 +136,15 @@ impl FieldType {
     /// The annotation as written in `scope`, such as `list[int] | None`. `None` goes outermost because a nullable array
     /// column is a list that may be absent, not a list of independently absent elements.
     pub fn annotation(&self, scope: Scope) -> ast::Expr {
-        let element = self.element.annotation(scope);
+        self.shaped(self.element.annotation(scope))
+    }
+
+    /// The annotation of a parameter of this type ([`Type::parameter_annotation`]).
+    pub fn parameter_annotation(&self) -> ast::Expr {
+        self.shaped(self.element.parameter_annotation())
+    }
+
+    fn shaped(&self, element: ast::Expr) -> ast::Expr {
         let list = (0..self.array_dims).fold(element, |inner, _| LIST.index(inner));
         match self.optional {
             true => list.or_none(),

@@ -49,6 +49,7 @@ pub const ENUM: Symbol = Symbol("enum");
 pub const SQLITE3: Symbol = Symbol("sqlite3");
 pub const TYPING: Symbol = Symbol("typing");
 pub const ITERABLE: Symbol = Symbol("Iterable");
+pub const MAPPING: Symbol = Symbol("Mapping");
 pub const SEQUENCE: Symbol = Symbol("Sequence");
 pub const DECIMAL: Symbol = Symbol("Decimal");
 pub const IPV4_ADDRESS: Symbol = Symbol("IPv4Address");
@@ -99,6 +100,7 @@ pub(super) const VOCABULARY: [&[Import]; 3] = [
         Import::plain(SQLITE3),
         Import::plain(TYPING),
         Import::From("collections.abc", ITERABLE),
+        Import::From("collections.abc", MAPPING),
         Import::From("collections.abc", SEQUENCE),
         Import::From("decimal", DECIMAL),
         Import::From("ipaddress", IPV4_ADDRESS),

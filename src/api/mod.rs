@@ -42,7 +42,9 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
 
     let mut problems = Problems::default();
     let (enums, models) = models::resolve(&resolver, &config.models, &mut problems);
-    let modules = queries::modules(&request.queries, &resolver, &models, config, &mut problems);
+    // The queries of an entry that writes only the models are a placeholder, as sqlc requires one
+    let queries: &[plugin::Query] = if config.models.only { &[] } else { &request.queries };
+    let modules = queries::modules(queries, &resolver, &models, config, &mut problems);
     problems.check()?;
     resolver.check_used()?;
     let api = Api { enums, models, modules };

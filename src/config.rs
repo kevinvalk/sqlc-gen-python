@@ -84,6 +84,9 @@ pub struct ModelConfig {
     /// same schema and backend writes. This one then writes its query modules alone.
     pub module: Option<String>,
 
+    /// Writes the models alone, for other entries' `module` to read, as sqlc requires a query of every entry.
+    pub only: bool,
+
     pub exact_table_names: bool,
 
     pub inflection_exclude: Vec<String>,
@@ -102,6 +105,7 @@ impl Config {
         let codegen = request.settings.as_ref().and_then(|settings| settings.codegen.as_ref());
         let out = codegen.map_or("", |codegen| codegen.out.as_str());
         if config.models.module.is_none()
+            && !config.models.only
             && let Some(package) = Path::new(out).file_name().and_then(|name| name.to_str())
             && !python::is_module_name(package)
         {
@@ -114,6 +118,9 @@ impl Config {
             && !module.split('.').all(python::is_module_name)
         {
             bail!("models.module \"{module}\" is no dotted name of a lowercase Python module (`app.models`)");
+        }
+        if config.models.only && config.models.module.is_some() {
+            bail!("models.only writes the models, and models.module reads them from another entry; set one");
         }
 
         for (i, rule) in config.overrides.iter().enumerate() {

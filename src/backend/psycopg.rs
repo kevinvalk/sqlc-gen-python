@@ -61,12 +61,16 @@ pub fn scalar_type(pg_type: &str) -> Option<Type> {
 }
 
 /// We wrap a JSON parameter in psycopg's JSON type, as psycopg cannot tell it from any other `dict` or `list`. `None`
-/// stays SQL `NULL` and never becomes the JSON `null`.
+/// stays SQL `NULL` and never becomes the JSON `null`. Only a nullable parameter or an override's type admits it, as a
+/// JSON document never does.
 fn bind(parameter: &Field, value: ast::Expr) -> ast::Expr {
     let json = match parameter.ty.element.json() {
         Some(Json::Json) => JSON,
         Some(Json::Jsonb) => JSONB,
         None => return value,
     };
-    unless_none(value.clone(), json.call([value]))
+    match parameter.ty.optional || !matches!(parameter.ty.element, Type::Json(_)) {
+        true => unless_none(value.clone(), json.call([value])),
+        false => json.call([value]),
+    }
 }

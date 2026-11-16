@@ -3529,26 +3529,26 @@ json_tags_null_enum/camel_case/postgresql/stdlib/request.managed-db.json	sqlalch
 json_tags_null_enum/camel_case/postgresql/stdlib/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 json_tags_null_enum/camel_case/postgresql/stdlib/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 json_tags_null_enum/camel_case/postgresql/stdlib/request.managed-db.json	unknown_any	ok	e86048e4
-jsonb/pgx/request.json	exact_names	ok	17bdce38
-jsonb/pgx/request.json	psycopg	ok	4dee9c3a
-jsonb/pgx/request.json	psycopg_async	ok	a0b840f7
+jsonb/pgx/request.json	exact_names	ok	5942d69f
+jsonb/pgx/request.json	psycopg	ok	e5669813
+jsonb/pgx/request.json	psycopg_async	ok	bff3c739
 jsonb/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 jsonb/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
-jsonb/pgx/request.json	sqlalchemy	ok	25558a7d
-jsonb/pgx/request.json	sqlalchemy_async	ok	04953a0d
+jsonb/pgx/request.json	sqlalchemy	ok	83cb4ffc
+jsonb/pgx/request.json	sqlalchemy_async	ok	39c59172
 jsonb/pgx/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 jsonb/pgx/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-jsonb/pgx/request.json	unknown_any	ok	d8ddb0bf
-jsonb/pgx/request.managed-db.json	exact_names	ok	17bdce38
-jsonb/pgx/request.managed-db.json	psycopg	ok	4dee9c3a
-jsonb/pgx/request.managed-db.json	psycopg_async	ok	a0b840f7
+jsonb/pgx/request.json	unknown_any	ok	ffc7208d
+jsonb/pgx/request.managed-db.json	exact_names	ok	5942d69f
+jsonb/pgx/request.managed-db.json	psycopg	ok	e5669813
+jsonb/pgx/request.managed-db.json	psycopg_async	ok	bff3c739
 jsonb/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 jsonb/pgx/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
-jsonb/pgx/request.managed-db.json	sqlalchemy	ok	25558a7d
-jsonb/pgx/request.managed-db.json	sqlalchemy_async	ok	04953a0d
+jsonb/pgx/request.managed-db.json	sqlalchemy	ok	83cb4ffc
+jsonb/pgx/request.managed-db.json	sqlalchemy_async	ok	39c59172
 jsonb/pgx/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 jsonb/pgx/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-jsonb/pgx/request.managed-db.json	unknown_any	ok	d8ddb0bf
+jsonb/pgx/request.managed-db.json	unknown_any	ok	ffc7208d
 jsonb/sqlite/request.json	exact_names	error:9 problems: table "foo": column "a" has type "json", which has no verified Python mapping table "foo": column "c" has type "json", which has no verified Python mapping query.sql: query "InsertFoo": parameter ?1 ("a") has type "json", which has no verified Python mapping name its Python type with an override (db_type "json"); but SQLite stores a value of its NUMERIC affinity as whichever of an integer, a real and text it looks like, so better declare it INTEGER, REAL, TEXT or BLOB; or set unknown_type: Any to leave it unchecked table "foo": column "b" has type "jsonb", which has no verified Python mapping table "foo": column "d" has type "jsonb", which has no verified Python mapping name its Python type with an override (db_type "jsonb"); but SQLite stores a value of its NUMERIC affinity as whichever of an integer, a real and text it looks like, so better declare it INTEGER, REAL, TEXT or BLOB; or set unknown_type: Any to leave it unchecked table "foo": column "e" has type "JSON", which has no verified Python mapping table "foo": column "g" has type "JSON", which has no verified Python mapping name its Python type with an override (db_type "JSON"); but SQLite stores a value of its NUMERIC affinity as whichever of an integer, a real and text it looks like, so better declare it INTEGER, REAL, TEXT or BLOB; or set unknown_type: Any to leave it unchecked table "foo": column "f" has type "JSONB", which has no verified Python mapping table "foo": column "h" has type "JSONB", which has no verified Python mapping name its Python type with an override (db_type "JSONB"); but SQLite stores a value of its NUMERIC affinity as whichever of an integer, a real and text it looks like, so better declare it INTEGER, REAL, TEXT or BLOB; or set unknown_type: Any to leave it unchecked	-
 jsonb/sqlite/request.json	psycopg	error:the psycopg backend does not run sqlite	-
 jsonb/sqlite/request.json	psycopg_async	error:the psycopg backend does not run sqlite	-

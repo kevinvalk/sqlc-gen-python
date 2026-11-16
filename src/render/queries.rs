@@ -70,7 +70,7 @@ fn params_class(class: &str, parameters: &[Field]) -> ast::Stmt {
     let attributes: Vec<Attribute> = (parameters.iter())
         .map(|parameter| Attribute {
             name: parameter.name.clone(),
-            annotation: parameter.ty.annotation(Scope::Queries),
+            annotation: parameter.ty.parameter_annotation(),
             comment: String::new(),
             read: None,
             default: optional(parameter),
@@ -96,7 +96,7 @@ fn function(query: &Query, config: &Config) -> ast::Stmt {
             let keywords = (query.params.iter())
                 .map(|query_parameter| ast::ParameterWithDefault {
                     default: optional(query_parameter).map(Box::new),
-                    ..parameter(&query_parameter.name, query_parameter.ty.annotation(Scope::Queries))
+                    ..parameter(&query_parameter.name, query_parameter.ty.parameter_annotation())
                 })
                 .collect();
             (None, keywords)

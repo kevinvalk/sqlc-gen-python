@@ -227,6 +227,9 @@ fn annotations_are_precise(body: &[Stmt], accepts_any: bool, problems: &mut Vec<
         }
     }
 
+    // A JSON parameter's `list[Any]` admits a list of anything, as `list` is invariant, and is only ever encoded
+    const JSON_DOCUMENT: &str = "Mapping[str, object] | list[Any] | tuple[object, ...] | float";
+
     #[derive(Default)]
     struct MentionsAny(bool);
     impl<'a> Visitor<'a> for MentionsAny {
@@ -245,7 +248,9 @@ fn annotations_are_precise(body: &[Stmt], accepts_any: bool, problems: &mut Vec<
     for (what, annotation, drivers_own) in annotations.0 {
         let mut mentions_any = MentionsAny::default();
         mentions_any.visit_expr(annotation);
-        if mentions_any.0 && !accepts_any && !drivers_own.contains(&unparse(annotation).as_str()) {
+        let written = unparse(annotation);
+        let is_document = written.strip_suffix(" | None").unwrap_or(&written) == JSON_DOCUMENT;
+        if mentions_any.0 && !accepts_any && !is_document && !drivers_own.contains(&written.as_str()) {
             problems.push(format!("{what} is annotated with `Any`"));
         }
     }

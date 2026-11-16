@@ -5,7 +5,7 @@ use ruff_text_size::TextRange;
 use serde::Deserialize;
 
 use super::vocabulary::{self as names, Symbol, is_imported};
-use super::{Expression, name, unparse};
+use super::{Expression, ellipsis, name, unparse};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
@@ -86,6 +86,24 @@ impl Type {
             (Self::Custom { annotation, .. } | Self::Library { annotation, .. }, _) => annotation.clone(),
             (Self::Enum(class), Scope::Models) => name(class),
             (Self::Enum(class), Scope::Queries) => names::MODELS.attr(class),
+        }
+    }
+
+    /// What a parameter of this type accepts, which for JSON is any document the serializer encodes but a `str`: one is
+    /// stored as a JSON string, so a `json.dumps(...)` would be encoded twice. A `Mapping` admits a `TypedDict`, and
+    /// only `list[Any]` admits a list of anything, as `list` is invariant. A `float` admits an `int` and a `bool`.
+    pub fn parameter_annotation(&self) -> ast::Expr {
+        match self {
+            Self::Json(_) => [
+                names::MAPPING.index_each(vec![names::STR.into(), names::OBJECT.into()]),
+                names::LIST.index(names::ANY),
+                names::TUPLE.index_each(vec![names::OBJECT.into(), ellipsis()]),
+                names::FLOAT.into(),
+            ]
+            .into_iter()
+            .reduce(Expression::union)
+            .expect("a document has a type"),
+            _ => self.annotation(Scope::Queries),
         }
     }
 }
