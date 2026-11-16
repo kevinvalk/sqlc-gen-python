@@ -83,8 +83,9 @@ def targets(golden: Path, generated: Path) -> list[Target]:
 
 
 def is_swept(request: Path, options: Json) -> bool:
+    # A type left `Any` or `object` checks nothing at runtime, so a profile that accepts them is the static gate's alone
     engine = json.loads(request.read_text())["settings"]["engine"]
-    return engine == "postgresql" and options["backend"] in {"sqlalchemy", "psycopg"}
+    return engine == "postgresql" and options["backend"] in {"sqlalchemy", "psycopg"} and "unknown_type" not in options
 
 
 def corpus_packages(generated: Path) -> dict[tuple[str, str], str]:

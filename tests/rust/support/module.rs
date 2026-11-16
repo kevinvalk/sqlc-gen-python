@@ -12,7 +12,7 @@ use super::python::{is_enum, unparse};
 
 pub fn check_module(source: &str) -> Vec<String> {
     match parse_module(source) {
-        Ok(parsed) => module_problems(&parsed, source),
+        Ok(parsed) => module_problems(&parsed, source, false),
         Err(error) => vec![format!("does not parse: {error}")],
     }
 }
@@ -49,7 +49,7 @@ pub(super) fn prelude(body: &[Stmt], source: &str) -> Option<(usize, &'static [&
     })
 }
 
-pub(super) fn module_problems(parsed: &Parsed<ModModule>, source: &str) -> Vec<String> {
+pub(super) fn module_problems(parsed: &Parsed<ModModule>, source: &str, accepts_any: bool) -> Vec<String> {
     let module = parsed.syntax();
     let mut own = module.body.clone();
     if let Some((start, prelude)) = prelude(&own, source) {
@@ -65,7 +65,7 @@ pub(super) fn module_problems(parsed: &Parsed<ModModule>, source: &str) -> Vec<S
     comments_are_the_header(parsed, source, &mut problems);
     scopes("module", &own, &mut problems);
     reads_resolve(&module.body, &mut problems);
-    annotations_are_precise(&own, &mut problems);
+    annotations_are_precise(&own, accepts_any, &mut problems);
     records_are_values(&own, &mut problems);
     problems
 }
@@ -187,7 +187,7 @@ fn reads_resolve(body: &[Stmt], problems: &mut Vec<String>) {
 /// `:execresult` returns (`sqlalchemy.CursorResult[Any]`, a psycopg cursor of tuples) and a psycopg connection,
 /// whatever rows it makes. `Any` passes every type checker, so it is the one annotation the static gate cannot catch
 /// being wrong, and the generator must say what a column or parameter is or fail.
-fn annotations_are_precise(body: &[Stmt], problems: &mut Vec<String>) {
+fn annotations_are_precise(body: &[Stmt], accepts_any: bool, problems: &mut Vec<String>) {
     /// Each annotation with a description for the message, and the spellings of it that are the driver's own.
     #[derive(Default)]
     struct Annotations<'a>(Vec<(String, &'a Expr, &'static [&'static str])>);
@@ -245,7 +245,7 @@ fn annotations_are_precise(body: &[Stmt], problems: &mut Vec<String>) {
     for (what, annotation, drivers_own) in annotations.0 {
         let mut mentions_any = MentionsAny::default();
         mentions_any.visit_expr(annotation);
-        if mentions_any.0 && !drivers_own.contains(&unparse(annotation).as_str()) {
+        if mentions_any.0 && !accepts_any && !drivers_own.contains(&unparse(annotation).as_str()) {
             problems.push(format!("{what} is annotated with `Any`"));
         }
     }

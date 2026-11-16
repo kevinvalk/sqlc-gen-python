@@ -10,7 +10,7 @@ use std::path::{Component, Path};
 
 use ruff_python_ast::Stmt;
 use ruff_python_parser::parse_module;
-use sqlc_gen_python::config::Config;
+use sqlc_gen_python::config::{Config, UnknownType};
 use sqlc_gen_python::plugin;
 
 pub use fixtures::{Case, case, cases, export, gen_dir, generated_files, read_json, root};
@@ -59,8 +59,11 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
             .map(|(_, source, parsed)| (&parsed.syntax().body[..], *source))
     };
     let models = body("models.py").map_or(&[][..], |(models, _)| models);
+    // The annotation the user asked for every type we cannot verify is no imprecision of ours, and wherever such a type
+    // is read or returned it stands in it (`list[Any]`, `Any | None`); the other profiles hold the same requests strictly
+    let accepts_any = Config::from_request(request).is_ok_and(|config| config.unknown_type == Some(UnknownType::Any));
     for (name, source, parsed) in &modules {
-        let found = module_problems(parsed, source);
+        let found = module_problems(parsed, source, accepts_any);
         problems.extend(found.into_iter().map(|p| format!("{name}: {p}")));
     }
 

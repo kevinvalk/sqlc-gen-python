@@ -69,10 +69,19 @@ pub(super) fn is_enum(class: &StmtClassDef) -> bool {
 }
 
 /// What a column's annotation says about NULL and arrays.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Eq)]
 pub(super) struct Shape {
     pub(super) optional: bool,
     pub(super) depth: usize,
+    /// `Any` or `object` alone, which `unknown_type` writes for the whole column, as a driver may return an array of an
+    /// unknown type as its text: any depth is its. JSON, the other `object`, is never an array.
+    pub(super) unknown: bool,
+}
+
+impl PartialEq for Shape {
+    fn eq(&self, other: &Self) -> bool {
+        self.optional == other.optional && (self.unknown || other.unknown || self.depth == other.depth)
+    }
 }
 
 impl From<&plugin::Column> for Shape {
@@ -80,6 +89,7 @@ impl From<&plugin::Column> for Shape {
         Self {
             optional: !column.not_null,
             depth: column.array_dims as usize,
+            unknown: false,
         }
     }
 }
@@ -104,6 +114,7 @@ impl Shape {
         Self {
             optional: !nones.is_empty(),
             depth,
+            unknown: matches!(others[..], [Expr::Name(name)] if ["Any", "object"].contains(&name.id.as_str())),
         }
     }
 }

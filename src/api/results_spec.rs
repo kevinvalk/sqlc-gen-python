@@ -294,7 +294,7 @@ fn a_mysql_cast_to_char_or_binary_says_why_it_has_no_type() {
     .unwrap_err();
     assert!(
         format!("{error:#}").ends_with(
-            r#"column "label" has type "var_string", which has no verified Python mapping; name its Python type with an override (db_type "var_string"); it is how sqlc reports a CAST AS CHAR, a str, and a CAST AS BINARY, bytes, alike"#
+            r#"column "label" has type "var_string", which has no verified Python mapping; name its Python type with an override (db_type "var_string"); it is how sqlc reports a CAST AS CHAR, a str, and a CAST AS BINARY, bytes, alike; or set unknown_type: Any to leave it unchecked"#
         ),
         "{error:#}"
     );

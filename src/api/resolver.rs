@@ -10,7 +10,7 @@ use super::inflection::singular;
 use super::models::{Field, FieldType};
 use super::names::{Binding, Repeats, names};
 use crate::backend::Backend;
-use crate::config::{Config, ModelConfig, Override};
+use crate::config::{Config, ModelConfig, Override, UnknownType};
 use crate::engine::Engine;
 use crate::plugin;
 use crate::python::Type;
@@ -27,6 +27,7 @@ pub struct Resolver<'a> {
     overrides: &'a [Override],
     rename: &'a BTreeMap<String, String>,
     backend: Backend,
+    unknown_type: Option<UnknownType>,
     /// The rename keys and overrides (by index) that matched something, as any other is a typo that would silently do
     /// nothing.
     used: RefCell<(BTreeSet<&'a str>, BTreeSet<usize>)>,
@@ -41,6 +42,7 @@ impl<'a> Resolver<'a> {
             overrides: &config.overrides,
             rename: &config.rename,
             backend: config.backend,
+            unknown_type: config.unknown_type,
             used: RefCell::default(),
         })
     }
@@ -212,21 +214,28 @@ impl<'a> Resolver<'a> {
 
         // sqlc reports `coalesce(x, ...)` as the column `x` but NOT NULL, and with the type of that first argument
         // whatever PostgreSQL resolves (`coalesce(qty, 1.5)` is numeric), so we cannot trust its type either.
-        if column.not_null && self.source(column).is_some_and(|source| !source.not_null) {
-            bail!(
-                "column \"{described}\" has a type sqlc could not infer; add a cast, as {}",
-                self.engine.cast("coalesce(<expr>, <default>)")
-            )
-        }
-        if self.engine.is_untyped_expression(column) {
-            bail!(
-                "column \"{described}\" is an expression sqlc typed by its form, not its operands; \
-                 add a cast, as {}",
-                self.engine.cast("<expr>")
-            )
-        }
+        let ty = if column.not_null && self.source(column).is_some_and(|source| !source.not_null) {
+            self.unknown(
+                column,
+                format!(
+                    "column \"{described}\" has a type sqlc could not infer; add a cast, as {}",
+                    self.engine.cast("coalesce(<expr>, <default>)")
+                ),
+            )?
+        } else if self.engine.is_untyped_expression(column) {
+            self.unknown(
+                column,
+                format!(
+                    "column \"{described}\" is an expression sqlc typed by its form, not its operands; \
+                     add a cast, as {}",
+                    self.engine.cast("<expr>")
+                ),
+            )?
+        } else {
+            self.field_type(column, false, &format!("column \"{described}\""), &cast)?
+        };
         Ok(Field {
-            ty: self.field_type(column, false, &format!("column \"{described}\""), &cast)?,
+            ty,
             comment: column.comment.clone(),
             name,
         })
@@ -242,9 +251,9 @@ impl<'a> Resolver<'a> {
             .find(|c| c.name == column.original_name)
     }
 
-    /// The type of `column`, which `what` describes in errors. A type without a verified Python type is an error, as
-    /// annotating it `Any` would hide exactly the mistakes the type checkers are there to catch; for a type sqlc could
-    /// not infer, the error suggests `cast`.
+    /// The type of `column`, which `what` describes in errors. A type without a verified Python type is [`Self::unknown`],
+    /// as annotating it `Any` unasked would hide exactly the mistakes the type checkers are there to catch; for a type
+    /// sqlc could not infer, the error suggests `cast`.
     ///
     /// sqlc types a column it marks `is_func_call` by an overload it guessed (`abs(numeric)` as `bigint`), and the
     /// other guesses are [`Engine::is_guess`]'s to tell.
@@ -275,17 +284,23 @@ impl<'a> Resolver<'a> {
             },
             None => {
                 if column.is_func_call {
-                    bail!(
-                        "{what} is a function's result, which sqlc types by the function's first \
-                         overload whatever its arguments (sum() of a numeric column as bigint); \
-                         add a cast, as {cast}"
-                    )
+                    return self.unknown(
+                        column,
+                        format!(
+                            "{what} is a function's result, which sqlc types by the function's first \
+                             overload whatever its arguments (sum() of a numeric column as bigint); \
+                             add a cast, as {cast}"
+                        ),
+                    );
                 }
                 if self.engine.is_guess(column, is_parameter) {
-                    bail!(
-                        "{what} has a type sqlc could not infer; add a cast, as {cast}{}",
-                        self.engine.analysis()
-                    )
+                    return self.unknown(
+                        column,
+                        format!(
+                            "{what} has a type sqlc could not infer; add a cast, as {cast}{}",
+                            self.engine.analysis()
+                        ),
+                    );
                 }
                 // A type the schema declares is the user's, even where its name is also one of PostgreSQL's or an
                 // extension's, and a composite has no class yet
@@ -300,15 +315,18 @@ impl<'a> Resolver<'a> {
                     let hint = self.engine.unmapped(&data_type);
                     let default = format!("{}.", self.catalog.default_schema);
                     let named = data_type.strip_prefix(&default).unwrap_or(&data_type);
-                    bail!(
-                        "{what} has type \"{data_type}\", which has no verified Python mapping; \
-                         name its Python type with an override (db_type \"{named}\"){hint}"
-                    )
+                    return self.unknown(
+                        column,
+                        format!(
+                            "{what} has type \"{data_type}\", which has no verified Python mapping; \
+                             name its Python type with an override (db_type \"{named}\"){hint}"
+                        ),
+                    );
                 };
                 if let Some((_, sql_enum)) = sql_enum
                     && let Some(problem) = self.engine.enum_problem(column, &sql_enum.vals)
                 {
-                    bail!("{what} {problem}")
+                    return self.unknown(column, format!("{what} {problem}"));
                 }
                 element
             }
@@ -320,13 +338,20 @@ impl<'a> Resolver<'a> {
         if array_dims > 0
             && let Some(problem) = self.engine.array_problem(&data_type, is_parameter)
         {
-            bail!("{what} is an array of \"{data_type}\", which {problem}")
+            return self.unknown(
+                column,
+                format!("{what} is an array of \"{data_type}\", which {problem}"),
+            );
         }
         if matches!(element, Type::Library { .. }) && array_dims > 0 {
-            bail!("{what} is an array of \"{data_type}\", which has no verified Python mapping")
+            let problem = format!("{what} is an array of \"{data_type}\", which has no verified Python mapping");
+            return self.unknown(column, problem);
         }
         if matches!(element, Type::Enum(_)) && array_dims > 1 {
-            bail!("{what} is a multi-dimensional array of enum \"{data_type}\", which has no verified Python mapping")
+            let problem = format!(
+                "{what} is a multi-dimensional array of enum \"{data_type}\", which has no verified Python mapping"
+            );
+            return self.unknown(column, problem);
         }
 
         Ok(FieldType {
@@ -334,6 +359,24 @@ impl<'a> Resolver<'a> {
             element,
             array_dims,
             optional: !column.not_null,
+        })
+    }
+
+    /// What we make of a column or parameter of a type we cannot verify: the error that says why, or the annotation the
+    /// user accepts for every such type (`unknown_type`). That stands for the whole column, as a driver may not even
+    /// return a list for an array of it.
+    pub fn unknown(&self, column: &plugin::Column, problem: String) -> Result<FieldType> {
+        let Some(unknown) = self.unknown_type else {
+            bail!("{problem}; or set unknown_type: Any to leave it unchecked");
+        };
+        Ok(FieldType {
+            element: Type::Custom {
+                annotation: unknown.annotation(),
+                json: None,
+            },
+            array_dims: 0,
+            optional: !column.not_null,
+            as_text: false,
         })
     }
 

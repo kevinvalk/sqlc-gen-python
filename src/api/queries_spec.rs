@@ -93,9 +93,9 @@ fn what_to_do_about_several_problems_is_said_once_under_them() {
         r#"3 problems:
 authors.sql: query "A": column "v" has type "geometry", which has no verified Python mapping
 authors.sql: query "C": column "v" has type "geometry", which has no verified Python mapping
-  name its Python type with an override (db_type "geometry"), or, for a domain, declare the column with its base type and a CHECK constraint
+  name its Python type with an override (db_type "geometry"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked
 authors.sql: query "B": column "v" has a type sqlc could not infer
-  add a cast, as <expr>::<type>, or coalesce(<expr>, <default>)::<type> if it can be NULL, as sqlc reports every cast NOT NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess"#
+  add a cast, as <expr>::<type>, or coalesce(<expr>, <default>)::<type> if it can be NULL, as sqlc reports every cast NOT NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked"#
     );
 }
 

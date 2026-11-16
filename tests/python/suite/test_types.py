@@ -16,7 +16,7 @@ from suite.api import cases, functions, queries
 
 
 def test_overrides_and_renames(server: sqlalchemy.URL) -> None:
-    (case,) = cases("custom")
+    (case,) = (case for case in cases("custom") if case.name == "custom_psycopg")
     called: set[str] = set()
     with (
         database(server, case.schema_sql.read_text()) as url,

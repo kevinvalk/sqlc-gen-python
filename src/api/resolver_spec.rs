@@ -380,3 +380,63 @@ fn a_bare_override_names_an_extensions_type_in_any_schema_but_no_declared_one() 
     let api = resolve_options(domain(), &qualified).unwrap();
     assert_eq!(annotations(&api), [("amount".into(), "Decimal".into())]);
 }
+
+#[test]
+fn unknown_type_annotates_every_type_we_cannot_verify_as_asked() {
+    let mut tags = column("tags", "citext", true);
+    (tags.is_array, tags.array_dims) = (true, 1);
+    let schemas = || {
+        let columns = vec![
+            column("shape", "geometry", true),
+            column("area", "geometry", false),
+            tags.clone(),
+        ];
+        public(vec![table("plots", columns)])
+    };
+    assert!(resolve_options(schemas(), &options(r#""max_params": null"#)).is_err());
+
+    // The whole column, as a driver may return an array of it as its text
+    let api = resolve_options(schemas(), &options(r#""unknown_type": "Any""#)).unwrap();
+    let any = [("shape", "Any"), ("area", "Any | None"), ("tags", "Any")];
+    assert_eq!(annotations(&api), any.map(|(name, ty)| (name.into(), ty.into())));
+    let api = resolve_options(schemas(), &options(r#""unknown_type": "object""#)).unwrap();
+    let object = [("shape", "object"), ("area", "object | None"), ("tags", "object")];
+    assert_eq!(annotations(&api), object.map(|(name, ty)| (name.into(), ty.into())));
+}
+
+#[test]
+fn unknown_type_annotates_a_type_sqlc_guessed_too() {
+    use crate::api::fixtures::authors::{query, try_resolve_with};
+    use crate::api::queries::{Command, Shape};
+    let guessed = plugin::Query {
+        columns: vec![column("total", "int", true)],
+        ..query(":one", "SELECT a + b AS total FROM t")
+    };
+    let modules = try_resolve_with("postgresql", vec![guessed], &options(r#""unknown_type": "Any""#)).unwrap();
+    let Command::One(Shape::Scalar(ty)) = &modules[0].queries[0].command else {
+        panic!("a scalar :one");
+    };
+    assert_eq!(ty.describe(crate::python::Scope::Queries), "Any");
+}
+
+#[test]
+fn unknown_type_is_any_or_object_and_leaves_other_errors_alone() {
+    let request = |value: &str| plugin::GenerateRequest {
+        plugin_options: format!(r#"{{"backend": "sqlalchemy", "async": false, "unknown_type": "{value}"}}"#)
+            .into_bytes(),
+        ..plugin::GenerateRequest::default()
+    };
+    for wrong in ["any", "Object", "str"] {
+        assert!(Config::from_request(&request(wrong)).is_err(), "{wrong}");
+    }
+
+    // sqlc contradicting itself is no type to accept
+    let mut flat = column("tags", "text", true);
+    flat.is_array = true;
+    let schemas = public(vec![table("plots", vec![flat])]);
+    let error = format!(
+        "{:#}",
+        resolve_options(schemas, &options(r#""unknown_type": "Any""#)).unwrap_err()
+    );
+    assert!(error.contains("sqlc reported no array depth"), "{error}");
+}

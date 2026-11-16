@@ -71,6 +71,7 @@ ignore = [
     "E501", # SQL is written verbatim, so its lines can be long
     "E741", # `l`, `I` and `O` are the schema's names, not ours to change
     "A002", # a parameter `id`, which we keep so no call site reads `id_`
+    "ANN401", # `Any` is the user's own choice, in an override or as `unknown_type`
     "PLR0913", # the parameter count comes from the SQL, and every parameter is keyword-only
     "PT028", # a query named `Test...` is a function pytest would take for a test, and its nullable parameters default
 ]

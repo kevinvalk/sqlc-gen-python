@@ -27,3 +27,10 @@ sql:
           rename:
             devices: Machine
             ip: address
+      # The same, with the domain left unchecked, as a project may first accept every type it has not typed yet.
+      - out: custom_unknown
+        plugin: python
+        options:
+          backend: sqlalchemy
+          async: false
+          unknown_type: Any

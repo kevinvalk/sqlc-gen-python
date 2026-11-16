@@ -44,6 +44,27 @@ pub struct Config {
 
     /// A function with more parameters takes them as one `<Query>Params` record instead of as keywords.
     pub max_params: Option<usize>,
+
+    /// What a type we cannot verify is annotated, which is otherwise an error.
+    pub unknown_type: Option<UnknownType>,
+}
+
+/// The one annotation for every type we cannot verify, which says nothing that may be false. `object` makes the user
+/// narrow a value before using it, `Any` lets them use it as anything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub enum UnknownType {
+    Any,
+    #[serde(rename = "object")]
+    Object,
+}
+
+impl UnknownType {
+    pub fn annotation(self) -> ruff_python_ast::Expr {
+        match self {
+            Self::Any => python::vocabulary::ANY.into(),
+            Self::Object => python::vocabulary::OBJECT.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -136,6 +157,7 @@ impl Config {
             rename: BTreeMap::new(),
             raise_on_none: false,
             max_params: None,
+            unknown_type: None,
         }
     }
 }

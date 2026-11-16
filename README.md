@@ -56,7 +56,7 @@ Each release is tested under the sqlc its notes name (v1.31.1 now), and the gene
 
 ### Types are never guessed
 
-The annotations are what the drivers return, and what the plugin cannot know is an error, not an `Any`. Two of them come up early:
+The annotations are what the drivers return, and what the plugin cannot know is an error, not an `Any`, unless you set `unknown_type`. Two of them come up early:
 
 - **`... has a type sqlc could not infer; add a cast`.** sqlc types an expression or a function's result by its form, not its operands (`sum(amount)` of a `numeric` as `bigint`). A cast says the type: `coalesce(sum(amount), 0)::numeric(12, 2)`. sqlc reports every cast NOT NULL, so coalesce what can be NULL ([known limitations](#known-limitations)).
 - **`... has no verified Python mapping`.** Name the type with an override. pgvector's `vector`, which every driver returns as its text:
@@ -102,6 +102,7 @@ A nullable parameter, such as a `sqlc.narg`, defaults to `None`, so a filter (`s
 | `models.module` | none | Import the models from this module (`app.models`), written by another entry of the same schema and backend, and write the query modules alone, beside your own code |
 | `models.exact_table_names` | `false` | Name model classes after their table, without singularising |
 | `models.inflection_exclude` | `[]` | Tables whose names are not singularised |
+| `unknown_type` | none | Annotate every type the plugin cannot verify `Any`, or `object`, which you then narrow before use, instead of failing on it. A project can generate first and type as it goes |
 | `omit_sqlc_version` | `false` | Leave sqlc's version out of each file's header |
 
 An unknown option, a rename that matches nothing, and an override that names no type or column of the schema or the queries, is an error. Entries may share one list of options (a YAML anchor).

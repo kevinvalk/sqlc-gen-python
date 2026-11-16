@@ -229,14 +229,13 @@ fn a_value_is_read_as_is_unless_it_holds_enum_labels() {
 
 #[test]
 fn a_type_nothing_declares_is_an_error_naming_the_column() {
-    // AGENTS.md: never paper over an unknown with `Any`. A domain is one too:
-    // sqlc sends its name, never its base type, so the error says what to
-    // declare instead.
+    // AGENTS.md: never paper over an unknown with `Any` unasked. A domain is one too: sqlc sends its name, never its base
+    // type, so the error says what to declare instead, or how to accept it unknown.
     let error = try_resolve(public(vec![table("odd", vec![column("value", "amount", true)])])).unwrap_err();
 
     assert_eq!(
         format!("{error:#}"),
-        r#"table "odd": column "value" has type "amount", which has no verified Python mapping; name its Python type with an override (db_type "amount"), or, for a domain, declare the column with its base type and a CHECK constraint"#
+        r#"table "odd": column "value" has type "amount", which has no verified Python mapping; name its Python type with an override (db_type "amount"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked"#
     );
 }
 

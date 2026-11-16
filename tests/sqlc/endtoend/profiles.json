@@ -4,8 +4,9 @@
   "psycopg": { "backend": "psycopg", "async": false, "raise_on_none": true },
   "psycopg_async": { "backend": "psycopg", "async": true, "max_params": 2 },
   "sqlite3": { "backend": "sqlite3", "async": false, "max_params": 1 },
-  "sqlite3_async": { "backend": "sqlite3", "async": true },
-  "pymysql": { "backend": "pymysql", "async": false },
+  "sqlite3_async": { "backend": "sqlite3", "async": true, "unknown_type": "Any" },
+  "pymysql": { "backend": "pymysql", "async": false, "unknown_type": "object" },
   "pymysql_async": { "backend": "pymysql", "async": true, "max_params": 1 },
-  "exact_names": { "backend": "sqlalchemy", "async": false, "max_params": 2, "models": { "exact_table_names": true } }
+  "exact_names": { "backend": "sqlalchemy", "async": false, "max_params": 2, "models": { "exact_table_names": true } },
+  "unknown_any": { "backend": "sqlalchemy", "async": true, "unknown_type": "Any" }
 }

@@ -62,6 +62,7 @@ pub(super) fn function_follows_sqlc(
         let expected = Shape {
             optional,
             depth: column.array_dims as usize + usize::from(column.is_sqlc_slice),
+            unknown: false,
         };
         let (name, annotation) = parameters[at];
         if Shape::of(annotation) != expected {

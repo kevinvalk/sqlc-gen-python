@@ -123,10 +123,11 @@ pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> R
             first.ty.optional |= ty.optional;
         }
         if matches!(ty.element, Type::Json(_)) && ty.array_dims > 0 {
-            bail!(
+            let problem = format!(
                 "{what} is an array of \"{}\", which has no verified Python mapping",
                 column.data_type()
             );
+            ty = resolver.unknown(&column, problem)?;
         }
         fields.push(Field {
             name,
