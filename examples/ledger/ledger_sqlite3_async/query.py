@@ -7,14 +7,18 @@ from typing import Any, Final
 
 import aiosqlite
 
-from . import MultipleRowsError, NoRowError, models
+from . import models
 
 _OPEN_ACCOUNT: Final = """INSERT INTO accounts (name, opened_on, settings) VALUES (?, ?, ?)
 RETURNING id, name, archived, opened_on, settings"""
 
 
 async def open_account(
-    connection: aiosqlite.Connection, *, name: str, opened_on: str, settings: str | None
+    connection: aiosqlite.Connection,
+    *,
+    name: str,
+    opened_on: str,
+    settings: str | None = None,
 ) -> models.Account:
     async with connection.cursor() as cur:
         cur.row_factory = None
@@ -23,9 +27,9 @@ async def open_account(
             case [row]:
                 return models.Account.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_ACCOUNT: Final = (
@@ -45,7 +49,7 @@ async def get_account(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_ACCOUNT_BY_NAME: Final = (
@@ -65,7 +69,7 @@ async def get_account_by_name(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _ARCHIVE_ACCOUNT: Final = (
@@ -92,7 +96,7 @@ async def is_archived(connection: aiosqlite.Connection, *, id: int) -> bool | No
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_ACCOUNTS: Final = (
@@ -132,9 +136,9 @@ VALUES (?, ?, ?, ?, ?)"""
 class BookParams:
     account_id: int
     amount_cents: int
-    rate: float | None
-    memo: str | None
-    receipt: bytes | None
+    rate: float | None = None
+    memo: str | None = None
+    receipt: bytes | None = None
 
 
 async def book(connection: aiosqlite.Connection, params: BookParams) -> None:
@@ -160,7 +164,7 @@ _BOOK_MANY: Final = (
 class BookManyParams:
     account_id: int
     amount_cents: int
-    memo: str | None
+    memo: str | None = None
 
 
 async def book_many(
@@ -181,7 +185,7 @@ async def book_returning_id(
     *,
     account_id: int,
     amount_cents: int,
-    memo: str | None,
+    memo: str | None = None,
 ) -> int:
     async with connection.cursor() as cur:
         cur.row_factory = None
@@ -191,9 +195,9 @@ async def book_returning_id(
                 value: int = row[0]
                 return value
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _BALANCE: Final = """SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS balance_cents
@@ -209,9 +213,9 @@ async def balance(connection: aiosqlite.Connection, *, account_id: int) -> int:
                 value: int = row[0]
                 return value
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _COUNT_ENTRIES: Final = """SELECT count(*) AS entries, count(*) FILTER (WHERE amount_cents < 0) AS debits
@@ -241,9 +245,9 @@ async def count_entries(
             case [row]:
                 return CountEntriesRow.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_AMOUNTS: Final = """SELECT amount_cents, count(*) OVER () AS entries
@@ -341,7 +345,7 @@ ORDER BY id"""
 
 
 async def list_memos(
-    connection: aiosqlite.Connection, *, pattern: str | None, account_id: int
+    connection: aiosqlite.Connection, *, pattern: str | None = None, account_id: int
 ) -> list[str | None]:
     """Entries with a memo matching the pattern, in the account or every account."""
     async with connection.cursor() as cur:
@@ -436,7 +440,7 @@ async def get_last_amount(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _DELETE_ENTRIES: Final = "DELETE FROM entries WHERE account_id = ?"

@@ -11,7 +11,7 @@ from uuid import UUID
 import psycopg
 from psycopg.rows import tuple_row
 
-from . import MultipleRowsError, NoRowError, models
+from . import models
 
 _RECORD_PAYMENT: Final = """INSERT INTO billing.payments (invoice_id, method, amount, "from", received_at)
 VALUES ($1, $2, $3, $4, $5)
@@ -23,7 +23,7 @@ class RecordPaymentParams:
     invoice_id: UUID
     method: models.BillingPaymentMethod
     amount: Decimal
-    from_: str | None
+    from_: str | None = None
     received_at: dt.datetime
 
 
@@ -45,9 +45,9 @@ async def record_payment(
             case [row]:
                 return models.BillingPayment.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_PAYMENTS_BY_METHODS: Final = """SELECT id, invoice_id, method, amount, "from", received_at FROM billing.payments
@@ -82,7 +82,7 @@ async def list_invoice_payment_methods(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_INVOICE_BALANCES: Final = "SELECT invoice_id, customer_id, number, paid FROM invoice_balances WHERE customer_id = $1 ORDER BY number"

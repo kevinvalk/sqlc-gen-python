@@ -8,8 +8,8 @@ use crate::api::models::{Enum, Field};
 use crate::api::queries::{Command, CopyInto, Query, Shape};
 use crate::engine::Piece;
 use crate::python::vocabulary::{
-    ANY, CONNECTION, CONNECTION_TYPE, COPY, CUR, CURSOR, INT, LEN, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, OBJECT, PROTOCOL,
-    R, RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPE_CHECKING, TYPED, TYPED_CURSOR, VALUE, VALUES,
+    ANY, CONNECTION, CONNECTION_TYPE, COPY, CUR, CURSOR, INT, LEN, MODELS, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, OBJECT,
+    PROTOCOL, R, RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPE_CHECKING, TYPED, TYPED_CURSOR, VALUE, VALUES,
 };
 use crate::python::{
     Each, Expression, Function, Scope, ann_assign, assign, class, each, ellipsis, expression, for_, if_else, int,
@@ -392,7 +392,7 @@ impl Body<'_> {
             shape => vec![emit(shape.read(ROW))],
         };
         let missing = match self.query.raises {
-            true => raise(NO_ROW_ERROR),
+            true => raise(MODELS.attr(NO_ROW_ERROR)),
             false => emit(none()),
         };
         let fetched = (self.typed(cur).attr("fetchmany"))
@@ -403,7 +403,7 @@ impl Body<'_> {
             vec![
                 (pattern::sequence(vec![pattern::capture(ROW)]), found),
                 (pattern::sequence(vec![]), vec![missing]),
-                (pattern::wildcard(), vec![raise(MULTIPLE_ROWS_ERROR)]),
+                (pattern::wildcard(), vec![raise(MODELS.attr(MULTIPLE_ROWS_ERROR))]),
             ],
         )
     }

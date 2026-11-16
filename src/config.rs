@@ -37,7 +37,7 @@ pub struct Config {
     #[serde(default)]
     pub rename: BTreeMap<String, String>,
 
-    /// Whether a `:one` without a row raises (SQLAlchemy's `NoResultFound`, or the package's own `NoRowError`) rather
+    /// Whether a `:one` without a row raises (SQLAlchemy's `NoResultFound`, or `models.NoRowError`) rather
     /// than return `None`. A second row raises either way, as a lookup that is not unique is a bug and not an absence.
     #[serde(default)]
     pub raise_on_none: bool,
@@ -59,6 +59,10 @@ pub struct Override {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct ModelConfig {
+    /// The module the query modules read their models from (`gateway.models`), which another `codegen` entry of the
+    /// same schema and backend writes. This one then writes its query modules alone.
+    pub module: Option<String>,
+
     pub exact_table_names: bool,
 
     pub inflection_exclude: Vec<String>,
@@ -66,11 +70,18 @@ pub struct ModelConfig {
 
 impl Config {
     pub fn from_request(request: &plugin::GenerateRequest) -> Result<Self> {
-        // The generated package imports its models relatively, so it is imported by the name of its directory, which
-        // then has to be a package name.
+        let options: &[u8] = match request.plugin_options.as_slice() {
+            [] => b"{}", // sqlc sends empty bytes for a codegen entry without `options:`
+            options => options,
+        };
+        let config: Self = serde_json::from_slice(options).context("reading plugin options")?;
+
+        // Query modules import the package's own models relatively, so it is imported by the name of its directory,
+        // which then has to be a package name
         let codegen = request.settings.as_ref().and_then(|settings| settings.codegen.as_ref());
         let out = codegen.map_or("", |codegen| codegen.out.as_str());
-        if let Some(package) = Path::new(out).file_name().and_then(|name| name.to_str())
+        if config.models.module.is_none()
+            && let Some(package) = Path::new(out).file_name().and_then(|name| name.to_str())
             && !python::is_module_name(package)
         {
             bail!(
@@ -78,11 +89,12 @@ impl Config {
                  generated package is imported by it; rename the directory"
             );
         }
-        let options: &[u8] = match request.plugin_options.as_slice() {
-            [] => b"{}", // sqlc sends empty bytes for a codegen entry without `options:`
-            options => options,
-        };
-        let config: Self = serde_json::from_slice(options).context("reading plugin options")?;
+        if let Some(module) = &config.models.module
+            && !module.split('.').all(python::is_module_name)
+        {
+            bail!("models.module \"{module}\" is no dotted name of a lowercase Python module (`app.models`)");
+        }
+
         for (i, rule) in config.overrides.iter().enumerate() {
             if rule.db_type.is_some() == rule.column.is_some() {
                 bail!("overrides[{i}]: name exactly one of db_type and column");

@@ -15,28 +15,33 @@ use crate::python::vocabulary::{
 #[path = "names_spec.rs"]
 mod spec;
 
-/// The builtins and locals the generated code reads, which a field or parameter must not hide.
-/// In a class body `str: str` makes every later `str` annotation mean the field to mypy
-/// and pyright, and `classmethod: str` the decorator of `from_row`; in a function a parameter `row` would hide the row
-/// we read. What the code imports is [`python::is_imported`]'s to say.
-const RESERVED: &[Symbol] = &[
+/// What a class body reads, which a field must not hide: in one, `str: str` makes every later `str` annotation mean the
+/// field to mypy and pyright, and `classmethod: str` the decorator of `from_row`. What the code imports is
+/// [`python::is_imported`]'s to say.
+const CLASS_BODY: &[Symbol] = &[
     BOOL,
     BYTES,
     CLASSMETHOD,
-    CONNECTION,
-    CUR,
     DICT,
     FLOAT,
     FROM_ROW,
     INT,
-    LEN,
     LIST,
     OBJECT,
-    ROW,
     STR,
     TUPLE,
-    VALUE,
 ];
+
+/// The locals a function reads besides, which a parameter must not hide either: a parameter `row` would hide the row we
+/// read. A field cannot, as a class body's names are not a method's.
+const FUNCTION_BODY: &[Symbol] = &[CONNECTION, CUR, LEN, ROW, VALUE];
+
+/// Where a name is bound, which decides what it must not hide.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Binding {
+    Field,
+    Parameter,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Repeats {
@@ -49,9 +54,9 @@ pub enum Repeats {
 
 /// The Python names of a list of columns or parameters, in order. Each is its snake_case
 /// spelling, or `column_<n>` for one sqlc left unnamed as sqlc's Go codegen does, and a keyword or a name the generated
-/// code reads itself ([`RESERVED`], or an import) takes PEP 8's trailing underscore (`from_`, `str_`). Anything else
+/// code reads where it is bound ([`CLASS_BODY`], [`FUNCTION_BODY`], or an import) takes PEP 8's trailing underscore (`from_`, `str_`). Anything else
 /// that is not a public Python name is an error and never a guess, and so are two names that end up the same.
-pub fn names(spellings: &[&str], repeats: Repeats) -> Result<Vec<String>> {
+pub fn names(spellings: &[&str], repeats: Repeats, binding: Binding) -> Result<Vec<String>> {
     let mut seen: HashMap<String, usize> = HashMap::new();
     let names = (spellings.iter().enumerate())
         .map(|(i, spelling)| {
@@ -65,7 +70,10 @@ pub fn names(spellings: &[&str], repeats: Repeats) -> Result<Vec<String>> {
                 (Repeats::Numbered, repeat @ 2..) => format!("{name}_{repeat}"),
                 _ => name,
             };
-            let reserved = RESERVED.iter().any(|reserved| reserved.as_ref() == name) || python::is_imported(&name);
+            let reads = |body: &[Symbol]| body.iter().any(|reserved| reserved.as_ref() == name);
+            let reserved = reads(CLASS_BODY)
+                || (binding == Binding::Parameter && reads(FUNCTION_BODY))
+                || python::is_imported(&name);
             let name = match is_keyword(&name) || reserved {
                 true => name + "_",
                 false => name,

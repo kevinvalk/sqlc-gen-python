@@ -211,9 +211,9 @@ impl Engine {
         }
     }
 
-    pub fn array_problem(self, data_type: &str) -> Option<&'static str> {
+    pub fn array_problem(self, data_type: &str, is_parameter: bool) -> Option<&'static str> {
         match self {
-            Self::PostgreSql => postgresql::array_problem(data_type),
+            Self::PostgreSql => postgresql::array_problem(data_type, is_parameter),
             Self::Sqlite => Some("SQLite does not have"),
             Self::MySql => Some("MySQL does not have"),
         }
@@ -375,6 +375,15 @@ impl Engine {
     }
 
     /// The engine's own name for `data_type`, whichever spelling sqlc reported. Only PostgreSQL has several.
+    /// Whether `name`, bare, is a type of the engine's own that we map, so never another schema's type of that name.
+    pub fn is_own_type(self, name: &str) -> bool {
+        match self {
+            Self::PostgreSql => postgresql::is_own(&name.to_ascii_lowercase()),
+            // Neither has schemas of types
+            Self::Sqlite | Self::MySql => false,
+        }
+    }
+
     pub fn type_name(self, data_type: &str) -> String {
         match self {
             Self::PostgreSql => postgresql::type_name(data_type),

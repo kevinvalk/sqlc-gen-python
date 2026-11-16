@@ -92,8 +92,10 @@ fn comments_are_the_header(parsed: &Parsed<ModModule>, source: &str, problems: &
     }
 }
 
-/// Every class but an enum and an error is a record: exactly the one dataclass decorator that makes it
-/// frozen, slotted and keyword-only, and no field with a default, so an omitted value is a type error and never a NULL.
+/// Every class but an enum and an error is a record: exactly the one dataclass decorator that makes it frozen, slotted
+/// and keyword-only. A record of results (it has a `from_row`) has no default, so an omitted value is a type error and
+/// never a NULL; a record of parameters defaults only a nullable one, to `None`, as a filter or a partial update leaves
+/// it out.
 fn records_are_values(body: &[Stmt], problems: &mut Vec<String>) {
     for class in body.iter().filter_map(Stmt::as_class_def_stmt) {
         if is_enum(class) || class.bases().iter().map(unparse).eq(["LookupError"]) {
@@ -107,8 +109,15 @@ fn records_are_values(body: &[Stmt], problems: &mut Vec<String>) {
         if decorators != [record_decorator] || !class.bases().is_empty() {
             problems.push(format!("`{}` is not exactly a `@{record_decorator}`", class.name));
         }
-        for field in (class.body.iter().filter_map(Stmt::as_ann_assign_stmt)).filter(|field| field.value.is_some()) {
-            problems.push(format!("`{}.{}` has a default", class.name, unparse(&field.target)));
+        let is_results =
+            (class.body.iter().filter_map(Stmt::as_function_def_stmt)).any(|f| f.name.as_str() == "from_row");
+        for field in class.body.iter().filter_map(Stmt::as_ann_assign_stmt) {
+            let Some(default) = &field.value else {
+                continue;
+            };
+            if is_results || !is_none_for_nullable(&field.annotation, default) {
+                problems.push(format!("`{}.{}` has a default", class.name, unparse(&field.target)));
+            }
         }
     }
 }
@@ -298,4 +307,9 @@ fn bindings(stmt: &Stmt) -> Vec<&str> {
         Stmt::AnnAssign(assign) => target(&assign.target).into_iter().collect(),
         _ => Vec::new(),
     }
+}
+
+/// Whether `default` is `None`, for an annotation that admits it.
+pub(super) fn is_none_for_nullable(annotation: &Expr, default: &Expr) -> bool {
+    default.is_none_literal_expr() && unparse(annotation).ends_with("| None")
 }

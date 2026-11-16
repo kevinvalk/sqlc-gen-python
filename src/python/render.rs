@@ -13,7 +13,8 @@ use super::unparse_stmt;
 #[path = "render_spec.rs"]
 mod spec;
 
-/// Renders `body` after the imports it reads, of the [vocabulary](super::vocabulary) and of an override's `modules`.
+/// Renders `body` after the imports it reads, of the [vocabulary](super::vocabulary) and of an override's `modules`,
+/// with `models` from the module the user named, if not the package's own.
 ///
 /// NOTE: ruff keeps `Generator::generate` `pub(crate)`, so we unparse each top-level statement on its own. The
 /// formatter decides the blank lines between them anyway, except for two a tree cannot carry and we write ourselves:
@@ -21,7 +22,7 @@ mod spec;
 ///
 /// We parse the unparsed text back to find its multi-line strings, which only fails when we built invalid Python. That
 /// is our bug and never the user's schema (we reject unusable SQL names where names are made), so we panic.
-pub fn render(body: &[ast::Stmt], modules: &[String]) -> String {
+pub fn render(body: &[ast::Stmt], modules: &[String], models: Option<&str>) -> String {
     let unparse = |stmts: &[ast::Stmt]| -> String {
         (stmts.iter())
             .map(|stmt| match stmt {
@@ -30,7 +31,7 @@ pub fn render(body: &[ast::Stmt], modules: &[String]) -> String {
             })
             .collect()
     };
-    let imports: Vec<String> = (imports(body, modules).iter())
+    let imports: Vec<String> = (imports(body, modules, models).iter())
         .map(|section| unparse(section))
         .collect();
     let unparsed = imports.join("\n") + &unparse(body);

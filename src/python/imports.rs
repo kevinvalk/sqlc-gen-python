@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use ruff_python_ast as ast;
 use ruff_python_ast::visitor::{Visitor, walk_expr};
 
-use super::vocabulary::{Import, VOCABULARY};
+use super::vocabulary::{Import, MODELS, VOCABULARY};
 use super::{import, import_from};
 
 #[cfg(test)]
@@ -12,8 +12,9 @@ mod spec;
 
 /// We never declare imports but read them off the names a body reads, so a name and its import cannot drift apart. The
 /// result is one list per isort section, holding the [vocabulary](VOCABULARY) the body reads and each of an override's
-/// `modules` it reads a name from.
-pub(super) fn imports(body: &[ast::Stmt], modules: &[String]) -> Vec<Vec<ast::Stmt>> {
+/// `modules` it reads a name from. `models` is the module a package of query modules alone reads its models from, which
+/// isort cannot know to be the application's own any more than an override's module.
+pub(super) fn imports(body: &[ast::Stmt], modules: &[String], models: Option<&str>) -> Vec<Vec<ast::Stmt>> {
     // We keep dotted names in full (`a.b.C`) so a module's read can be told from another's.
     #[derive(Default)]
     struct Reads(BTreeSet<String>);
@@ -55,7 +56,8 @@ pub(super) fn imports(body: &[ast::Stmt], modules: &[String]) -> Vec<Vec<ast::St
             // isort orders each `import` by its module, then each `from`.
             let mut plain: Vec<(&str, ast::Stmt)> = Vec::new();
             let mut froms: Vec<(&str, Vec<&str>)> = Vec::new();
-            for entry in section.iter().filter(|i| reads.0.contains(i.binding())) {
+            let is_elsewhere = |entry: &&Import| models.is_some() && entry.binding() == MODELS.as_ref();
+            for entry in (section.iter()).filter(|i| reads.0.contains(i.binding()) && !is_elsewhere(i)) {
                 match *entry {
                     Import::Module(module, _) => {
                         let bound = module.split('.').next(); // `import a.b` binds `a`
@@ -77,7 +79,21 @@ pub(super) fn imports(body: &[ast::Stmt], modules: &[String]) -> Vec<Vec<ast::St
                     plain.push((module, import(module, None)));
                 }
             }
+            // `import app.db_models as models`, but `from app import models`, which ruff (PLR0402) asks for over an alias
+            if let Some(module) = models
+                && index == 1
+                && reads.0.contains(MODELS.as_ref())
+            {
+                match module.rsplit_once('.') {
+                    Some((parent, last)) if last == MODELS.as_ref() => froms.push((parent, vec![MODELS.as_ref()])),
+                    _ => plain.push((
+                        module,
+                        import(module, Some(MODELS.as_ref()).filter(|alias| alias != &module)),
+                    )),
+                }
+            }
             plain.sort_by_key(|(module, _)| module.to_lowercase());
+            froms.sort_by_key(|(module, _)| module.to_lowercase());
             let froms = (froms.iter()).map(|(module, names)| import_from(module, names));
             (plain.into_iter().map(|(_, import)| import)).chain(froms).collect()
         })

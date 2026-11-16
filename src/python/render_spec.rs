@@ -4,7 +4,7 @@ use crate::python::{Expression, Function, ann_assign, annotate, assign, class, d
 
 fn documented(docstrings: &[&str]) -> String {
     let body = docstrings.iter().flat_map(|text| [annotate("x", INT), docstring(text)]);
-    render(&[class("A", [], [], body)], &[])
+    render(&[class("A", [], [], body)], &[], None)
 }
 
 fn docstrings_of(source: &str) -> Vec<String> {
@@ -107,13 +107,13 @@ fn a_docstring_escapes_a_tab_that_would_follow_its_own_indentation() {
         body: vec![docstring("a\n\tb\nc\\")],
         ..Function::new("f", none())
     };
-    let source = render(&[function.into()], &[]);
+    let source = render(&[function.into()], &[], None);
     assert!(source.contains("\n    \\tb\n"), "{source}");
 }
 
 fn rendered_string(value: &str) -> String {
     let call = name("f").call([string(value)]);
-    render(&[assign("X", call)], &[])
+    render(&[assign("X", call)], &[], None)
 }
 
 #[test]
@@ -152,14 +152,14 @@ fn a_string_without_a_line_break_is_left_to_ruff() {
 
 #[test]
 fn a_module_renders_through_ruffs_formatter() {
-    let rendered = render(&[assign("X", string("y"))], &[]);
+    let rendered = render(&[assign("X", string("y"))], &[], None);
     assert_eq!(rendered, "X = \"y\"\n");
 }
 
 #[test]
 #[should_panic(expected = "generated invalid Python")]
 fn rendering_a_tree_that_is_not_python_is_a_bug_not_an_error() {
-    render(&[assign("class", string("y"))], &[]);
+    render(&[assign("class", string("y"))], &[], None);
 }
 
 #[test]

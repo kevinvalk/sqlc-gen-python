@@ -44,7 +44,7 @@ pub struct Item {
 }
 
 /// What each item of the statement's result list is, by position, where `tables` holds the table sqlc reports for
-/// each item's column (empty for none). The list is the top-level `SELECT`'s (after any `WITH`) or the `RETURNING`
+/// each item's column, `schema.table` where it reports a schema (empty for none). The list is the top-level `SELECT`'s (after any `WITH`) or the `RETURNING`
 /// one. In a set operation an item is a count only if it is one in every branch, and nullable if it is in any. `None`
 /// when the list does not read as one item per column, as we then know nothing of any of them.
 pub fn items(tokens: &[String], tables: &[&str], aggregates: &Aggregates) -> Option<Vec<Item>> {
@@ -172,7 +172,17 @@ fn outer(item: &[Leveled], table: &str, sources: &[Source]) -> bool {
             sources.iter().filter(exposed).collect()
         }
         [_] if !table.is_empty() => {
-            let own: Vec<&Source> = (sources.iter()).filter(|source| named(&source.table, table)).collect();
+            // Tables of one name in two schemas are told apart by the schema sqlc reports, where the statement names it
+            let (schema, table) = table
+                .rsplit_once('.')
+                .map_or((None, table), |(schema, table)| (Some(schema), table));
+            let of_schema = |source: &&Source| match (&source.schema, schema) {
+                (Some(written), Some(reported)) => written.eq_ignore_ascii_case(reported),
+                _ => true,
+            };
+            let own: Vec<&Source> = (sources.iter())
+                .filter(|source| named(&source.table, table) && of_schema(source))
+                .collect();
             match own.is_empty() {
                 true => (sources.iter()).filter(|source| source.table.is_none()).collect(),
                 false => own,
@@ -694,6 +704,8 @@ fn inserts_one(tokens: &[Leveled]) -> bool {
 struct Source {
     /// Unquoted and without its schema; `None` for the rows of a subquery or a function.
     table: Option<String>,
+    /// The schema the table is qualified by, if it is.
+    schema: Option<String>,
     /// `None` too for an alias that is the table's own name.
     alias: Option<String>,
     /// Whether an outer join may leave it without a row.
@@ -719,18 +731,18 @@ fn sources(from: &[Leveled]) -> Option<Vec<Source>> {
             let prefix = (from[at..].iter())
                 .take_while(|&&(_, t)| is(t, &["only", "lateral"]))
                 .count();
-            let (table, rest) = match &from[at + prefix..] {
+            let (table, schema, rest) = match &from[at + prefix..] {
                 source @ [(_, "("), ..] => {
                     let (inner, rest) = parenthesised(source)?;
                     // A subquery, as anything else is a join in parentheses
-                    is_statement(inner).then_some((None, rest))?
+                    is_statement(inner).then_some((None, None, rest))?
                 }
                 source => {
-                    let (name, rest) = name(source)?;
+                    let (name, schema, rest) = name(source)?;
                     match parenthesised(rest) {
                         // A function called for its rows is no table
-                        Some((_, rest)) => (None, rest),
-                        None => (Some(name), rest),
+                        Some((_, rest)) => (None, None, rest),
+                        None => (Some(name), schema, rest),
                     }
                 }
             };
@@ -738,6 +750,7 @@ fn sources(from: &[Leveled]) -> Option<Vec<Source>> {
             sources.push(Source {
                 alias: aliased(rest).filter(|alias| !own(alias)),
                 table,
+                schema,
                 outer,
             });
             continue;
@@ -768,17 +781,17 @@ fn sources(from: &[Leveled]) -> Option<Vec<Source>> {
     Some(sources)
 }
 
-/// The name `tokens` open with, unquoted and without its schema (`schema.table`), and what follows it.
-fn name<'b, 't>(tokens: &'b [Leveled<'t>]) -> Option<(String, &'b [Leveled<'t>])> {
-    let mut rest = tokens;
+/// The name `tokens` open with, unquoted, with the schema it is qualified by (`schema.table`), and what follows it.
+fn name<'b, 't>(tokens: &'b [Leveled<'t>]) -> Option<(String, Option<String>, &'b [Leveled<'t>])> {
+    let (mut rest, mut schema) = (tokens, None);
     loop {
         let [(_, name), after @ ..] = rest else {
             return None;
         };
         match after {
             _ if !is_word(name) => return None,
-            [(_, "."), after @ ..] => rest = after,
-            after => return Some((unquoted(name), after)),
+            [(_, "."), after @ ..] => (rest, schema) = (after, Some(unquoted(name))),
+            after => return Some((unquoted(name), schema, after)),
         }
     }
 }

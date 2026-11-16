@@ -11,7 +11,7 @@ from uuid import UUID
 import psycopg
 from psycopg.rows import tuple_row
 
-from . import MultipleRowsError, NoRowError, models
+from . import models
 
 _CREATE_INVOICE: Final = """INSERT INTO invoices (customer_id, number, currency, issued_on, due_on, notes)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -23,9 +23,9 @@ class CreateInvoiceParams:
     customer_id: UUID
     number: str
     currency: str
-    issued_on: dt.date | None
-    due_on: dt.date | None
-    notes: str | None
+    issued_on: dt.date | None = None
+    due_on: dt.date | None = None
+    notes: str | None = None
 
 
 async def create_invoice(
@@ -47,9 +47,9 @@ async def create_invoice(
             case [row]:
                 return models.Invoice.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_INVOICE: Final = "SELECT id, customer_id, number, status, currency, issued_on, due_on, notes, created_at, paid_at FROM invoices WHERE id = $1"
@@ -66,7 +66,7 @@ async def get_invoice(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_INVOICE_STATUS: Final = "SELECT status FROM invoices WHERE id = $1"
@@ -83,7 +83,7 @@ async def get_invoice_status(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_INVOICE_DUE_DATE: Final = "SELECT due_on FROM invoices WHERE id = $1"
@@ -101,7 +101,7 @@ async def get_invoice_due_date(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_INVOICE_WITH_CUSTOMER: Final = """SELECT invoices.id, invoices.customer_id, invoices.number, invoices.status, invoices.currency, invoices.issued_on, invoices.due_on, invoices.notes, invoices.created_at, invoices.paid_at, customers.id, customers.name, customers.email, customers.tags, customers.preferred_method, customers.accepted_methods, customers.metadata, customers.created_at
@@ -133,7 +133,7 @@ async def get_invoice_with_customer(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_INVOICES_BY_IDS: Final = "SELECT id, customer_id, number, status, currency, issued_on, due_on, notes, created_at, paid_at FROM invoices WHERE id = ANY($1::uuid[]) ORDER BY number"
@@ -164,8 +164,8 @@ _LIST_INVOICES_ISSUED_BETWEEN: Final = "SELECT id, customer_id, number, status, 
 async def list_invoices_issued_between(
     connection: psycopg.AsyncConnection[Any],
     *,
-    issued_on: dt.date | None,
-    issued_on_2: dt.date | None,
+    issued_on: dt.date | None = None,
+    issued_on_2: dt.date | None = None,
 ) -> list[models.Invoice]:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_INVOICES_ISSUED_BETWEEN, (issued_on, issued_on_2))
@@ -215,8 +215,8 @@ async def search_invoices(
     connection: psycopg.AsyncConnection[Any],
     *,
     customer_id: UUID,
-    status: models.InvoiceStatus | None,
-    due_before: dt.date | None,
+    status: models.InvoiceStatus | None = None,
+    due_before: dt.date | None = None,
 ) -> list[SearchInvoicesRow]:
     """Filters are optional: a NULL filter matches every invoice."""
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
@@ -265,7 +265,7 @@ async def get_invoice_totals(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_OVERDUE_INVOICES: Final = """SELECT invoices.id, invoices.number, invoices.due_on, customers.name AS customer_name, customers.email
@@ -290,7 +290,7 @@ class ListOverdueInvoicesRow:
 
 
 async def list_overdue_invoices(
-    connection: psycopg.AsyncConnection[Any], *, as_of: dt.date | None
+    connection: psycopg.AsyncConnection[Any], *, as_of: dt.date | None = None
 ) -> list[ListOverdueInvoicesRow]:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_OVERDUE_INVOICES, (as_of,))
@@ -331,9 +331,9 @@ async def count_invoices(
                 value: int = row[0]
                 return value
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _COUNT_INVOICES_ISSUED: Final = """SELECT count(*) AS total, count(*) FILTER (WHERE status = 'issued') AS issued
@@ -362,9 +362,9 @@ async def count_invoices_issued(
             case [row]:
                 return CountInvoicesIssuedRow.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_ISSUED_NUMBERS: Final = """SELECT id, (CASE WHEN issued_on IS NOT NULL THEN number END)::text AS issued_number
@@ -422,7 +422,10 @@ _ISSUE_INVOICE: Final = "UPDATE invoices SET status = 'issued', issued_on = $1 W
 
 
 async def issue_invoice(
-    connection: psycopg.AsyncConnection[Any], *, issued_on: dt.date | None, id: UUID
+    connection: psycopg.AsyncConnection[Any],
+    *,
+    issued_on: dt.date | None = None,
+    id: UUID,
 ) -> int:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         async with connection.pipeline():
@@ -436,7 +439,10 @@ _MARK_INVOICE_PAID: Final = (
 
 
 async def mark_invoice_paid(
-    connection: psycopg.AsyncConnection[Any], *, paid_at: dt.datetime | None, id: UUID
+    connection: psycopg.AsyncConnection[Any],
+    *,
+    paid_at: dt.datetime | None = None,
+    id: UUID,
 ) -> None:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_MARK_INVOICE_PAID, (paid_at, id))
@@ -488,9 +494,9 @@ async def attach_medium(
             case [row]:
                 return models.Medium.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_MEDIA: Final = "SELECT id, filename, uploaded_at FROM media WHERE invoice_id = $1 ORDER BY uploaded_at, filename"
@@ -550,7 +556,7 @@ async def get_invoices_batch(
                 case []:
                     values.append(None)
                 case _:
-                    raise MultipleRowsError
+                    raise models.MultipleRowsError
         return values
 
 

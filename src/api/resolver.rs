@@ -8,7 +8,7 @@ use heck::ToUpperCamelCase;
 use super::Problems;
 use super::inflection::singular;
 use super::models::{Field, FieldType};
-use super::names::{Repeats, names};
+use super::names::{Binding, Repeats, names};
 use crate::backend::Backend;
 use crate::config::{Config, ModelConfig, Override};
 use crate::engine::Engine;
@@ -51,13 +51,66 @@ impl<'a> Resolver<'a> {
         if let Some(key) = self.rename.keys().find(|key| !keys.contains(key.as_str())) {
             bail!("rename: \"{key}\" names no table, type, column or parameter of the queries");
         }
-        if let Some(i) = (0..self.overrides.len()).find(|i| !overrides.contains(i)) {
+        // Entries often share one list of overrides (a YAML anchor), so one of them may well not use an override,
+        // which is then no typo as long as it names a type or a column of the schema
+        if let Some(i) =
+            (0..self.overrides.len()).find(|i| !overrides.contains(i) && !self.in_schema(&self.overrides[*i]))
+        {
             bail!(
                 "overrides[{i}]: matches no column or parameter that an override before it does \
-                 not"
+                 not, nor a type or column of the schema"
             );
         }
         Ok(())
+    }
+
+    /// Whether `rule` names a type a column of the schema has, a type it declares, or one of its columns.
+    fn in_schema(&self, rule: &Override) -> bool {
+        let schemas = || self.catalog.user_schemas();
+        let tables = || schemas().flat_map(|schema| schema.tables.iter().map(move |table| (schema, table)));
+        let names_type = |ty: &str| {
+            let declared = schemas().any(|schema| {
+                let named = |name: &str| self.plain(&format!("{}.{name}", schema.name)) == self.plain(ty);
+                schema.enums.iter().any(|e| named(&e.name)) || schema.composite_types.iter().any(|c| named(&c.name))
+            });
+            declared
+                || tables()
+                    .flat_map(|(_, table)| &table.columns)
+                    .any(|c| self.names_type(ty, &c.data_type()))
+        };
+        let names_column = |named: &str| {
+            tables().any(|(schema, table)| {
+                let name = table.rel.as_ref().map_or("", |rel| rel.name.as_str());
+                table.columns.iter().any(|column| {
+                    let qualified = format!("{}.{name}.{}", schema.name, column.name);
+                    named == qualified
+                        || (schema.name == self.catalog.default_schema && named == format!("{name}.{}", column.name))
+                })
+            })
+        };
+        rule.db_type.as_deref().is_some_and(names_type) || rule.column.as_deref().is_some_and(names_column)
+    }
+
+    /// Whether an override's `ty` names `data_type`: as written, or bare for PostgreSQL's own, the default schema's, or
+    /// an extension's, which no schema declares and may be in any (`vector` is `extensions.vector`). A bare name of
+    /// PostgreSQL's own is never another schema's type, which is a domain of the user's (`archive.money`).
+    fn names_type(&self, ty: &str, data_type: &str) -> bool {
+        let is_extensions = !ty.contains('.') && !self.declares(data_type) && !self.engine.is_own_type(ty);
+        let bare = |name: &str| {
+            name.rsplit_once('.')
+                .map_or(name, |(_, name)| name)
+                .to_ascii_lowercase()
+        };
+        self.plain(ty) == self.plain(data_type) || (is_extensions && bare(data_type) == ty.to_ascii_lowercase())
+    }
+
+    /// A type's name as an override may write it: bare when it is PostgreSQL's own or the default schema's.
+    fn plain(&self, name: &str) -> String {
+        let name = name.to_ascii_lowercase();
+        let default = format!("{}.", self.catalog.default_schema);
+        (name.strip_prefix("pg_catalog.").or_else(|| name.strip_prefix(&default)))
+            .map(String::from)
+            .unwrap_or(name)
     }
 
     /// The rename of `key`, if any, which we then note as used.
@@ -96,14 +149,6 @@ impl<'a> Resolver<'a> {
 
     /// The override of `column`, of type `data_type`, where one naming the column itself wins over one naming its type.
     fn overridden(&self, column: &plugin::Column, data_type: &str) -> Option<&'a Override> {
-        // An override names a type bare when it is PostgreSQL's own or the default schema's
-        let default = format!("{}.", self.catalog.default_schema);
-        let plain = |name: &str| {
-            let name = name.to_ascii_lowercase();
-            (name.strip_prefix("pg_catalog.").or_else(|| name.strip_prefix(&default)))
-                .map(String::from)
-                .unwrap_or(name)
-        };
         let names_column = |rule: &&Override| {
             let table = column.table.as_ref()?;
             let name = match column.original_name.as_str() {
@@ -123,7 +168,7 @@ impl<'a> Resolver<'a> {
 
         let i = (self.overrides.iter().position(|rule| names_column(&rule).is_some())).or_else(|| {
             (self.overrides.iter())
-                .position(|rule| rule.db_type.as_deref().is_some_and(|ty| plain(ty) == plain(data_type)))
+                .position(|rule| rule.db_type.as_deref().is_some_and(|ty| self.names_type(ty, data_type)))
         })?;
         self.used.borrow_mut().1.insert(i);
         Some(&self.overrides[i])
@@ -145,7 +190,7 @@ impl<'a> Resolver<'a> {
     /// A table's columns as fields, in order, leaving out each one with a problem after noting it under `what`.
     pub fn fields(&self, columns: &[plugin::Column], what: &str, problems: &mut Problems) -> Vec<Field> {
         let spellings: Vec<&str> = columns.iter().map(|c| self.spelling(&c.name)).collect();
-        let names = problems.take(what, names(&spellings, Repeats::Forbidden));
+        let names = problems.take(what, names(&spellings, Repeats::Forbidden, Binding::Field));
         (names.unwrap_or_default().into_iter().zip(columns))
             .filter_map(|(name, column)| problems.take(what, self.field(name, column)))
             .collect()
@@ -242,16 +287,16 @@ impl<'a> Resolver<'a> {
                         self.engine.analysis()
                     )
                 }
-                let Some(element) = (self.engine.scalar_type(column))
-                    .or_else(|| {
-                        let name = self.engine.type_name(&data_type);
-                        self.backend.scalar_type(self.engine, &name)
-                    })
-                    .or_else(|| {
-                        let (schema, sql_enum) = sql_enum?;
-                        Some(Type::Enum(self.class_name(schema, &sql_enum.name)))
-                    })
-                else {
+                // A type the schema declares is the user's, even where its name is also one of PostgreSQL's or an
+                // extension's, and a composite has no class yet
+                let declared = self.declares(&data_type);
+                let Some(element) = (sql_enum
+                    .map(|(schema, sql_enum)| Type::Enum(self.class_name(schema, &sql_enum.name))))
+                .or_else(|| (!declared).then(|| self.engine.scalar_type(column))?)
+                .or_else(|| {
+                    let name = self.engine.type_name(&data_type);
+                    (!declared).then(|| self.backend.scalar_type(self.engine, &name))?
+                }) else {
                     let hint = self.engine.unmapped(&data_type);
                     let default = format!("{}.", self.catalog.default_schema);
                     let named = data_type.strip_prefix(&default).unwrap_or(&data_type);
@@ -273,7 +318,7 @@ impl<'a> Resolver<'a> {
             bail!("{what} is an array, but sqlc reported no array depth for it")
         }
         if array_dims > 0
-            && let Some(problem) = self.engine.array_problem(&data_type)
+            && let Some(problem) = self.engine.array_problem(&data_type, is_parameter)
         {
             bail!("{what} is an array of \"{data_type}\", which {problem}")
         }
@@ -300,5 +345,14 @@ impl<'a> Resolver<'a> {
         let (schema, name) = data_type.rsplit_once('.').unwrap_or(("", data_type));
         let schema = self.catalog.schema(schema)?;
         Some((schema, schema.enums.iter().find(|e| e.name == name)?))
+    }
+
+    /// Whether a schema of the catalog declares `data_type`, `schema.name` or bare for the default schema, as an enum or
+    /// a composite.
+    fn declares(&self, data_type: &str) -> bool {
+        let (schema, name) = data_type.rsplit_once('.').unwrap_or(("", data_type));
+        (self.catalog.schema(schema)).is_some_and(|schema| {
+            schema.enums.iter().any(|e| e.name == name) || schema.composite_types.iter().any(|c| c.name == name)
+        })
     }
 }

@@ -10,7 +10,7 @@ import psycopg
 from psycopg.rows import tuple_row
 from psycopg.types.json import Jsonb
 
-from . import MultipleRowsError, NoRowError, models
+from . import models
 
 _CREATE_CUSTOMER: Final = """INSERT INTO customers (name, email, tags, preferred_method, accepted_methods, metadata)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -20,11 +20,11 @@ RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, c
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class CreateCustomerParams:
     name: str
-    email: str | None
+    email: str | None = None
     tags: list[str]
-    preferred_method: models.BillingPaymentMethod | None
+    preferred_method: models.BillingPaymentMethod | None = None
     accepted_methods: list[models.BillingPaymentMethod]
-    metadata: object | None
+    metadata: object | None = None
 
 
 async def create_customer(
@@ -46,9 +46,9 @@ async def create_customer(
             case [row]:
                 return models.Customer.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_CUSTOMER: Final = "SELECT id, name, email, tags, preferred_method, accepted_methods, metadata, created_at FROM customers WHERE id = $1"
@@ -65,7 +65,7 @@ async def get_customer(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_CUSTOMER_BY_NAME: Final = "SELECT id, name, email, tags, preferred_method, accepted_methods, metadata, created_at FROM customers WHERE name = $1"
@@ -83,14 +83,14 @@ async def get_customer_by_name(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_CUSTOMER_ID_BY_EMAIL: Final = "SELECT id FROM customers WHERE email = $1"
 
 
 async def get_customer_id_by_email(
-    connection: psycopg.AsyncConnection[Any], *, email: str | None
+    connection: psycopg.AsyncConnection[Any], *, email: str | None = None
 ) -> UUID | None:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_GET_CUSTOMER_ID_BY_EMAIL, (email,))
@@ -101,7 +101,7 @@ async def get_customer_id_by_email(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_ACCEPTED_METHODS: Final = (
@@ -121,7 +121,7 @@ async def get_accepted_methods(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _COMPARE_ACCEPTED_METHODS: Final = """SELECT a.accepted_methods, b.accepted_methods
@@ -154,14 +154,14 @@ async def compare_accepted_methods(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _UPDATE_CUSTOMER_EMAIL: Final = "UPDATE customers SET email = $1 WHERE id = $2"
 
 
 async def update_customer_email(
-    connection: psycopg.AsyncConnection[Any], *, email: str | None, id: UUID
+    connection: psycopg.AsyncConnection[Any], *, email: str | None = None, id: UUID
 ) -> int:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         async with connection.pipeline():

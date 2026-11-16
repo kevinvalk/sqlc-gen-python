@@ -10,7 +10,7 @@ from typing import Any, Final
 
 import asyncmy.cursors
 
-from . import MultipleRowsError, NoRowError, models
+from . import models
 
 
 class _Cursor(typing.Protocol):
@@ -34,10 +34,10 @@ async def create_customer(
     connection: asyncmy.Connection,
     *,
     name: str,
-    email: str | None,
+    email: str | None = None,
     vip: bool,
-    preferred_method: models.CustomersPreferredMethod | None,
-    metadata: str | None,
+    preferred_method: models.CustomersPreferredMethod | None = None,
+    metadata: str | None = None,
 ) -> int:
     async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(
@@ -56,9 +56,9 @@ async def get_customer(connection: asyncmy.Connection, *, id: int) -> models.Cus
             case [row]:
                 return models.Customer.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _FIND_CUSTOMER_BY_NAME: Final = "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE name = %s"
@@ -74,9 +74,9 @@ async def find_customer_by_name(
             case [row]:
                 return models.Customer.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _SEARCH_CUSTOMERS: Final = """SELECT id, name FROM customers
@@ -95,7 +95,7 @@ class SearchCustomersRow:
 
 
 async def search_customers(
-    connection: asyncmy.Connection, *, pattern: str | None
+    connection: asyncmy.Connection, *, pattern: str | None = None
 ) -> list[SearchCustomersRow]:
     """A name or email matching the pattern, but no test account: `%` and `:` stay literal."""
     async with connection.cursor(asyncmy.cursors.Cursor) as cur:
@@ -129,10 +129,10 @@ async def create_invoice(
     *,
     customer_id: int,
     number: str,
-    issued_on: dt.date | None,
-    notes: str | None,
-    attachment: bytes | None,
-    pay_within: dt.timedelta | None,
+    issued_on: dt.date | None = None,
+    notes: str | None = None,
+    attachment: bytes | None = None,
+    pay_within: dt.timedelta | None = None,
 ) -> int:
     async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         await _typed(cur).execute(
@@ -152,9 +152,9 @@ async def get_invoice(connection: asyncmy.Connection, *, id: int) -> models.Invo
             case [row]:
                 return models.Invoice.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_INVOICE_STATUS: Final = "SELECT status FROM invoices WHERE id = %s"
@@ -169,9 +169,9 @@ async def get_invoice_status(
             case [row]:
                 return models.InvoicesStatus(row[0])
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_INVOICE_WITH_CUSTOMER: Final = """SELECT invoices.id, invoices.customer_id, invoices.number, invoices.status, invoices.total, invoices.issued_on, invoices.notes, invoices.attachment, invoices.pay_within, invoices.created_at, customers.id, customers.name, customers.email, customers.vip, customers.preferred_method, customers.metadata, customers.created_at
@@ -201,9 +201,9 @@ async def get_invoice_with_customer(
             case [row]:
                 return GetInvoiceWithCustomerRow.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_INVOICES_BY_STATUS: Final = """SELECT id, customer_id, number, status, total, issued_on, notes, attachment, pay_within, created_at FROM invoices
@@ -240,16 +240,16 @@ async def count_invoices(connection: asyncmy.Connection, *, customer_id: int) ->
                 value: int = row[0]
                 return value
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _ISSUE_INVOICE: Final = "UPDATE invoices SET status = 'issued', issued_on = %s WHERE id = %s AND status = 'draft'"
 
 
 async def issue_invoice(
-    connection: asyncmy.Connection, *, issued_on: dt.date | None, id: int
+    connection: asyncmy.Connection, *, issued_on: dt.date | None = None, id: int
 ) -> int:
     async with connection.cursor(asyncmy.cursors.Cursor) as cur:
         return await _typed(cur).execute(_ISSUE_INVOICE, (issued_on, id))

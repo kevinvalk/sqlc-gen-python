@@ -11,7 +11,7 @@ pub mod resolver;
 mod results;
 
 #[cfg(test)]
-mod fixtures;
+pub(crate) mod fixtures;
 
 use std::collections::BTreeSet;
 

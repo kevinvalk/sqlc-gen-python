@@ -144,6 +144,9 @@ fn imported(annotation: &ast::Expr, modules: &mut Vec<String>) -> anyhow::Result
             let module = parts.join(".");
             match module.as_str() {
                 module if module == names::DT.as_ref() => {}
+                "typing" if attribute.attr.as_str() == names::ANY.as_ref() => {
+                    anyhow::bail!("generated code imports `Any` from `typing` itself: write `Any`")
+                }
                 _ if is_imported(&root.id) => {
                     anyhow::bail!("`{}` is a name generated code binds", root.id)
                 }
@@ -187,7 +190,10 @@ fn imported(annotation: &ast::Expr, modules: &mut Vec<String>) -> anyhow::Result
     Ok(())
 }
 
+// `Any` too, as an override is the user's own choice, written in their sqlc.yaml for everyone to see, where an unknown
+// type is only ever an error
 const TYPES: &[Symbol] = &[
+    names::ANY,
     names::DECIMAL,
     names::UUID,
     names::IPV4_ADDRESS,

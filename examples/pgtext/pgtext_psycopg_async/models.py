@@ -10,6 +10,14 @@ from typing import Any
 from psycopg.types.range import Range
 
 
+class NoRowError(LookupError):
+    """A `:one` query returned no row."""
+
+
+class MultipleRowsError(LookupError):
+    """A `:one` query returned more than one row."""
+
+
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class Scalar:
     c_hstore: str | None

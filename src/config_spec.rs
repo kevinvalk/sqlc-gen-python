@@ -70,7 +70,7 @@ fn rejects_unknown_keys() {
 
 #[test]
 fn out_must_end_in_a_name_the_package_can_be_imported_by() {
-    let with_out = |out: &str| {
+    let with_out = |out: &str, options: &str| {
         Config::from_request(&plugin::GenerateRequest {
             settings: Some(plugin::Settings {
                 codegen: Some(plugin::Codegen {
@@ -79,19 +79,36 @@ fn out_must_end_in_a_name_the_package_can_be_imported_by() {
                 }),
                 ..Default::default()
             }),
-            plugin_options: br#"{"backend": "psycopg", "async": false}"#.to_vec(),
+            plugin_options: format!(r#"{{"backend": "psycopg", "async": false{options}}}"#).into_bytes(),
             ..Default::default()
         })
     };
     for out in ["app/db", "db/", "invoicing_db"] {
-        with_out(out).unwrap();
+        with_out(out, "").unwrap();
     }
     for out in ["app/my-db", "app/2db", "app/Db"] {
-        let error = format!("{:#}", with_out(out).unwrap_err());
+        let error = format!("{:#}", with_out(out, "").unwrap_err());
         assert!(
             error.contains("is not a lowercase Python package name"),
             "{out}: {error}"
         );
+    }
+    // Query modules that read their models from a module the user named import nothing relatively
+    with_out("app/my-db", r#", "models": {"module": "app.models"}"#).unwrap();
+}
+
+#[test]
+fn the_models_module_is_a_dotted_module_name() {
+    for module in ["app.models", "models", "gateway.db.models"] {
+        parse(&format!(
+            r#"{{"backend": "psycopg", "async": false, "models": {{"module": "{module}"}}}}"#
+        ))
+        .unwrap();
+    }
+    for module in ["", "app..models", ".models", "App.models", "app.my-models"] {
+        let options = format!(r#"{{"backend": "psycopg", "async": false, "models": {{"module": "{module}"}}}}"#);
+        let error = format!("{:#}", parse(&options).unwrap_err());
+        assert!(error.contains("is no dotted name"), "{module}: {error}");
     }
 }
 

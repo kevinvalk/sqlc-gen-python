@@ -4,8 +4,8 @@
 //! any correct output holds:
 //!
 //! - generating never panics, and generating twice gives the same result;
-//! - the files are exactly `__init__.py`, `models.py` and one module per query file, each a distinct path inside the
-//!   output directory, and each valid UTF-8;
+//! - the files are exactly `models.py` and one module per query file, each a distinct path inside the output
+//!   directory, and each valid UTF-8;
 //! - every module parses, and ruff's formatter leaves it unchanged;
 //! - its only comments are the header it opens with;
 //! - every name a module binds is unique in its scope and public, except for the prelude a query module holds where
@@ -13,8 +13,8 @@
 //!   asyncmy's untyped methods as a private protocol that annotates with `Any`;
 //! - every name a module reads on import is bound by then;
 //! - no annotation mentions `Any`, except a driver row's, a psycopg connection's and `:execresult`'s;
-//! - every class but an enum and an error is exactly a frozen, slotted, keyword-only dataclass, and no field has a
-//!   default;
+//! - every class but an enum and an error is exactly a frozen, slotted, keyword-only dataclass, and only a nullable
+//!   field of a record of parameters has a default, `None`;
 //! - the models are one enum per catalog enum, with its labels as members in order and each named after its label,
 //!   and one dataclass per table, with its columns as fields in order, each optional exactly when the column admits
 //!   NULL and a list exactly as deep as its array, and a `from_row` that reads each field from its own position;

@@ -53,16 +53,20 @@ const TYPES: &[(&str, Type)] = &[
     ("cidr", Type::CIDR),
 ];
 
-/// Types whose arrays the drivers do not all load as a list of the type, and
-/// what one of them does instead.
+/// Types whose arrays the drivers do not all load as a list of the type, and what one of them does instead.
 const NO_ARRAYS: &[(&str, &str)] = &[
     // An extension's type has a different OID in every database, so psycopg has no loader for an array of one
-    ("citext", "psycopg returns as text, not a list"),
-    ("hstore", "psycopg returns as text, not a list"),
-    ("ltree", "psycopg returns as text, not a list"),
+    ("citext", "psycopg, and SQLAlchemy on it, returns as text, not a list"),
+    ("hstore", "psycopg, and SQLAlchemy on it, returns as text, not a list"),
+    ("ltree", "psycopg, and SQLAlchemy on it, returns as text, not a list"),
     ("regclass", "nobody has probed"),
     ("tsvector", "asyncpg decodes with a corrupt item when one is empty"),
 ];
+
+/// Whether `name`, bare, is a type of PostgreSQL's own that we map, which no other schema's type of that name is.
+pub fn is_own(name: &str) -> bool {
+    !EXTENSIONS.contains(&name) && TYPES.iter().any(|(known, _)| *known == name)
+}
 
 /// `None` when nobody has probed what the drivers return for `data_type`.
 pub fn scalar_type(data_type: &str) -> Option<Type> {
@@ -73,9 +77,17 @@ pub fn scalar_type(data_type: &str) -> Option<Type> {
         .map(|(_, python)| python.clone())
 }
 
+/// Of [`NO_ARRAYS`], those every driver binds a list of `str` to, as a parameter, which no driver then reads back. An
+/// extension's array is a filter's (`= ANY(@emails::citext[])`) more often than a column's. `examples/pgtypes` has a
+/// query of each, which the runtime sweep calls.
+const BOUND_AS_LISTS: &[&str] = &["citext", "ltree", "tsvector"];
+
 /// What a driver does with an array of `data_type`, if that is not a list.
-pub fn array_problem(data_type: &str) -> Option<&'static str> {
+pub fn array_problem(data_type: &str, is_parameter: bool) -> Option<&'static str> {
     let name = type_name(data_type);
+    if is_parameter && BOUND_AS_LISTS.contains(&name.as_str()) {
+        return None;
+    }
     (NO_ARRAYS.iter())
         .find(|(known, _)| *known == name)
         .map(|(_, problem)| *problem)
@@ -113,11 +125,22 @@ pub fn is_guess(data_type: &str) -> bool {
     .contains(&data_type)
 }
 
+/// The types of [`TYPES`] and the backends' maps that an extension creates, in whichever schema it was created in.
+const EXTENSIONS: &[&str] = &["citext", "hstore", "ltree"];
+
 /// PostgreSQL's own name for a type sqlc read ([`is_guess`] is false). sqlc reports one bare or `pg_catalog`-qualified,
 /// and by more than one name (a serial pseudo-type, a `LIMIT`'s `integer`), depending on how the column was declared
 /// and how sqlc analysed it.
+///
+/// IMPORTANT: A type qualified by any other schema is never PostgreSQL's own, but a domain or an extension's, and sqlc
+/// reports a domain by its name alone (`archive.money` may be a `numeric`). So we keep that schema, and drop it only
+/// for an extension's type (`public.citext`, `extensions.citext`), which no domain shares a name with.
 pub fn type_name(data_type: &str) -> String {
-    let name = data_type.strip_prefix("pg_catalog.").unwrap_or(data_type);
+    let name = match data_type.rsplit_once('.') {
+        Some(("pg_catalog", name)) => name,
+        Some((_, name)) if EXTENSIONS.contains(&name) => name,
+        _ => data_type,
+    };
     match name {
         "smallserial" | "serial2" => "int2",
         "integer" | "serial" | "serial4" => "int4",

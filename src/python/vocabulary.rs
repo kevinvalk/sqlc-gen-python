@@ -126,12 +126,7 @@ pub(super) const VOCABULARY: [&[Import]; 3] = [
         Import::From("sqlalchemy.dialects", POSTGRESQL),
         Import::From("sqlalchemy.ext.asyncio", ASYNC_CONNECTION),
     ],
-    // isort orders classes before modules.
-    &[
-        Import::From(".", MULTIPLE_ROWS_ERROR),
-        Import::From(".", NO_ROW_ERROR),
-        Import::From(".", MODELS),
-    ],
+    &[Import::From(".", MODELS)],
 ];
 
 /// The derived order is isort's order within one section.

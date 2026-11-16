@@ -25,7 +25,7 @@ async def record_payment(
     invoice_id: UUID,
     method: models.BillingPaymentMethod,
     amount: Decimal,
-    from_: str | None,
+    from_: str | None = None,
     received_at: dt.datetime,
 ) -> models.BillingPayment:
     return models.BillingPayment.from_row(

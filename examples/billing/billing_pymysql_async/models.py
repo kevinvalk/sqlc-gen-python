@@ -9,6 +9,14 @@ from decimal import Decimal
 from typing import Any
 
 
+class NoRowError(LookupError):
+    """A `:one` query returned no row."""
+
+
+class MultipleRowsError(LookupError):
+    """A `:one` query returned more than one row."""
+
+
 class CustomersPreferredMethod(str, enum.Enum):
     CARD = "card"
     BANK_TRANSFER = "bank-transfer"

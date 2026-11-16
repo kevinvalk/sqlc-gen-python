@@ -160,7 +160,7 @@ fn an_override_names_only_types_generated_code_can_import_as_written() {
         ("models.Account", "generated code binds"),
         ("sqlalchemy.Text", "generated code binds"),
         ("dt.date.max", "generated code binds"),
-        ("Any", "neither a builtin"),
+        ("typing.Any", "write `Any`"),
         ("Sequence[int]", "neither a builtin"),
     ] {
         let error = error(bad).unwrap_or_default();
@@ -173,6 +173,8 @@ fn an_override_names_only_types_generated_code_can_import_as_written() {
         "list[app.T] | None",
         "tuple[float, ...]",
         "IPv4Network",
+        "Any",
+        "list[Any] | None",
     ] {
         assert_eq!(error(good), None, "{good}");
     }
@@ -195,6 +197,18 @@ fn an_override_or_rename_that_matches_nothing_is_an_error() {
         let error = format!("{:#}", resolve_options(schemas(), &options(json)).unwrap_err());
         assert!(error.contains(problem), "{json}: {error}");
     }
+}
+
+#[test]
+fn an_override_of_a_type_the_schema_declares_may_go_unused_in_one_entry() {
+    // Entries share one list of overrides, and only one of them queries with the composite
+    let mut schemas = public(vec![table("items", vec![column("id", "pg_catalog.int8", true)])]);
+    schemas[0].composite_types.push(plugin::CompositeType {
+        name: "project_fqn".into(),
+        comment: String::new(),
+    });
+    let shared = options(r#""overrides": [{"db_type": "project_fqn", "python_type": "Any"}]"#);
+    resolve_options(schemas, &shared).unwrap();
 }
 
 #[test]
@@ -307,4 +321,62 @@ fn a_rename_of_a_tables_singular_is_no_rename_of_the_table() {
     assert_eq!(api.models[0].name, "Author");
     let fields: Vec<&str> = api.models[0].fields.iter().map(|f| f.name.as_str()).collect();
     assert_eq!(fields, ["id", "writer"]);
+}
+
+#[test]
+fn an_extensions_type_is_mapped_in_whichever_schema_it_was_created_in() {
+    let schemas = public(vec![table("users", vec![column("email", "extensions.citext", true)])]);
+    let api = resolve_options(schemas, &Config::of(Backend::SqlAlchemy)).unwrap();
+    assert_eq!(annotations(&api), [("email".into(), "str".into())]);
+}
+
+#[test]
+fn a_composite_the_schema_declares_is_never_the_type_of_its_name() {
+    // A `data.json` of the user's is no JSON
+    let mut data = sql_schema("data", vec![], vec![]);
+    data.composite_types.push(plugin::CompositeType {
+        name: "json".into(),
+        comment: String::new(),
+    });
+    let mut schemas = public(vec![table("events", vec![column("payload", "data.json", true)])]);
+    schemas.push(data);
+    let error = format!(
+        "{:#}",
+        resolve_options(schemas, &Config::of(Backend::SqlAlchemy)).unwrap_err()
+    );
+    assert!(
+        error.contains("\"data.json\", which has no verified Python mapping"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_bare_override_names_an_extensions_type_in_any_schema_but_no_declared_one() {
+    let schemas = || {
+        public(vec![table(
+            "items",
+            vec![column("embedding", "extensions.vector", true)],
+        )])
+    };
+    let bare = options(r#""overrides": [{"db_type": "vector", "python_type": "str"}]"#);
+    let api = resolve_options(schemas(), &bare).unwrap();
+    assert_eq!(annotations(&api), [("embedding".into(), "str".into())]);
+
+    let mood = plugin::Enum {
+        name: "mood".into(),
+        vals: vec!["happy".into()],
+        comment: String::new(),
+    };
+    let mut declared = public(vec![table("people", vec![column("feeling", "data.mood", true)])]);
+    declared.push(sql_schema("data", vec![], vec![mood]));
+    let bare = options(r#""overrides": [{"db_type": "mood", "python_type": "str"}]"#);
+    assert!(resolve_options(declared, &bare).is_err());
+
+    // Nor PostgreSQL's own type a domain of another schema is named after, which sqlc does not declare
+    let domain = || public(vec![table("prices", vec![column("amount", "archive.money", true)])]);
+    let bare = options(r#""overrides": [{"db_type": "money", "python_type": "str"}]"#);
+    assert!(resolve_options(domain(), &bare).is_err());
+    let qualified = options(r#""overrides": [{"db_type": "archive.money", "python_type": "Decimal"}]"#);
+    let api = resolve_options(domain(), &qualified).unwrap();
+    assert_eq!(annotations(&api), [("amount".into(), "Decimal".into())]);
 }

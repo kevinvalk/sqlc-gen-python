@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 
 use super::models::{Field, Model};
-use super::names::{self, Repeats};
+use super::names::{self, Binding, Repeats};
 use super::queries::{RowField, Shape};
 use super::resolver::Resolver;
 use crate::plugin;
@@ -33,7 +33,7 @@ pub(super) fn columns(
 
     let mut fields = Vec::new();
     let mut flat = Vec::new();
-    for ((name, column), embed) in names::names(&spellings, Repeats::Numbered)?
+    for ((name, column), embed) in names::names(&spellings, Repeats::Numbered, Binding::Field)?
         .into_iter()
         .zip(&columns)
         .zip(embeds)
@@ -90,12 +90,14 @@ fn reported(
 ) -> (Vec<plugin::Column>, Vec<String>) {
     // sqlc reports an embed as one column, where the statement lists each column of its table. We give those no table,
     // as it is the embed's to tell a missing row of its table.
-    let tables: Vec<&str> = (query.columns.iter().zip(embeds))
-        .flat_map(|(column, embed)| match embed {
-            Some(model) => vec![""; model.fields.len()],
-            None => vec![column.table.as_ref().map_or("", |table| &table.name)],
+    let tables: Vec<String> = (query.columns.iter().zip(embeds))
+        .flat_map(|(column, embed)| match (embed, &column.table) {
+            (Some(model), _) => vec![String::new(); model.fields.len()],
+            (None, Some(table)) if !table.schema.is_empty() => vec![format!("{}.{}", table.schema, table.name)],
+            (None, table) => vec![table.as_ref().map_or_else(String::new, |table| table.name.clone())],
         })
         .collect();
+    let tables: Vec<&str> = tables.iter().map(String::as_str).collect();
     let Some(items) = resolver.engine.items(&query.text, &tables) else {
         let nullable = |column: &plugin::Column| plugin::Column {
             not_null: false,

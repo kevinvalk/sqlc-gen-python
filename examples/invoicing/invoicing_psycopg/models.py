@@ -10,6 +10,14 @@ from typing import Any
 from uuid import UUID
 
 
+class NoRowError(LookupError):
+    """A `:one` query returned no row."""
+
+
+class MultipleRowsError(LookupError):
+    """A `:one` query returned more than one row."""
+
+
 class BillingPaymentMethod(str, enum.Enum):
     BANK_TRANSFER = "bank_transfer"
     CARD = "card"

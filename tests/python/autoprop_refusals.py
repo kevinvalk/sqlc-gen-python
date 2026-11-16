@@ -43,7 +43,7 @@ def refused(error: Exception) -> bool:
 
 def is_error(error: Exception, sqlalchemy_error: type[Exception], package: str) -> bool:
     """Whether ``error`` is SQLAlchemy's error, or the generated package's of that name (a class of each package's own
-    ``__init__``).
+    models).
     """
     return isinstance(error, sqlalchemy_error) or (type(error).__name__ == package and isinstance(error, LookupError))
 

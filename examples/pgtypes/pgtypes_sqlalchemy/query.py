@@ -81,3 +81,23 @@ def list_oddities(
         models.Oddity.from_row(row)
         for row in connection.execute(_LIST_ODDITIES, {"mood": mood})
     ]
+
+
+_FIND_SCALARS: Final = sqlalchemy.text("""SELECT id FROM scalars
+WHERE email = ANY(:emails\\:\\:citext[])
+  OR tree = ANY(:trees\\:\\:ltree[])
+  OR search = ANY(:searches\\:\\:tsvector[])""")
+
+
+def find_scalars(
+    connection: sqlalchemy.Connection,
+    *,
+    emails: list[str],
+    trees: list[str],
+    searches: list[str],
+) -> list[int]:
+    return list(
+        connection.execute(
+            _FIND_SCALARS, {"emails": emails, "trees": trees, "searches": searches}
+        ).scalars()
+    )

@@ -30,7 +30,7 @@ sql:
           async: false
 ```
 
-`out` becomes a package: `models.py`, and a module of functions per query file, each taking the connection and its parameters by keyword.
+`out` gets `models.py`, and a module of functions per query file, each taking the connection and its parameters by keyword. Every other file there, `__init__.py` included, is yours.
 
 ```python
 import psycopg
@@ -85,7 +85,9 @@ The plugin needs sqlc's static analysis: with a `database` block in `sqlc.yaml`,
 | `:copyfrom` | `None`, for `rows` of `<Query>Params` |
 | `:batchexec`, `:batchone`, `:batchmany` | a `list` of one result per row (PostgreSQL only) |
 
-A row of one column is its value, a row of exactly a table's columns is that table's model, and any other is a `<Query>Row` beside the function. Every one is a frozen, keyword-only dataclass, and every enum a `str` enum. `sqlc.embed(t)` is a field of `t`'s model, `sqlc.slice` a `list`, and `sqlc.narg` a `T | None` that is still required.
+A row of one column is its value, a row of exactly a table's columns is that table's model, and any other is a `<Query>Row` beside the function. Every one is a frozen, keyword-only dataclass, and every enum a `str` enum. `sqlc.embed(t)` is a field of `t`'s model, and `sqlc.slice` a `list`.
+
+A nullable parameter, such as a `sqlc.narg`, defaults to `None`, so a filter (`sqlc.narg(ids) IS NULL OR ...`) or a partial update (`coalesce(sqlc.narg(name), name)`) takes only what the caller has, `**` a dict of it included. Every other parameter is required.
 
 ## Options
 
@@ -93,15 +95,16 @@ A row of one column is its value, a row of exactly a table's columns is that tab
 | --- | --- | --- |
 | `backend` | required | `sqlalchemy`, `psycopg`, `sqlite3` or `pymysql`, as in the table above |
 | `async` | required | `true` makes every function a coroutine on the backend's async connection |
-| `raise_on_none` | `false` | A `:one` without a row raises rather than return `None`: SQLAlchemy's `NoResultFound`, or the package's own `NoRowError` |
+| `raise_on_none` | `false` | A `:one` without a row raises rather than return `None`: SQLAlchemy's `NoResultFound`, or `models.NoRowError` |
 | `max_params` | none | A query with more parameters than this takes them as one `params: <Query>Params` record |
-| `overrides` | `[]` | The Python type of a database type, `{db_type: vector, python_type: str}`, or of one column, `{column: invoices.total, python_type: ...}`, which wins. A dotted name, `app.types.Embedding`, is imported |
+| `overrides` | `[]` | The Python type of a database type, `{db_type: vector, python_type: str}`, or of one column, `{column: invoices.total, python_type: ...}`, which wins. A dotted name, `app.types.Embedding`, is imported, and `Any` is yours to choose |
 | `rename` | `{}` | Python names for SQL names: a table or enum (`schema.name`, or `name` in the default schema) to its class, a column or parameter to its name, an enum label to its member (`"+1": plus_one`) |
+| `models.module` | none | Import the models from this module (`app.models`), written by another entry of the same schema and backend, and write the query modules alone, beside your own code |
 | `models.exact_table_names` | `false` | Name model classes after their table, without singularising |
 | `models.inflection_exclude` | `[]` | Tables whose names are not singularised |
 | `omit_sqlc_version` | `false` | Leave sqlc's version out of each file's header |
 
-An unknown option, and an override or rename that matches nothing, is an error.
+An unknown option, a rename that matches nothing, and an override that names no type or column of the schema or the queries, is an error. Entries may share one list of options (a YAML anchor).
 
 ## Known limitations
 
@@ -111,7 +114,8 @@ What sqlc reports is never second-guessed, but where the statement proves sqlc w
 - **A parameter inside an expression** takes sqlc's guess: `d + @days` is a `dt.date`, `(at, id) < (@at, @id)` makes both a `datetime`, and `issued_at::date = @day` a `datetime`. Cast the parameter: `@days::int`.
 - **A computed column read through a view, a CTE or a subquery** looks like a declared one, so sqlc's guess at its type goes unnoticed. Cast it inside.
 - **Arrays** may hold NULL elements and any number of dimensions, whatever the annotation says. Add a `CHECK` where it matters.
-- **Type checkers accept** a `datetime` for a `date`, a `bool` for an `int`, anything as a JSON parameter (a `Decimal` inside it raises), and a record holding a list in a `set` (which raises).
+- **Type checkers accept** a `datetime` for a `date`, a `bool` for an `int`, anything as a JSON parameter (a `Decimal` or `UUID` inside it raises, unless the engine's `json_serializer` takes it), and a record holding a list in a `set` (which raises).
+- **A JSON parameter is the document, not its text**: a `str` is stored as a JSON string, so `json.dumps(...)` is stored encoded twice, and nothing errors. Pass the value, or `json.loads(text)`.
 - **Time**: an `interval` loses its months (`'1 mon'` is 30 days). psycopg and asyncpg disagree on a naive `datetime` and return a `timestamptz` in different zones: pass aware datetimes, and convert before `.date()`. Keep `'infinity'` out of a `timestamptz`.
 - **A `:one` that writes** has written before it raises on a second row, and a batch is not atomic: run them in a transaction you can roll back.
 - **psycopg** returns what the connection's adapters make: a loader registered on it (`register_hstore`, pgvector's) changes what the generated code gets. Its `:copyfrom` is a `COPY`, which fires no rule and copies into no view.

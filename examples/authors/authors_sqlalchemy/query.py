@@ -33,7 +33,7 @@ RETURNING id, name, bio""")
 
 
 def create_author(
-    connection: sqlalchemy.Connection, *, name: str, bio: str | None
+    connection: sqlalchemy.Connection, *, name: str, bio: str | None = None
 ) -> models.Author:
     return models.Author.from_row(
         connection.execute(_CREATE_AUTHOR, {"name": name, "bio": bio}).one()

@@ -24,9 +24,9 @@ def create_invoice(
     customer_id: UUID,
     number: str,
     currency: str,
-    issued_on: dt.date | None,
-    due_on: dt.date | None,
-    notes: str | None,
+    issued_on: dt.date | None = None,
+    due_on: dt.date | None = None,
+    notes: str | None = None,
 ) -> models.Invoice:
     return models.Invoice.from_row(
         connection.execute(
@@ -162,8 +162,8 @@ _LIST_INVOICES_ISSUED_BETWEEN: Final = sqlalchemy.text(
 def list_invoices_issued_between(
     connection: sqlalchemy.Connection,
     *,
-    issued_on: dt.date | None,
-    issued_on_2: dt.date | None,
+    issued_on: dt.date | None = None,
+    issued_on_2: dt.date | None = None,
 ) -> list[models.Invoice]:
     return [
         models.Invoice.from_row(row)
@@ -219,8 +219,8 @@ def search_invoices(
     connection: sqlalchemy.Connection,
     *,
     customer_id: UUID,
-    status: models.InvoiceStatus | None,
-    due_before: dt.date | None,
+    status: models.InvoiceStatus | None = None,
+    due_before: dt.date | None = None,
 ) -> list[SearchInvoicesRow]:
     """Filters are optional: a NULL filter matches every invoice."""
     return [
@@ -292,7 +292,7 @@ class ListOverdueInvoicesRow:
 
 
 def list_overdue_invoices(
-    connection: sqlalchemy.Connection, *, as_of: dt.date | None
+    connection: sqlalchemy.Connection, *, as_of: dt.date | None = None
 ) -> list[ListOverdueInvoicesRow]:
     return [
         ListOverdueInvoicesRow.from_row(row)
@@ -424,7 +424,7 @@ _ISSUE_INVOICE: Final = sqlalchemy.text(
 
 
 def issue_invoice(
-    connection: sqlalchemy.Connection, *, issued_on: dt.date | None, id: UUID
+    connection: sqlalchemy.Connection, *, issued_on: dt.date | None = None, id: UUID
 ) -> int:
     return connection.execute(
         _ISSUE_INVOICE, {"issued_on": issued_on, "id": id}
@@ -437,7 +437,7 @@ _MARK_INVOICE_PAID: Final = sqlalchemy.text(
 
 
 def mark_invoice_paid(
-    connection: sqlalchemy.Connection, *, paid_at: dt.datetime | None, id: UUID
+    connection: sqlalchemy.Connection, *, paid_at: dt.datetime | None = None, id: UUID
 ) -> None:
     connection.execute(_MARK_INVOICE_PAID, {"paid_at": paid_at, "id": id})
 

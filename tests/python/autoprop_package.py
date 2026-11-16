@@ -103,8 +103,9 @@ class Sweep:
         self.report = report
         self.asynchronous, self.raw = target.asynchronous, target.raw
         self.conninfo = conninfo(url)
-        stems = {path.stem for path in Path(package.__path__[0]).glob("*.py")}
-        modules = {stem: importlib.import_module(f"{package.__name__}.{stem}") for stem in sorted(stems - {"__init__"})}
+        # A generated package is a namespace package, whose `__path__` is no list
+        stems = {path.stem for directory in package.__path__ for path in Path(directory).glob("*.py")}
+        modules = {stem: importlib.import_module(f"{package.__name__}.{stem}") for stem in sorted(stems)}
         models = modules.pop("models", None)
 
         def queries(stem: str) -> list[Json]:

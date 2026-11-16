@@ -21,10 +21,10 @@ async def create_customer(
     connection: AsyncConnection,
     *,
     name: str,
-    email: str | None,
+    email: str | None = None,
     vip: bool,
-    preferred_method: models.CustomersPreferredMethod | None,
-    metadata: str | None,
+    preferred_method: models.CustomersPreferredMethod | None = None,
+    metadata: str | None = None,
 ) -> int:
     return (
         await connection.execute(
@@ -83,7 +83,7 @@ class SearchCustomersRow:
 
 
 async def search_customers(
-    connection: AsyncConnection, *, pattern: str | None
+    connection: AsyncConnection, *, pattern: str | None = None
 ) -> list[SearchCustomersRow]:
     """A name or email matching the pattern, but no test account: `%` and `:` stay literal."""
     return [
@@ -115,10 +115,10 @@ async def create_invoice(
     *,
     customer_id: int,
     number: str,
-    issued_on: dt.date | None,
-    notes: str | None,
-    attachment: bytes | None,
-    pay_within: dt.timedelta | None,
+    issued_on: dt.date | None = None,
+    notes: str | None = None,
+    attachment: bytes | None = None,
+    pay_within: dt.timedelta | None = None,
 ) -> int:
     return (
         await connection.execute(
@@ -223,7 +223,7 @@ _ISSUE_INVOICE: Final = sqlalchemy.text(
 
 
 async def issue_invoice(
-    connection: AsyncConnection, *, issued_on: dt.date | None, id: int
+    connection: AsyncConnection, *, issued_on: dt.date | None = None, id: int
 ) -> int:
     return (
         await connection.execute(_ISSUE_INVOICE, {"issued_on": issued_on, "id": id})

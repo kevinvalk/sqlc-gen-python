@@ -16,7 +16,7 @@ fn generated(sqlc_version: &str, options: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// We read the header off `__init__.py`, which holds nothing else on SQLAlchemy.
+/// We read the header off `models.py`, which holds nothing else for an empty catalog on SQLAlchemy.
 fn header_of(sqlc_version: &str, options: &str) -> String {
     let options = format!(r#"{{"backend": "sqlalchemy", "async": false{options}}}"#);
     generated(sqlc_version, &options).remove(0).1
@@ -48,19 +48,85 @@ fn a_version_that_could_end_the_comment_is_left_out() {
 }
 
 #[test]
-fn the_package_defines_the_errors_of_a_one_where_the_library_has_none() {
-    let init = |backend: &str, raises: bool| {
+fn the_models_define_the_errors_of_a_one_where_the_library_has_none() {
+    let models = |backend: &str, raises: bool| {
         let options = format!(r#"{{"backend": "{backend}", "async": false, "raise_on_none": {raises}}}"#);
         generated("", &options).remove(0).1
     };
-    assert!(!init("sqlalchemy", true).contains("class"));
+    assert!(!models("sqlalchemy", true).contains("class"));
     // Both, whatever the queries raise, so what a package exports is stable
     for raises in [true, false] {
         for error in [
             "class NoRowError(LookupError):",
             "class MultipleRowsError(LookupError):",
         ] {
-            assert!(init("psycopg", raises).contains(error), "{error}");
+            assert!(models("psycopg", raises).contains(error), "{error}");
         }
     }
+}
+
+#[test]
+fn a_nullable_parameter_may_be_left_out_as_none_in_either_form() {
+    use crate::api::fixtures::authors::{named, query};
+    let module = |options: &str| {
+        let update = plugin::Query {
+            params: vec![named(1, "name", "text", true), named(2, "bio", "text", false)],
+            ..query(":exec", "UPDATE authors SET bio = coalesce($2, bio) WHERE name = $1")
+        };
+        let request = plugin::GenerateRequest {
+            plugin_options: format!(r#"{{"backend": "sqlalchemy", "async": false{options}}}"#).into_bytes(),
+            ..crate::api::fixtures::request("postgresql", vec![], vec![update])
+        };
+        let files = crate::generate(&request).unwrap();
+        let file = files.into_iter().find(|file| file.name == "authors.py").unwrap();
+        String::from_utf8(file.contents).unwrap()
+    };
+
+    let keywords = module("");
+    assert!(keywords.contains("*, name: str, bio: str | None = None"), "{keywords}");
+
+    let record = module(r#", "max_params": 1"#);
+    assert!(
+        record.contains("    name: str\n    bio: str | None = None\n"),
+        "{record}"
+    );
+}
+
+/// The files `generate` writes for one query of `authors.sql`, by name.
+fn generated_query(options: &str) -> Vec<(String, String)> {
+    use crate::api::fixtures::authors::query;
+    let get = plugin::Query {
+        columns: vec![crate::api::fixtures::column("one", "pg_catalog.int4", true)],
+        ..query(":one", "SELECT 1")
+    };
+    let request = plugin::GenerateRequest {
+        plugin_options: format!(r#"{{"backend": "psycopg", "async": false{options}}}"#).into_bytes(),
+        ..crate::api::fixtures::request("postgresql", vec![], vec![get])
+    };
+    (crate::generate(&request).unwrap().into_iter())
+        .map(|file| (file.name, String::from_utf8(file.contents).unwrap()))
+        .collect()
+}
+
+#[test]
+fn a_package_is_its_models_and_its_query_modules_and_init_is_the_applications() {
+    let names: Vec<String> = generated_query("").into_iter().map(|(name, _)| name).collect();
+    assert_eq!(names, ["models.py", "authors.py"]);
+}
+
+#[test]
+fn query_modules_read_their_models_from_the_module_named_and_write_none() {
+    let module = |models: &str| {
+        let files = generated_query(&format!(r#", "models": {{"module": "{models}"}}"#));
+        assert_eq!(
+            files.iter().map(|(name, _)| name.as_str()).collect::<Vec<_>>(),
+            ["authors.py"]
+        );
+        files[0].1.clone()
+    };
+    assert!(module("gateway.models").contains("from gateway import models\n"));
+    assert!(module("app.db_models").contains("import app.db_models as models\n"));
+    assert!(module("models").contains("import models\n"));
+    // Its errors are the models module's too
+    assert!(module("gateway.models").contains("raise models.MultipleRowsError"));
 }

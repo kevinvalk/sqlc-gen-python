@@ -10,7 +10,7 @@ from typing import Any, Final
 
 import pymysql
 
-from . import MultipleRowsError, NoRowError, models
+from . import models
 
 if typing.TYPE_CHECKING:
     _Connection = pymysql.Connection[Any]
@@ -23,10 +23,10 @@ _CREATE_CUSTOMER: Final = "INSERT INTO customers (name, email, vip, preferred_me
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class CreateCustomerParams:
     name: str
-    email: str | None
+    email: str | None = None
     vip: bool
-    preferred_method: models.CustomersPreferredMethod | None
-    metadata: str | None
+    preferred_method: models.CustomersPreferredMethod | None = None
+    metadata: str | None = None
 
 
 def create_customer(connection: _Connection, params: CreateCustomerParams) -> int:
@@ -56,7 +56,7 @@ def get_customer(connection: _Connection, *, id: int) -> models.Customer | None:
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _FIND_CUSTOMER_BY_NAME: Final = "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE name = %s"
@@ -74,7 +74,7 @@ def find_customer_by_name(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _SEARCH_CUSTOMERS: Final = """SELECT id, name FROM customers
@@ -93,7 +93,7 @@ class SearchCustomersRow:
 
 
 def search_customers(
-    connection: _Connection, *, pattern: str | None
+    connection: _Connection, *, pattern: str | None = None
 ) -> list[SearchCustomersRow]:
     """A name or email matching the pattern, but no test account: `%` and `:` stay literal."""
     with connection.cursor(pymysql.cursors.Cursor) as cur:
@@ -126,10 +126,10 @@ VALUES (%s, %s, %s, %s, %s, %s)"""
 class CreateInvoiceParams:
     customer_id: int
     number: str
-    issued_on: dt.date | None
-    notes: str | None
-    attachment: bytes | None
-    pay_within: dt.timedelta | None
+    issued_on: dt.date | None = None
+    notes: str | None = None
+    attachment: bytes | None = None
+    pay_within: dt.timedelta | None = None
 
 
 def create_invoice(connection: _Connection, params: CreateInvoiceParams) -> int:
@@ -160,7 +160,7 @@ def get_invoice(connection: _Connection, *, id: int) -> models.Invoice | None:
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_INVOICE_STATUS: Final = "SELECT status FROM invoices WHERE id = %s"
@@ -177,7 +177,7 @@ def get_invoice_status(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_INVOICE_WITH_CUSTOMER: Final = """SELECT invoices.id, invoices.customer_id, invoices.number, invoices.status, invoices.total, invoices.issued_on, invoices.notes, invoices.attachment, invoices.pay_within, invoices.created_at, customers.id, customers.name, customers.email, customers.vip, customers.preferred_method, customers.metadata, customers.created_at
@@ -209,7 +209,7 @@ def get_invoice_with_customer(
             case []:
                 return None
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_INVOICES_BY_STATUS: Final = """SELECT id, customer_id, number, status, total, issued_on, notes, attachment, pay_within, created_at FROM invoices
@@ -243,16 +243,16 @@ def count_invoices(connection: _Connection, *, customer_id: int) -> int:
                 value: int = row[0]
                 return value
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _ISSUE_INVOICE: Final = "UPDATE invoices SET status = 'issued', issued_on = %s WHERE id = %s AND status = 'draft'"
 
 
 def issue_invoice(
-    connection: _Connection, *, issued_on: dt.date | None, id: int
+    connection: _Connection, *, issued_on: dt.date | None = None, id: int
 ) -> int:
     with connection.cursor(pymysql.cursors.Cursor) as cur:
         return cur.execute(_ISSUE_INVOICE, (issued_on, id))

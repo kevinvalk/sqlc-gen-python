@@ -176,6 +176,22 @@ fn an_enum_is_found_in_the_schema_the_column_names_or_else_the_default_one() {
 }
 
 #[test]
+fn an_enum_the_schema_declares_wins_over_a_type_of_postgresqls_with_its_name() {
+    let mood = plugin::Enum {
+        name: "money".into(),
+        vals: vec!["rich".into()],
+        comment: String::new(),
+    };
+    let resolved = try_resolve(vec![sql_schema(
+        "public",
+        vec![table("people", vec![column("mood", "public.money", true)])],
+        vec![mood],
+    )])
+    .unwrap();
+    assert_eq!(resolved.models[0].fields[0].ty.element, Type::Enum("Money".into()));
+}
+
+#[test]
 fn a_multi_dimensional_enum_array_is_an_error() {
     // No driver evidence for one, and `from_row` converts one dimension.
     assert!(enum_column("payment_method", 1).is_ok());

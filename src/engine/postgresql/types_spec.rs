@@ -17,6 +17,28 @@ fn a_type_reads_the_same_bare_or_pg_catalog_qualified() {
 }
 
 #[test]
+fn an_extension_type_reads_the_same_in_whichever_schema_it_was_created_in() {
+    // `pg_dump` writes the schema out, and an extension may be created in any (`CREATE EXTENSION ... WITH SCHEMA`)
+    for qualified in ["public.citext", "extensions.citext", "data.citext"] {
+        assert_eq!(scalar_type(qualified), Some(Type::STR), "{qualified}");
+        assert_eq!(
+            array_problem(qualified, false),
+            array_problem("citext", false),
+            "{qualified}"
+        );
+    }
+}
+
+#[test]
+fn a_type_of_another_schema_named_like_postgresqls_own_is_a_domain_and_unknown() {
+    // sqlc reports a domain by its name, never its base type: `archive.money` may well be a numeric
+    for qualified in ["archive.money", "public.money", "data.timestamp", "archive.name"] {
+        assert_eq!(scalar_type(qualified), None, "{qualified}");
+    }
+    assert_eq!(scalar_type("pg_catalog.money"), Some(Type::STR));
+}
+
+#[test]
 fn exact_numerics_do_not_become_floats() {
     assert_eq!(scalar_type("numeric"), Some(Type::DECIMAL));
 }
@@ -108,9 +130,19 @@ fn an_array_a_driver_does_not_load_as_a_list_says_what_it_does() {
     // psycopg returns `ARRAY['x'::citext]` as the text `'{x}'`, and asyncpg decodes `ARRAY[''::tsvector]` as
     // `[<NULL>]` (`docs/typemap.md`)
     assert_eq!(scalar_type("citext"), Some(Type::STR));
-    assert!(array_problem("citext").unwrap().contains("psycopg"));
-    assert!(array_problem("pg_catalog.tsvector").unwrap().contains("asyncpg"));
-    assert_eq!(array_problem("pg_catalog.text"), None);
+    assert!(array_problem("citext", false).unwrap().contains("psycopg"));
+    assert!(array_problem("pg_catalog.tsvector", false).unwrap().contains("asyncpg"));
+    assert_eq!(array_problem("pg_catalog.text", false), None);
+}
+
+#[test]
+fn an_array_a_driver_does_not_read_as_a_list_still_binds_as_a_parameter() {
+    for name in ["citext", "public.citext", "ltree", "tsvector"] {
+        assert_eq!(array_problem(name, true), None, "{name}");
+    }
+    // A list of dicts, and names of relations a value must name, which nobody has probed
+    assert!(array_problem("hstore", true).is_some());
+    assert!(array_problem("regclass", true).is_some());
 }
 
 /// The runtime proof (`tests/python/typemap.py`) reads this fixture back through every driver.
@@ -132,7 +164,7 @@ fn every_mapped_type_has_a_column_the_runtime_proof_reads() {
             .map(|column| type_name(&column.data_type()).to_owned())
             .collect();
         let missing: Vec<&str> = (TYPES.iter().map(|(name, _)| *name))
-            .filter(|name| !(array && array_problem(name).is_some()) && !probed.contains(*name))
+            .filter(|name| !(array && array_problem(name, false).is_some()) && !probed.contains(*name))
             .collect();
         assert!(missing.is_empty(), "no column (array: {array}) of {missing:?}");
     }

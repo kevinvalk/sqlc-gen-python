@@ -39,11 +39,11 @@ async def create_customer(
     connection: AsyncConnection,
     *,
     name: str,
-    email: str | None,
+    email: str | None = None,
     tags: list[str],
-    preferred_method: models.BillingPaymentMethod | None,
+    preferred_method: models.BillingPaymentMethod | None = None,
     accepted_methods: list[models.BillingPaymentMethod],
-    metadata: object | None,
+    metadata: object | None = None,
 ) -> models.Customer:
     return models.Customer.from_row(
         (
@@ -119,7 +119,7 @@ _GET_CUSTOMER_ID_BY_EMAIL: Final = sqlalchemy.text(
 
 
 async def get_customer_id_by_email(
-    connection: AsyncConnection, *, email: str | None
+    connection: AsyncConnection, *, email: str | None = None
 ) -> UUID | None:
     value: UUID | None = (
         await connection.execute(_GET_CUSTOMER_ID_BY_EMAIL, {"email": email})
@@ -192,7 +192,7 @@ _UPDATE_CUSTOMER_EMAIL: Final = sqlalchemy.text(
 
 
 async def update_customer_email(
-    connection: AsyncConnection, *, email: str | None, id: UUID
+    connection: AsyncConnection, *, email: str | None = None, id: UUID
 ) -> int:
     return (
         await connection.execute(_UPDATE_CUSTOMER_EMAIL, {"email": email, "id": id})

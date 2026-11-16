@@ -1,9 +1,9 @@
 use ruff_python_ast::{Stmt, StmtClassDef};
-use sqlc_gen_python::api::names::{self, Repeats};
+use sqlc_gen_python::api::names::{self, Binding, Repeats};
 use sqlc_gen_python::config::Config;
 use sqlc_gen_python::plugin;
 
-use super::python::{Shape, fields, is_enum};
+use super::python::{Shape, fields, is_enum, unparse};
 use super::records::{documented, reads_in_order};
 
 /// The models module holds one enum per catalog enum, its members its labels in order and named as the generator
@@ -19,7 +19,7 @@ pub(super) fn models_follow_catalog(request: &plugin::GenerateRequest, models: &
         .flat_map(|schema| &schema.tables)
         .map(|table| {
             let spellings: Vec<&str> = table.columns.iter().map(|c| c.name.as_str()).collect();
-            let names = names::names(&spellings, Repeats::Forbidden).unwrap_or_default();
+            let names = names::names(&spellings, Repeats::Forbidden, Binding::Field).unwrap_or_default();
             (
                 table,
                 names.into_iter().zip(table.columns.iter().map(Shape::from)).collect(),
@@ -29,6 +29,10 @@ pub(super) fn models_follow_catalog(request: &plugin::GenerateRequest, models: &
 
     for class in models.iter().filter_map(Stmt::as_class_def_stmt) {
         let what = format!("models.py: class `{}`", class.name);
+        // The errors of a `:one` live with the models, as the one module every query module reads
+        if class.bases().iter().map(unparse).eq(["LookupError"]) {
+            continue;
+        }
         if is_enum(class) {
             let (names, values): (Vec<&str>, Vec<String>) = members(class).into_iter().unzip();
             let Some(position) = enums.iter().position(|e| e.vals == values) else {

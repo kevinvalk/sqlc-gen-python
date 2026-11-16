@@ -57,6 +57,7 @@ target-version = "py310"
 select = ["ALL"]
 ignore = [
     "COM812", # conflicts with the formatter (ruff's own advice)
+    "INP001", # the package's `__init__.py` is the application's, if it wants one
     "CPY", # generated files carry no copyright header
     "D1", # docstrings come only from SQL comments, as invented ones would restate names
     # Docstrings are the user's SQL comments, verbatim: these judge what one says (punctuation, mood, capitals, its first
@@ -71,6 +72,7 @@ ignore = [
     "E741", # `l`, `I` and `O` are the schema's names, not ours to change
     "A002", # a parameter `id`, which we keep so no call site reads `id_`
     "PLR0913", # the parameter count comes from the SQL, and every parameter is keyword-only
+    "PT028", # a query named `Test...` is a function pytest would take for a test, and its nullable parameters default
 ]
 
 [tool.pyright]

@@ -79,15 +79,14 @@ def queries(case: GoldenCase, connection: object, called: set[str]) -> Any:
         modules[stem] = SimpleNamespace(**{**vars(module(case, stem)), **bound})
     api = SimpleNamespace(models=module(case, "models"), **modules)
 
-    # What a `:one` raises: SQLAlchemy's errors, or the package's own.
+    # What a `:one` raises: SQLAlchemy's errors, or those of the package's models.
     api.raises = case.options.get("raise_on_none") is True
     if case.backend == "sqlalchemy":
         api.NoRow = sqlalchemy.exc.NoResultFound
         api.MultipleRows = sqlalchemy.exc.MultipleResultsFound
     else:
-        package = importlib.import_module(case.name)
-        api.NoRow = getattr(package, "NoRowError", None)
-        api.MultipleRows = package.MultipleRowsError
+        api.NoRow = getattr(api.models, "NoRowError", None)
+        api.MultipleRows = api.models.MultipleRowsError
     return api
 
 

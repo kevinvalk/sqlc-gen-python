@@ -13,9 +13,9 @@ from uuid import UUID
 
 import psycopg
 import sqlalchemy
-from invoicing_psycopg import NoRowError
 from invoicing_psycopg import invoices as psycopg_invoices
 from invoicing_psycopg import models as psycopg_models
+from invoicing_psycopg.models import NoRowError
 from invoicing_psycopg_async import invoices as psycopg_invoices_async
 from invoicing_sqlalchemy import customers, invoices, line_items, models, payments
 from invoicing_sqlalchemy_async import invoices as invoices_async
@@ -36,6 +36,11 @@ def sync_api(conn: sqlalchemy.Connection, some: UUID) -> None:
     assert_type(invoices.list_invoice_numbers(conn, customer_id=some), list[str])
     assert_type(invoices.count_invoices(conn, customer_id=some), int)
     assert_type(invoices.issue_invoice(conn, issued_on=None, id=some), int)
+    # A nullable parameter may be left out, as `None`: a filter without its constraint.
+    assert_type(
+        invoices.search_invoices(conn, customer_id=some),
+        list[invoices.SearchInvoicesRow],
+    )
     assert_type(invoices.void_invoice(conn, id=some), sqlalchemy.CursorResult[Any])
     totals = invoices.get_invoice_totals(conn, id=some)
     assert_type(totals.subtotal, Decimal)
@@ -69,7 +74,7 @@ async def async_api(conn: AsyncConnection, some: UUID) -> None:
 
 
 def psycopg_api(conn: psycopg.Connection[Any], some: UUID) -> None:
-    # A `:one` returns its row, and raises the package's `NoRowError` without one.
+    # A `:one` returns its row, and raises the models' `NoRowError` without one.
     with contextlib.suppress(NoRowError):
         assert_type(psycopg_invoices.get_invoice(conn, id=some), psycopg_models.Invoice)
     assert_type(psycopg_invoices.get_invoice_due_date(conn, id=some), dt.date | None)
@@ -89,12 +94,11 @@ def mistakes(
 ) -> None:
     card = models.BillingPaymentMethod.CARD
     invoices.get_invoice(conn, some)  # type: ignore[call-arg]
-    invoices.search_invoices(conn, customer_id=some, status=None)  # type: ignore[call-arg]
+    invoices.search_invoices(conn, status=None)  # type: ignore[call-arg]
     invoices.list_invoices_by_status(conn, statuses=["draft"])  # type: ignore[list-item]
     payments.record_payment(
         conn,  # type: ignore[call-arg]
         invoice_id=some,
-        method=card,
         amount=Decimal(1),
         received_at=now,
     )
@@ -106,7 +110,7 @@ def mistakes(
         from_=None,
         received_at=now,
     )
-    # A record field omitted is an error, never a NULL written.
+    # A field omitted is an error, never a NULL written, but for a nullable parameter's.
     models.Customer(  # type: ignore[call-arg]
         id=some,
         name="a",

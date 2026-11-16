@@ -14,8 +14,8 @@ use crate::python::vocabulary::{
     ANY, CLASSMETHOD, CLS, DATACLASSES, FROM_ROW, LOOKUP_ERROR, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, ROW, SEQUENCE,
 };
 use crate::python::{
-    self, Expression, Function, Scope, annotate, class, docstring, forward, int, keyword, name, parameter, receiver,
-    return_, true_,
+    self, Expression, Function, Scope, ann_assign, annotate, class, docstring, forward, int, keyword, name, parameter,
+    receiver, return_, true_,
 };
 
 pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File> {
@@ -26,27 +26,23 @@ pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File
             true => "# ruff: noqa: S105\n",
             false => "",
         };
-        let contents = header.clone() + exempt + &python::render(body, &modules);
+        let contents = header.clone() + exempt + &python::render(body, &modules, config.models.module.as_deref());
         plugin::File {
             name,
             contents: contents.into_bytes(),
         }
     };
-    let init = match config.backend.defines_errors() {
+    // We write only our own modules into `out`, which may well be a package of the application's (a component's
+    // `queries.py` beside its `logic.py`), so `__init__.py` is the application's to write, and so is a `py.typed`.
+    let errors = match config.backend.defines_errors() {
         true => errors(),
         false => Vec::new(),
     };
-    // The generated package owns `out`, so we make it a regular package where relative imports resolve, and mypy and
-    // ruff (INP001) need no configuration. There is no `py.typed`, as PEP 561 reads it only at the root of the
-    // application's own distribution, which is the application's to write.
-    let mut files = vec![
-        file("__init__.py".into(), &init),
-        file("models.py".into(), &models::module(api)),
-    ];
-    files.extend(
-        (api.modules.iter()).map(|module| file(format!("{}.py", module.name), &queries::module(module, config))),
-    );
-    files
+    let models =
+        (config.models.module.is_none()).then(|| file("models.py".into(), &[errors, models::module(api)].concat()));
+    let queries =
+        (api.modules.iter()).map(|module| file(format!("{}.py", module.name), &queries::module(module, config)));
+    models.into_iter().chain(queries).collect()
 }
 
 /// We prepend the header as text, as ruff's AST has nowhere to put a `#` comment. sqlc's version makes a regenerated
@@ -67,7 +63,8 @@ fn header(sqlc_version: &str, config: &Config) -> String {
     )
 }
 
-/// For a backend whose library has no errors for a `:one` without exactly one row.
+/// For a backend whose library has no errors for a `:one` without exactly one row. They live with the models, the one
+/// module every query module reads.
 fn errors() -> Vec<ast::Stmt> {
     [
         (NO_ROW_ERROR, "A `:one` query returned no row."),
@@ -84,6 +81,7 @@ struct Attribute {
     comment: String,
     /// How `from_row` reads it from `row`, for a record built from results.
     read: Option<ast::Expr>,
+    default: Option<ast::Expr>,
 }
 
 impl Attribute {
@@ -93,16 +91,20 @@ impl Attribute {
             annotation: field.ty.annotation(scope),
             comment: String::new(),
             read: Some(field.ty.read(ROW.index(int(index)), scope)),
+            default: None,
         }
     }
 }
 
 /// A record is frozen so rows are values, slotted so a misspelt attribute is an error, and keyword-only so construction
-/// cannot depend on column order. A record of results builds itself from a
-/// driver's row by position, so duplicate column names cannot confuse it.
+/// cannot depend on column order. A record of results builds itself from a driver's row by position, so duplicate
+/// column names cannot confuse it.
 fn record(class_name: &str, comment: &str, attributes: &[Attribute]) -> ast::Stmt {
     let fields = (attributes.iter()).flat_map(|attribute| {
-        let declaration = annotate(&attribute.name, attribute.annotation.clone());
+        let declaration = match &attribute.default {
+            Some(default) => ann_assign(&attribute.name, attribute.annotation.clone(), default.clone()),
+            None => annotate(&attribute.name, attribute.annotation.clone()),
+        };
         std::iter::once(declaration).chain(documentation(&attribute.comment))
     });
     let reads: Option<Vec<ast::Keyword>> = (attributes.iter())

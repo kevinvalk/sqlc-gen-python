@@ -3,7 +3,7 @@ use crate::python::vocabulary::{ASYNCMY, DATE, MODELS};
 use crate::python::{Expression, assign, name, render, tuple};
 
 fn imports_for(reads: Vec<ast::Expr>) -> String {
-    let rendered = render(&[assign("x", tuple(reads))], &[]);
+    let rendered = render(&[assign("x", tuple(reads))], &[], None);
     rendered[..rendered.find("x = ").unwrap()].trim_end().into()
 }
 
@@ -29,7 +29,7 @@ fn a_module_imports_exactly_the_vocabulary_its_body_reads() {
 #[test]
 fn a_name_that_is_bound_is_not_read() {
     // An enum's member `UUID` is not the class its module would import.
-    let rendered = render(&[assign("UUID", name("int"))], &[]);
+    let rendered = render(&[assign("UUID", name("int"))], &[], None);
     assert_eq!(rendered, "UUID = int\n");
 }
 
@@ -80,6 +80,6 @@ fn sections_go_standard_library_third_party_relative_with_a_blank_line_between()
 fn an_overrides_module_is_imported_only_where_a_name_is_read_from_it() {
     let modules = ["app.names".to_string(), "app.types".to_string()];
     let annotation = name("app").attr("types").attr("Title");
-    let rendered = render(&[assign("x", annotation)], &modules);
+    let rendered = render(&[assign("x", annotation)], &modules, None);
     assert_eq!(rendered, "import app.types\n\nx = app.types.Title\n");
 }

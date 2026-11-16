@@ -7,14 +7,18 @@ import sqlite3
 from collections.abc import Iterable, Sequence
 from typing import Any, Final
 
-from . import MultipleRowsError, NoRowError, models
+from . import models
 
 _OPEN_ACCOUNT: Final = """INSERT INTO accounts (name, opened_on, settings) VALUES (?, ?, ?)
 RETURNING id, name, archived, opened_on, settings"""
 
 
 def open_account(
-    connection: sqlite3.Connection, *, name: str, opened_on: str, settings: str | None
+    connection: sqlite3.Connection,
+    *,
+    name: str,
+    opened_on: str,
+    settings: str | None = None,
 ) -> models.Account:
     with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
@@ -23,9 +27,9 @@ def open_account(
             case [row]:
                 return models.Account.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_ACCOUNT: Final = (
@@ -41,9 +45,9 @@ def get_account(connection: sqlite3.Connection, *, id: int) -> models.Account:
             case [row]:
                 return models.Account.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_ACCOUNT_BY_NAME: Final = (
@@ -59,9 +63,9 @@ def get_account_by_name(connection: sqlite3.Connection, *, name: str) -> models.
             case [row]:
                 return models.Account.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _ARCHIVE_ACCOUNT: Final = (
@@ -86,9 +90,9 @@ def is_archived(connection: sqlite3.Connection, *, id: int) -> bool:
             case [row]:
                 return bool(row[0])
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_ACCOUNTS: Final = (
@@ -129,9 +133,9 @@ def book(
     *,
     account_id: int,
     amount_cents: int,
-    rate: float | None,
-    memo: str | None,
-    receipt: bytes | None,
+    rate: float | None = None,
+    memo: str | None = None,
+    receipt: bytes | None = None,
 ) -> None:
     with contextlib.closing(connection.cursor()) as cur:
         cur.execute(_BOOK, (account_id, amount_cents, rate, memo, receipt))
@@ -146,7 +150,7 @@ _BOOK_MANY: Final = (
 class BookManyParams:
     account_id: int
     amount_cents: int
-    memo: str | None
+    memo: str | None = None
 
 
 def book_many(connection: sqlite3.Connection, rows: Iterable[BookManyParams]) -> None:
@@ -165,7 +169,7 @@ def book_returning_id(
     *,
     account_id: int,
     amount_cents: int,
-    memo: str | None,
+    memo: str | None = None,
 ) -> int:
     with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
@@ -175,9 +179,9 @@ def book_returning_id(
                 value: int = row[0]
                 return value
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _BALANCE: Final = """SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS balance_cents
@@ -193,9 +197,9 @@ def balance(connection: sqlite3.Connection, *, account_id: int) -> int:
                 value: int = row[0]
                 return value
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _COUNT_ENTRIES: Final = """SELECT count(*) AS entries, count(*) FILTER (WHERE amount_cents < 0) AS debits
@@ -225,9 +229,9 @@ def count_entries(
             case [row]:
                 return CountEntriesRow.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_AMOUNTS: Final = """SELECT amount_cents, count(*) OVER () AS entries
@@ -325,7 +329,7 @@ ORDER BY id"""
 
 
 def list_memos(
-    connection: sqlite3.Connection, *, pattern: str | None, account_id: int
+    connection: sqlite3.Connection, *, pattern: str | None = None, account_id: int
 ) -> list[str | None]:
     """Entries with a memo matching the pattern, in the account or every account."""
     with contextlib.closing(connection.cursor()) as cur:
@@ -414,9 +418,9 @@ def get_last_amount(connection: sqlite3.Connection, *, id: int) -> GetLastAmount
             case [row]:
                 return GetLastAmountRow.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _DELETE_ENTRIES: Final = "DELETE FROM entries WHERE account_id = ?"

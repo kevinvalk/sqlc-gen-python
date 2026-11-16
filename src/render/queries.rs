@@ -5,7 +5,7 @@ use crate::api::models::Field;
 use crate::api::queries::{Module, Query, RowField, Takes};
 use crate::config::Config;
 use crate::python::vocabulary::{CONNECTION, FINAL, FROM_ROW, ITERABLE, MODELS, PARAMS, ROW, ROWS};
-use crate::python::{Expression, Function, Scope, ann_assign, int, name, parameter, stmts, unless_none};
+use crate::python::{Expression, Function, Scope, ann_assign, int, name, none, parameter, stmts, unless_none};
 
 /// For each query its statement, its class if it has one, and its function.
 pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
@@ -56,6 +56,7 @@ fn row_class(class: &str, fields: &[RowField]) -> ast::Stmt {
                         annotation,
                         comment: String::new(),
                         read: Some(read),
+                        default: None,
                     }
                 }
             }
@@ -72,9 +73,17 @@ fn params_class(class: &str, parameters: &[Field]) -> ast::Stmt {
             annotation: parameter.ty.annotation(Scope::Queries),
             comment: String::new(),
             read: None,
+            default: optional(parameter),
         })
         .collect();
     record(class, "", &attributes)
+}
+
+/// A nullable parameter may be left out, as `None`: it is how a query says a filter has no constraint
+/// (`sqlc.narg(ids) IS NULL OR ...`) or a partial update leaves a column as it is (`coalesce(sqlc.narg(name), name)`),
+/// so a caller passes only what it has, `**` a dict of it included.
+fn optional(parameter: &Field) -> Option<ast::Expr> {
+    parameter.ty.optional.then(none)
 }
 
 /// The connection, then each parameter keyword-only, or all of them as one record, or the rows it runs for.
@@ -85,7 +94,10 @@ fn function(query: &Query, config: &Config) -> ast::Stmt {
         Takes::Rows(class) => (Some(parameter(ROWS, ITERABLE.index(name(class)))), vec![]),
         Takes::Keywords => {
             let keywords = (query.params.iter())
-                .map(|query_parameter| parameter(&query_parameter.name, query_parameter.ty.annotation(Scope::Queries)))
+                .map(|query_parameter| ast::ParameterWithDefault {
+                    default: optional(query_parameter).map(Box::new),
+                    ..parameter(&query_parameter.name, query_parameter.ty.annotation(Scope::Queries))
+                })
                 .collect();
             (None, keywords)
         }

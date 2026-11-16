@@ -584,6 +584,19 @@ fn a_column_is_null_where_every_source_it_may_be_of_may_be_without_a_row() {
 }
 
 #[test]
+fn a_bare_column_is_of_the_table_in_the_schema_sqlc_reports() {
+    // Two tables of one name are two sources only in two schemas, which sqlc tells apart and so must we
+    let sql = "SELECT label FROM a.items AS x LEFT JOIN b.items AS y ON y.id = x.id";
+    assert_eq!(outer_of(sql, &["b.items"]), [true]);
+    assert_eq!(outer_of(sql, &["a.items"]), [false]);
+    // A source the statement does not qualify is in whichever schema the search path finds
+    assert_eq!(
+        outer_of("SELECT label FROM a LEFT JOIN items ON z", &["data.items"]),
+        [true]
+    );
+}
+
+#[test]
 fn a_qualified_column_is_its_qualifiers_source_and_a_bare_one_its_tables() {
     // sqlc names the table whatever its alias, so only a qualifier tells which of two sources of one table it is
     let boss = "SELECT e.name, m.name AS boss, name FROM staff e LEFT JOIN staff m ON m.id = e.boss";

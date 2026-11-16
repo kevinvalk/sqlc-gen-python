@@ -1,6 +1,6 @@
 use ruff_python_ast::visitor::{Visitor, walk_expr};
 use ruff_python_ast::{Expr, Stmt, StmtFunctionDef};
-use sqlc_gen_python::api::names::Repeats;
+use sqlc_gen_python::api::names::{Binding, Repeats};
 use sqlc_gen_python::backend::Backend;
 use sqlc_gen_python::config::Config;
 use sqlc_gen_python::engine::Engine;
@@ -124,7 +124,7 @@ pub(super) fn result_follows_sqlc(
                     })
                     .collect();
                 let what = format!("{}: class `{}`", query.name, class.name);
-                named_after(&what, &fields, &spellings, Repeats::Numbered, problems);
+                named_after(&what, &fields, &spellings, Repeats::Numbered, Binding::Field, problems);
                 let comments = query.columns.iter().map(|c| c.comment.as_str());
                 documented(&what, class, "", comments, problems);
             }

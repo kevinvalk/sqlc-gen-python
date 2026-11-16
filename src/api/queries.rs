@@ -8,7 +8,7 @@ use ruff_python_ast as ast;
 use ruff_python_stdlib::builtins::is_python_builtin;
 
 use super::models::{Field, FieldType, Model};
-use super::names::{self, Repeats};
+use super::names::{self, Binding, Repeats};
 use super::resolver::Resolver;
 use super::{Problems, params, results};
 use crate::config::Config;
@@ -303,7 +303,7 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
 
     // A module-level function also takes the trailing `_` for a builtin it
     // would hide (`Any` is `any_`, ruff A001).
-    let function = names::names(&[query.name.as_str()], Repeats::Forbidden)?.remove(0);
+    let function = names::names(&[query.name.as_str()], Repeats::Forbidden, Binding::Parameter)?.remove(0);
     let function = match is_python_builtin(&function, 10, false) {
         true => function + "_",
         false => function,

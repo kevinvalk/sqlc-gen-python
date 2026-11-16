@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use heck::ToSnakeCase;
 
 use super::models::Field;
-use super::names::{self, Repeats};
+use super::names::{self, Binding, Repeats};
 use super::resolver::Resolver;
 use crate::engine::Engine;
 use crate::plugin;
@@ -71,7 +71,10 @@ pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> R
         .collect();
     let spellings: Vec<&str> = firsts.iter().map(|&(_, spelling)| spelling).collect();
     let mut names: Vec<String> = vec![String::new(); columns.len()];
-    for ((i, _), name) in firsts.iter().zip(names::names(&spellings, Repeats::Numbered)?) {
+    for ((i, _), name) in firsts
+        .iter()
+        .zip(names::names(&spellings, Repeats::Numbered, Binding::Parameter)?)
+    {
         names[*i] = name;
     }
     for (i, repeat) in repeats.iter().enumerate() {

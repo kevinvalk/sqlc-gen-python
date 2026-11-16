@@ -10,7 +10,7 @@ import psycopg
 from psycopg.rows import tuple_row
 from psycopg.types.json import Jsonb
 
-from . import MultipleRowsError, NoRowError, models
+from . import models
 
 _CREATE_CUSTOMER: Final = """INSERT INTO customers (name, email, tags, preferred_method, accepted_methods, metadata)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -21,11 +21,11 @@ def create_customer(
     connection: psycopg.Connection[Any],
     *,
     name: str,
-    email: str | None,
+    email: str | None = None,
     tags: list[str],
-    preferred_method: models.BillingPaymentMethod | None,
+    preferred_method: models.BillingPaymentMethod | None = None,
     accepted_methods: list[models.BillingPaymentMethod],
-    metadata: object | None,
+    metadata: object | None = None,
 ) -> models.Customer:
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(
@@ -43,9 +43,9 @@ def create_customer(
             case [row]:
                 return models.Customer.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_CUSTOMER: Final = "SELECT id, name, email, tags, preferred_method, accepted_methods, metadata, created_at FROM customers WHERE id = $1"
@@ -58,9 +58,9 @@ def get_customer(connection: psycopg.Connection[Any], *, id: UUID) -> models.Cus
             case [row]:
                 return models.Customer.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_CUSTOMER_BY_NAME: Final = "SELECT id, name, email, tags, preferred_method, accepted_methods, metadata, created_at FROM customers WHERE name = $1"
@@ -76,16 +76,16 @@ def get_customer_by_name(
             case [row]:
                 return models.Customer.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_CUSTOMER_ID_BY_EMAIL: Final = "SELECT id FROM customers WHERE email = $1"
 
 
 def get_customer_id_by_email(
-    connection: psycopg.Connection[Any], *, email: str | None
+    connection: psycopg.Connection[Any], *, email: str | None = None
 ) -> UUID:
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_CUSTOMER_ID_BY_EMAIL, (email,))
@@ -94,9 +94,9 @@ def get_customer_id_by_email(
                 value: UUID = row[0]
                 return value
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _GET_ACCEPTED_METHODS: Final = (
@@ -114,9 +114,9 @@ def get_accepted_methods(
             case [row]:
                 return models.BillingPaymentMethod.from_array(row[0])
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _COMPARE_ACCEPTED_METHODS: Final = """SELECT a.accepted_methods, b.accepted_methods
@@ -147,16 +147,16 @@ def compare_accepted_methods(
             case [row]:
                 return CompareAcceptedMethodsRow.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _UPDATE_CUSTOMER_EMAIL: Final = "UPDATE customers SET email = $1 WHERE id = $2"
 
 
 def update_customer_email(
-    connection: psycopg.Connection[Any], *, email: str | None, id: UUID
+    connection: psycopg.Connection[Any], *, email: str | None = None, id: UUID
 ) -> int:
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         with connection.pipeline():

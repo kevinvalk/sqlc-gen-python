@@ -32,17 +32,17 @@ _ADD_SCALARS: Final = """INSERT INTO scalars (
 async def add_scalars(
     connection: aiosqlite.Connection,
     *,
-    c_integer: int | None,
-    c_bigint: int | None,
-    c_text: str | None,
-    c_varchar: str | None,
-    c_clob: str | None,
-    c_blob: bytes | None,
-    c_real: float | None,
-    c_float: float | None,
-    c_double: float | None,
-    c_bool: bool | None,
-    c_boolean: bool | None,
+    c_integer: int | None = None,
+    c_bigint: int | None = None,
+    c_text: str | None = None,
+    c_varchar: str | None = None,
+    c_clob: str | None = None,
+    c_blob: bytes | None = None,
+    c_real: float | None = None,
+    c_float: float | None = None,
+    c_double: float | None = None,
+    c_bool: bool | None = None,
+    c_boolean: bool | None = None,
 ) -> None:
     async with connection.cursor() as cur:
         await cur.execute(

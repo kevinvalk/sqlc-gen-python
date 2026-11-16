@@ -25,7 +25,7 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
     let request = &renamed(request);
     let mut problems = Vec::new();
     let stems: BTreeSet<String> = (request.queries.iter()).map(|query| stem(&query.filename)).collect();
-    let expected: BTreeSet<String> = ["__init__.py", "models.py"]
+    let expected: BTreeSet<String> = ["models.py"]
         .map(String::from)
         .into_iter()
         .chain(stems.iter().map(|stem| format!("{stem}.py")))
@@ -33,7 +33,7 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
     let written: BTreeSet<String> = files.iter().map(|file| file.name.clone()).collect();
     if written != expected {
         problems.push(format!(
-            "wrote {written:?}, not __init__, models and one module per query file: {expected:?}"
+            "wrote {written:?}, not models and one module per query file: {expected:?}"
         ));
     }
 

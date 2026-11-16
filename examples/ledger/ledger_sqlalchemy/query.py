@@ -18,7 +18,7 @@ def open_account(
     *,
     name: str,
     opened_on: str,
-    settings: str | None,
+    settings: str | None = None,
 ) -> models.Account:
     return models.Account.from_row(
         connection.execute(
@@ -98,9 +98,9 @@ def book(
     *,
     account_id: int,
     amount_cents: int,
-    rate: float | None,
-    memo: str | None,
-    receipt: bytes | None,
+    rate: float | None = None,
+    memo: str | None = None,
+    receipt: bytes | None = None,
 ) -> None:
     connection.execute(
         _BOOK,
@@ -123,7 +123,7 @@ _BOOK_MANY: Final = sqlalchemy.text(
 class BookManyParams:
     account_id: int
     amount_cents: int
-    memo: str | None
+    memo: str | None = None
 
 
 def book_many(
@@ -146,7 +146,7 @@ def book_returning_id(
     *,
     account_id: int,
     amount_cents: int,
-    memo: str | None,
+    memo: str | None = None,
 ) -> int:
     value: int = connection.execute(
         _BOOK_RETURNING_ID,
@@ -279,7 +279,7 @@ ORDER BY id""")
 
 
 def list_memos(
-    connection: sqlalchemy.Connection, *, pattern: str | None, account_id: int
+    connection: sqlalchemy.Connection, *, pattern: str | None = None, account_id: int
 ) -> list[str | None]:
     """Entries with a memo matching the pattern, in the account or every account."""
     return list(

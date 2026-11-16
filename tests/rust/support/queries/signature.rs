@@ -1,8 +1,9 @@
 use ruff_python_ast::{Expr, StmtFunctionDef};
-use sqlc_gen_python::api::names::Repeats;
+use sqlc_gen_python::api::names::{Binding, Repeats};
 use sqlc_gen_python::plugin;
 
 use super::{Takes, uses};
+use crate::support::module::is_none_for_nullable;
 use crate::support::python::{Shape, docstring, unparse, words};
 use crate::support::records::named_after;
 
@@ -36,7 +37,14 @@ pub(super) fn function_follows_sqlc(
         .map(|parameter| parameter.column.as_ref().map_or("", |c| c.name.as_str()))
         .collect();
     let what = format!("{}: parameters", query.name);
-    named_after(&what, parameters, &spellings, Repeats::Numbered, problems);
+    named_after(
+        &what,
+        parameters,
+        &spellings,
+        Repeats::Numbered,
+        Binding::Parameter,
+        problems,
+    );
     if words(&docstring(function.body.first())) != words(&query.comments.join("\n")) {
         problems.push(format!("{}: its docstring is not its comment", query.name));
     }
@@ -68,8 +76,8 @@ pub(super) fn function_follows_sqlc(
 
 /// A query's function is safe to call when it takes `connection` first and positionally, annotated
 /// as the backend's connection, then only the `rows` of a `:copyfrom` or batch or the one record `params`, and every
-/// other parameter keyword-only. No parameter has a default, so none can be forgotten, and it is `async def` exactly
-/// when the options ask for coroutines.
+/// other parameter keyword-only. Only a nullable parameter has a default, `None`, so no other can be forgotten, and it is
+/// `async def` exactly when the options ask for coroutines.
 fn signature_is_safe(
     query: &plugin::Query,
     function: &StmtFunctionDef,
@@ -97,8 +105,16 @@ fn signature_is_safe(
         ));
     }
 
-    if parameters.iter_non_variadic_params().any(|p| p.default.is_some()) {
-        problems.push(format!("{}: a parameter has a default", query.name));
+    let defaults =
+        (parameters.iter_non_variadic_params()).filter_map(|p| Some((p.annotation()?, p.default.as_deref()?)));
+    if defaults
+        .into_iter()
+        .any(|(annotation, default)| !is_none_for_nullable(annotation, default))
+    {
+        problems.push(format!(
+            "{}: a parameter has a default, which only a nullable one may, as None",
+            query.name
+        ));
     }
     let annotation = (parameters.args.first())
         .and_then(|connection| connection.annotation())

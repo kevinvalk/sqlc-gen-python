@@ -9,7 +9,7 @@ from typing import Any, Final
 import psycopg
 from psycopg.rows import tuple_row
 
-from . import MultipleRowsError, NoRowError, models
+from . import models
 
 _ADD_DEVICE: Final = "INSERT INTO devices (ip, location, budget) VALUES ($1, $2, $3) RETURNING id, ip, location, budget, sign_in"
 
@@ -18,7 +18,7 @@ def add_device(
     connection: psycopg.Connection[Any],
     *,
     address: ipaddress.IPv4Address,
-    location: str | None,
+    location: str | None = None,
     budget: Decimal,
 ) -> models.Machine:
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
@@ -27,9 +27,9 @@ def add_device(
             case [row]:
                 return models.Machine.from_row(row)
             case []:
-                raise NoRowError
+                raise models.NoRowError
             case _:
-                raise MultipleRowsError
+                raise models.MultipleRowsError
 
 
 _LIST_DEVICES_UNDER: Final = "SELECT id, ip, location, budget, sign_in FROM devices WHERE location <@ $1::ltree ORDER BY id"

@@ -49,6 +49,7 @@ fn a_driver_is_given_sqlcs_statement_as_written() {
     let statement = python::render(
         &[python::ann_assign("_GET", FINAL, Backend::Psycopg.statement(&query))],
         &[],
+        None,
     );
     assert!(statement.ends_with("_GET: Final = \"SELECT $1\"\n"), "{statement}");
 }
@@ -105,8 +106,8 @@ fn a_one_raises_without_exactly_one_row_on_a_driver_if_asked() {
          cur.execute(_GET)\n    \
          match cur.fetchmany(2):\n        \
          case [row]:\n            value: int = row[0]\n            return value\n        \
-         case []:\n            raise NoRowError\n        \
-         case _:\n            raise MultipleRowsError"
+         case []:\n            raise models.NoRowError\n        \
+         case _:\n            raise models.MultipleRowsError"
     );
 }
 
@@ -143,6 +144,7 @@ fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
     let statement = python::render(
         &[python::ann_assign("_GET", FINAL, Backend::Pymysql.statement(&query))],
         &[],
+        None,
     );
     assert!(statement.contains(r#""SELECT %s LIKE '%%:x%%'""#), "{statement}");
     // Without parameters PyMySQL formats nothing, so nothing is doubled
@@ -154,6 +156,7 @@ fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
     let statement = python::render(
         &[python::ann_assign("_GET", FINAL, Backend::Pymysql.statement(&query))],
         &[],
+        None,
     );
     assert!(statement.contains(r#""SELECT '%:x%'""#), "{statement}");
 }
@@ -176,7 +179,7 @@ fn only_a_library_whose_stubs_need_it_has_a_prelude() {
 fn pymysqls_connection_is_named_once_for_a_type_checker_and_for_python() {
     // Bare, a type checker takes the class for a connection of plain cursors only, and subscripted it raises, as it is
     // only generic in its stubs.
-    let prelude = python::render(&Backend::Pymysql.prelude(false), &[]);
+    let prelude = python::render(&Backend::Pymysql.prelude(false), &[], None);
     assert_eq!(
         prelude,
         r"import typing
@@ -196,7 +199,7 @@ else:
 
 #[test]
 fn asyncmys_untyped_methods_are_called_through_a_protocol_of_the_modules_own() {
-    let prelude = python::render(&Backend::Pymysql.prelude(true), &[]);
+    let prelude = python::render(&Backend::Pymysql.prelude(true), &[], None);
     assert_eq!(
         prelude,
         r"import typing
@@ -284,7 +287,7 @@ fn a_one_returns_none_without_a_row_and_raises_on_a_second_by_default() {
     assert!(
         body.contains(
             "case []:\n            return None\n        \
-             case _:\n            raise MultipleRowsError"
+             case _:\n            raise models.MultipleRowsError"
         ),
         "{body}"
     );

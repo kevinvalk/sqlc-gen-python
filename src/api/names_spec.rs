@@ -40,11 +40,10 @@ fn a_column_named_like_a_keyword_takes_a_trailing_underscore() {
 }
 
 #[test]
-fn a_column_named_like_a_name_generated_code_reads_takes_a_trailing_underscore() {
-    // We write the reserved names out here instead of reading `RESERVED`, so a name dropped from it
-    // fails. In a class body `str: str` makes every later `str` annotation mean the field to mypy and pyright (and
-    // `classmethod` the decorator of `from_row`), every module the generated code imports is a name it reads, and
-    // `connection`, `row` and `value` are its locals.
+fn a_column_named_like_a_name_a_class_body_reads_takes_a_trailing_underscore() {
+    // We write the reserved names out here instead of reading `CLASS_BODY`, so a name dropped from it fails. In a class
+    // body `str: str` makes every later `str` annotation mean the field to mypy and pyright (and `classmethod` the
+    // decorator of `from_row`), and every module the generated code imports is a name it reads.
     let reserved = [
         "dataclasses",
         "dt",
@@ -55,25 +54,36 @@ fn a_column_named_like_a_name_generated_code_reads_takes_a_trailing_underscore()
         "bool",
         "bytes",
         "classmethod",
-        "connection",
         "float",
         "from_row",
         "int",
         "list",
         "object",
-        "row",
         "str",
-        "value",
     ];
     let renamed: Vec<String> = reserved.iter().map(|name| format!("{name}_")).collect();
     assert_eq!(field_names(&reserved), renamed);
     // Classes are imported by their PascalCase name, which a snake_case field cannot take, so `uuid` and `decimal` are
-    // free; `id` stays `id`, so no call site reads `id_`. And `rows` is only a parameter of a function whose other parameters are a record's
-    // fields.
-    assert_eq!(
-        field_names(&["uuid", "decimal", "datetime", "id", "rows"]),
-        ["uuid", "decimal", "datetime", "id", "rows"]
-    );
+    // free; `id` stays `id`, so no call site reads `id_`. And a function's locals are no class body's names.
+    let free = [
+        "uuid",
+        "decimal",
+        "datetime",
+        "id",
+        "rows",
+        "connection",
+        "cur",
+        "row",
+        "value",
+    ];
+    assert_eq!(field_names(&free), free);
+}
+
+#[test]
+fn a_parameter_named_like_a_local_of_the_function_takes_a_trailing_underscore() {
+    let locals = ["connection", "cur", "len", "row", "value", "str"];
+    let renamed: Vec<String> = locals.iter().map(|name| format!("{name}_")).collect();
+    assert_eq!(names(&locals, Repeats::Numbered, Binding::Parameter).unwrap(), renamed);
 }
 
 #[test]

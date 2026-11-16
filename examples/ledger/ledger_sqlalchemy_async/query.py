@@ -15,7 +15,11 @@ RETURNING id, name, archived, opened_on, settings""")
 
 
 async def open_account(
-    connection: AsyncConnection, *, name: str, opened_on: str, settings: str | None
+    connection: AsyncConnection,
+    *,
+    name: str,
+    opened_on: str,
+    settings: str | None = None,
 ) -> models.Account:
     return models.Account.from_row(
         (
@@ -100,9 +104,9 @@ async def book(
     *,
     account_id: int,
     amount_cents: int,
-    rate: float | None,
-    memo: str | None,
-    receipt: bytes | None,
+    rate: float | None = None,
+    memo: str | None = None,
+    receipt: bytes | None = None,
 ) -> None:
     await connection.execute(
         _BOOK,
@@ -125,7 +129,7 @@ _BOOK_MANY: Final = sqlalchemy.text(
 class BookManyParams:
     account_id: int
     amount_cents: int
-    memo: str | None
+    memo: str | None = None
 
 
 async def book_many(
@@ -144,7 +148,11 @@ RETURNING id""")
 
 
 async def book_returning_id(
-    connection: AsyncConnection, *, account_id: int, amount_cents: int, memo: str | None
+    connection: AsyncConnection,
+    *,
+    account_id: int,
+    amount_cents: int,
+    memo: str | None = None,
 ) -> int:
     value: int = (
         await connection.execute(
@@ -285,7 +293,7 @@ ORDER BY id""")
 
 
 async def list_memos(
-    connection: AsyncConnection, *, pattern: str | None, account_id: int
+    connection: AsyncConnection, *, pattern: str | None = None, account_id: int
 ) -> list[str | None]:
     """Entries with a memo matching the pattern, in the account or every account."""
     return list(

@@ -64,7 +64,7 @@ fn signatures_follow_sqlcs_nullability_and_array_depth() {
         // A nullable parameter that would no longer accept `None`.
         (
             "customers.py",
-            "*, email: str | None\n) -> UUID:",
+            "*, email: str | None = None\n) -> UUID:",
             "*, email: str\n) -> UUID:",
             "parameter `email`",
         ),
@@ -273,7 +273,7 @@ fn a_query_module_runs_exactly_the_sql_sqlc_wrote() {
 }
 
 #[test]
-fn the_files_are_the_init_the_models_and_one_module_per_query_file() {
+fn the_files_are_the_models_and_one_module_per_query_file() {
     let file = |name: &str, contents: &[u8]| plugin::File {
         name: name.into(),
         contents: contents.into(),
@@ -308,10 +308,10 @@ fn the_files_are_the_init_the_models_and_one_module_per_query_file() {
         ),
         (
             Box::new(|files: &mut Vec<plugin::File>| {
-                let module = files.iter_mut().find(|f| f.name == "__init__.py").unwrap();
+                let module = files.iter_mut().find(|f| f.name == "models.py").unwrap();
                 module.contents.push(0xff);
             }),
-            "__init__.py: not UTF-8",
+            "models.py: not UTF-8",
         ),
     ] {
         let problems = files_planted(edit).join("\n");
@@ -446,7 +446,7 @@ fn every_name_is_the_one_the_catalog_and_sqlc_give() {
             "payments.py",
             &[
                 (":from_,", ":sender,"),
-                ("    from_: str | None,\n", "    sender: str | None,\n"),
+                ("    from_: str | None = None,\n", "    sender: str | None = None,\n"),
                 ("\"from_\": from_,", "\"sender\": sender,"),
             ],
             "RecordPayment: parameters: [",
@@ -474,6 +474,14 @@ fn a_function_is_called_safely() {
             "invoices.py",
             "*, id: UUID) -> models.Invoice:",
             "*, id: UUID = UUID(int=0)) -> models.Invoice:",
+            "has a default",
+        ),
+        // A nullable parameter left out as something but NULL.
+        (
+            "invoicing_sqlalchemy",
+            "customers.py",
+            "*, email: str | None = None\n) -> UUID:",
+            "*, email: str | None = \"\"\n) -> UUID:",
             "has a default",
         ),
         // A coroutine where functions were asked for, and the reverse.
