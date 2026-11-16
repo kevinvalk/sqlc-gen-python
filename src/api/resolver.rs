@@ -202,7 +202,7 @@ impl<'a> Resolver<'a> {
     /// not infer, the error suggests `cast`.
     ///
     /// sqlc types a column it marks `is_func_call` by an overload it guessed (`abs(numeric)` as `bigint`), and the
-    /// other guesses are [`Engine::is_guess`]'s to tell (`docs/python-output.md` §5, rule 2).
+    /// other guesses are [`Engine::is_guess`]'s to tell.
     pub fn field_type(&self, column: &plugin::Column, is_parameter: bool, what: &str, cast: &str) -> Result<FieldType> {
         let data_type = column.data_type();
         let sql_enum = self.declared_enum(&data_type);
@@ -293,7 +293,7 @@ impl<'a> Resolver<'a> {
     }
 
     /// The enum, and its schema, that `data_type` names when the schema itself declares it. A column names its type
-    /// `schema.name`, or bare for the default schema (`docs/python-output.md` §5, rule 3).
+    /// `schema.name`, or bare for the default schema.
     ///
     /// TODO: Composite types get no class yet, so a column of one is as unknown as a type nothing declares.
     fn declared_enum(&self, data_type: &str) -> Option<(&'a plugin::Schema, &'a plugin::Enum)> {

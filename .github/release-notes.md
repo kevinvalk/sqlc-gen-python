@@ -19,20 +19,6 @@ sql:
           async: false # true for coroutines
 ```
 
-`backend` and `async` are required. The options this release takes are in
-[the output specification, §7](${SERVER}/${REPO}/blob/${TAG}/docs/python-output.md#7-options).
-The plugin needs sqlc's static analysis: with a `database` block, add
-`analyzer: {database: false}`
-([§5, rule 2](${SERVER}/${REPO}/blob/${TAG}/docs/python-output.md#type-map)).
+`backend` and `async` are required, and the options this release takes are in [its README](${SERVER}/${REPO}/blob/${TAG}/README.md#options).
 
-sqlc refuses a download whose sha256 differs. To check a downloaded file against
-`SHA256SUMS`, and that it was built from ${REF} by this repository's release
-workflow on a GitHub-hosted runner:
-
-```sh
-gh release download ${TAG} --repo ${REPO}
-sha256sum -c SHA256SUMS
-gh attestation verify sqlc-gen-python.wasm --repo ${REPO} \
-  --signer-workflow ${REPO}/.github/workflows/release.yml \
-  --source-ref ${REF} --deny-self-hosted-runners
-```
+${COMMITS}

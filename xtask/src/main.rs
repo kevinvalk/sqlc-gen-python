@@ -39,7 +39,7 @@ commands:
           prove what the generator emits against PostgreSQL and MySQL (docker,
           or SQLC_TEST_DATABASE_URL and SQLC_TEST_MYSQL_URL) and SQLite, on the
           oldest and the newest supported Python, and rewrite docs/typemap.md
-          (docs/python-output.md, \"Proof\"). With --mutants also plant bugs that
+          (docs/development.md, \"Proof\"). With --mutants also plant bugs that
           must each be caught; with --check fail instead of writing a document
           that would change
   generate REQUEST OPTIONS [OUT]

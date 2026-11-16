@@ -32,14 +32,15 @@ A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates Pytho
 
 Each is for someone else's bug, and goes when the bug does.
 
-- **asyncmy's stubs** leave the parameters of `Cursor.execute`, `executemany` and `fetchmany` unannotated, so strict pyright rejects a call of them (`reportUnknownMemberType`). A query module on asyncmy calls them through a protocol of its own, `_typed(cur)` (`docs/python-output.md` §6, "Functions", rule 2).
+- **asyncmy's stubs** leave the parameters of `Cursor.execute`, `executemany` and `fetchmany` unannotated, so strict pyright rejects a call of them (`reportUnknownMemberType`). A query module on asyncmy calls them through a protocol of its own, `_typed(cur)` (`src/backend/dbapi.rs`).
   - Fixed upstream when, after an asyncmy upgrade, `cargo xtask verify --mutants` no longer catches "asyncmy's execute called without the bridge".
-  - Then remove `Flavor::untyped`, `prelude` and `Body::typed` (`src/backend/dbapi.rs`), `Backend::prelude` and its call (`src/render/queries.rs`) if no other prelude is left, the names only they read (`src/python/vocabulary.rs`), `ASYNCMY` (`tests/rust/support/module.rs`), the mutant, their specs and the rule; make the fixed release the minimum asyncmy ("Known limitations"), and re-bless.
+  - Then remove `Flavor::untyped`, `prelude` and `Body::typed` (`src/backend/dbapi.rs`), `Backend::prelude` and its call (`src/render/queries.rs`) if no other prelude is left, the names only they read (`src/python/vocabulary.rs`), `ASYNCMY` (`tests/rust/support/module.rs`), the mutant and their specs; make the fixed release the minimum asyncmy (in the README), and re-bless.
 
 ## Testing conventions
 
 - Unit specs live in a `_spec.rs` sibling (`foo.rs` / `foo_spec.rs`, `mod.rs` / `spec.rs`). Each spec names one rule and checks it.
 - Golden output pins exact bytes: each `examples/<example>/` is a sqlc project (`sqlc.yaml`, its SQL), and each `codegen` entry's `out` beside it holds what the plugin generates, which the tests compare against. What sqlc sends for each example is captured in `tests/sqlc/examples/`. Only re-bless when you have verified the new output is *more correct*, and say why. Never bless to make a red check green.
-- Every rule in the generator should be traceable to a source of truth above.
+- Every rule in the generator should be traceable to a source of truth above, said in a comment where it is implemented and specified in its `_spec.rs`.
+- The README is what users are promised: what a query returns, the options and the known limitations. Change it with the behaviour.
 - An example's `out` directories hold only what the generator produces, and `cargo xtask bless` owns them. The invoicing cases are the acceptance fixture: `cargo xtask verify` proves them with the runtime suite in `tests/python/suite/`, and bless will not accept a change that it fails.
-- An unknown or unprobed type is an error, never `Any`; the tests reject an `Any` field. A type joins an engine's map (`src/engine/*/types.rs`), or a backend's own (`src/backend/psycopg.rs`), only with driver evidence, recorded in `docs/python-output.md` §5 and proven by `tests/python/typemap.py`: a Rust spec holds each map to an example with a column of every type in it.
+- An unknown or unprobed type is an error, never `Any`; the tests reject an `Any` field. A type joins an engine's map (`src/engine/*/types.rs`), or a backend's own (`src/backend/psycopg.rs`), only with driver evidence, proven by `tests/python/typemap.py`, which records it in `docs/typemap.md`: a Rust spec holds each map to an example with a column of every type in it.

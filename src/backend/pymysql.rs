@@ -9,8 +9,7 @@ use super::dbapi::{Driver, Flavor, Placeholders};
 use crate::python::Expression;
 use crate::python::vocabulary::{ASYNCMY, CONNECTION, PYMYSQL, Symbol};
 
-/// Both drivers format the statement with `%`, so each placeholder is `%s` and every other `%` is doubled
-/// (`docs/python-output.md` §6).
+/// Both drivers format the statement with `%`, so each placeholder is `%s` and every other `%` is doubled.
 pub const DRIVER: Driver = Driver {
     sync: Flavor {
         connection: || PYMYSQL.attr("Connection"),

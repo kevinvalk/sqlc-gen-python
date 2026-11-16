@@ -16,7 +16,7 @@ use execution::{runs_its_statement, sql_round_trips};
 use result::result_follows_sqlc;
 use signature::function_follows_sqlc;
 
-/// The module of query file `stem` implements sqlc's queries in it (`docs/python-output.md` §6). After the prelude its
+/// The module of query file `stem` implements sqlc's queries in it. After the prelude its
 /// library's stubs need, if any, it holds one statement constant and one function per query in sqlc's order, so we
 /// pair them up without repeating any naming rule. Each pair must run exactly the SQL sqlc wrote and say what sqlc
 /// says of NULL and arrays, as no type checker or runtime probe can see a non-null value annotated `X | None`.

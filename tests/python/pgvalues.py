@@ -1,7 +1,7 @@
 """PostgreSQL types and tables as a database reports them, and Hypothesis strategies of the values each type accepts.
 
 A strategy draws Python values that PostgreSQL accepts for a type and that bind through psycopg and asyncpg as the type
-map's annotation (docs/python-output.md §5). It only draws ordinary values, as ``typemap.py`` probes the edges (NaN,
+map's annotation. It only draws ordinary values, as ``typemap.py`` probes the edges (NaN,
 infinity, extremes).
 """
 
@@ -189,7 +189,7 @@ def _bare(name: str) -> str:
 
 
 def json_type(pg: Pg) -> Any:
-    """What a JSON parameter must be bound as (docs/python-output.md §6, typed statements)."""
+    """What a JSON parameter must be bound as."""
     base = (postgresql.JSONB if pg.name == "jsonb" else postgresql.JSON)(none_as_null=True)
     return postgresql.ARRAY(base, dimensions=pg.dims) if pg.dims > 0 else base
 
@@ -208,7 +208,7 @@ LIBRARY_TYPES: dict[str, Any] = {
 
 
 def sqlalchemy_type(pg: Pg) -> Any:
-    """How a range or an `hstore` must be bound and read, as the generated code does (§6), so that every driver's value
+    """How a range or an `hstore` must be bound and read, as the generated code does, so that every driver's value
     is SQLAlchemy's.
     """
     library_type = LIBRARY_TYPES.get(pg.name)
@@ -216,7 +216,7 @@ def sqlalchemy_type(pg: Pg) -> Any:
 
 
 def enum_array_type(pg: Pg) -> Any:
-    """How an enum array result must be read for psycopg to make it a list (§6)."""
+    """How an enum array result must be read for psycopg to make it a list."""
     if not (len(pg.labels) > 0 and pg.dims > 0):
         return None
 

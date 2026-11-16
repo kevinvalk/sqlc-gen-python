@@ -126,7 +126,7 @@ def strip_none(hint: Any) -> tuple[Any, bool]:
 
 
 def build(model: Any, row: Sequence[Any]) -> object:
-    """Build a model by position, as `from_row` does (docs/python-output.md §4), so we can hold `from_row` to it."""
+    """Build a model by position, as `from_row` does, so we can hold `from_row` to it."""
     hints = typing.get_type_hints(model)
     fields = dataclasses.fields(model)
     assert len(fields) == len(row), f"{model.__name__}: {len(row)} columns"
@@ -145,7 +145,7 @@ def coerce(value: object, hint: Any) -> object:
         (item,) = typing.get_args(hint)
         if isinstance(value, str):
             # NOTE: psycopg returns an array of a type it does not know (an enum's) as its text `{a,b}`, whose labels
-            # need no quoting (§5).
+            # need no quoting.
             value = [label for label in value[1:-1].split(",") if label != ""]
         return [coerce(element, item) for element in typing.cast("list[object]", value)]
     if origin in (typing.Union, types.UnionType):

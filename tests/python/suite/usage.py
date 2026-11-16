@@ -131,7 +131,7 @@ def mistakes(
 def known_holes(
     conn: sqlalchemy.Connection, some: UUID, now: dt.datetime, customer: models.Customer
 ) -> None:
-    # None of these is a type error, though each goes wrong at runtime (docs/python-output.md, "Known limitations"). If
+    # None of these is a type error, though each goes wrong at runtime ("Known limitations" in the README). If
     # one ever becomes one, move it to `mistakes`.
 
     # A `datetime` is a `date`; the drivers store different days.

@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 def read(table: Table, row: Sequence[object]) -> object:
-    """Read a row through its model's ``from_row``, which must agree with reading it by position (§4) and inhabit the
+    """Read a row through its model's ``from_row``, which must agree with reading it by position and inhabit the
     model's annotations.
     """
     record = table.model.from_row(row)
@@ -76,7 +76,7 @@ def _seeds(column: Column) -> st.SearchStrategy[object]:
 def insert(
     table: Table, values: dict[str, object], *, ctid: bool = False
 ) -> tuple[sqlalchemy.TextualSelect, dict[str, object]]:
-    """``INSERT ... RETURNING *``, typed where a driver needs it (§6), and its parameters bound as ``p0``, ``p1``, ...
+    """``INSERT ... RETURNING *``, typed where a driver needs it, and its parameters bound as ``p0``, ``p1``, ...
     whatever the column names. With ``ctid`` it returns the row's ``ctid`` after it too, to read it again by.
     """
     types = {column.name: column.pg for column in table.columns}

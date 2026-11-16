@@ -6,7 +6,7 @@ use crate::python::vocabulary::{ANY, CONNECTION, JSON, JSONB, PSYCOPG, RANGE, TU
 use crate::python::{Expression, Json, Type, ellipsis, keyword, unless_none};
 
 /// We run each statement on a raw cursor, as it takes PostgreSQL's own `$N` placeholders as sqlc writes them, and ask
-/// for tuples whatever the connection's row factory (`docs/python-output.md` §6).
+/// for tuples whatever the connection's row factory.
 pub const DRIVER: Driver = Driver {
     sync: Flavor {
         connection: || PSYCOPG.attr("Connection").index(ANY),

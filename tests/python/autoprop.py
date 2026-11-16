@@ -1,6 +1,6 @@
 """The runtime sweep: run what the generator emits for PostgreSQL against PostgreSQL.
 
-docs/python-output.md §Proof describes it; keep the two in sync. Each example seeds every table in foreign-key order and
+``docs/development.md`` describes it under Proof. Each example seeds every table in foreign-key order and
 then calls every generated function once (writers first, deletes last), in a transaction it rolls back, checking every
 argument and result against its annotation (``deep.check``). A call returned ``rows``, came back ``empty`` (``None``,
 ``NoResultFound`` or the package's ``NoRowError`` for a ``:one``), ``ran`` (``:exec`` and ``:copyfrom``), or was

@@ -1,5 +1,5 @@
 -- The acceptance fixture for the generated Python: a small invoicing domain
--- that exercises every rule in docs/python-output.md.
+-- that exercises every rule of the generator.
 
 CREATE SCHEMA billing;
 

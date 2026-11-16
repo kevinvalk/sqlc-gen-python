@@ -7,11 +7,12 @@ use crate::config::Config;
 use crate::python::vocabulary::{CONNECTION, FINAL, FROM_ROW, ITERABLE, MODELS, PARAMS, ROW, ROWS};
 use crate::python::{Expression, Function, Scope, ann_assign, int, name, parameter, stmts, unless_none};
 
-/// For each query its statement, its class if it has one, and its function (`docs/python-output.md` §6).
+/// For each query its statement, its class if it has one, and its function.
 pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
     let queries = (module.queries.iter()).flat_map(|query| {
         let parameters = (query.takes.class()).map(|class| params_class(class, &query.params));
         let row = query.row().map(|(class, fields)| row_class(class, fields));
+        // `Final` keeps the statement a literal, which psycopg's `execute` asks for (`LiteralString`)
         let statement = ann_assign(&query.constant, FINAL, config.backend.statement(query));
         let function = function(query, config);
         std::iter::once(statement)
@@ -76,8 +77,7 @@ fn params_class(class: &str, parameters: &[Field]) -> ast::Stmt {
     record(class, "", &attributes)
 }
 
-/// The connection, then each parameter keyword-only, or all of them as one record, or the rows it runs for
-/// (`docs/python-output.md` §6, "Functions").
+/// The connection, then each parameter keyword-only, or all of them as one record, or the rows it runs for.
 fn function(query: &Query, config: &Config) -> ast::Stmt {
     let (backend, asynchronous) = (config.backend, config.asynchronous);
     let (positional, keyword_only) = match &query.takes {

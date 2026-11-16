@@ -3,7 +3,7 @@
 usage: verify.py [-h] [--mutants] [--check] GENERATED
 
 GENERATED is what ``cargo test`` exported (``cargo xtask verify`` fills it). Each layer, a row of the summary at the
-end, is described in ``docs/python-output.md`` §Proof. Every layer runs on copies in a temporary directory, against one
+end, is described in ``docs/development.md`` under Proof. Every layer runs on copies in a temporary directory, against one
 PostgreSQL (Docker, or ``SQLC_TEST_DATABASE_URL``) and one MySQL (Docker, or ``SQLC_TEST_MYSQL_URL``).
 """
 

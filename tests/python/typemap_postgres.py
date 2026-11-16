@@ -173,7 +173,7 @@ async def _drive(url: sqlalchemy.URL, driver: str, probes: list[Typed]) -> None:
 def expressions(pg: Pg) -> list[tuple[str, str]]:
     """Each edge of a type and the SQL that selects it, alone or in an array as deep as the type's.
 
-    That includes NULL and empty arrays, but never a NULL item (see "Known limitations" in docs/python-output.md).
+    That includes NULL and empty arrays, but never a NULL item (see "Known limitations" in the README).
     """
 
     def nested(sql: str) -> str:
@@ -196,7 +196,7 @@ async def _edge(connection: Any, probed: Typed, driver: str, edge: str, sql: str
     columns = f"{sql}, to_json({sql})::text" if is_json else sql
     transaction = await aw(connection.begin())
     try:
-        # We read a range through SQLAlchemy's type, as the generated code does (§6, typed statements).
+        # We read a range through SQLAlchemy's type, as the generated code does.
         text = sqlalchemy.text(f"SELECT {columns}")
         ranged = sqlalchemy_type(pg)
         typed = text if ranged is None else text.columns(sqlalchemy.column("v", ranged))

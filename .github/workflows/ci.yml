@@ -1,30 +1,32 @@
+# NOTE: Every commit on main that passes CI becomes the `unstable` prerelease, and a `v*` tag on main a GitHub Release.
+# Both publish the very plugin CI ran under sqlc.
 name: CI
 
 on:
-  # Renovate merges its own branch once these checks pass on it (`automergeType: branch`), without a pull request
   push:
-    branches: ["renovate/**"]
+    # Renovate merges its own branch once these checks pass on it (`automergeType: branch`), without a pull request
+    branches: [main, "renovate/**"]
+    tags: ["v*"]
   pull_request:
-  # release.yml calls this for main and for a tag, so each is held to exactly these checks and releases exactly the
-  # plugin they built
-  workflow_call:
 
 permissions:
   contents: read
 
+# A run that publishes goes to its end, as one cancelled between deleting `unstable` and creating it again would leave
+# none. Of the commits on main that wait, only the newest runs.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref_type != 'tag' }}
 
 env:
   # Exact, and a week old before Renovate proposes it, as this uv runs in the job whose build we release.
   # tests/python/pyproject.toml holds the range a developer's own uv must be in.
   UV_VERSION: "0.13.7"
 
-# A Renovate branch that failed becomes a pull request whose push already ran these checks, so we skip that pull
-# request. Only this repository's branch is Renovate's, a fork's branch of that name is checked like any other.
-# NOTE: xtask fails loudly when what it needs is missing, and GitHub's Ubuntu runners have the Docker it needs.
 jobs:
+  # A Renovate branch that failed becomes a pull request whose push already ran these checks, so we skip that pull
+  # request. Only this repository's branch is Renovate's, a fork's branch of that name is checked like any other.
+  # NOTE: xtask fails loudly when what it needs is missing, and GitHub's Ubuntu runners have the Docker it needs.
   xtask:
     name: cargo xtask ${{ matrix.task }}
     if: >-
@@ -37,70 +39,141 @@ jobs:
       matrix:
         # With --check docs/typemap.md must already say what verify finds, so neither a hand edit nor a driver's
         # change slips by
-        task: [check, verify --mutants --check]
+        task: [check, verify --mutants --check, capture --check]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          version: ${{ env.UV_VERSION }}
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-      # rust-cache treats all of target/ as cargo's, so it restores xtask's Python environments, generated packages
-      # and captures as directories without their files, and uv will not use such an environment.
-      - run: rm -rf target/py target/gen target/capture
-      - run: cargo xtask ${{ matrix.task }}
-
-  capture:
-    name: cargo xtask capture --check
-    if: >-
-      ${{ !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/')
-      && github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           version: ${{ env.UV_VERSION }}
       # capture runs sqlc's own singularisation, which is Go. Any Go bootstraps it as sqlc's go.mod selects the
       # toolchain (GOTOOLCHAIN=auto), so `stable` is not a pin.
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - if: matrix.task == 'capture --check'
+        uses: actions/setup-go@v7.0.0
         with:
           go-version: stable
           cache: false
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: Swatinem/rust-cache@v2.9.3
       # rust-cache treats all of target/ as cargo's, so it restores xtask's Python environments, generated packages
       # and captures as directories without their files, and uv will not use such an environment.
       - run: rm -rf target/py target/gen target/capture
-      - run: cargo xtask capture --check
+      - run: cargo xtask ${{ matrix.task }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      # The plugin sqlc ran is the one we release
+      - if: matrix.task == 'capture --check'
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: sqlc-gen-python.wasm
           path: target/wasm32-wasip1/release/sqlc-gen-python.wasm
           if-no-files-found: error
 
-  # Uncached, so we prove the plugin sqlc ran is what the source and the pinned toolchain make. It needs the same host
-  # triple, as cargo mixes it into crate hashes, and the same image, which is why every job here names its release:
-  # `ubuntu-latest` moves to the next one runner by runner!
-  reproduce:
-    name: clean rebuild gives the same plugin
-    needs: capture
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+  publish:
+    name: publish the release
+    needs: xtask
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      sha256: ${{ steps.sha256.outputs.sha256 }}
+    env:
+      TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'unstable' }}
+      GH_TOKEN: ${{ github.token }}
+    permissions:
+      contents: write # create the release
+      id-token: write # sign the attestation with a Sigstore certificate
+      attestations: write # store the attestation
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The history without file contents, for the commits a release lists and whether main has the tag, and only the
+      # files the release notes are made from and the version a tag must name
+      - uses: actions/checkout@v7.0.1
         with:
-          persist-credentials: false
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            /.github/release-notes.md
+            /.prototools
+            /Cargo.toml
+          sparse-checkout-cone-mode: false
+      - if: github.ref_type == 'tag'
+        run: |
+          version=$(yq -p toml -o yaml .package.version Cargo.toml)
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::tag $TAG is not v$version, the version in Cargo.toml"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::tag $TAG is not on main"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v8.0.2
         with:
           name: sqlc-gen-python.wasm
-          path: tested
-      - run: cargo wasm
-      - run: |
-          sha256sum tested/sqlc-gen-python.wasm target/wasm32-wasip1/release/sqlc-gen-python.wasm
-          cmp tested/sqlc-gen-python.wasm target/wasm32-wasip1/release/sqlc-gen-python.wasm
+      - id: sha256
+        run: echo "sha256=$(sha256sum sqlc-gen-python.wasm | cut -d ' ' -f 1)" | tee -a "$GITHUB_OUTPUT"
+      - uses: actions/attest@v4.2.2
+        with:
+          subject-path: sqlc-gen-python.wasm
+      # A version lists the commits since the version before it, and `unstable` those since the last version. Only these
+      # variables are substituted, any other `$` in the template stays.
+      - name: Write the release notes
+        env:
+          SERVER: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          SHA256: ${{ steps.sha256.outputs.sha256 }}
+        run: |
+          export SQLC COMMITS
+          SQLC=$(yq -p toml -o yaml .sqlc .prototools)
+
+          since=$([ "$GITHUB_REF_TYPE" = tag ] && echo "$GITHUB_SHA^" || echo "$GITHUB_SHA")
+          previous=$(git describe --tags --abbrev=0 --match 'v*' "$since" 2> /dev/null || true)
+          COMMITS="## Commits${previous:+ since $previous}
+
+          $(git log --format='- %s (%h)' ${previous:+"$previous.."}"$GITHUB_SHA")"
+
+          # shellcheck disable=SC2016 # names the variables, unexpanded
+          envsubst '$SERVER $REPO $TAG $SHA256 $SQLC $COMMITS' < .github/release-notes.md > notes.md
+      - if: github.ref_type == 'tag'
+        run: gh release create "$TAG" --verify-tag --notes-file notes.md sqlc-gen-python.wasm
+      # The tag moves with main, so we create the release anew, and never as the latest release, which stays the last
+      # version
+      - if: github.ref_type == 'branch'
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release delete "$TAG" --cleanup-tag --yes
+          fi
+          gh release create "$TAG" --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "$TAG" --notes-file notes.md sqlc-gen-python.wasm
+          # `--target` is ignored for a tag that already exists, so one a delete left behind would keep this plugin on
+          # an older commit!
+          tagged=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)
+          if [ "$tagged" != "$GITHUB_SHA" ]; then
+            echo "::error::$TAG is at $tagged, not this commit"
+            exit 1
+          fi
+
+  # The sha256 only exists once CI built the plugin, so the README follows the tag in a commit of its own.
+  # NOTE: A push by this token starts no workflow, so `unstable` stays the tagged plugin.
+  readme:
+    name: point the README at the release
+    needs: publish
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # push the README to main
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: main
+      # `git commit` fails when nothing changed, so a README that lost its plugin URL fails this job
+      - env:
+          SHA256: ${{ needs.publish.outputs.sha256 }}
+        run: |
+          sed -i -E \
+            -e "s|releases/download/[^/]+/sqlc-gen-python\.wasm|releases/download/$GITHUB_REF_NAME/sqlc-gen-python.wasm|" \
+            -e "s|^( +sha256: ).*|\1$SHA256|" \
+            README.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898797+github-actions[bot]@users.noreply.github.com"
+          git commit --all --message "docs: point the README at $GITHUB_REF_NAME"
+          git push

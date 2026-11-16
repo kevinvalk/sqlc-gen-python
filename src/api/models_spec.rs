@@ -164,7 +164,7 @@ fn enum_column(data_type: &str, array_dims: i32) -> Result<FieldType> {
 
 #[test]
 fn an_enum_is_found_in_the_schema_the_column_names_or_else_the_default_one() {
-    // `docs/python-output.md` §5, rule 3: two schemas may declare one name.
+    // Two schemas may declare one name.
     let class = |data_type| enum_column(data_type, 0).unwrap().element;
     assert_eq!(class("payment_method"), Type::Enum("PaymentMethod".into()));
     assert_eq!(class("public.payment_method"), Type::Enum("PaymentMethod".into()));
@@ -185,7 +185,7 @@ fn a_multi_dimensional_enum_array_is_an_error() {
 
 #[test]
 fn a_value_is_read_as_is_unless_it_holds_enum_labels() {
-    // `docs/python-output.md` §4, rule 4: both drivers return labels as `str`.
+    // Both drivers return labels as `str`.
     let row = || crate::python::name("row").index(crate::python::int(3));
     let read = |ty: FieldType, scope| crate::python::unparse(&ty.read(row(), scope));
     let status = || Type::Enum("Status".into());

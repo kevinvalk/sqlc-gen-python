@@ -40,7 +40,7 @@ pub(super) const ASYNCMY: &[&str] = &[
 ];
 
 /// The prelude `body` holds and where it starts. A query module holds one between its imports and its queries when its
-/// library's stubs need it (`docs/python-output.md` §6, "Functions", rules 1 and 2), and only these statements, to the
+/// library's stubs need it, and only these statements, to the
 /// letter, may be private, annotate with an `Any` that is not the library's own, or be a class that is no record.
 pub(super) fn prelude(body: &[Stmt], source: &str) -> Option<(usize, &'static [&'static str])> {
     [PYMYSQL, ASYNCMY].into_iter().find_map(|prelude| {
@@ -70,7 +70,7 @@ pub(super) fn module_problems(parsed: &Parsed<ModModule>, source: &str) -> Vec<S
     problems
 }
 
-/// The only comments are the header the module opens with (§1, rule 3), and its one comment for a tool is
+/// The only comments are the header the module opens with, and its one comment for a tool is
 /// `# ruff: noqa: S105`. Any other would silence a tool the static gate obeys: a `# type: ignore` both type checkers on
 /// its line, a `# noqa` ruff.
 fn comments_are_the_header(parsed: &Parsed<ModModule>, source: &str, problems: &mut Vec<String>) {
@@ -92,7 +92,7 @@ fn comments_are_the_header(parsed: &Parsed<ModModule>, source: &str, problems: &
     }
 }
 
-/// Every class but an enum and an error is a record (§4, rule 2): exactly the one dataclass decorator that makes it
+/// Every class but an enum and an error is a record: exactly the one dataclass decorator that makes it
 /// frozen, slotted and keyword-only, and no field with a default, so an omitted value is a type error and never a NULL.
 fn records_are_values(body: &[Stmt], problems: &mut Vec<String>) {
     for class in body.iter().filter_map(Stmt::as_class_def_stmt) {
@@ -177,7 +177,7 @@ fn reads_resolve(body: &[Stmt], problems: &mut Vec<String>) {
 /// No annotation mentions `Any` but the library's own: the row `from_row` reads (`row: Sequence[Any]`), what
 /// `:execresult` returns (`sqlalchemy.CursorResult[Any]`, a psycopg cursor of tuples) and a psycopg connection,
 /// whatever rows it makes. `Any` passes every type checker, so it is the one annotation the static gate cannot catch
-/// being wrong, and the generator must say what a column or parameter is or fail (`docs/python-output.md` §5).
+/// being wrong, and the generator must say what a column or parameter is or fail.
 fn annotations_are_precise(body: &[Stmt], problems: &mut Vec<String>) {
     /// Each annotation with a description for the message, and the spellings of it that are the driver's own.
     #[derive(Default)]

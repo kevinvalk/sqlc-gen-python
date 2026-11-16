@@ -1,6 +1,6 @@
 # Failures the runtime sweep must keep finding in what the generator emits for corpus cases, because sqlc reports
 # something PostgreSQL does not do and the generator is right to follow sqlc (AGENTS.md: never re-infer what sqlc
-# reports). Each is a documented limitation (docs/python-output.md, "Known limitations") or a sqlc catalog bug.
+# reports). Each is a documented limitation ("Known limitations" in the README) or a sqlc catalog bug.
 #
 # A line names the function (from its leading `.`, so it matches both the function and its coroutine) or the model and
 # the field, with any list index written as `[]`, and it only matches a value outside its annotation (an AssertionError

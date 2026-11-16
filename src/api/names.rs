@@ -15,8 +15,8 @@ use crate::python::vocabulary::{
 #[path = "names_spec.rs"]
 mod spec;
 
-/// The builtins and locals the generated code reads, which a field or parameter must not hide
-/// (`docs/python-output.md` §3.1). In a class body `str: str` makes every later `str` annotation mean the field to mypy
+/// The builtins and locals the generated code reads, which a field or parameter must not hide.
+/// In a class body `str: str` makes every later `str` annotation mean the field to mypy
 /// and pyright, and `classmethod: str` the decorator of `from_row`; in a function a parameter `row` would hide the row
 /// we read. What the code imports is [`python::is_imported`]'s to say.
 const RESERVED: &[Symbol] = &[
@@ -47,7 +47,7 @@ pub enum Repeats {
     Numbered,
 }
 
-/// The Python names of a list of columns or parameters, in order (`docs/python-output.md` §3). Each is its snake_case
+/// The Python names of a list of columns or parameters, in order. Each is its snake_case
 /// spelling, or `column_<n>` for one sqlc left unnamed as sqlc's Go codegen does, and a keyword or a name the generated
 /// code reads itself ([`RESERVED`], or an import) takes PEP 8's trailing underscore (`from_`, `str_`). Anything else
 /// that is not a public Python name is an error and never a guess, and so are two names that end up the same.

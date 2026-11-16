@@ -8,8 +8,6 @@ mod spec;
 /// What PyMySQL and asyncmy return over MySQL's text protocol, which SQLAlchemy hands through unchanged, keyed by the
 /// first word of the type sqlc reports (`bigint unsigned` is a `bigint`). sqlc names a type as MySQL does, whatever the
 /// schema spells: `INTEGER` is `int`, `REAL` is `double`, `NUMERIC` is `decimal` and `BOOL` is `tinyint`.
-///
-/// NOTE: Keep in sync with `docs/python-output.md` §5, "MySQL".
 const TYPES: &[(&str, Type)] = &[
     // What sqlc types a comparison, which MySQL returns as an integer
     ("bool", Type::BOOL_FROM_INT),

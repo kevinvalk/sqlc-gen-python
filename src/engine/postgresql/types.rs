@@ -11,8 +11,6 @@ mod spec;
 /// keyed by PostgreSQL's own name (`pg_type.typname`). A type nobody has probed does not belong here.
 /// `examples/pgtypes` has a column and an array column of each, so the runtime proof holds every entry to what the
 /// drivers return.
-///
-/// NOTE: Keep in sync with the type map in `docs/python-output.md` §5.
 const TYPES: &[(&str, Type)] = &[
     // Python has one integer type, so width only matters to the database.
     ("int2", Type::INT),
@@ -47,7 +45,8 @@ const TYPES: &[(&str, Type)] = &[
     ("timestamptz", Type::DATETIME),
     ("interval", Type::TIMEDELTA),
     ("uuid", Type::UUID),
-    // The drivers decode JSON with a configurable decoder
+    // The drivers decode JSON with a configurable decoder, so `object` is the one annotation true under every one. A
+    // recursive `JsonValue` alias fails `get_type_hints` across modules, and pydantic on Python 3.10.
     ("json", Type::JSON),
     ("jsonb", Type::JSONB),
     ("inet", Type::INET),
@@ -82,7 +81,7 @@ pub fn array_problem(data_type: &str) -> Option<&'static str> {
         .map(|(_, problem)| *problem)
 }
 
-/// Whether `data_type` is sqlc's guess instead of a type it read (`docs/python-output.md` §5, rule 2).
+/// Whether `data_type` is sqlc's guess instead of a type it read.
 ///
 /// sqlc's static analyser writes a declared or cast type by PostgreSQL's own name, `pg_catalog`-qualified where the
 /// grammar spells it as a keyword (`bigint` is `pg_catalog.int8`, `timestamptz` stays bare). It only writes SQL's

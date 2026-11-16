@@ -74,7 +74,7 @@ pub(super) fn reads_in_order(class: &StmtClassDef, widths: &[Option<usize>], pro
     }
 }
 
-/// `fields` are named as the generator names `spellings` (`docs/python-output.md` §3), in order. We need this as two
+/// `fields` are named as the generator names `spellings`, in order. We need this as two
 /// fields of one type, swapped in the SQL, the signature and `from_row` at once, pass every other check and even run.
 pub(super) fn named_after(
     what: &str,
@@ -90,7 +90,7 @@ pub(super) fn named_after(
     }
 }
 
-/// A record's docstrings are exactly its comments (§4, rule 5): the class's `comment`, then each field's own. We only
+/// A record's docstrings are exactly its comments: the class's `comment`, then each field's own. We only
 /// compare the words, as the layout is for the golden tests to pin.
 pub(super) fn documented<'a>(
     what: &str,

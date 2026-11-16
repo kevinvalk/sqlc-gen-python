@@ -34,7 +34,7 @@ pub fn check(engine: Engine, query: &Query) -> Result<()> {
     Ok(())
 }
 
-/// `sqlalchemy.text(...)`, typed only where a driver needs it (`docs/python-output.md` §6, "On SQLAlchemy", rule 4): a
+/// `sqlalchemy.text(...)`, typed only where a driver needs it: a
 /// JSON parameter binds through SQLAlchemy's JSON type, a `sqlc.slice` expands to a placeholder per item, and a column
 /// of enum arrays loads through an `ARRAY` of the enum, as psycopg would return the array's text.
 ///
@@ -121,7 +121,7 @@ pub fn result() -> ast::Expr {
     SQLALCHEMY.attr("CursorResult").index(ANY)
 }
 
-/// One execution of the statement, with the result shaped by the command (`docs/python-output.md` §6, "Functions"). A
+/// One execution of the statement, with the result shaped by the command. A
 /// batch executes once per row and collects each result.
 pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
     let rows = query.takes.rows();
@@ -137,7 +137,7 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
         .awaited(asynchronous);
 
     let (lines, value) = match &query.command {
-        // We execute nothing for no rows, as SQLAlchemy raises on an empty list (`docs/python-output.md` §6)
+        // We execute nothing for no rows, as SQLAlchemy raises on an empty list
         Command::Exec if rows => {
             return stmts![
                 assign(PARAMS, list_of(named(query), each(R, ROWS))),

@@ -1,5 +1,5 @@
 """Prove the SQL rewriting for SQLAlchemy's ``text()`` (``src/backend/sqlalchemy/text.rs``) against PostgreSQL's own
-scanner, as ``docs/python-output.md`` describes under Proof. No database is needed, so ``cargo xtask check`` runs it.
+scanner, as ``docs/development.md`` describes under Proof. No database is needed, so ``cargo xtask check`` runs it.
 
 usage: scanner.py
 """
@@ -171,7 +171,7 @@ class Rewriter:
 
 def refusal(sql: str, found: list[Placeholder]) -> str | None:
     """Why the rewriting must refuse ``sql``, if it must, checked in the order the rewriting checks. It may refuse only
-    these two (``docs/python-output.md`` §6, "On SQLAlchemy", rules 1 and 2).
+    for these.
     """
     code = [token for token in parser.scan(sql) if token.name not in {"C_COMMENT", "SQL_COMMENT"}]
     texts = [sql[token.start : token.end + 1] for token in code]

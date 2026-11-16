@@ -28,7 +28,7 @@ pub struct Module {
     pub queries: Vec<Query>,
 }
 
-/// One query, as a SQL constant, perhaps a class, and a function (`docs/python-output.md` §6).
+/// One query, as a SQL constant, perhaps a class, and a function.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Query {
     pub function: String,

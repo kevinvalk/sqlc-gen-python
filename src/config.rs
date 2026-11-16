@@ -12,7 +12,7 @@ use crate::python::{self, Annotation};
 #[path = "config_spec.rs"]
 mod spec;
 
-/// The keys under `options:` of a sqlc `codegen` entry, as `docs/python-output.md` §7 specifies them.
+/// The keys under `options:` of a sqlc `codegen` entry. Keep in sync with "Options" in the README.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)] // sqlc only shows our stderr on failure, so a typo in `sqlc.yaml` must be an error
 pub struct Config {

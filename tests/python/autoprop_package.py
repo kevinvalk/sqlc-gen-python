@@ -259,5 +259,5 @@ class Sweep:
 
 
 def module_of(filename: str) -> str:
-    """The module a query file becomes: its stem, each `-` a `_` (§1)."""
+    """The module a query file becomes: its stem, each `-` a `_`."""
     return Path(filename).stem.replace("-", "_")

@@ -18,7 +18,7 @@ cargo wasm           # build the plugin
 | `tests/sqlc/` | what sqlc sends the plugin, for `examples/` and for sqlc's own test suite (`endtoend/`) |
 | `tests/rust/` | `cargo test`: the examples byte for byte, and invariants over everything in `tests/sqlc/` |
 | `tests/python/` | type-checks and runs the generated code |
-| `docs/python-output.md` | what the plugin generates, rule by rule |
+| `docs/typemap.md` | what each driver returns for each mapped type, written by `cargo xtask verify` |
 
 To see what the plugin makes of one statement, let sqlc write the request it sends with its own `json` codegen, and run the plugin on that:
 
@@ -99,6 +99,21 @@ What a tree cannot hold is the one part that is text: the comments that open a f
 
 `Engine` and `Backend` answer each question with a `match` that names every variant, so adding one makes the compiler list everything it has to answer. The rules of each module are specified in a `_spec.rs` beside it.
 
+## Proof
+
+Each layer catches what the one before cannot see. `cargo xtask help` lists the commands.
+
+- **`cargo test`** pins every golden case byte for byte, and holds every golden and corpus output to the invariants no type checker or runtime can see (`tests/rust/corpus.rs`, each with a planted bug in `tests/rust/invariants.rs`): a NOT NULL column annotated `X | None`, two parameters bound to each other's names, a `# type: ignore`.
+- **`cargo xtask check`** runs every distinct output through the static gate (`tests/python/gate.py`): ruff with every rule, pyright strict and mypy strict, as `tests/python/pyproject.toml` sets them. And the scanner proof (`tests/python/scanner.py`) holds the `text()` rewriting to libpg_query, the scanner sqlc parses with, on a few thousand statements Hypothesis draws from what PostgreSQL scans specially.
+- **`cargo xtask verify`** (`tests/python/verify.py`) runs the generated code:
+  - the gate over `tests/python/suite/usage.py`, which pins the types application code sees and the mistakes that must stay type errors;
+  - pytest (`tests/python/suite/`): a scenario through every function of every backend, sync and async, on PostgreSQL, MySQL and SQLite, every value held to its annotation;
+  - the type probe (`tests/python/typemap.py`): every mapped type at its edges through every driver, written to `docs/typemap.md`;
+  - the runtime sweep (`tests/python/autoprop.py`): every PostgreSQL function of the golden cases and the corpus called with drawn arguments, each result compared with sqlc's own SQL run directly. What sqlc misreports is in `tests/python/known-failures.tsv`;
+  - pytest and the probe again on the newest Python, with SQLAlchemy 2.1.
+
+With `--mutants`, `verify` plants plausible generator bugs (`MUTANTS` in `verify.py`) one at a time, and the layer named for each must catch it, saying why. With `--check`, as CI runs it, a `docs/typemap.md` that would change fails the run. `cargo xtask bless` runs `verify` before it accepts a change, as a wrong type that is still well typed passes the gate.
+
 ## Releasing
 
 Every commit on `main` that passes CI is published as the `unstable` prerelease, which moves with `main`. To release a version:
@@ -106,7 +121,7 @@ Every commit on `main` that passes CI is published as the `unstable` prerelease,
 1. Set `version` in `Cargo.toml`, run `cargo xtask bless` (the header of every generated file names the version), and get it all onto `main` with CI green.
 2. `git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z`
 
-`release.yml` reruns CI on the tag and publishes the WASM, `SHA256SUMS`, a build attestation and the notes in `.github/release-notes.md`.
+CI runs on the tag, publishes the WASM, a build attestation and the notes in `.github/release-notes.md`, and then commits the release's URL and sha256 into the README on `main`.
 
 Renovate (`.github/renovate.json5`) bumps what is pinned by name: the actions, the crates of `Cargo.toml`, the toolchain, the packages of `tests/python`, the uv CI runs, ruff (the crates' tag and the Python pin together), sqlc and the databases. What only a lock file names (a dependency's own dependencies) moves when what needs it does. Each release waits a week, then is merged into `main` once CI passes on its branch, and so into `unstable`. One that fails becomes a pull request, to finish by hand:
 

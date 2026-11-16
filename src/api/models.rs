@@ -154,7 +154,7 @@ impl FieldType {
         matches!(self.element, Type::Enum(_) | Type::Converted(_))
     }
 
-    /// The expression that turns `value`, as a driver returns it, into this type (`docs/python-output.md` §4, rule 4).
+    /// The expression that turns `value`, as a driver returns it, into this type.
     /// Drivers return an enum's labels as `str`, so those become members, and a [`Type::Converted`] value becomes its
     /// type; anything else is the value itself.
     pub fn read(&self, value: impl Into<ast::Expr>, scope: Scope) -> ast::Expr {

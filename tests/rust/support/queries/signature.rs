@@ -66,7 +66,7 @@ pub(super) fn function_follows_sqlc(
     true
 }
 
-/// A query's function is safe to call (§6, "Functions") when it takes `connection` first and positionally, annotated
+/// A query's function is safe to call when it takes `connection` first and positionally, annotated
 /// as the backend's connection, then only the `rows` of a `:copyfrom` or batch or the one record `params`, and every
 /// other parameter keyword-only. No parameter has a default, so none can be forgotten, and it is `async def` exactly
 /// when the options ask for coroutines.

@@ -41,7 +41,7 @@ fn a_column_named_like_a_keyword_takes_a_trailing_underscore() {
 
 #[test]
 fn a_column_named_like_a_name_generated_code_reads_takes_a_trailing_underscore() {
-    // We write out docs/python-output.md §3, rule 1 here instead of reading `RESERVED`, so a name dropped from it
+    // We write the reserved names out here instead of reading `RESERVED`, so a name dropped from it
     // fails. In a class body `str: str` makes every later `str` annotation mean the field to mypy and pyright (and
     // `classmethod` the decorator of `from_row`), every module the generated code imports is a name it reads, and
     // `connection`, `row` and `value` are its locals.
@@ -68,7 +68,7 @@ fn a_column_named_like_a_name_generated_code_reads_takes_a_trailing_underscore()
     let renamed: Vec<String> = reserved.iter().map(|name| format!("{name}_")).collect();
     assert_eq!(field_names(&reserved), renamed);
     // Classes are imported by their PascalCase name, which a snake_case field cannot take, so `uuid` and `decimal` are
-    // free; `id` is §3, rule 2. And `rows` is only a parameter of a function whose other parameters are a record's
+    // free; `id` stays `id`, so no call site reads `id_`. And `rows` is only a parameter of a function whose other parameters are a record's
     // fields.
     assert_eq!(
         field_names(&["uuid", "decimal", "datetime", "id", "rows"]),

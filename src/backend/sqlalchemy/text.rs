@@ -1,6 +1,6 @@
 //! `text()` reads `:name` as a bind where the colon follows none of `:`, a word character and `\`, and the name is
 //! followed by neither `:` nor a word character. When it renders the statement, it turns each `\:` that starts a run of
-//! word characters not followed by `:` back into `:` (`docs/python-output.md` §6, "On SQLAlchemy").
+//! word characters not followed by `:` back into `:`.
 //!
 //! So we write each placeholder as `:name` and escape every other colon as `\:`. An escaped colon is never a bind and
 //! is always turned back, as the run after it ends at a character that is not `:` (every other colon is escaped too)

@@ -1,0 +1,2 @@
+# What the plugin generates, which GitHub then collapses in diffs and leaves out of the language statistics
+examples/**/*.py linguist-generated=true

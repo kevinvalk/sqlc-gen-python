@@ -50,18 +50,27 @@ required-version = ">=0.13.7,<0.14"
 [tool.ruff]
 target-version = "py310"
 
-# The lint contract for generated code: every rule, minus those generated code cannot or should not satisfy.
-# NOTE: Each exception is justified in docs/python-output.md, "Lint contract", so keep the two in sync. `gate.py`
-# applies exactly this to everything the plugin emits, and the developer scripts extend it in `ruff.toml`.
+# The lint contract for generated code: every rule, minus those generated code cannot or should not satisfy. `gate.py`
+# applies exactly this to everything the plugin emits, and the developer scripts extend it in `ruff.toml`. We set no
+# pydocstyle `convention`, as that would turn off more rules than these, unlisted.
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "COM812", "CPY", "D1",
+    "COM812", # conflicts with the formatter (ruff's own advice)
+    "CPY", # generated files carry no copyright header
+    "D1", # docstrings come only from SQL comments, as invented ones would restate names
+    # Docstrings are the user's SQL comments, verbatim: these judge what one says (punctuation, mood, capitals, its first
+    # word, sections), not how we lay it out
     "D205", "D214", "D215", "D400", "D401", "D402", "D403", "D404", "D405", "D406",
     "D407", "D408", "D409", "D410", "D411", "D412", "D413", "D414", "D415", "D416",
     "D417",
-    "D203", "D213", "D301", "RUF001", "RUF002",
-    "E501", "E741", "A002", "PLR0913",
+    "D203", "D213", # each conflicts with the layout we follow instead (D211, D212)
+    "D301", # a backslash in a comment is the author's, written `\\`, as a raw string cannot hold every comment
+    "RUF001", "RUF002", # SQL and its comments are the user's text: an en dash is what they wrote, not a confusable
+    "E501", # SQL is written verbatim, so its lines can be long
+    "E741", # `l`, `I` and `O` are the schema's names, not ours to change
+    "A002", # a parameter `id`, which we keep so no call site reads `id_`
+    "PLR0913", # the parameter count comes from the SQL, and every parameter is keyword-only
 ]
 
 [tool.pyright]

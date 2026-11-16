@@ -56,7 +56,7 @@ fn reads_nested_groups() {
 
 #[test]
 fn rejects_unknown_keys() {
-    // Neither the old plugins' `emit_*` flags nor options we removed (docs/python-output.md §7) may be quietly ignored
+    // Neither the old plugins' `emit_*` flags nor options we removed may be quietly ignored
     for stale in [
         r#"{"backend": "psycopg", "async": false, "emit_sync_querier": true}"#,
         r#"{"backend": "psycopg", "async": false, "package": "db"}"#,

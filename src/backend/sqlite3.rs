@@ -4,7 +4,7 @@ use super::dbapi::{Driver, Flavor, Placeholders};
 use crate::python::vocabulary::{AIOSQLITE, CONNECTION, CONTEXTLIB, CUR, SQLITE3};
 use crate::python::{Expression, assign_to, none};
 
-/// We write a bare `?` per value, as `?N` would not mix with a `sqlc.slice`'s items (`docs/python-output.md` §6).
+/// We write a bare `?` per value, as `?N` would not mix with a `sqlc.slice`'s items.
 pub const DRIVER: Driver = Driver {
     sync: Flavor {
         connection: || SQLITE3.attr("Connection"),

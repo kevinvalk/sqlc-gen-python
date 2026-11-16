@@ -156,6 +156,7 @@ fn returns(query: &Query, result: fn() -> ast::Expr) -> ast::Expr {
         Command::ExecRows | Command::ExecLastId => INT.into(),
         Command::ExecResult => result(),
         Command::One(shape) => shape.annotation(!query.raises),
+        // Eager, as a lazy generator would leave an `UPDATE ... RETURNING` unrun until someone iterates it
         Command::Many(shape) => LIST.index(shape.annotation(false)),
     };
     match query.takes.rows() {

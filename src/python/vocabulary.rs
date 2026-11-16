@@ -86,7 +86,7 @@ pub const DATETIME: Symbol = Symbol("dt.datetime");
 pub const TIME: Symbol = Symbol("dt.time");
 pub const TIMEDELTA: Symbol = Symbol("dt.timedelta");
 
-/// Everything generated code may read without defining it, and how each is imported (`docs/python-output.md` §2).
+/// Everything generated code may read without defining it, and how each is imported.
 /// [`super::render()`] imports exactly the entries a body reads, in the order written here, so this list must stay in
 /// isort's order: its sections (standard library, third-party, relative), plain `import`s before `from` imports, by
 /// module, then by name.

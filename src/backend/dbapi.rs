@@ -208,8 +208,7 @@ fn bridge(flavor: &Flavor, asynchronous: bool) -> Vec<ast::Stmt> {
     vec![class(TYPED_CURSOR, [], [PROTOCOL.into()], methods), typed.into()]
 }
 
-/// One execution of the statement on a cursor of its own, which is closed after, with the result shaped by the command
-/// (`docs/python-output.md` §6, "Functions").
+/// One execution of the statement on a cursor of its own, which is closed after, with the result shaped by the command.
 pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
     let body = Body {
         driver,

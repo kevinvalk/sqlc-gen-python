@@ -9,7 +9,7 @@ use crate::python::{
     receiver, return_, string,
 };
 
-/// The classes every query module shares (`docs/python-output.md` §4).
+/// The classes every query module shares.
 pub fn module(api: &Api) -> Vec<ast::Stmt> {
     let arrays = api.text_array_enums();
     (api.enums.iter())

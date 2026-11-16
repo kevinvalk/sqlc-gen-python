@@ -37,7 +37,8 @@ pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File
         false => Vec::new(),
     };
     // The generated package owns `out`, so we make it a regular package where relative imports resolve, and mypy and
-    // ruff (INP001) need no configuration.
+    // ruff (INP001) need no configuration. There is no `py.typed`, as PEP 561 reads it only at the root of the
+    // application's own distribution, which is the application's to write.
     let mut files = vec![
         file("__init__.py".into(), &init),
         file("models.py".into(), &models::module(api)),
@@ -68,8 +69,7 @@ fn header(sqlc_version: &str, config: &Config) -> String {
     )
 }
 
-/// For a backend whose library has no errors for a `:one` without exactly one row (`docs/python-output.md` §6,
-/// "Functions", rule 3).
+/// For a backend whose library has no errors for a `:one` without exactly one row.
 fn errors() -> Vec<ast::Stmt> {
     [
         (NO_ROW_ERROR, "A `:one` query returned no row."),
@@ -100,8 +100,8 @@ impl Attribute {
 }
 
 /// A record is frozen so rows are values, slotted so a misspelt attribute is an error, and keyword-only so construction
-/// cannot depend on column order (`docs/python-output.md` §4, rule 2). A record of results builds itself from a
-/// driver's row by position, so duplicate column names cannot confuse it (§4, rule 4).
+/// cannot depend on column order. A record of results builds itself from a
+/// driver's row by position, so duplicate column names cannot confuse it.
 fn record(class_name: &str, comment: &str, attributes: &[Attribute]) -> ast::Stmt {
     let fields = (attributes.iter()).flat_map(|attribute| {
         let declaration = annotate(&attribute.name, attribute.annotation.clone());

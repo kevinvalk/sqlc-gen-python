@@ -115,7 +115,7 @@ class Call:
         except Exception as error:
             await aw(nested.rollback())
 
-            # A `:one` without a row raises, as Go's `ErrNoRows` (§6).
+            # A `:one` without a row raises, as Go's `ErrNoRows`.
             if is_error(error, sqlalchemy.exc.NoResultFound, "NoRowError"):
                 if cmd not in {":one", ":batchone"}:
                     raise
@@ -285,7 +285,7 @@ def calls(
     module: ModuleType,
     queries: list[Json],
 ) -> list[Call]:
-    """The functions of a query file's module, paired with its queries in sqlc's order (§6)."""
+    """The functions of a query file's module, paired with its queries in sqlc's order."""
     functions = [
         value
         for name, value in vars(module).items()
