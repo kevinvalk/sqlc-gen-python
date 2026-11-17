@@ -140,7 +140,7 @@ fn imported(annotation: &ast::Expr, modules: &mut Vec<String>) -> anyhow::Result
     match annotation {
         ast::Expr::Name(name) => {
             let id = name.id.as_str();
-            if !ruff_python_stdlib::builtins::is_python_builtin(id, 10, false)
+            if !ruff_python_stdlib::builtins::is_python_builtin(id, 11, false)
                 && !TYPES.iter().any(|ty| ty.as_ref() == id)
             {
                 anyhow::bail!("`{id}` is neither a builtin nor a dotted name to import");

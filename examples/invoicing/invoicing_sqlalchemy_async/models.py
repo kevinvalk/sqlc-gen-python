@@ -10,25 +10,19 @@ from typing import Any
 from uuid import UUID
 
 
-class BillingPaymentMethod(str, enum.Enum):
+class BillingPaymentMethod(enum.StrEnum):
     BANK_TRANSFER = "bank_transfer"
     CARD = "card"
     DIRECT_DEBIT = "direct-debit"
 
-    def __str__(self) -> str:
-        return str.__str__(self)
 
-
-class InvoiceStatus(str, enum.Enum):
+class InvoiceStatus(enum.StrEnum):
     """Lifecycle of an invoice. Only drafts may be deleted."""
 
     DRAFT = "draft"
     ISSUED = "issued"
     PAID = "paid"
     VOID = "void"
-
-    def __str__(self) -> str:
-        return str.__str__(self)
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)

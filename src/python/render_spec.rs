@@ -1,5 +1,5 @@
 use super::*;
-use crate::python::vocabulary::{ENUM, FINAL, INT, SQLALCHEMY, STR};
+use crate::python::vocabulary::{ENUM, FINAL, INT, SQLALCHEMY};
 use crate::python::{Expression, Function, ann_assign, annotate, assign, class, docstring, name, none, string};
 
 fn documented(docstrings: &[&str]) -> String {
@@ -170,7 +170,7 @@ fn a_string_assigned_to_a_name_ruff_takes_for_a_secrets_trips_s105() {
     assert!(trips(class(
         "Role",
         [],
-        [STR.into(), ENUM.attr("Enum")],
+        [ENUM.attr("StrEnum")],
         [assign("PASSWORD", string("password"))],
     )));
     assert!(trips(assign("_UPDATE_USER_PASSWD", string("x"))));

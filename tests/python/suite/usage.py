@@ -9,7 +9,7 @@ import contextlib
 import datetime as dt
 import json
 from decimal import Decimal
-from typing import Any
+from typing import Any, assert_type
 from uuid import UUID
 
 import psycopg
@@ -22,7 +22,6 @@ from invoicing_sqlalchemy import customers, invoices, line_items, models, paymen
 from invoicing_sqlalchemy_async import invoices as invoices_async
 from invoicing_sqlalchemy_async import models as models_async
 from sqlalchemy.ext.asyncio import AsyncConnection
-from typing_extensions import assert_type
 
 
 def sync_api(conn: sqlalchemy.Connection, some: UUID) -> None:
@@ -59,7 +58,7 @@ def sync_api(conn: sqlalchemy.Connection, some: UUID) -> None:
         method=models.BillingPaymentMethod.CARD,
         amount=Decimal("1.00"),
         from_=None,
-        received_at=dt.datetime.now(dt.timezone.utc),
+        received_at=dt.datetime.now(dt.UTC),
     )
     assert_type(payment, models.BillingPayment)
 

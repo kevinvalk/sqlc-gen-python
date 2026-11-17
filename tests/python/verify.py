@@ -113,7 +113,7 @@ def ruff_format(source: str) -> str:
     no_magic = ["--config", "format.skip-magic-trailing-comma=true"]
     for arguments in (["check", "--select", "I", "--fix"], ["format", *no_magic]):
         source = subprocess.run(
-            [ruff, *arguments, "--isolated", "--target-version", "py310", "-"],
+            [ruff, *arguments, "--isolated", "--target-version", "py311", "-"],
             input=source,
             capture_output=True,
             text=True,
@@ -344,12 +344,13 @@ MUTANTS = {
         "    if params:\n        connection.execute(_CREATE_LINE_ITEMS, params)",
         "    connection.execute(_CREATE_LINE_ITEMS, params)",
     ),
-    "enum str() differs across Python versions": Mutant(
+    # A `str` mixin's `str(member)` is its label only before Python 3.12.
+    "enum a str mixin and not a StrEnum": Mutant(
         RUNTIME,
         "'InvoiceStatus.PAID' != 'paid'",
         "models.py",
-        '    VOID = "void"\n\n    def __str__(self) -> str:\n        return str.__str__(self)\n',
-        '    VOID = "void"\n',
+        "class InvoiceStatus(enum.StrEnum):",
+        "class InvoiceStatus(str, enum.Enum):",
     ),
     # psycopg returns an enum array as its text, which only the enum parses.
     "enum array text left unparsed": Mutant(

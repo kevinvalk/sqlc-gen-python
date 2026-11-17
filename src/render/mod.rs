@@ -8,14 +8,15 @@ use ruff_python_ast as ast;
 
 use crate::api::Api;
 use crate::api::models::Field;
-use crate::config::Config;
+use crate::config::{Config, Records};
 use crate::plugin;
 use crate::python::vocabulary::{
-    ANY, CLASSMETHOD, CLS, DATACLASSES, FROM_ROW, LOOKUP_ERROR, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, ROW, SEQUENCE,
+    ANY, CLASSMETHOD, CLS, DATACLASSES, FROM_ROW, LOOKUP_ERROR, MODEL_CONFIG, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR,
+    PYDANTIC, ROW, SEQUENCE,
 };
 use crate::python::{
-    self, Expression, Function, Scope, ann_assign, annotate, class, docstring, forward, int, keyword, name, parameter,
-    receiver, return_, true_,
+    self, Expression, Function, Scope, ann_assign, annotate, assign, class, docstring, forward, int, keyword, name,
+    parameter, receiver, return_, string, true_,
 };
 
 pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File> {
@@ -38,8 +39,12 @@ pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File
         true => errors(),
         false => Vec::new(),
     };
-    let models =
-        (config.models.module.is_none()).then(|| file("models.py".into(), &[errors, models::module(api)].concat()));
+    let models = (config.models.module.is_none()).then(|| {
+        file(
+            "models.py".into(),
+            &[errors, models::module(api, config.records)].concat(),
+        )
+    });
     let queries =
         (api.modules.iter()).map(|module| file(format!("{}.py", module.name), &queries::module(module, config)));
     models.into_iter().chain(queries).collect()
@@ -99,7 +104,7 @@ impl Attribute {
 /// A record is frozen so rows are values, slotted so a misspelt attribute is an error, and keyword-only so construction
 /// cannot depend on column order. A record of results builds itself from a driver's row by position, so duplicate
 /// column names cannot confuse it.
-fn record(class_name: &str, comment: &str, attributes: &[Attribute]) -> ast::Stmt {
+fn record(class_name: &str, comment: &str, attributes: &[Attribute], records: Records) -> ast::Stmt {
     let fields = (attributes.iter()).flat_map(|attribute| {
         let declaration = match &attribute.default {
             Some(default) => ann_assign(&attribute.name, attribute.annotation.clone(), default.clone()),
@@ -119,15 +124,32 @@ fn record(class_name: &str, comment: &str, attributes: &[Attribute]) -> ast::Stm
         }
         .into()
     });
-    let options = ["frozen", "slots", "kw_only"].map(|option| keyword(option, true_()));
-    let dataclass = DATACLASSES.attr("dataclass").call_with([], options);
-
-    class(
-        class_name,
-        [dataclass],
-        [],
-        (documentation(comment).into_iter()).chain(fields).chain(from_row),
-    )
+    let body = (documentation(comment).into_iter()).chain(fields).chain(from_row);
+    match records {
+        Records::Dataclass => {
+            let options = ["frozen", "slots", "kw_only"].map(|option| keyword(option, true_()));
+            class(
+                class_name,
+                [DATACLASSES.attr("dataclass").call_with([], options)],
+                [],
+                body,
+            )
+        }
+        // A misspelt field of a `**` dict is an error, as it is to a dataclass, and an override's type or a library's
+        // (a psycopg `Range`) is checked as an instance of its class.
+        Records::Pydantic => {
+            let options = [
+                keyword("frozen", true_()),
+                keyword("extra", string("forbid")),
+                keyword("arbitrary_types_allowed", true_()),
+            ];
+            let config = assign(MODEL_CONFIG, PYDANTIC.attr("ConfigDict").call_with([], options));
+            let mut body: Vec<ast::Stmt> = body.collect();
+            let at = usize::from(!comment.trim().is_empty());
+            body.insert(at, config);
+            class(class_name, [], [PYDANTIC.attr("BaseModel")], body)
+        }
+    }
 }
 
 fn documentation(comment: &str) -> Option<ast::Stmt> {

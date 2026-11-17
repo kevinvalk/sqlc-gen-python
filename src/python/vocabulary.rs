@@ -65,6 +65,9 @@ pub const UUID: Symbol = Symbol("UUID");
 pub const AIOSQLITE: Symbol = Symbol("aiosqlite");
 pub const ASYNCMY: Symbol = Symbol("asyncmy");
 pub const PSYCOPG: Symbol = Symbol("psycopg");
+pub const PYDANTIC: Symbol = Symbol("pydantic");
+/// What pydantic reads a model's configuration from.
+pub const MODEL_CONFIG: Symbol = Symbol("model_config");
 pub const PYMYSQL: Symbol = Symbol("pymysql");
 pub const SQLALCHEMY: Symbol = Symbol("sqlalchemy");
 pub const TUPLE_ROW: Symbol = Symbol("tuple_row");
@@ -119,6 +122,7 @@ pub(super) const VOCABULARY: [&[Import]; 3] = [
         // import binds `asyncmy` too.
         Import::Module("asyncmy.cursors", ASYNCMY),
         Import::plain(PSYCOPG),
+        Import::plain(PYDANTIC),
         Import::plain(PYMYSQL),
         Import::plain(SQLALCHEMY),
         Import::From("psycopg.rows", TUPLE_ROW),

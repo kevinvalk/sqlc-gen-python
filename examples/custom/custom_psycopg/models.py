@@ -18,12 +18,9 @@ class MultipleRowsError(LookupError):
     """A `:one` query returned more than one row."""
 
 
-class SignIn(str, enum.Enum):
+class SignIn(enum.StrEnum):
     PASSWORD = "password"
     TOKEN = "token"
-
-    def __str__(self) -> str:
-        return str.__str__(self)
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)

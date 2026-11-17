@@ -20,3 +20,10 @@ sql:
         options:
           backend: sqlalchemy
           async: true
+      - out: pgtypes_pydantic
+        plugin: python
+        options:
+          backend: psycopg
+          async: false
+          max_params: 1
+          records: pydantic

@@ -8,11 +8,12 @@ use ruff_python_parser::{Parsed, parse_module};
 use ruff_python_stdlib::builtins::is_python_builtin;
 use ruff_text_size::Ranged;
 
-use super::python::{is_enum, unparse};
+use super::python::{docstring, is_enum, unparse, unparse_stmt, unwrapped};
+use sqlc_gen_python::config::Records;
 
 pub fn check_module(source: &str) -> Vec<String> {
     match parse_module(source) {
-        Ok(parsed) => module_problems(&parsed, source, false),
+        Ok(parsed) => module_problems(&parsed, source, false, Records::Dataclass),
         Err(error) => vec![format!("does not parse: {error}")],
     }
 }
@@ -49,7 +50,12 @@ pub(super) fn prelude(body: &[Stmt], source: &str) -> Option<(usize, &'static [&
     })
 }
 
-pub(super) fn module_problems(parsed: &Parsed<ModModule>, source: &str, accepts_any: bool) -> Vec<String> {
+pub(super) fn module_problems(
+    parsed: &Parsed<ModModule>,
+    source: &str,
+    accepts_any: bool,
+    records: Records,
+) -> Vec<String> {
     let module = parsed.syntax();
     let mut own = module.body.clone();
     if let Some((start, prelude)) = prelude(&own, source) {
@@ -66,7 +72,7 @@ pub(super) fn module_problems(parsed: &Parsed<ModModule>, source: &str, accepts_
     scopes("module", &own, &mut problems);
     reads_resolve(&module.body, &mut problems);
     annotations_are_precise(&own, accepts_any, &mut problems);
-    records_are_values(&own, &mut problems);
+    records_are_values(&own, records, &mut problems);
     problems
 }
 
@@ -92,22 +98,42 @@ fn comments_are_the_header(parsed: &Parsed<ModModule>, source: &str, problems: &
     }
 }
 
-/// Every class but an enum and an error is a record: exactly the one dataclass decorator that makes it frozen, slotted
-/// and keyword-only. A record of results (it has a `from_row`) has no default, so an omitted value is a type error and
+/// Every class but an enum and an error is a record, of the one kind the options ask for: exactly the one dataclass
+/// decorator that makes it frozen, slotted and keyword-only, or a `pydantic.BaseModel` whose configuration, first after
+/// its docstring, makes it frozen, forbids a field it does not have, and checks a type pydantic does not know as an
+/// instance of its class. A record of results (it has a `from_row`) has no default, so an omitted value is a type error and
 /// never a NULL; a record of parameters defaults only a nullable one, to `None`, as a filter or a partial update leaves
 /// it out.
-fn records_are_values(body: &[Stmt], problems: &mut Vec<String>) {
+fn records_are_values(body: &[Stmt], records: Records, problems: &mut Vec<String>) {
     for class in body.iter().filter_map(Stmt::as_class_def_stmt) {
         if is_enum(class) || class.bases().iter().map(unparse).eq(["LookupError"]) {
             continue;
         }
 
-        let record_decorator = "dataclasses.dataclass(frozen=True, slots=True, kw_only=True)";
         let decorators: Vec<String> = (class.decorator_list.iter())
             .map(|decorator| unparse(&decorator.expression))
             .collect();
-        if decorators != [record_decorator] || !class.bases().is_empty() {
-            problems.push(format!("`{}` is not exactly a `@{record_decorator}`", class.name));
+        let bases: Vec<String> = class.bases().iter().map(unparse).collect();
+        let first = (class.body.iter())
+            .find(|stmt| docstring(Some(stmt)).is_empty())
+            .map(unparse_stmt);
+        let (is_record, kind) = match records {
+            Records::Dataclass => {
+                let decorator = "dataclasses.dataclass(frozen=True, slots=True, kw_only=True)";
+                (decorators == [decorator] && bases.is_empty(), format!("`@{decorator}`"))
+            }
+            Records::Pydantic => {
+                let config =
+                    "model_config = pydantic.ConfigDict(frozen=True, extra=\"forbid\", arbitrary_types_allowed=True)";
+                let is_model = decorators.is_empty() && bases == ["pydantic.BaseModel"];
+                (
+                    is_model && first.as_deref() == Some(config),
+                    format!("`pydantic.BaseModel` of `{config}`"),
+                )
+            }
+        };
+        if !is_record {
+            problems.push(format!("`{}` is not exactly a {kind}", class.name));
         }
         let is_results =
             (class.body.iter().filter_map(Stmt::as_function_def_stmt)).any(|f| f.name.as_str() == "from_row");
@@ -166,7 +192,7 @@ fn bound<'a>(scope: &str, names: impl Iterator<Item = &'a str>, problems: &mut V
     }
 }
 
-/// Every name the module reads is bound by an earlier statement, or is a builtin of Python 3.10, the oldest we support.
+/// Every name the module reads is bound by an earlier statement, or is a builtin of Python 3.11, the oldest we support.
 /// Class bodies and their annotations run on import, so a name read too early or never bound (a model annotated with
 /// a class we did not generate) is a `NameError` the moment anyone imports the module.
 fn reads_resolve(body: &[Stmt], problems: &mut Vec<String>) {
@@ -175,7 +201,7 @@ fn reads_resolve(body: &[Stmt], problems: &mut Vec<String>) {
         let mut reads = Names::default();
         reads.visit_stmt(stmt);
         for name in reads.0 {
-            if !bound.contains(name) && !is_python_builtin(name, 10, false) {
+            if !bound.contains(name) && !is_python_builtin(name, 11, false) {
                 problems.push(format!("`{name}` is read before it is bound"));
             }
         }
@@ -248,7 +274,7 @@ fn annotations_are_precise(body: &[Stmt], accepts_any: bool, problems: &mut Vec<
     for (what, annotation, drivers_own) in annotations.0 {
         let mut mentions_any = MentionsAny::default();
         mentions_any.visit_expr(annotation);
-        let written = unparse(annotation);
+        let written = unparse(unwrapped(annotation));
         let is_document = written.strip_suffix(" | None").unwrap_or(&written) == JSON_DOCUMENT;
         if mentions_any.0 && !accepts_any && !is_document && !drivers_own.contains(&written.as_str()) {
             problems.push(format!("{what} is annotated with `Any`"));
@@ -316,5 +342,5 @@ fn bindings(stmt: &Stmt) -> Vec<&str> {
 
 /// Whether `default` is `None`, for an annotation that admits it.
 pub(super) fn is_none_for_nullable(annotation: &Expr, default: &Expr) -> bool {
-    default.is_none_literal_expr() && unparse(annotation).ends_with("| None")
+    default.is_none_literal_expr() && unparse(unwrapped(annotation)).ends_with("| None")
 }

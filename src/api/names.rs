@@ -5,6 +5,7 @@ use heck::{ToShoutySnakeCase, ToSnakeCase};
 use ruff_python_stdlib::keyword::is_keyword;
 
 use super::models::Member;
+use crate::config::Records;
 use crate::python;
 use crate::python::vocabulary::{
     BOOL, BYTES, CLASSMETHOD, CONNECTION, CUR, DICT, FLOAT, FROM_ROW, INT, LEN, LIST, OBJECT, ROW, STR, Symbol, TUPLE,
@@ -36,6 +37,37 @@ const CLASS_BODY: &[Symbol] = &[
 /// read. A field cannot, as a class body's names are not a method's.
 const FUNCTION_BODY: &[Symbol] = &[CONNECTION, CUR, LEN, ROW, VALUE];
 
+/// What a field of a `pydantic.BaseModel` must not hide: pydantic warns that it shadows the attribute, and a field named
+/// `model_config` would replace the configuration. A name starting with one of pydantic's protected prefixes
+/// ([`PYDANTIC_PREFIXES`]) warns too.
+const PYDANTIC_MODEL: &[&str] = &[
+    "construct",
+    "copy",
+    "dict",
+    "from_orm",
+    "json",
+    "model_computed_fields",
+    "model_config",
+    "model_construct",
+    "model_copy",
+    "model_extra",
+    "model_fields",
+    "model_fields_set",
+    "model_json_schema",
+    "model_parametrized_name",
+    "model_post_init",
+    "model_rebuild",
+    "parse_file",
+    "parse_obj",
+    "parse_raw",
+    "schema",
+    "schema_json",
+    "update_forward_refs",
+    "validate",
+];
+
+const PYDANTIC_PREFIXES: &[&str] = &["model_dump", "model_validate"];
+
 /// Where a name is bound, which decides what it must not hide.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Binding {
@@ -54,9 +86,10 @@ pub enum Repeats {
 
 /// The Python names of a list of columns or parameters, in order. Each is its snake_case
 /// spelling, or `column_<n>` for one sqlc left unnamed as sqlc's Go codegen does, and a keyword or a name the generated
-/// code reads where it is bound ([`CLASS_BODY`], [`FUNCTION_BODY`], or an import) takes PEP 8's trailing underscore (`from_`, `str_`). Anything else
+/// code reads where it is bound ([`CLASS_BODY`], [`FUNCTION_BODY`], an import, or a pydantic model's own attribute in
+/// one, [`PYDANTIC_MODEL`]) takes PEP 8's trailing underscore (`from_`, `str_`). Anything else
 /// that is not a public Python name is an error and never a guess, and so are two names that end up the same.
-pub fn names(spellings: &[&str], repeats: Repeats, binding: Binding) -> Result<Vec<String>> {
+pub fn names(spellings: &[&str], repeats: Repeats, binding: Binding, records: Records) -> Result<Vec<String>> {
     let mut seen: HashMap<String, usize> = HashMap::new();
     let names = (spellings.iter().enumerate())
         .map(|(i, spelling)| {
@@ -71,8 +104,11 @@ pub fn names(spellings: &[&str], repeats: Repeats, binding: Binding) -> Result<V
                 _ => name,
             };
             let reads = |body: &[Symbol]| body.iter().any(|reserved| reserved.as_ref() == name);
+            let is_pydantic = records == Records::Pydantic
+                && (PYDANTIC_MODEL.contains(&name.as_str()) || PYDANTIC_PREFIXES.iter().any(|p| name.starts_with(p)));
             let reserved = reads(CLASS_BODY)
                 || (binding == Binding::Parameter && reads(FUNCTION_BODY))
+                || is_pydantic
                 || python::is_imported(&name);
             let name = match is_keyword(&name) || reserved {
                 true => name + "_",

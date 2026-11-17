@@ -3,15 +3,18 @@ use ruff_python_ast as ast;
 use super::{Attribute, documentation, record};
 use crate::api::models::Field;
 use crate::api::queries::{Module, Query, RowField, Takes};
-use crate::config::Config;
-use crate::python::vocabulary::{CONNECTION, FINAL, FROM_ROW, ITERABLE, MODELS, PARAMS, ROW, ROWS};
+use crate::config::{Config, Records};
+use crate::python::Type;
+use crate::python::vocabulary::{CONNECTION, FINAL, FROM_ROW, ITERABLE, MODELS, PARAMS, PYDANTIC, ROW, ROWS};
 use crate::python::{Expression, Function, Scope, ann_assign, int, name, none, parameter, stmts, unless_none};
 
 /// For each query its statement, its class if it has one, and its function.
 pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
     let queries = (module.queries.iter()).flat_map(|query| {
-        let parameters = (query.takes.class()).map(|class| params_class(class, &query.params));
-        let row = query.row().map(|(class, fields)| row_class(class, fields));
+        let parameters = (query.takes.class()).map(|class| params_class(class, &query.params, config.records));
+        let row = query
+            .row()
+            .map(|(class, fields)| row_class(class, fields, config.records));
         // `Final` keeps the statement a literal, which psycopg's `execute` asks for (`LiteralString`)
         let statement = ann_assign(&query.constant, FINAL, config.backend.statement(query));
         let function = function(query, config);
@@ -26,7 +29,7 @@ pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
 }
 
 /// `<Query>Row`, where an embed takes its model's columns.
-fn row_class(class: &str, fields: &[RowField]) -> ast::Stmt {
+fn row_class(class: &str, fields: &[RowField], records: Records) -> ast::Stmt {
     let mut offset = 0;
     let attributes: Vec<Attribute> = (fields.iter())
         .map(|field| {
@@ -62,21 +65,29 @@ fn row_class(class: &str, fields: &[RowField]) -> ast::Stmt {
             }
         })
         .collect();
-    record(class, "", &attributes)
+    record(class, "", &attributes, records)
 }
 
 /// `<Query>Params`: one row of a `:copyfrom` or a batch, or the one record of a query's parameters.
-fn params_class(class: &str, parameters: &[Field]) -> ast::Stmt {
+///
+/// pydantic would turn a JSON document's `True` or `1` into the `float` of its annotation, so it hands one to the
+/// encoder as it is.
+fn params_class(class: &str, parameters: &[Field], records: Records) -> ast::Stmt {
     let attributes: Vec<Attribute> = (parameters.iter())
         .map(|parameter| Attribute {
             name: parameter.name.clone(),
-            annotation: parameter.ty.parameter_annotation(),
+            annotation: match (records, &parameter.ty.element) {
+                (Records::Pydantic, Type::Json(_)) => PYDANTIC
+                    .attr("SkipValidation")
+                    .index(parameter.ty.parameter_annotation()),
+                _ => parameter.ty.parameter_annotation(),
+            },
             comment: String::new(),
             read: None,
             default: optional(parameter),
         })
         .collect();
-    record(class, "", &attributes)
+    record(class, "", &attributes, records)
 }
 
 /// A nullable parameter may be left out, as `None`: it is how a query says a filter has no constraint

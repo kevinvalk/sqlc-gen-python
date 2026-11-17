@@ -69,7 +69,7 @@ pub(super) fn queries_follow_sqlc(
     for ((query, (constant, sql)), function) in queries.into_iter().zip(statements).zip(functions) {
         let parameters = parameters(body, function);
         let takes = Takes::of(query, &config);
-        let signature = (connection_annotation.as_str(), asynchronous, takes);
+        let signature = (connection_annotation.as_str(), asynchronous, takes, config.records);
         if function_follows_sqlc(query, function, &parameters, signature, problems) {
             runs_its_statement(
                 query,

@@ -136,7 +136,7 @@ fn no_parameter_or_result_mentions_any_but_the_drivers_own() {
 fn only_dunders_and_module_constants_may_start_with_an_underscore() {
     assert_eq!(
         module(
-            "import enum\n\n_GET_INVOICE = 1\n\n\nclass A(str, enum.Enum):\n    def __str__(self) -> str:\n        return \"\"\n"
+            "import enum\n\n_GET_INVOICE = 1\n\n\nclass A(enum.StrEnum):\n    def __str__(self) -> str:\n        return \"\"\n"
         ),
         ""
     );
@@ -326,12 +326,12 @@ fn a_module_parses_is_formatted_and_binds_each_name_once_before_reading_it() {
         ("x = 1\n\n\n\n\ny = 2\n", "is not a fixpoint of ruff's formatter"),
         ("import enum\nimport enum\n", "module: `enum` is bound twice"),
         (
-            "class A(str, enum.Enum):\n    X = \"x\"\n    X = \"y\"\n",
+            "class A(enum.StrEnum):\n    X = \"x\"\n    X = \"y\"\n",
             "class A: `X` is bound twice",
         ),
         // Class bodies run on import: `B` is a NameError.
         (
-            "class A(str, enum.Enum):\n    b: B\n\n\nclass B(str, enum.Enum):\n    pass\n",
+            "class A(enum.StrEnum):\n    b: B\n\n\nclass B(enum.StrEnum):\n    pass\n",
             "`B` is read before it is bound",
         ),
     ] {
@@ -676,5 +676,26 @@ fn a_record_is_a_frozen_slotted_keyword_only_dataclass_without_defaults() {
     ] {
         let problems = planted("invoicing_sqlalchemy", file, old, new).join("\n");
         assert!(problems.contains(problem), "{new:?} not caught: {problems}");
+    }
+}
+
+#[test]
+fn a_pydantic_record_is_frozen_forbids_extra_fields_and_is_of_the_one_kind_asked_for() {
+    assert_eq!(planted("pgtypes_pydantic", "models.py", "", ""), Vec::<String>::new());
+    for (old, new) in [
+        // A record pydantic lets change, or that silently drops a misspelt field of a `**` dict
+        ("frozen=True, extra=", "frozen=False, extra="),
+        ("extra=\"forbid\", ", ""),
+        // The other kind of record, which the options did not ask for
+        (
+            "class Oddity(pydantic.BaseModel):\n    model_config = pydantic.ConfigDict(\n        frozen=True, extra=\"forbid\", arbitrary_types_allowed=True\n    )\n",
+            "@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)\nclass Oddity:\n",
+        ),
+    ] {
+        let problems = planted("pgtypes_pydantic", "models.py", old, new).join("\n");
+        assert!(
+            problems.contains("is not exactly a `pydantic.BaseModel`"),
+            "{new:?} not caught: {problems}"
+        );
     }
 }

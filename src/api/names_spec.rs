@@ -2,7 +2,7 @@ use super::*;
 use crate::api::fixtures::catalog::*;
 use crate::api::fixtures::*;
 use crate::backend::Backend;
-use crate::config::Config;
+use crate::config::{Config, Records};
 use crate::plugin;
 
 fn try_field_names(columns: &[&str]) -> Result<Vec<String>> {
@@ -83,7 +83,10 @@ fn a_column_named_like_a_name_a_class_body_reads_takes_a_trailing_underscore() {
 fn a_parameter_named_like_a_local_of_the_function_takes_a_trailing_underscore() {
     let locals = ["connection", "cur", "len", "row", "value", "str"];
     let renamed: Vec<String> = locals.iter().map(|name| format!("{name}_")).collect();
-    assert_eq!(names(&locals, Repeats::Numbered, Binding::Parameter).unwrap(), renamed);
+    assert_eq!(
+        names(&locals, Repeats::Numbered, Binding::Parameter, Records::Dataclass).unwrap(),
+        renamed
+    );
 }
 
 #[test]
@@ -162,4 +165,17 @@ fn enum_labels_that_spell_alike_are_an_error_not_a_numbered_member() {
         error.contains(r#""a-b" and "a_b" both become the Python name "A_B""#),
         "{error}"
     );
+}
+
+#[test]
+fn a_field_of_a_pydantic_model_hides_none_of_its_attributes() {
+    let spellings = ["json", "model_config", "model_dump_at", "model_id", "schema"];
+    let pydantic = names(&spellings, Repeats::Forbidden, Binding::Field, Records::Pydantic).unwrap();
+    assert_eq!(
+        pydantic,
+        ["json_", "model_config_", "model_dump_at_", "model_id", "schema_"]
+    );
+    // A dataclass has no attributes of its own to hide
+    let dataclass = names(&spellings, Repeats::Forbidden, Binding::Field, Records::Dataclass).unwrap();
+    assert_eq!(dataclass, spellings);
 }

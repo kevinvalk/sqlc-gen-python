@@ -20,29 +20,20 @@ from uuid import UUID
 from sqlalchemy.dialects import postgresql
 
 
-class AnalyticsEventKind(str, enum.Enum):
+class AnalyticsEventKind(enum.StrEnum):
     CLICK = "click"
     PAGE_VIEW = "page-view"
 
-    def __str__(self) -> str:
-        return str.__str__(self)
 
-
-class Mood(str, enum.Enum):
+class Mood(enum.StrEnum):
     SAD = "sad"
     OK = "ok"
     HAPPY = "happy"
 
-    def __str__(self) -> str:
-        return str.__str__(self)
 
-
-class WeirdMood(str, enum.Enum):
+class WeirdMood(enum.StrEnum):
     MEH = "meh"
     FINE = "fine"
-
-    def __str__(self) -> str:
-        return str.__str__(self)
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)

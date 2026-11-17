@@ -1,5 +1,6 @@
 use ruff_python_ast::{Expr, StmtFunctionDef};
 use sqlc_gen_python::api::names::{Binding, Repeats};
+use sqlc_gen_python::config::Records;
 use sqlc_gen_python::plugin;
 
 use super::{Takes, uses};
@@ -13,10 +14,10 @@ pub(super) fn function_follows_sqlc(
     query: &plugin::Query,
     function: &StmtFunctionDef,
     parameters: &[(&str, &Expr)],
-    signature: (&str, bool, Takes),
+    (connection, asynchronous, takes, records): (&str, bool, Takes, Records),
     problems: &mut Vec<String>,
 ) -> bool {
-    signature_is_safe(query, function, signature, problems);
+    signature_is_safe(query, function, (connection, asynchronous, takes), problems);
 
     let uses = uses(query);
     let firsts: Vec<&plugin::Parameter> = (query.params.iter().zip(&uses).enumerate())
@@ -42,7 +43,7 @@ pub(super) fn function_follows_sqlc(
         parameters,
         &spellings,
         Repeats::Numbered,
-        Binding::Parameter,
+        (Binding::Parameter, records),
         problems,
     );
     if words(&docstring(function.body.first())) != words(&query.comments.join("\n")) {

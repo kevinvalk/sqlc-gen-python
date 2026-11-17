@@ -1,7 +1,7 @@
 """Checks that every value crossing a generated function matches its annotation.
 
 SQLAlchemy rows from `text()` are `Any`, so the type checkers cannot see what a driver really returns and this is the
-layer that can. We are stricter than typeguard on purpose: we descend into dataclass fields and list items, reject
+layer that can. We are stricter than typeguard on purpose: we descend into record fields and list items, reject
 `bool` where `int` is declared and `datetime` where `date` is, and require enum members rather than their values.
 """
 
@@ -14,6 +14,8 @@ import typing
 import uuid
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
+
+import pydantic
 
 
 def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: C901
@@ -41,16 +43,44 @@ def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: C901
     elif origin is not None:
         assert isinstance(value, origin), f"{path}: {value!r} is not {hint}"
         bounds(value, hint, path)
-    elif dataclasses.is_dataclass(hint):
+    elif (names := record_fields(hint)) is not None:
         assert type(value) is hint, f"{path}: {type(value).__name__} is not {hint}"
         fields = typing.get_type_hints(hint)
-        for field in dataclasses.fields(hint):
-            check(getattr(value, field.name), fields[field.name], f"{path}.{field.name}")
+        for name in names:
+            check(getattr(value, name), fields[name], f"{path}.{name}")
     # The one subclass we tolerate, as asyncpg returns its own subclass of `uuid.UUID`.
     elif isinstance(hint, type) and issubclass(hint, uuid.UUID):
         assert isinstance(value, hint), f"{path}: {value!r} is not {hint.__name__}"
     else:
         assert type(value) is hint, f"{path}: {type(value).__name__} {value!r} is not {hint}"
+
+
+def refused(error: pydantic.ValidationError, hint: Any, path: str) -> typing.NoReturn:
+    """Raise what `check` raises for a value a pydantic record of `hint` (or a list of them) refused to hold, so the value
+    reads as the mismatch it would be in a dataclass; and `error` itself when `check` accepts the value.
+    """
+    record, _ = strip_none(hint)
+    if typing.get_origin(record) is list:
+        (record,) = typing.get_args(record)
+        path += "[0]"
+    if record_fields(record) is not None and record.__name__ == error.title:
+        hints = typing.get_type_hints(record)
+        for detail in error.errors():
+            field = str(detail["loc"][0])
+            check(detail["input"], hints[field], f"{path}.{field}")
+    raise error
+
+
+def record_fields(record: object) -> list[str] | None:
+    """The names of a generated record's fields in order, a dataclass's or a pydantic model's, given the record or its
+    class, or None for anything else.
+    """
+    kind = record if isinstance(record, type) else type(record)
+    if issubclass(kind, pydantic.BaseModel):
+        return list(kind.model_fields)
+    if dataclasses.is_dataclass(kind):
+        return [field.name for field in dataclasses.fields(kind)]
+    return None
 
 
 def bounds(value: object, hint: Any, path: str) -> None:
@@ -99,7 +129,10 @@ def checked(function: Callable[..., Any], called: set[str]) -> Callable[..., Any
         @functools.wraps(function)
         async def async_wrapper(*args: object, **kwargs: object) -> object:
             check_arguments(*args, **kwargs)
-            result = await function(*args, **kwargs)
+            try:
+                result = await function(*args, **kwargs)
+            except pydantic.ValidationError as error:
+                refused(error, hints["return"], f"{name}() ->")
             check(result, hints["return"], f"{name}() ->")
             return result
 
@@ -108,7 +141,10 @@ def checked(function: Callable[..., Any], called: set[str]) -> Callable[..., Any
     @functools.wraps(function)
     def wrapper(*args: object, **kwargs: object) -> object:
         check_arguments(*args, **kwargs)
-        result = function(*args, **kwargs)
+        try:
+            result = function(*args, **kwargs)
+        except pydantic.ValidationError as error:
+            refused(error, hints["return"], f"{name}() ->")
         check(result, hints["return"], f"{name}() ->")
         return result
 
@@ -128,9 +164,10 @@ def strip_none(hint: Any) -> tuple[Any, bool]:
 def build(model: Any, row: Sequence[Any]) -> object:
     """Build a model by position, as `from_row` does, so we can hold `from_row` to it."""
     hints = typing.get_type_hints(model)
-    fields = dataclasses.fields(model)
-    assert len(fields) == len(row), f"{model.__name__}: {len(row)} columns"
-    return model(**{field.name: coerce(value, hints[field.name]) for field, value in zip(fields, row, strict=True)})
+    names = record_fields(model)
+    assert names is not None, f"{model.__name__} is no record"
+    assert len(names) == len(row), f"{model.__name__}: {len(row)} columns"
+    return model(**{name: coerce(value, hints[name]) for name, value in zip(names, row, strict=True)})
 
 
 def coerce(value: object, hint: Any) -> object:

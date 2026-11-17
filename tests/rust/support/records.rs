@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use ruff_python_ast::visitor::{Visitor, walk_expr};
 use ruff_python_ast::{Expr, Stmt, StmtClassDef};
 use sqlc_gen_python::api::names::{self, Binding, Repeats};
+use sqlc_gen_python::config::Records;
 
 use super::python::{docstring, fields, is_name, unparse, words};
 
@@ -81,11 +82,11 @@ pub(super) fn named_after(
     fields: &[(&str, &Expr)],
     spellings: &[&str],
     repeats: Repeats,
-    binding: Binding,
+    (binding, records): (Binding, Records),
     problems: &mut Vec<String>,
 ) {
     let found: Vec<&str> = fields.iter().map(|(name, _)| *name).collect();
-    let expected = names::names(spellings, repeats, binding).unwrap_or_default();
+    let expected = names::names(spellings, repeats, binding, records).unwrap_or_default();
     if found != expected {
         problems.push(format!("{what}: {found:?} are not named after sqlc's {spellings:?}"));
     }

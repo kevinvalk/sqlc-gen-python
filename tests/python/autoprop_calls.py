@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 import enum
 import inspect
 import re
@@ -24,7 +23,7 @@ import pgvalues
 from autoprop_pool import PICK
 from autoprop_refusals import is_error, refused, rejected
 from postgres import aw
-from suite.deep import checked, failure, strip_none
+from suite.deep import checked, failure, record_fields, strip_none
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -258,9 +257,10 @@ def flat(result: object) -> tuple[object, ...]:
     or a bare value.
     """
     # SQLAlchemy's `Range` is a dataclass too, but one value.
-    if not dataclasses.is_dataclass(result) or isinstance(result, (type, postgresql.Range)):
+    names = None if isinstance(result, (type, postgresql.Range)) else record_fields(result)
+    if names is None:
         return (plain(result),)
-    return tuple(value for field in dataclasses.fields(result) for value in flat(getattr(result, field.name)))
+    return tuple(value for name in names for value in flat(getattr(result, name)))
 
 
 def bound(parameter: Json, value: object) -> object:
@@ -309,7 +309,7 @@ def calls(
             record = hints["params"]
         if record is not None:
             hints = typing.get_type_hints(record)
-            parameters = [field.name for field in dataclasses.fields(record)]
+            parameters = record_fields(record) or []
         params = query.get("params", [])
         if len(parameters) != len(params):
             message = f"{function.__qualname__}: {len(parameters)} parameters, sqlc has {len(params)}"

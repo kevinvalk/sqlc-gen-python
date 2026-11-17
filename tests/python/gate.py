@@ -4,7 +4,7 @@ usage: gate.py ROOT...
 
 Each ROOT holds one package per generated output (``ROOT/<package>/*.py``), and may hold modules beside them that use
 those packages, such as the runtime suite's ``usage.py``. We check under each of ``PYTHONS`` in its own environment
-synced from ``uv.lock``, so the type checkers see what that Python installs: SQLAlchemy 2.0 on 3.10, 2.1 later.
+synced from ``uv.lock``, so the type checkers see what that Python installs: SQLAlchemy 2.0 on 3.11, 2.1 later.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-PYTHONS = ("3.10", "3.15")  # The oldest supported Python and the newest stable one
+PYTHONS = ("3.11", "3.15")  # The oldest supported Python and the newest stable one
 
 PROJECT = Path(__file__).resolve().parent
 CONFIG = PROJECT / "pyproject.toml"

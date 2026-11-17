@@ -5,7 +5,7 @@
 [project]
 name = "sqlc-gen-python-tests"
 version = "0.0.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 [dependency-groups]
 # We pin exactly, so a tool upgrade that changes a verdict shows up as a diff here.
@@ -23,6 +23,8 @@ dev = [
     # rewriting to.
     "pglast==7.22",
     "psycopg[binary]==3.3.8",
+    # `records: pydantic`
+    "pydantic==2.14.3",
     # The `nodejs` extra bundles node, so pyright never downloads it at runtime
     "pyright[nodejs]==1.1.414",
     "pymysql==1.2.4",
@@ -32,14 +34,11 @@ dev = [
     # IMPORTANT: Must match the ruff crates in Cargo.toml, which the plugin formats with (tests/rust/golden.rs holds
     # the two together).
     "ruff==0.17.4",
-    # SQLAlchemy 2.1 needs Python 3.11, so users on 3.10 get 2.0. Generated code must work with both, so we test the
-    # older one on the minimum Python.
-    "sqlalchemy[asyncio]==2.0.57; python_version < '3.11'",
-    "sqlalchemy[asyncio]==2.1.8; python_version >= '3.11'",
+    # Generated code must work with SQLAlchemy 2.0 and 2.1, so we test the older one on the minimum Python.
+    "sqlalchemy[asyncio]==2.0.57; python_version < '3.12'",
+    "sqlalchemy[asyncio]==2.1.8; python_version >= '3.12'",
     "types-pymysql==1.2.4.20261111",
     "types-pyyaml==6.0.12.20261111",
-    # `assert_type` on Python 3.10, for the usage the gate type-checks (suite/usage.py)
-    "typing-extensions==4.16.0",
 ]
 
 [tool.uv]
@@ -48,7 +47,7 @@ dev = [
 required-version = ">=0.13.7,<0.14"
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 
 # The lint contract for generated code: every rule, minus those generated code cannot or should not satisfy. `gate.py`
 # applies exactly this to everything the plugin emits, and the developer scripts extend it in `ruff.toml`. We set no
@@ -77,12 +76,12 @@ ignore = [
 ]
 
 [tool.pyright]
-pythonVersion = "3.10"
+pythonVersion = "3.11"
 typeCheckingMode = "strict"
 reportUnnecessaryTypeIgnoreComment = "error"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 # Without paths we check the developer scripts and the suite (`cargo xtask check`). The gate names the generated
 # packages it checks itself, and `suite/usage.py` too, as that is written against them.

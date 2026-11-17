@@ -21,6 +21,8 @@ import sqlalchemy
 from hypothesis import strategies as st
 from sqlalchemy.dialects import postgresql
 
+from suite.deep import record_fields
+
 if TYPE_CHECKING:
     from types import ModuleType
 
@@ -176,8 +178,8 @@ def model_for(models: ModuleType | None, columns: list[Column]) -> Any:
         model
         for model in vars(models).values()
         if isinstance(model, type)
-        and dataclasses.is_dataclass(model)
-        and [_bare(f.name) for f in dataclasses.fields(model)] == names
+        and (fields := record_fields(model)) is not None
+        and [_bare(name) for name in fields] == names
     ]
     readings = {repr(list(typing.get_type_hints(c).values())) for c in candidates}
     return candidates[0] if len(readings) == 1 else None

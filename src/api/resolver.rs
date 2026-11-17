@@ -10,7 +10,7 @@ use super::inflection::singular;
 use super::models::{Field, FieldType};
 use super::names::{Binding, Repeats, names};
 use crate::backend::Backend;
-use crate::config::{Config, ModelConfig, Override, UnknownType};
+use crate::config::{Config, ModelConfig, Override, Records, UnknownType};
 use crate::engine::Engine;
 use crate::plugin;
 use crate::python::Type;
@@ -28,6 +28,8 @@ pub struct Resolver<'a> {
     rename: &'a BTreeMap<String, String>,
     backend: Backend,
     unknown_type: Option<UnknownType>,
+    /// The class of the records the names of fields are for
+    pub records: Records,
     /// The rename keys and overrides (by index) that matched something, as any other is a typo that would silently do
     /// nothing.
     used: RefCell<(BTreeSet<&'a str>, BTreeSet<usize>)>,
@@ -43,6 +45,7 @@ impl<'a> Resolver<'a> {
             rename: &config.rename,
             backend: config.backend,
             unknown_type: config.unknown_type,
+            records: config.records,
             used: RefCell::default(),
         })
     }
@@ -192,7 +195,10 @@ impl<'a> Resolver<'a> {
     /// A table's columns as fields, in order, leaving out each one with a problem after noting it under `what`.
     pub fn fields(&self, columns: &[plugin::Column], what: &str, problems: &mut Problems) -> Vec<Field> {
         let spellings: Vec<&str> = columns.iter().map(|c| self.spelling(&c.name)).collect();
-        let names = problems.take(what, names(&spellings, Repeats::Forbidden, Binding::Field));
+        let names = problems.take(
+            what,
+            names(&spellings, Repeats::Forbidden, Binding::Field, self.records),
+        );
         (names.unwrap_or_default().into_iter().zip(columns))
             .filter_map(|(name, column)| problems.take(what, self.field(name, column)))
             .collect()

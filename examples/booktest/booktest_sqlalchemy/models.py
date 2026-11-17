@@ -8,12 +8,9 @@ from collections.abc import Sequence
 from typing import Any
 
 
-class BookType(str, enum.Enum):
+class BookType(enum.StrEnum):
     FICTION = "FICTION"
     NONFICTION = "NONFICTION"
-
-    def __str__(self) -> str:
-        return str.__str__(self)
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)

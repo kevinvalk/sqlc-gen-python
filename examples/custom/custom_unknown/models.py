@@ -9,12 +9,9 @@ from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
 from typing import Any
 
 
-class SignIn(str, enum.Enum):
+class SignIn(enum.StrEnum):
     PASSWORD = "password"
     TOKEN = "token"
-
-    def __str__(self) -> str:
-        return str.__str__(self)
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)

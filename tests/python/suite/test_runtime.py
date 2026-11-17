@@ -434,10 +434,7 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     listed = await api.invoices.list_media(invoice_id=first.id)
     assert [(row.id, row.filename) for row in listed] == [(medium.id, "scan.pdf")]
 
-    assert (
-        await api.invoices.delete_draft_invoices(created_before=dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1))
-        == 1
-    )
+    assert await api.invoices.delete_draft_invoices(created_before=dt.datetime.now(dt.UTC) + dt.timedelta(days=1)) == 1
 
     # A `:one` that matches no row, or more than one, is an error, never a guess.
     assert await api.customers.get_customer_by_name(name="Bob") == bob

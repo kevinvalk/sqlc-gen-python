@@ -18,13 +18,10 @@ class MultipleRowsError(LookupError):
     """A `:one` query returned more than one row."""
 
 
-class BillingPaymentMethod(str, enum.Enum):
+class BillingPaymentMethod(enum.StrEnum):
     BANK_TRANSFER = "bank_transfer"
     CARD = "card"
     DIRECT_DEBIT = "direct-debit"
-
-    def __str__(self) -> str:
-        return str.__str__(self)
 
     @classmethod
     def from_array(cls, text: str) -> "list[BillingPaymentMethod]":
@@ -32,16 +29,13 @@ class BillingPaymentMethod(str, enum.Enum):
         return [cls(label) for label in text[1:-1].split(",") if label]
 
 
-class InvoiceStatus(str, enum.Enum):
+class InvoiceStatus(enum.StrEnum):
     """Lifecycle of an invoice. Only drafts may be deleted."""
 
     DRAFT = "draft"
     ISSUED = "issued"
     PAID = "paid"
     VOID = "void"
-
-    def __str__(self) -> str:
-        return str.__str__(self)
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)

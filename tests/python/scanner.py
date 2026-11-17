@@ -31,10 +31,10 @@ BIND = re.compile(r":zq(\d+)")
 SQLC_FUNCTIONS = {f"sqlc . {name}" for name in ("arg", "narg", "slice", "embed")}
 
 
-# A letter of Unicode 14 (Python 3.11+) and a code point not yet assigned, so `\w` on some supported Python but not on
-# 3.10. As every colon is escaped the rewriting reads the same on all of them, and drawing these proves that on the one
+# A letter of Unicode 15 (Python 3.12+) and a code point not yet assigned, so `\w` on some supported Python but not on
+# 3.11. As every colon is escaped the rewriting reads the same on all of them, and drawing these proves that on the one
 # Python we run on.
-UNSETTLED = ["\u0870", "\u0378"]
+UNSETTLED = ["\U00011f04", "\u0378"]
 
 # Inside a quote or a comment we draw anything another fragment would end, start or bind.
 BODY = [

@@ -279,7 +279,7 @@ impl GenDir {
     }
 }
 
-/// `python <arg>` in the `tests/python` uv project, in the Python 3.10 environment the static gate also uses. We keep
+/// `python <arg>` in the `tests/python` uv project, in the Python 3.11 environment the static gate also uses. We keep
 /// everything under `target/`, what Hypothesis keeps of its draws included, so nothing is created under `tests/python`
 /// or anywhere else in the tree.
 fn uv_python(arg: &str) -> Command {
@@ -290,9 +290,9 @@ fn uv_python(arg: &str) -> Command {
     let mut command = Command::new("uv");
     command
         .args(["run", "--quiet", "--project=tests/python", "--locked"])
-        .args(["--managed-python", "--python=3.10", "python", "-B", "-E", "-s"])
+        .args(["--managed-python", "--python=3.11", "python", "-B", "-E", "-s"])
         .arg(arg)
-        .env("UV_PROJECT_ENVIRONMENT", root().join("target/py/3.10"))
+        .env("UV_PROJECT_ENVIRONMENT", root().join("target/py/3.11"))
         .env("HYPOTHESIS_STORAGE_DIRECTORY", root().join("target/py/hypothesis"))
         .current_dir(root());
     command

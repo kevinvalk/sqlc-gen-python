@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import dataclasses
 from typing import TYPE_CHECKING
 
+import pydantic
 import sqlalchemy
 from hypothesis import strategies as st
 
 import pgvalues
 from autoprop_pool import PICK
 from pgvalues import enum_array_type, json_type, sqlalchemy_type
-from suite.deep import build, check
+from suite.deep import build, check, record_fields, refused
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -24,8 +24,11 @@ def read(table: Table, row: Sequence[object]) -> object:
     """Read a row through its model's ``from_row``, which must agree with reading it by position and inhabit the
     model's annotations.
     """
-    record = table.model.from_row(row)
     where = f"{table.model.__name__}.from_row on {table.sql}"
+    try:
+        record = table.model.from_row(row)
+    except pydantic.ValidationError as error:
+        refused(error, table.model, where)
     check(record, table.model, where)
     if not same(record, build(table.model, row)):
         message = f"{where}: {record!r} is not the row read by position"
@@ -38,8 +41,9 @@ def same(left: object, right: object) -> bool:
 
     We need this as a NaN is not equal to itself, and since Python 3.13 a dataclass compares its fields by ``==`` alone.
     """
-    if dataclasses.is_dataclass(left) and type(left) is type(right):
-        return all(same(getattr(left, f.name), getattr(right, f.name)) for f in dataclasses.fields(left))
+    names = record_fields(left)
+    if names is not None and type(left) is type(right):
+        return all(same(getattr(left, name), getattr(right, name)) for name in names)
     return left is right or left == right
 
 

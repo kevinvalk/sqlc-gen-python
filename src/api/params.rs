@@ -71,10 +71,12 @@ pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> R
         .collect();
     let spellings: Vec<&str> = firsts.iter().map(|&(_, spelling)| spelling).collect();
     let mut names: Vec<String> = vec![String::new(); columns.len()];
-    for ((i, _), name) in firsts
-        .iter()
-        .zip(names::names(&spellings, Repeats::Numbered, Binding::Parameter)?)
-    {
+    for ((i, _), name) in firsts.iter().zip(names::names(
+        &spellings,
+        Repeats::Numbered,
+        Binding::Parameter,
+        resolver.records,
+    )?) {
         names[*i] = name;
     }
     for (i, repeat) in repeats.iter().enumerate() {

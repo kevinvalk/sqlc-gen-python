@@ -7,7 +7,6 @@ and foreign keys from that pool.
 
 from __future__ import annotations
 
-import dataclasses
 import typing
 from collections import defaultdict
 from typing import Any
@@ -15,7 +14,7 @@ from typing import Any
 import sqlalchemy
 from hypothesis import strategies as st
 
-from suite.deep import failure
+from suite.deep import failure, record_fields
 
 # An index into what a ``Pool`` holds, taken modulo its length. What Hypothesis draws must NOT depend on the database:
 # it records each example's draws, and calls an example flaky (``FlakyStrategyDefinition``) when the same draws meet
@@ -37,13 +36,14 @@ class Pool:
 
     def harvest(self, value: object) -> None:
         """Pool a result: its fields by name, a model's also by its table's, and every value by type."""
-        if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        names = None if isinstance(value, type) else record_fields(value)
+        if names is not None:
             table = self.tables.get(type(value), "")
-            for field in dataclasses.fields(value):
-                item = getattr(value, field.name)
-                self.add(field.name.rstrip("_"), item)
+            for name in names:
+                item = getattr(value, name)
+                self.add(name.rstrip("_"), item)
                 if table != "":
-                    self.add(f"{table}.{field.name.rstrip('_')}", item)
+                    self.add(f"{table}.{name.rstrip('_')}", item)
                 self.harvest(item)
         elif isinstance(value, list):
             for item in typing.cast("list[object]", value):

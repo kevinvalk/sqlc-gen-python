@@ -11,7 +11,7 @@ use super::models::{Field, FieldType, Model};
 use super::names::{self, Binding, Repeats};
 use super::resolver::Resolver;
 use super::{Problems, params, results};
-use crate::config::Config;
+use crate::config::{Config, Records};
 use crate::engine::{Bind, Engine, Piece, Sql};
 use crate::plugin;
 use crate::python::vocabulary::{FROM_ROW, MODELS};
@@ -301,10 +301,16 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
         }
     }
 
-    // A module-level function also takes the trailing `_` for a builtin it
-    // would hide (`Any` is `any_`, ruff A001).
-    let function = names::names(&[query.name.as_str()], Repeats::Forbidden, Binding::Parameter)?.remove(0);
-    let function = match is_python_builtin(&function, 10, false) {
+    // A module-level function also takes the trailing `_` for a builtin it would hide (`Any` is `any_`, ruff A001), but
+    // is no record's field.
+    let function = names::names(
+        &[query.name.as_str()],
+        Repeats::Forbidden,
+        Binding::Parameter,
+        Records::Dataclass,
+    )?
+    .remove(0);
+    let function = match is_python_builtin(&function, 11, false) {
         true => function + "_",
         false => function,
     };

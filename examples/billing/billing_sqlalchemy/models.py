@@ -9,23 +9,17 @@ from decimal import Decimal
 from typing import Any
 
 
-class CustomersPreferredMethod(str, enum.Enum):
+class CustomersPreferredMethod(enum.StrEnum):
     CARD = "card"
     BANK_TRANSFER = "bank-transfer"
     DIRECT_DEBIT = "direct_debit"
 
-    def __str__(self) -> str:
-        return str.__str__(self)
 
-
-class InvoicesStatus(str, enum.Enum):
+class InvoicesStatus(enum.StrEnum):
     DRAFT = "draft"
     ISSUED = "issued"
     PAID = "paid"
     VOID = "void"
-
-    def __str__(self) -> str:
-        return str.__str__(self)
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)

@@ -1,6 +1,6 @@
 use ruff_python_ast::{Stmt, StmtClassDef};
 use sqlc_gen_python::api::names::{self, Binding, Repeats};
-use sqlc_gen_python::config::Config;
+use sqlc_gen_python::config::{Config, Records};
 use sqlc_gen_python::plugin;
 
 use super::python::{Shape, fields, is_enum, unparse};
@@ -14,12 +14,14 @@ pub(super) fn models_follow_catalog(request: &plugin::GenerateRequest, models: &
     let schemas = || request.catalog.iter().flat_map(|catalog| catalog.user_schemas());
     let mut enums: Vec<&plugin::Enum> = schemas().flat_map(|schema| &schema.enums).collect();
     // The options' `rename` applies to enum labels too.
-    let rename = (Config::from_request(request).map(|config| config.rename)).unwrap_or_default();
+    let config = Config::from_request(request).ok();
+    let rename = config.as_ref().map(|config| config.rename.clone()).unwrap_or_default();
+    let records = config.map_or(Records::Dataclass, |config| config.records);
     let mut tables: Vec<(&plugin::Table, Vec<(String, Shape)>)> = (schemas())
         .flat_map(|schema| &schema.tables)
         .map(|table| {
             let spellings: Vec<&str> = table.columns.iter().map(|c| c.name.as_str()).collect();
-            let names = names::names(&spellings, Repeats::Forbidden, Binding::Field).unwrap_or_default();
+            let names = names::names(&spellings, Repeats::Forbidden, Binding::Field, records).unwrap_or_default();
             (
                 table,
                 names.into_iter().zip(table.columns.iter().map(Shape::from)).collect(),

@@ -1,6 +1,6 @@
 # Project rules for agents
 
-A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates Python 3.10+ for PostgreSQL, MySQL and SQLite. It builds a ruff Python AST and renders it with ruff's formatter. Read `docs/development.md` for the architecture.
+A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates Python 3.11+ for PostgreSQL, MySQL and SQLite. It builds a ruff Python AST and renders it with ruff's formatter. Read `docs/development.md` for the architecture.
 
 ## Non-negotiables
 
@@ -16,18 +16,19 @@ A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates Pytho
 2. What sqlc puts in the request: column order, nullability, param numbering, `embed_table`, `is_sqlc_slice`, `cmd`, `query.text`. Never re-infer these.
 3. What a real PostgreSQL + driver returns at runtime. This beats any type map, including ours and the old plugins' (e.g. `money` comes back as `str`).
 4. sqlc's Go codegen in its endtoend corpus and its `internal/inflection` rules: cross-language conventions (model names, array depth, embed/slice shapes).
-5. Strict Python tooling: pyright strict, `mypy --strict`, `ruff check` with the project's rule set, all targeting Python 3.10.
+5. Strict Python tooling: pyright strict, `mypy --strict`, `ruff check` with the project's rule set, all targeting Python 3.11.
 
 ## Decided
 
 - Backends: `sqlalchemy` (SQLAlchemy Core, every engine), `psycopg` (psycopg 3 raw cursors, PostgreSQL), `sqlite3` (`sqlite3`/`aiosqlite`) and `pymysql` (PyMySQL/asyncmy, MySQL: no other async MySQL driver is typed and right). `backend` and `async` are both required. Each query file is one module of functions taking `connection`, coroutines when `async: true`.
-- Python 3.10 minimum: `X | None`, `list[T]`, keyword-only dataclass fields, PascalCase classes, snake_case functions, UPPER_SNAKE constants and enum members, ruff-isort-clean import blocks.
+- Python 3.11 minimum: `X | None`, `list[T]`, `enum.StrEnum`, keyword-only dataclass fields, PascalCase classes, snake_case functions, UPPER_SNAKE constants and enum members, ruff-isort-clean import blocks.
 - `:many` returns a `list`; `:one` returns its row, or `None` without one (`raise_on_none` raises instead: SQLAlchemy's `NoResultFound`, or `models.NoRowError` on a driver), and raises on a second row.
 - A nullable parameter defaults to `None`, as `sqlc.narg` is how a query writes a filter without its constraint or a partial update; every other parameter, and every field of a record of results, has no default.
 - We write `models.py` and the query modules into `out`, never `__init__.py`, as `out` may be the application's own package. `models.module` points query modules at models another entry writes. `models.only` writes those models alone, ignoring the placeholder query sqlc requires.
 - An unknown type is an error. An override naming `Any`, or `unknown_type: Any` or `object`, accepts it as the user's own choice in their `sqlc.yaml`; off by default, as sqlc shows a plugin no warning, so whoever turns it on knows what it hides.
 - Class names follow sqlc's own inflection (`media` -> `Medium`).
 - Types follow driver reality; enums are coerced into the enum class.
+- Records are frozen, keyword-only dataclasses, or with `records: pydantic` frozen `pydantic.BaseModel`s that forbid extra fields: one kind per entry, for models, `Row` and `Params` alike.
 - `cargo test` stays hermetic: no Python, Docker or network. Python tooling lives in a uv project under `tests/python`; Docker is needed for `capture`, `verify`, CI, and a `bless` that changes anything, and they fail loudly without it.
 - The sqlc endtoend corpus (pinned sqlc version) is committed as test input.
 

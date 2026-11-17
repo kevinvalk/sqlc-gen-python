@@ -46,7 +46,7 @@ const TYPES: &[(&str, Type)] = &[
     ("interval", Type::TIMEDELTA),
     ("uuid", Type::UUID),
     // The drivers decode JSON with a configurable decoder, so `object` is the one annotation true under every one. A
-    // recursive `JsonValue` alias fails `get_type_hints` across modules, and pydantic on Python 3.10.
+    // recursive `JsonValue` alias fails `get_type_hints` across modules.
     ("json", Type::JSON),
     ("jsonb", Type::JSONB),
     ("inet", Type::INET),

@@ -169,3 +169,47 @@ fn query_modules_read_their_models_from_the_module_named_and_write_none() {
     // Its errors are the models module's too
     assert!(module("gateway.models").contains("raise models.MultipleRowsError"));
 }
+
+#[test]
+fn a_pydantic_record_is_a_frozen_model_that_forbids_extra_fields_and_hides_none_of_its_attributes() {
+    use crate::api::fixtures::authors::{named, query};
+    use crate::api::fixtures::{column, public, table};
+    // pydantic warns of a field that shadows a `BaseModel` attribute, such as `json`
+    let documents = table(
+        "documents",
+        vec![column("id", "int4", true), column("json", "jsonb", false)],
+    );
+    let update = plugin::Query {
+        params: vec![named(1, "json", "jsonb", false), named(2, "id", "int4", true)],
+        ..query(":exec", "UPDATE documents SET json = $1 WHERE id = $2")
+    };
+    let request = plugin::GenerateRequest {
+        plugin_options: br#"{"backend": "sqlalchemy", "async": false, "max_params": 1, "records": "pydantic"}"#
+            .to_vec(),
+        ..crate::api::fixtures::request("postgresql", public(vec![documents]), vec![update])
+    };
+    let files = crate::generate(&request).unwrap();
+    let file = |name: &str| {
+        let file = files.iter().find(|file| file.name == name).unwrap();
+        String::from_utf8(file.contents.clone()).unwrap()
+    };
+
+    let models = file("models.py");
+    assert!(
+        models.contains(
+            "class Document(pydantic.BaseModel):\n    model_config = pydantic.ConfigDict(\n        \
+             frozen=True, extra=\"forbid\", arbitrary_types_allowed=True\n    )\n    id: int\n    json_: object | None\n"
+        ),
+        "{models}"
+    );
+    assert!(models.contains("return cls(id=row[0], json_=row[1])"), "{models}");
+    assert!(!models.contains("dataclass"), "{models}");
+
+    let queries = file("authors.py");
+    assert!(
+        queries.contains("class GetAuthorParams(pydantic.BaseModel):"),
+        "{queries}"
+    );
+    // pydantic would make a document's `True` the `1.0` of its `float`
+    assert!(queries.contains("    json_: pydantic.SkipValidation[\n"), "{queries}");
+}

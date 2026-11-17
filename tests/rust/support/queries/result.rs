@@ -124,7 +124,14 @@ pub(super) fn result_follows_sqlc(
                     })
                     .collect();
                 let what = format!("{}: class `{}`", query.name, class.name);
-                named_after(&what, &fields, &spellings, Repeats::Numbered, Binding::Field, problems);
+                named_after(
+                    &what,
+                    &fields,
+                    &spellings,
+                    Repeats::Numbered,
+                    (Binding::Field, config.records),
+                    problems,
+                );
                 let comments = query.columns.iter().map(|c| c.comment.as_str());
                 documented(&what, class, "", comments, problems);
             }

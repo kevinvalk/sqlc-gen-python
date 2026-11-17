@@ -9,6 +9,14 @@ pub(super) fn unparse(expr: &Expr) -> String {
     .expr(expr)
 }
 
+pub(super) fn unparse_stmt(stmt: &Stmt) -> String {
+    ruff_python_codegen::Generator::new(
+        &ruff_python_codegen::Indentation::default(),
+        ruff_source_file::LineEnding::Lf,
+    )
+    .stmt(stmt)
+}
+
 /// The record `annotation` names and its fields, if it names one: a class of the query module, or `models.X`.
 pub(super) fn record<'a>(
     annotation: &Expr,
@@ -21,7 +29,7 @@ pub(super) fn record<'a>(
         _ => return None,
     };
     let class = (scope.iter().filter_map(Stmt::as_class_def_stmt))
-        .find(|class| class.name.as_str() == name && is_dataclass(class))?;
+        .find(|class| class.name.as_str() == name && is_record(class))?;
     Some((class, fields(class)))
 }
 
@@ -31,14 +39,16 @@ pub(super) fn fields(class: &StmtClassDef) -> Vec<(&str, &Expr)> {
         .collect()
 }
 
-fn is_dataclass(class: &StmtClassDef) -> bool {
-    (class.decorator_list.iter()).any(|decorator| {
-        let callee = match &decorator.expression {
-            Expr::Call(call) => &call.func,
-            other => other,
-        };
-        callee.as_attribute_expr().map(|a| a.attr.as_str()) == Some("dataclass")
-    })
+/// A record, a dataclass or a pydantic model.
+fn is_record(class: &StmtClassDef) -> bool {
+    class.bases().iter().map(unparse).eq(["pydantic.BaseModel"])
+        || (class.decorator_list.iter()).any(|decorator| {
+            let callee = match &decorator.expression {
+                Expr::Call(call) => &call.func,
+                other => other,
+            };
+            callee.as_attribute_expr().map(|a| a.attr.as_str()) == Some("dataclass")
+        })
 }
 
 pub(super) fn is_name(expr: &Expr, id: &str) -> bool {
@@ -56,6 +66,14 @@ pub(super) fn words(text: &str) -> Vec<&str> {
     text.split_whitespace().collect()
 }
 
+/// `X` of `pydantic.SkipValidation[X]`, which is `X` to a type checker, or the annotation.
+pub(super) fn unwrapped(annotation: &Expr) -> &Expr {
+    match annotation {
+        Expr::Subscript(subscript) if unparse(&subscript.value) == "pydantic.SkipValidation" => &subscript.slice,
+        annotation => annotation,
+    }
+}
+
 /// `X` of an annotation `X | None`, or the annotation.
 pub(super) fn strip_optional(annotation: &Expr) -> &Expr {
     match annotation {
@@ -65,7 +83,7 @@ pub(super) fn strip_optional(annotation: &Expr) -> &Expr {
 }
 
 pub(super) fn is_enum(class: &StmtClassDef) -> bool {
-    class.bases().iter().map(unparse).eq(["str", "enum.Enum"])
+    class.bases().iter().map(unparse).eq(["enum.StrEnum"])
 }
 
 /// What a column's annotation says about NULL and arrays.
@@ -105,7 +123,7 @@ impl Shape {
                 other => vec![other],
             }
         }
-        let members = union(annotation);
+        let members = union(unwrapped(annotation));
         let (nones, others): (Vec<_>, Vec<_>) = members.into_iter().partition(|member| member.is_none_literal_expr());
         let depth = match others[..] {
             [Expr::Subscript(list)] if is_name(&list.value, "list") => 1 + Self::of(&list.slice).depth,

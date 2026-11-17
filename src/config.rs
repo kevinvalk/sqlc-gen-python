@@ -47,6 +47,19 @@ pub struct Config {
 
     /// What a type we cannot verify is annotated, which is otherwise an error.
     pub unknown_type: Option<UnknownType>,
+
+    #[serde(default)]
+    pub records: Records,
+}
+
+/// The class of every record we generate: a table's model, a query's `Row` and its `Params`, so a project has one kind.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Records {
+    #[default]
+    Dataclass,
+    /// A frozen `pydantic.BaseModel`, which validates each record it builds.
+    Pydantic,
 }
 
 /// The one annotation for every type we cannot verify, which says nothing that may be false. `object` makes the user
@@ -165,6 +178,7 @@ impl Config {
             raise_on_none: false,
             max_params: None,
             unknown_type: None,
+            records: Records::Dataclass,
         }
     }
 }

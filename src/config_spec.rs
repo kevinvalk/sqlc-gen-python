@@ -132,3 +132,19 @@ fn a_rename_names_a_public_python_name() {
         assert!(error.contains("is no public Python name"), "{bad}: {error}");
     }
 }
+
+#[test]
+fn records_are_dataclasses_or_pydantic_models() {
+    let records = |value: &str| {
+        parse(&format!(
+            r#"{{"backend": "psycopg", "async": false, "records": "{value}"}}"#
+        ))
+    };
+    assert_eq!(records("dataclass").unwrap().records, Records::Dataclass);
+    assert_eq!(records("pydantic").unwrap().records, Records::Pydantic);
+    assert!(records("attrs").is_err());
+    assert_eq!(
+        parse(r#"{"backend": "psycopg", "async": false}"#).unwrap().records,
+        Records::Dataclass
+    );
+}

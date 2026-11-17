@@ -1,6 +1,6 @@
 # sqlc-gen-python
 
-A [sqlc](https://sqlc.dev) plugin that generates typed Python 3.10+ for PostgreSQL, MySQL and SQLite.
+A [sqlc](https://sqlc.dev) plugin that generates typed Python 3.11+ for PostgreSQL, MySQL and SQLite.
 
 > [!IMPORTANT]
 > This was fully LLM written using Fable 5.2. I used all my expertise and knowledge to get this into the best shape I can imagine. For example, I let this be cross checked against all open-source projects using SQLC. So this might even be the "best" Python SQLC generator, but I feel you, and I don't even know what my own stance is on LLM software...
@@ -52,7 +52,7 @@ The connection and its transaction are the caller's: nothing is committed.
 
 `backend` and `async` are required. See [`examples/`](examples/) for complete projects.
 
-Each release is tested under the sqlc its notes name (v1.31.1 now), and the generated code on Python 3.10 and the newest, with psycopg 3.3 (libpq 14 at least), SQLAlchemy 2.0 and 2.1 (on psycopg, asyncpg, PyMySQL, asyncmy, `sqlite3` and aiosqlite), PyMySQL 1.2, asyncmy 0.2 (0.2.17 at least) and aiosqlite 0.22. Every type each engine maps is read back through each of its drivers, at its edges ([`docs/typemap.md`](docs/typemap.md)).
+Each release is tested under the sqlc its notes name (v1.31.1 now), and the generated code on Python 3.11 and the newest, with psycopg 3.3 (libpq 14 at least), SQLAlchemy 2.0 and 2.1 (on psycopg, asyncpg, PyMySQL, asyncmy, `sqlite3` and aiosqlite), PyMySQL 1.2, asyncmy 0.2 (0.2.17 at least), aiosqlite 0.22 and pydantic 2.14. Every type each engine maps is read back through each of its drivers, at its edges ([`docs/typemap.md`](docs/typemap.md)).
 
 ### Types are never guessed
 
@@ -85,7 +85,7 @@ The plugin needs sqlc's static analysis: with a `database` block in `sqlc.yaml`,
 | `:copyfrom` | `None`, for `rows` of `<Query>Params` |
 | `:batchexec`, `:batchone`, `:batchmany` | a `list` of one result per row (PostgreSQL only) |
 
-A row of one column is its value, a row of exactly a table's columns is that table's model, and any other is a `<Query>Row` beside the function. Every one is a frozen, keyword-only dataclass, and every enum a `str` enum. `sqlc.embed(t)` is a field of `t`'s model, and `sqlc.slice` a `list`.
+A row of one column is its value, a row of exactly a table's columns is that table's model, and any other is a `<Query>Row` beside the function. Every one is a frozen, keyword-only dataclass (or a pydantic model, with `records: pydantic`), and every enum an `enum.StrEnum`. `sqlc.embed(t)` is a field of `t`'s model, and `sqlc.slice` a `list`.
 
 A nullable parameter, such as a `sqlc.narg`, defaults to `None`, so a filter (`sqlc.narg(ids) IS NULL OR ...`) or a partial update (`coalesce(sqlc.narg(name), name)`) takes only what the caller has, `**` a dict of it included. Every other parameter is required.
 
@@ -97,12 +97,13 @@ A nullable parameter, such as a `sqlc.narg`, defaults to `None`, so a filter (`s
 | `async` | required | `true` makes every function a coroutine on the backend's async connection |
 | `raise_on_none` | `false` | A `:one` without a row raises rather than return `None`: SQLAlchemy's `NoResultFound`, or `models.NoRowError` |
 | `max_params` | none | A query with more parameters than this takes them as one `params: <Query>Params` record |
-| `overrides` | `[]` | The Python type of a database type, `{db_type: vector, python_type: str}`, or of one column, `{column: invoices.total, python_type: ...}`, which wins. A dotted name, `app.types.Embedding`, is imported, and `Any` is yours to choose |
+| `overrides` | `[]` | The Python type of a database type, `{db_type: vector, python_type: str}`, or of one column, `{column: invoices.total, python_type: ...}`, which wins, and reaches a parameter sqlc ties to the column (`VALUES (@total)`, `total = @total`) but not a cast one (`@total::numeric`), which sqlc reports by its type alone. A dotted name, `app.types.Embedding`, is imported, and `Any` is yours to choose |
 | `rename` | `{}` | Python names for SQL names: a table or enum (`schema.name`, or `name` in the default schema) to its class, a column or parameter to its name, an enum label to its member (`"+1": plus_one`) |
 | `models.module` | none | Import the models from this module (`app.models`), written by another entry of the same schema and backend, and write the query modules alone, beside your own code |
 | `models.only` | `false` | Write `models.py` alone, for the entries that set `models.module`. sqlc requires a query of every entry, so give this one a placeholder (`SELECT 1`), which writes nothing |
 | `models.exact_table_names` | `false` | Name model classes after their table, without singularising |
 | `models.inflection_exclude` | `[]` | Tables whose names are not singularised |
+| `records` | `dataclass` | `pydantic` makes every model, `Row` and `Params` a frozen `pydantic.BaseModel` that forbids unknown fields and validates what it is built from. A field that would hide a `BaseModel` attribute takes a trailing `_` (`json_`) |
 | `unknown_type` | none | Annotate every type the plugin cannot verify `Any`, or `object`, which you then narrow before use, instead of failing on it. A project can generate first and type as it goes |
 | `omit_sqlc_version` | `false` | Leave sqlc's version out of each file's header |
 

@@ -33,7 +33,7 @@ pub(super) fn columns(
 
     let mut fields = Vec::new();
     let mut flat = Vec::new();
-    for ((name, column), embed) in names::names(&spellings, Repeats::Numbered, Binding::Field)?
+    for ((name, column), embed) in names::names(&spellings, Repeats::Numbered, Binding::Field, resolver.records)?
         .into_iter()
         .zip(&columns)
         .zip(embeds)
