@@ -116,7 +116,13 @@ With `--mutants`, `verify` plants plausible generator bugs (`MUTANTS` in `verify
 
 ## Releasing
 
-Every commit on `main` that passes CI is published as the `unstable` prerelease, which moves with `main`. A version is only its tag, on a commit of `main`:
+Every commit on `main` that passes CI is published as the `unstable` prerelease, which moves with `main`. Git will not move a tag it already has, so a fetch fails with "would clobber existing tag" once `unstable` has moved; we let it move in each clone once:
+
+```sh
+git config --add remote.origin.fetch '+refs/tags/unstable:refs/tags/unstable'
+```
+
+A version is only its tag, on a commit of `main`:
 
 ```sh
 git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z
