@@ -11,23 +11,25 @@ use sqlc_gen_python::engine::Engine;
 use sqlc_gen_python::plugin;
 
 use super::module::{ASYNCMY, PYMYSQL};
-use super::python::{fields, is_name};
+use ruff_python_ast::visitor::{Visitor, walk_expr};
+
+use super::python::{fields, is_name, unparse};
 use execution::{runs_its_statement, sql_round_trips};
 use result::result_follows_sqlc;
 use signature::function_follows_sqlc;
 
-/// The module of query file `stem` implements sqlc's queries in it. After the prelude its
-/// library's stubs need, if any, it holds one statement constant and one function per query in sqlc's order, so we
-/// pair them up without repeating any naming rule. Each pair must run exactly the SQL sqlc wrote and say what sqlc
+/// The module of query file `stem` implements sqlc's queries in it. After the prelude its library's stubs need, if any,
+/// it holds one statement constant and one function per query in sqlc's order, each `:many` that only reads followed
+/// by its stream, so we pair them up without repeating any naming rule. Each pair must run exactly the SQL sqlc wrote and say what sqlc
 /// says of NULL and arrays, as no type checker or runtime probe can see a non-null value annotated `X | None`.
 pub(super) fn queries_follow_sqlc(
-    request: &plugin::GenerateRequest,
+    (request, config): (&plugin::GenerateRequest, Option<&Config>),
     stem: &str,
     (body, prelude): (&[Stmt], Option<(usize, &[&str])>),
     models: &[Stmt],
     problems: &mut Vec<String>,
 ) {
-    let Ok(config) = Config::from_request(request) else {
+    let Some(config) = config else {
         return problems.push("generated from options that do not parse".into());
     };
 
@@ -66,9 +68,9 @@ pub(super) fn queries_follow_sqlc(
     }
 
     let connection_annotation = &sqlc_gen_python::python::unparse(&backend.connection(asynchronous));
-    for ((query, (constant, sql)), function) in queries.into_iter().zip(statements).zip(functions) {
+    for ((query, (constant, sql)), (function, stream)) in queries.into_iter().zip(statements).zip(functions) {
         let parameters = parameters(body, function);
-        let takes = Takes::of(query, &config);
+        let takes = Takes::of(query, config);
         let signature = (connection_annotation.as_str(), asynchronous, takes, config.records);
         if function_follows_sqlc(query, function, &parameters, signature, problems) {
             runs_its_statement(
@@ -80,14 +82,116 @@ pub(super) fn queries_follow_sqlc(
                 (asynchronous, takes),
                 problems,
             );
-            result_follows_sqlc(request, query, function, (body, models), (&config, engine), problems);
+            result_follows_sqlc(request, query, function, (body, models), (config, engine), problems);
             sql_round_trips(query, &sql, &parameters, backend, engine, problems);
+        }
+
+        // Every `:many` that only reads streams too, and nothing else does
+        let streams = query.cmd == ":many" && engine.reads(&query.text);
+        match stream {
+            Some(stream) if streams => {
+                stream_follows_function(query, function, stream, asynchronous, problems);
+                runs_its_statement(
+                    query,
+                    stream,
+                    constant,
+                    &parameters,
+                    engine,
+                    (asynchronous, takes),
+                    problems,
+                );
+            }
+            None if !streams => {}
+            _ => problems.push(format!(
+                "{}: streams exactly when it is a :many that only reads",
+                query.name
+            )),
         }
     }
 }
 
-fn functions(body: &[Stmt]) -> Vec<&StmtFunctionDef> {
-    body.iter().filter_map(Stmt::as_function_def_stmt).collect()
+/// Each query's function, with the stream that follows it if it has one: a context manager of `contextlib`'s.
+fn functions(body: &[Stmt]) -> Vec<(&StmtFunctionDef, Option<&StmtFunctionDef>)> {
+    let mut functions: Vec<(&StmtFunctionDef, Option<&StmtFunctionDef>)> = Vec::new();
+    for function in body.iter().filter_map(Stmt::as_function_def_stmt) {
+        let is_stream = (function.decorator_list.iter()).any(|d| unparse(&d.expression).starts_with("contextlib."));
+        match functions.last_mut() {
+            Some((_, stream @ None)) if is_stream => *stream = Some(function),
+            _ => functions.push((function, None)),
+        }
+    }
+    functions
+}
+
+/// A stream takes what its query's function takes and yields an iterator of the rows the function returns a list of,
+/// once, from a context manager that is async exactly when the function is.
+fn stream_follows_function(
+    query: &plugin::Query,
+    function: &StmtFunctionDef,
+    stream: &StmtFunctionDef,
+    asynchronous: bool,
+    problems: &mut Vec<String>,
+) {
+    let mut wrong = |what: &str| problems.push(format!("{}: its stream {what}", query.name));
+    if stream.name.as_str() != format!("stream_{}", function.name.trim_end_matches('_')) {
+        wrong("is not named after its function");
+    }
+    let (decorator, generator) = match asynchronous {
+        true => (
+            "contextlib.asynccontextmanager",
+            "AsyncGenerator[AsyncIterator[{}], None]",
+        ),
+        false => ("contextlib.contextmanager", "Generator[Iterator[{}], None, None]"),
+    };
+    let decorators: Vec<String> = stream.decorator_list.iter().map(|d| unparse(&d.expression)).collect();
+    if decorators != [decorator] || stream.is_async != asynchronous {
+        wrong(&format!("is not one {decorator}"));
+    }
+    if unparse_parameters(stream) != unparse_parameters(function) {
+        wrong("does not take what its function takes");
+    }
+    let row = (function.returns.as_deref())
+        .and_then(Expr::as_subscript_expr)
+        .filter(|list| is_name(&list.value, "list"))
+        .map(|list| unparse(&list.slice));
+    let returns = stream.returns.as_deref().map(unparse);
+    if row.is_none() || returns != row.map(|row| generator.replace("{}", &row)) {
+        wrong("does not yield an iterator of the rows its function returns a list of");
+    }
+
+    // It holds a row at a time: a generator of the rows of the cursor or result itself, never a list read first
+    #[derive(Default)]
+    struct Yields<'a>(Vec<Option<&'a Expr>>);
+    impl<'a> Visitor<'a> for Yields<'a> {
+        fn visit_expr(&mut self, expr: &'a Expr) {
+            if let Expr::Yield(yielded) = expr {
+                self.0.push(yielded.value.as_deref());
+            }
+            walk_expr(self, expr);
+        }
+    }
+    let mut yields = Yields::default();
+    yields.visit_body(&stream.body);
+    let reads_row_by_row = match yields.0[..] {
+        [Some(Expr::Generator(rows))] => match &rows.generators[..] {
+            [each] => ["cur", "_typed(cur)", "result"].contains(&unparse(&each.iter).as_str()),
+            _ => false,
+        },
+        _ => false,
+    };
+    if !reads_row_by_row {
+        wrong("does not yield, once, a generator of its cursor's rows");
+    }
+}
+
+fn unparse_parameters(function: &StmtFunctionDef) -> Vec<String> {
+    (function.parameters.iter())
+        .map(|parameter| {
+            let annotation = parameter.annotation().map(unparse).unwrap_or_default();
+            let default = parameter.default().map(unparse).unwrap_or_default();
+            format!("{}: {annotation} = {default}", parameter.name())
+        })
+        .collect()
 }
 
 /// For each of sqlc's parameters, the index of its first use. A name the user chose (`sqlc.arg`) is one parameter

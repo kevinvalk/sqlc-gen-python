@@ -11,7 +11,7 @@ from hypothesis import strategies as st
 import pgvalues
 from autoprop_pool import PICK
 from pgvalues import enum_array_type, json_type, sqlalchemy_type
-from suite.deep import build, check, record_fields, refused
+from suite.deep import build, check, refused, same
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -34,17 +34,6 @@ def read(table: Table, row: Sequence[object]) -> object:
         message = f"{where}: {record!r} is not the row read by position"
         raise AssertionError(message)
     return record
-
-
-def same(left: object, right: object) -> bool:
-    """Whether two records hold the same values field by field, a value being the same as itself.
-
-    We need this as a NaN is not equal to itself, and since Python 3.13 a dataclass compares its fields by ``==`` alone.
-    """
-    names = record_fields(left)
-    if names is not None and type(left) is type(right):
-        return all(same(getattr(left, name), getattr(right, name)) for name in names)
-    return left is right or left == right
 
 
 def draw_row(data: st.DataObject, table: Table, pool: Pool) -> dict[str, object]:

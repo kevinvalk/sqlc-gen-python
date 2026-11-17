@@ -10,6 +10,8 @@ pub const DRIVER: Driver = Driver {
         connection: || SQLITE3.attr("Connection"),
         closing: || CONTEXTLIB.attr("closing").call([cursor()]),
         cursor,
+        // `sqlite3` steps through the statement as its cursor is iterated
+        streaming: |_| CONTEXTLIB.attr("closing").call([cursor()]),
         cursor_type: || SQLITE3.attr("Cursor"),
         generic: false,
         untyped: false,
@@ -18,6 +20,8 @@ pub const DRIVER: Driver = Driver {
         connection: || AIOSQLITE.attr("Connection"),
         closing: cursor,
         cursor: || cursor().awaited(true),
+        // aiosqlite fetches a chunk of rows at a time as its cursor is iterated
+        streaming: |_| cursor(),
         cursor_type: || AIOSQLITE.attr("Cursor"),
         generic: false,
         untyped: false,

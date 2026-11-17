@@ -3239,6 +3239,42 @@
       "comments": [],
       "filename": "query.sql",
       "insert_into_table": null
+    },
+    {
+      "text": "WITH RECURSIVE numbers (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM numbers WHERE n < 900)\nSELECT CAST(JSON_EXTRACT(IF(n = 800, 'malformed', '1'), '$') AS SIGNED) AS share FROM numbers",
+      "name": "Countdown",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "share",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigint signed"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [
+        " Reads malformed JSON at its 800th row. Its function never returns, while its",
+        " stream reads the rows before, as it reads each as it is iterated."
+      ],
+      "filename": "query.sql",
+      "insert_into_table": null
     }
   ],
   "sqlc_version": "v1.31.1"

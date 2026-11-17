@@ -101,8 +101,8 @@ impl Attribute {
     }
 }
 
-/// A record is frozen so rows are values, slotted so a misspelt attribute is an error, and keyword-only so construction
-/// cannot depend on column order. A record of results builds itself from a driver's row by position, so duplicate
+/// A record is frozen so rows are values, rejects a misspelt attribute (a dataclass by its slots, a pydantic model by
+/// forbidding extra fields), and is keyword-only so construction cannot depend on column order. A record of results builds itself from a driver's row by position, so duplicate
 /// column names cannot confuse it.
 fn record(class_name: &str, comment: &str, attributes: &[Attribute], records: Records) -> ast::Stmt {
     let fields = (attributes.iter()).flat_map(|attribute| {
@@ -124,7 +124,20 @@ fn record(class_name: &str, comment: &str, attributes: &[Attribute], records: Re
         }
         .into()
     });
-    let body = (documentation(comment).into_iter()).chain(fields).chain(from_row);
+    // A misspelt field of a `**` dict is an error to pydantic, as it is to a dataclass, and an override's type or a
+    // library's (a psycopg `Range`) is checked as an instance of its class.
+    let config = (records == Records::Pydantic).then(|| {
+        let options = [
+            keyword("frozen", true_()),
+            keyword("extra", string("forbid")),
+            keyword("arbitrary_types_allowed", true_()),
+        ];
+        assign(MODEL_CONFIG, PYDANTIC.attr("ConfigDict").call_with([], options))
+    });
+    let body = (documentation(comment).into_iter())
+        .chain(config)
+        .chain(fields)
+        .chain(from_row);
     match records {
         Records::Dataclass => {
             let options = ["frozen", "slots", "kw_only"].map(|option| keyword(option, true_()));
@@ -135,20 +148,7 @@ fn record(class_name: &str, comment: &str, attributes: &[Attribute], records: Re
                 body,
             )
         }
-        // A misspelt field of a `**` dict is an error, as it is to a dataclass, and an override's type or a library's
-        // (a psycopg `Range`) is checked as an instance of its class.
-        Records::Pydantic => {
-            let options = [
-                keyword("frozen", true_()),
-                keyword("extra", string("forbid")),
-                keyword("arbitrary_types_allowed", true_()),
-            ];
-            let config = assign(MODEL_CONFIG, PYDANTIC.attr("ConfigDict").call_with([], options));
-            let mut body: Vec<ast::Stmt> = body.collect();
-            let at = usize::from(!comment.trim().is_empty());
-            body.insert(at, config);
-            class(class_name, [], [PYDANTIC.attr("BaseModel")], body)
-        }
+        Records::Pydantic => class(class_name, [], [PYDANTIC.attr("BaseModel")], body),
     }
 }
 

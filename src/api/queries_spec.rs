@@ -487,3 +487,42 @@ fn a_command_the_plugin_does_not_know_is_an_error() {
         "{error}"
     );
 }
+
+#[test]
+fn a_many_that_only_reads_also_streams_under_its_name_with_no_trailing_underscore() {
+    let columns = vec![column("bio", "text", false), column("name", "text", true)];
+    let stream = |cmd: &str, name: &str, text: &str| {
+        let params = match cmd.starts_with(":batch") {
+            true => vec![param(1, column("id", "pg_catalog.int8", true))],
+            false => vec![],
+        };
+        resolve(plugin::Query {
+            name: name.into(),
+            params,
+            columns: columns.clone(),
+            ..query(cmd, text)
+        })
+        .stream
+    };
+    let select = "SELECT bio, name FROM authors";
+    assert_eq!(
+        stream(":many", "ListAuthors", select),
+        Some("stream_list_authors".into())
+    );
+    // `list_` hides a builtin, which `stream_list` does not
+    assert_eq!(stream(":many", "List", select), Some("stream_list".into()));
+    // A PostgreSQL cursor holds no write, and a batch runs once per row
+    assert_eq!(
+        stream(":many", "Purge", "DELETE FROM authors RETURNING bio, name"),
+        None
+    );
+    assert_eq!(
+        stream(
+            ":batchmany",
+            "ListAuthors",
+            "SELECT bio, name FROM authors WHERE id = $1"
+        ),
+        None
+    );
+    assert_eq!(stream(":one", "GetAuthor", select), None);
+}

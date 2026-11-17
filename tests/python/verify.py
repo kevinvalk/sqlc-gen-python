@@ -170,20 +170,6 @@ MUTANTS = {
         "preferred_method=None if row[4] is None else BillingPaymentMethod(row[4])",
         "preferred_method=BillingPaymentMethod(row[4])",
     ),
-    "enum array left to the driver": Mutant(
-        RUNTIME,
-        "'{' is not a valid BillingPaymentMethod",
-        "customers.py",
-        """WHERE id = :id"
-).columns(
-    sqlalchemy.column(
-        "accepted_methods",
-        postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
-    )
-)""",
-        """WHERE id = :id"
-)""",
-    ),
     # PostgreSQL names the column `coalesce`, so a type given by name misses it.
     "enum arrays typed by name": Mutant(
         RUNTIME,
@@ -244,9 +230,10 @@ MUTANTS = {
         "",
     ),
     # Two swapped values of one type type-check and run, so at runtime only sqlc's SQL run directly tells.
+    # Read back by position as the sweep seeds it, before a query reads it.
     "columns swapped": Mutant(
         SWEEP,
-        "but sqlc's SQL run directly returned",
+        "is not the row read by position",
         "models.py",
         "id=row[0],\n            customer_id=row[1],",
         "id=row[1],\n            customer_id=row[0],",
@@ -344,7 +331,7 @@ MUTANTS = {
         "    if params:\n        connection.execute(_CREATE_LINE_ITEMS, params)",
         "    connection.execute(_CREATE_LINE_ITEMS, params)",
     ),
-    # A `str` mixin's `str(member)` is its label only before Python 3.12.
+    # A `str` mixin's `str(member)` and its format are `InvoiceStatus.PAID`, not its label.
     "enum a str mixin and not a StrEnum": Mutant(
         RUNTIME,
         "'InvoiceStatus.PAID' != 'paid'",
@@ -390,6 +377,28 @@ MUTANTS = {
         """async with connection.cursor() as cur:
         await _typed(cur).execute(_GET_CUSTOMER, (id,))""",
         case="billing_pymysql_async",
+    ),
+    # psycopg's `execute` reads every row, so a stream must read from a cursor PostgreSQL holds.
+    "psycopg stream read through a buffered cursor": Mutant(
+        RUNTIME,
+        "the stream read every row before it yielded one",
+        "countdown.py",
+        """    with psycopg.RawServerCursor(
+        connection, "stream_countdown", row_factory=tuple_row
+    ) as cur:""",
+        "    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:",
+        case="invoicing_psycopg",
+    ),
+    # A MySQL driver's default cursor reads every row on `execute`, its unbuffered one as it is iterated.
+    "PyMySQL stream read through a buffered cursor": Mutant(
+        MYSQL_RUNTIME,
+        "the stream read every row before it yielded one",
+        "query.py",
+        """    with connection.cursor(pymysql.cursors.SSCursor) as cur:
+        cur.execute(_COUNTDOWN)""",
+        """    with connection.cursor(pymysql.cursors.Cursor) as cur:
+        cur.execute(_COUNTDOWN)""",
+        case="billing_pymysql",
     ),
     "unused import": Mutant(
         GATE,

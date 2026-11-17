@@ -12,18 +12,17 @@ from typing import Any
 import psycopg
 import sqlalchemy
 from postgres import conninfo, database
-from suite.api import cases, functions, queries
+from suite.api import calls_every_function, cases, queries
 
 
 def test_overrides_and_renames(server: sqlalchemy.URL) -> None:
     (case,) = (case for case in cases("custom") if case.name == "custom_psycopg")
-    called: set[str] = set()
     with (
         database(server, case.schema_sql.read_text()) as url,
         psycopg.connect(conninfo(url)) as connection,
+        calls_every_function(case) as called,
     ):
         asyncio.run(_custom(queries(case, connection, called)))
-    assert called == functions(case)
 
 
 async def _custom(api: Any) -> None:

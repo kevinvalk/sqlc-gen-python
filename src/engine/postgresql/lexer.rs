@@ -38,12 +38,6 @@ fn is_space(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0b' | '\x0c')
 }
 
-/// Whether `sql` holds a `MERGE INTO` outside strings and comments.
-pub fn merges(sql: &str) -> bool {
-    let chars: Vec<char> = sql.chars().collect();
-    (tokens(&chars).windows(2)).any(|pair| pair[0].is_word(&chars, "merge") && pair[1].is_word(&chars, "into"))
-}
-
 /// `identifier` in `scan.l`.
 pub fn is_identifier(name: &str) -> bool {
     let mut chars = name.chars();

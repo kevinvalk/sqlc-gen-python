@@ -8,7 +8,7 @@ use ruff_python_parser::{Parsed, parse_module};
 use ruff_python_stdlib::builtins::is_python_builtin;
 use ruff_text_size::Ranged;
 
-use super::python::{docstring, is_enum, unparse, unparse_stmt, unwrapped};
+use super::python::{docstring, is_enum, is_error, unparse, unparse_stmt, unwrapped};
 use sqlc_gen_python::config::Records;
 
 pub fn check_module(source: &str) -> Vec<String> {
@@ -35,14 +35,16 @@ pub(super) const ASYNCMY: &[&str] = &[
         self, query: str, args: Sequence[Sequence[Any]]
     ) -> object: ...
 
-    async def fetchmany(self, size: int) -> Sequence[Sequence[Any]]: ...",
+    async def fetchmany(self, size: int) -> Sequence[Sequence[Any]]: ...
+
+    def __aiter__(self) -> AsyncIterator[Sequence[Any]]: ...",
     "def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:
     return cursor",
 ];
 
 /// The prelude `body` holds and where it starts. A query module holds one between its imports and its queries when its
-/// library's stubs need it, and only these statements, to the
-/// letter, may be private, annotate with an `Any` that is not the library's own, or be a class that is no record.
+/// library's stubs need it, and only these statements, to the letter, may be private, annotate with an `Any` that is not
+/// the library's own, or be a class that is no record.
 pub(super) fn prelude(body: &[Stmt], source: &str) -> Option<(usize, &'static [&'static str])> {
     [PYMYSQL, ASYNCMY].into_iter().find_map(|prelude| {
         let held = |stmts: &[Stmt]| (stmts.iter().map(|stmt| &source[stmt.range()])).eq(prelude.iter().copied());
@@ -106,7 +108,7 @@ fn comments_are_the_header(parsed: &Parsed<ModModule>, source: &str, problems: &
 /// it out.
 fn records_are_values(body: &[Stmt], records: Records, problems: &mut Vec<String>) {
     for class in body.iter().filter_map(Stmt::as_class_def_stmt) {
-        if is_enum(class) || class.bases().iter().map(unparse).eq(["LookupError"]) {
+        if is_enum(class) || is_error(class) {
             continue;
         }
 

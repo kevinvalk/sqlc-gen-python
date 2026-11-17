@@ -19,8 +19,7 @@ import pytest
 import sqlalchemy
 from examples import GoldenCase
 from postgres import aw, conninfo
-from sqlalchemy.ext.asyncio import create_async_engine
-from suite.api import cases, functions, no_row, queries
+from suite.api import calls_every_function, cases, no_row, queries, sqlalchemy_connection, streams_lazily
 
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 # Characters that SQLAlchemy, a driver or a careless generator could misread.
@@ -41,40 +40,19 @@ RUNS = [
 
 @pytest.mark.parametrize(("case", "driver"), RUNS)
 def test_every_function_against_postgres(case: GoldenCase, driver: str, database: sqlalchemy.URL) -> None:
-    called: set[str] = set()
     run = {
-        ("sqlalchemy", False): _sqlalchemy_sync,
-        ("sqlalchemy", True): _sqlalchemy_async,
+        ("sqlalchemy", False): _sqlalchemy,
+        ("sqlalchemy", True): _sqlalchemy,
         ("psycopg", False): _psycopg_sync,
         ("psycopg", True): _psycopg_async,
     }[case.backend, case.is_async]
-    asyncio.run(run(case, database.set(drivername=f"postgresql+{driver}"), called))
-    public = functions(case)
-    assert called == public, f"never called: {sorted(public - called)}"
+    with calls_every_function(case) as called:
+        asyncio.run(run(case, database.set(drivername=f"postgresql+{driver}"), called))
 
 
-async def _sqlalchemy_sync(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
-    engine = sqlalchemy.create_engine(url)
-    try:
-        with engine.connect() as connection:
-            connection.begin()
-            api = _api(case, connection, called)
-            await scenario(api, _sqlalchemy_sql(connection))
-            connection.rollback()
-    finally:
-        engine.dispose()
-
-
-async def _sqlalchemy_async(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
-    engine = create_async_engine(url)
-    try:
-        async with engine.connect() as connection:
-            await connection.begin()
-            api = _api(case, connection, called)
-            await scenario(api, _sqlalchemy_sql(connection))
-            await connection.rollback()
-    finally:
-        await engine.dispose()
+async def _sqlalchemy(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
+    async with sqlalchemy_connection(url, asynchronous=case.is_async) as connection:
+        await scenario(_api(case, connection, called), _sqlalchemy_sql(connection))
 
 
 async def _psycopg_sync(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
@@ -476,3 +454,5 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         "paid",
         "direct-debit",
     )
+
+    await streams_lazily(api, api.countdown)

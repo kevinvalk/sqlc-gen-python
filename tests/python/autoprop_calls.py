@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import enum
 import inspect
+import itertools
 import re
 import typing
 from dataclasses import dataclass
@@ -23,7 +24,7 @@ import pgvalues
 from autoprop_pool import PICK
 from autoprop_refusals import is_error, refused, rejected
 from postgres import aw
-from suite.deep import checked, failure, record_fields, strip_none
+from suite.deep import checked, failure, is_stream, record_fields, streamed, strip_none
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -291,6 +292,10 @@ def calls(
         for name, value in vars(module).items()
         if inspect.isfunction(value) and value.__module__ == module.__name__ and not name.startswith("_")
     ]
+
+    # A `:many` that only reads is followed by its stream, which we call as a function of its own
+    streams = {before.__name__: stream for before, stream in itertools.pairwise(functions) if is_stream(stream)}
+    functions = [function for function in functions if not is_stream(function)]
     if len(functions) != len(queries):
         message = f"{module.__name__}: {len(functions)} functions, {len(queries)} queries"
         raise AssertionError(message)
@@ -321,6 +326,9 @@ def calls(
         name = f"{module.__name__.split('.')[-1]}.{function.__name__}"
         call = checked(function, set())
         found.append(Call(name, call, query, arguments, record, bundled))
+        if (stream := streams.get(function.__name__)) is not None:
+            name = f"{module.__name__.split('.')[-1]}.{stream.__name__}"
+            found.append(Call(name, streamed(stream, set()), query, arguments, record, bundled))
     return sorted(found, key=_writes_first)
 
 

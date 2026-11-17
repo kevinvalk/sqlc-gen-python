@@ -3,20 +3,23 @@ use sqlc_gen_python::api::names::{self, Binding, Repeats};
 use sqlc_gen_python::config::{Config, Records};
 use sqlc_gen_python::plugin;
 
-use super::python::{Shape, fields, is_enum, unparse};
+use super::python::{Shape, fields, is_enum, is_error};
 use super::records::{documented, reads_in_order};
 
 /// The models module holds one enum per catalog enum, its members its labels in order and named as the generator
 /// names them, and one dataclass per table, its fields the columns in order, each optional exactly when sqlc says the
 /// column admits NULL and a list exactly as deep as its array. Only sqlc's request can tell us that, as no type checker
 /// or runtime probe can see a non-null column annotated `X | None`: every value of `X` fits.
-pub(super) fn models_follow_catalog(request: &plugin::GenerateRequest, models: &[Stmt], problems: &mut Vec<String>) {
+pub(super) fn models_follow_catalog(
+    (request, config): (&plugin::GenerateRequest, Option<&Config>),
+    models: &[Stmt],
+    problems: &mut Vec<String>,
+) {
     let schemas = || request.catalog.iter().flat_map(|catalog| catalog.user_schemas());
     let mut enums: Vec<&plugin::Enum> = schemas().flat_map(|schema| &schema.enums).collect();
     // The options' `rename` applies to enum labels too.
-    let config = Config::from_request(request).ok();
-    let rename = config.as_ref().map(|config| config.rename.clone()).unwrap_or_default();
-    let records = config.as_ref().map_or(Records::Dataclass, |config| config.records);
+    let rename = config.map(|config| config.rename.clone()).unwrap_or_default();
+    let records = config.map_or(Records::Dataclass, |config| config.records);
     let omits_unused = config.is_some_and(|config| config.models.omit_unused);
     let mut tables: Vec<(&plugin::Table, Vec<(String, Shape)>)> = (schemas())
         .flat_map(|schema| &schema.tables)
@@ -32,8 +35,7 @@ pub(super) fn models_follow_catalog(request: &plugin::GenerateRequest, models: &
 
     for class in models.iter().filter_map(Stmt::as_class_def_stmt) {
         let what = format!("models.py: class `{}`", class.name);
-        // The errors of a `:one` live with the models, as the one module every query module reads
-        if class.bases().iter().map(unparse).eq(["LookupError"]) {
+        if is_error(class) {
             continue;
         }
         if is_enum(class) {
@@ -71,7 +73,7 @@ pub(super) fn models_follow_catalog(request: &plugin::GenerateRequest, models: &
         }
     }
 
-    // `module_problems` holds each class of such models to a query module's use instead
+    // Such an entry writes the classes its queries use alone, which `src/api/models_spec.rs` specifies
     if omits_unused {
         return;
     }

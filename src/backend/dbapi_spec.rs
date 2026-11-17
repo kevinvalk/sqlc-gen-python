@@ -31,6 +31,7 @@ fn query(command: Command, parameters: Vec<Field>) -> Query {
     }
     Query {
         function: "get".into(),
+        stream: None,
         constant: "_GET".into(),
         comment: String::new(),
         sql: Sql(pieces),
@@ -131,8 +132,6 @@ fn psycopg_reads_an_array_of_an_enum_only_if_no_label_is_quoted_in_it() {
         let error = check_text_array(&sql_enum(&["card", label])).unwrap_err();
         assert!(error.to_string().contains("quotes the label"), "{label:?}: {error}");
     }
-    // Neither SQLAlchemy nor a driver that returns lists needs the check
-    assert!(Backend::SqlAlchemy.check_array_enum(&sql_enum(&["with space"])).is_ok());
 }
 
 #[test]
@@ -206,7 +205,7 @@ fn asyncmys_untyped_methods_are_called_through_a_protocol_of_the_modules_own() {
     assert_eq!(
         prelude,
         r"import typing
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from typing import Any
 
 import asyncmy.cursors
@@ -220,6 +219,8 @@ class _Cursor(typing.Protocol):
     ) -> object: ...
 
     async def fetchmany(self, size: int) -> Sequence[Sequence[Any]]: ...
+
+    def __aiter__(self) -> AsyncIterator[Sequence[Any]]: ...
 
 
 def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:
@@ -312,4 +313,42 @@ fn a_copy_quotes_every_name_as_postgresql_stores_it() {
         ..into
     };
     assert!(copy(&unqualified).starts_with(r#"COPY "line ""items""" ("#));
+}
+
+#[test]
+fn a_stream_reads_each_row_from_the_connection_as_it_is_iterated() {
+    let scalar = crate::api::queries::Shape::Scalar(field("n", Type::INT).ty);
+    let many = query(Command::Many(scalar.clone()), vec![field("id", Type::INT)]);
+    let stream = |backend: Backend, asynchronous| {
+        python::unparse_stmts(&backend.stream(&many, ("stream_get", &scalar), asynchronous))
+    };
+
+    // A cursor PostgreSQL holds, of the stream's name, as psycopg's `execute` reads every row
+    assert_eq!(
+        stream(Backend::Psycopg, true),
+        "async with psycopg.AsyncRawServerCursor(connection, \"stream_get\", row_factory=tuple_row) as cur:\n    \
+         await cur.execute(_GET, (id,))\n    \
+         yield (row[0] async for row in cur)"
+    );
+    // `sqlite3` steps through a statement as its cursor is iterated
+    assert_eq!(
+        stream(Backend::Sqlite3, false),
+        "with contextlib.closing(connection.cursor()) as cur:\n    \
+         cur.row_factory = None\n    \
+         cur.execute(_GET, (id,))\n    \
+         yield (row[0] for row in cur)"
+    );
+    // A MySQL driver's default cursor reads every row on `execute`, its unbuffered one as it is iterated
+    assert_eq!(
+        stream(Backend::Pymysql, false),
+        "with connection.cursor(pymysql.cursors.SSCursor) as cur:\n    \
+         cur.execute(_GET, (id,))\n    \
+         yield (row[0] for row in cur)"
+    );
+    assert_eq!(
+        stream(Backend::Pymysql, true),
+        "async with connection.cursor(asyncmy.cursors.SSCursor) as cur:\n    \
+         await _typed(cur).execute(_GET, (id,))\n    \
+         yield (row[0] async for row in _typed(cur))"
+    );
 }

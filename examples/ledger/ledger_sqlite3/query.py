@@ -4,7 +4,7 @@
 import contextlib
 import dataclasses
 import sqlite3
-from collections.abc import Iterable, Sequence
+from collections.abc import Generator, Iterable, Iterator, Sequence
 from typing import Any, Final
 
 from . import models
@@ -107,6 +107,16 @@ def list_accounts(connection: sqlite3.Connection) -> list[models.Account]:
         return [models.Account.from_row(row) for row in cur.fetchall()]
 
 
+@contextlib.contextmanager
+def stream_list_accounts(
+    connection: sqlite3.Connection,
+) -> Generator[Iterator[models.Account], None, None]:
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_ACCOUNTS)
+        yield (models.Account.from_row(row) for row in cur)
+
+
 _LIST_ACCOUNTS_BY_IDS: Final = "SELECT id, name, archived, opened_on, settings FROM accounts WHERE id IN (/*SLICE:ids*/?) ORDER BY id"
 
 
@@ -122,6 +132,21 @@ def list_accounts_by_ids(
             (*ids,),
         )
         return [models.Account.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_accounts_by_ids(
+    connection: sqlite3.Connection, *, ids: list[int]
+) -> Generator[Iterator[models.Account], None, None]:
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(
+            _LIST_ACCOUNTS_BY_IDS.replace(
+                "/*SLICE:ids*/?", ", ".join(["?"] * len(ids)) or "SELECT NULL WHERE 0"
+            ),
+            (*ids,),
+        )
+        yield (models.Account.from_row(row) for row in cur)
 
 
 _BOOK: Final = """INSERT INTO entries (account_id, amount_cents, rate, memo, receipt)
@@ -260,6 +285,19 @@ def list_amounts(
         return [ListAmountsRow.from_row(row) for row in cur.fetchall()]
 
 
+@contextlib.contextmanager
+def stream_list_amounts(
+    connection: sqlite3.Connection, *, account_id: int
+) -> Generator[Iterator[ListAmountsRow], None, None]:
+    """The account's amounts, each beside how many there are: a count over a
+    window.
+    """
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_AMOUNTS, (account_id,))
+        yield (ListAmountsRow.from_row(row) for row in cur)
+
+
 _LIST_SHARES: Final = """SELECT accounts.name, entries.amount_cents, ledger.total_cents
 FROM accounts
 LEFT JOIN entries ON entries.account_id = accounts.id
@@ -291,6 +329,20 @@ def list_shares(connection: sqlite3.Connection) -> list[ListSharesRow]:
         return [ListSharesRow.from_row(row) for row in cur.fetchall()]
 
 
+@contextlib.contextmanager
+def stream_list_shares(
+    connection: sqlite3.Connection,
+) -> Generator[Iterator[ListSharesRow], None, None]:
+    """Each account's amounts beside the ledger's total. An account without
+    entries has no amount, though sqlc reports it NOT NULL once a JOIN follows
+    the LEFT JOIN.
+    """
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_SHARES)
+        yield (ListSharesRow.from_row(row) for row in cur)
+
+
 _LIST_ENTRIES: Final = "SELECT id, account_id, amount_cents, rate, memo, receipt, booked_at FROM entries WHERE account_id = ? ORDER BY id"
 
 
@@ -301,6 +353,16 @@ def list_entries(
         cur.row_factory = None
         cur.execute(_LIST_ENTRIES, (account_id,))
         return [models.Entry.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_entries(
+    connection: sqlite3.Connection, *, account_id: int
+) -> Generator[Iterator[models.Entry], None, None]:
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_ENTRIES, (account_id,))
+        yield (models.Entry.from_row(row) for row in cur)
 
 
 _LIST_ENTRY_IDS: Final = """SELECT id FROM entries
@@ -323,6 +385,22 @@ def list_entry_ids(
         return [row[0] for row in cur.fetchall()]
 
 
+@contextlib.contextmanager
+def stream_list_entry_ids(
+    connection: sqlite3.Connection, *, ids: list[int], account_id: int
+) -> Generator[Iterator[int], None, None]:
+    """The entries of the account among the ids: a slice, then a numbered parameter."""
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(
+            _LIST_ENTRY_IDS.replace(
+                "/*SLICE:ids*/?", ", ".join(["?"] * len(ids)) or "SELECT NULL WHERE 0"
+            ),
+            (*ids, account_id),
+        )
+        yield (row[0] for row in cur)
+
+
 _LIST_MEMOS: Final = """SELECT memo FROM entries
 WHERE memo LIKE ? AND (account_id = ? OR ? = 0)
 ORDER BY id"""
@@ -336,6 +414,17 @@ def list_memos(
         cur.row_factory = None
         cur.execute(_LIST_MEMOS, (pattern, account_id, account_id))
         return [row[0] for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_memos(
+    connection: sqlite3.Connection, *, pattern: str | None = None, account_id: int
+) -> Generator[Iterator[str | None], None, None]:
+    """Entries with a memo matching the pattern, in the account or every account."""
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_MEMOS, (pattern, account_id, account_id))
+        yield (row[0] for row in cur)
 
 
 _LIST_ENTRIES_WITH_ACCOUNT: Final = """SELECT entries.id, entries.account_id, entries.amount_cents, entries.rate, entries.memo, entries.receipt, entries.booked_at, accounts.id, accounts.name, accounts.archived, accounts.opened_on, accounts.settings
@@ -365,6 +454,16 @@ def list_entries_with_account(
         return [ListEntriesWithAccountRow.from_row(row) for row in cur.fetchall()]
 
 
+@contextlib.contextmanager
+def stream_list_entries_with_account(
+    connection: sqlite3.Connection,
+) -> Generator[Iterator[ListEntriesWithAccountRow], None, None]:
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_ENTRIES_WITH_ACCOUNT)
+        yield (ListEntriesWithAccountRow.from_row(row) for row in cur)
+
+
 _LIST_ACCOUNTS_WITH_ENTRIES: Final = """SELECT accounts.id, accounts.name, accounts.archived, accounts.opened_on, accounts.settings, entries.id, entries.account_id, entries.amount_cents, entries.rate, entries.memo, entries.receipt, entries.booked_at
 FROM accounts LEFT JOIN entries ON entries.account_id = accounts.id
 ORDER BY accounts.id, entries.id"""
@@ -391,6 +490,17 @@ def list_accounts_with_entries(
         cur.row_factory = None
         cur.execute(_LIST_ACCOUNTS_WITH_ENTRIES)
         return [ListAccountsWithEntriesRow.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_accounts_with_entries(
+    connection: sqlite3.Connection,
+) -> Generator[Iterator[ListAccountsWithEntriesRow], None, None]:
+    """Each account with each of its entries: one without any once, its entry None."""
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_ACCOUNTS_WITH_ENTRIES)
+        yield (ListAccountsWithEntriesRow.from_row(row) for row in cur)
 
 
 _GET_LAST_AMOUNT: Final = """SELECT name, (
@@ -433,3 +543,30 @@ def delete_entries(
     cur.row_factory = None
     cur.execute(_DELETE_ENTRIES, (account_id,))
     return cur
+
+
+_COUNTDOWN: Final = """WITH RECURSIVE numbers (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM numbers WHERE n < 10000)
+SELECT CAST(json_extract(CASE WHEN n = 5000 THEN 'malformed' ELSE '1' END, '$') AS INTEGER) AS share FROM numbers"""
+
+
+def countdown(connection: sqlite3.Connection) -> list[int]:
+    """Reads malformed JSON at its 5000th row. Its function never returns, while its
+    stream reads the rows before, as it reads each as it is iterated.
+    """
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_COUNTDOWN)
+        return [row[0] for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_countdown(
+    connection: sqlite3.Connection,
+) -> Generator[Iterator[int], None, None]:
+    """Reads malformed JSON at its 5000th row. Its function never returns, while its
+    stream reads the rows before, as it reads each as it is iterated.
+    """
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_COUNTDOWN)
+        yield (row[0] for row in cur)

@@ -15,6 +15,7 @@ pub const DRIVER: Driver = Driver {
         connection: || PYMYSQL.attr("Connection"),
         closing: || cursor(PYMYSQL),
         cursor: || cursor(PYMYSQL),
+        streaming: |_| unbuffered(PYMYSQL),
         cursor_type: || cursor_type(PYMYSQL),
         generic: true,
         untyped: false,
@@ -23,6 +24,7 @@ pub const DRIVER: Driver = Driver {
         connection: || ASYNCMY.attr("Connection"),
         closing: || cursor(ASYNCMY),
         cursor: || cursor(ASYNCMY),
+        streaming: |_| unbuffered(ASYNCMY),
         cursor_type: || cursor_type(ASYNCMY),
         generic: false,
         untyped: true,
@@ -43,6 +45,14 @@ pub const DRIVER: Driver = Driver {
 /// `connection.cursor(<library>.cursors.Cursor)`, so we get tuples whatever the connection's cursor class.
 fn cursor(library: Symbol) -> ast::Expr {
     CONNECTION.attr("cursor").call([cursor_type(library)])
+}
+
+/// `connection.cursor(<library>.cursors.SSCursor)`, which reads each row from the connection as it is iterated. Closing
+/// it reads what is left, as the connection runs nothing else before.
+fn unbuffered(library: Symbol) -> ast::Expr {
+    CONNECTION
+        .attr("cursor")
+        .call([library.attr("cursors").attr("SSCursor")])
 }
 
 fn cursor_type(library: Symbol) -> ast::Expr {

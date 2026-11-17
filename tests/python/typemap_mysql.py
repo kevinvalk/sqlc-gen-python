@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 import mysql
 import typemap_columns
 from examples import EXAMPLES
-from typemap_columns import Driver, Engine, sqlalchemy_async, sqlalchemy_sync
+from typemap_columns import Driver, Engine, sqlalchemy_session
 from typemap_probe import Section, release, versions
 
 if TYPE_CHECKING:
@@ -122,12 +122,12 @@ ENGINE = Engine(
         Driver(
             "SQLAlchemy, PyMySQL",
             "mysqltypes_sqlalchemy",
-            sqlalchemy_sync("mysql+pymysql"),
+            sqlalchemy_session("mysql+pymysql", asynchronous=False),
         ),
         Driver(
             "SQLAlchemy, asyncmy",
             "mysqltypes_sqlalchemy_async",
-            sqlalchemy_async("mysql+asyncmy"),
+            sqlalchemy_session("mysql+asyncmy", asynchronous=True),
         ),
     ),
     edges=EDGES,

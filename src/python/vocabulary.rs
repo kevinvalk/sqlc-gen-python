@@ -48,7 +48,11 @@ pub const DT: Symbol = Symbol("dt");
 pub const ENUM: Symbol = Symbol("enum");
 pub const SQLITE3: Symbol = Symbol("sqlite3");
 pub const TYPING: Symbol = Symbol("typing");
+pub const ASYNC_GENERATOR: Symbol = Symbol("AsyncGenerator");
+pub const ASYNC_ITERATOR: Symbol = Symbol("AsyncIterator");
+pub const GENERATOR: Symbol = Symbol("Generator");
 pub const ITERABLE: Symbol = Symbol("Iterable");
+pub const ITERATOR: Symbol = Symbol("Iterator");
 pub const MAPPING: Symbol = Symbol("Mapping");
 pub const SEQUENCE: Symbol = Symbol("Sequence");
 pub const DECIMAL: Symbol = Symbol("Decimal");
@@ -102,7 +106,11 @@ pub(super) const VOCABULARY: [&[Import]; 3] = [
         Import::plain(ENUM),
         Import::plain(SQLITE3),
         Import::plain(TYPING),
+        Import::From("collections.abc", ASYNC_GENERATOR),
+        Import::From("collections.abc", ASYNC_ITERATOR),
+        Import::From("collections.abc", GENERATOR),
         Import::From("collections.abc", ITERABLE),
+        Import::From("collections.abc", ITERATOR),
         Import::From("collections.abc", MAPPING),
         Import::From("collections.abc", SEQUENCE),
         Import::From("decimal", DECIMAL),

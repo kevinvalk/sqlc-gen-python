@@ -10,10 +10,9 @@ from typing import Any
 
 import aiosqlite
 import pytest
-import sqlalchemy
 from examples import GoldenCase, statements
-from sqlalchemy.ext.asyncio import create_async_engine
-from suite.api import cases, functions, no_row, queries
+from postgres import aw
+from suite.api import calls_every_function, cases, no_row, queries, sqlalchemy_connection, streams_lazily
 
 SCHEMA = cases("ledger")[0].schema_sql.read_text()
 STATEMENTS = statements(SCHEMA)
@@ -24,16 +23,14 @@ RUNS = [pytest.param(case, id=case.name) for case in cases("ledger")]
 
 @pytest.mark.parametrize("case", RUNS)
 def test_every_function_against_sqlite(case: GoldenCase) -> None:
-    called: set[str] = set()
     run = {
         ("sqlite3", False): _sqlite3,
         ("sqlite3", True): _aiosqlite,
-        ("sqlalchemy", False): _sqlalchemy_sync,
-        ("sqlalchemy", True): _sqlalchemy_async,
+        ("sqlalchemy", False): _sqlalchemy,
+        ("sqlalchemy", True): _sqlalchemy,
     }[case.backend, case.is_async]
-    asyncio.run(run(case, called))
-    public = functions(case)
-    assert called == public, f"never called: {sorted(public - called)}"
+    with calls_every_function(case) as called:
+        asyncio.run(run(case, called))
 
 
 class _Dict(dict[str, Any]):
@@ -63,26 +60,12 @@ async def _aiosqlite(case: GoldenCase, called: set[str]) -> None:
         await scenario(queries(case, connection, called))
 
 
-async def _sqlalchemy_sync(case: GoldenCase, called: set[str]) -> None:
-    engine = sqlalchemy.create_engine("sqlite://")
-    try:
-        with engine.connect() as connection:
-            for statement in STATEMENTS:
-                connection.exec_driver_sql(statement)
-            await scenario(queries(case, connection, called))
-    finally:
-        engine.dispose()
-
-
-async def _sqlalchemy_async(case: GoldenCase, called: set[str]) -> None:
-    engine = create_async_engine("sqlite+aiosqlite://")
-    try:
-        async with engine.connect() as connection:
-            for statement in STATEMENTS:
-                await connection.exec_driver_sql(statement)
-            await scenario(queries(case, connection, called))
-    finally:
-        await engine.dispose()
+async def _sqlalchemy(case: GoldenCase, called: set[str]) -> None:
+    url = "sqlite+aiosqlite://" if case.is_async else "sqlite://"
+    async with sqlalchemy_connection(url, asynchronous=case.is_async) as connection:
+        for statement in STATEMENTS:
+            await aw(connection.exec_driver_sql(statement))
+        await scenario(queries(case, connection, called))
 
 
 async def scenario(api: Any) -> None:  # noqa: PLR0915
@@ -172,3 +155,5 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
     assert await query.book_many(rows=rows) is None
     assert await query.book_many(rows=[]) is None
     assert await query.balance(account_id=cash.id) == 500
+
+    await streams_lazily(api, query)

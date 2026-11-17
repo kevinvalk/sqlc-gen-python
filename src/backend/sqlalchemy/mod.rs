@@ -7,12 +7,12 @@ use crate::api::models::{Field, FieldType};
 use crate::api::queries::{Command, Query, Shape};
 use crate::engine::Engine;
 use crate::python::vocabulary::{
-    ANY, ASYNC_CONNECTION, CONNECTION, DICT, LIST, MODELS, PARAMS, POSTGRESQL, R, ROW, ROWS, SQLALCHEMY, STR, VALUE,
-    VALUES,
+    ANY, ASYNC_CONNECTION, CONNECTION, DICT, LIST, MODELS, PARAMS, POSTGRESQL, R, RESULT, ROW, ROWS, SQLALCHEMY, STR,
+    VALUE, VALUES,
 };
 use crate::python::{
-    Expression, Json, Scope, Type, ann_assign, assign, dict, each, expression, for_, if_, keyword, list, list_of, name,
-    return_, starred, stmts, string, true_, unless_none,
+    Expression, Json, Scope, Type, ann_assign, assign, dict, each, expression, for_, generator_of, if_, keyword, list,
+    list_of, name, return_, starred, stmts, string, true_, unless_none, with, yield_,
 };
 
 pub fn check(engine: Engine, query: &Query) -> Result<()> {
@@ -195,6 +195,30 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
             return_(VALUES),
         ],
     }
+}
+
+/// The rows of a `:many` as the caller iterates them, on a server-side cursor where the dialect has one, which closes
+/// with the result:
+///
+/// ```python
+/// with connection.execute(_LIST_AUTHORS, {...}, execution_options={"stream_results": True}) as result:
+///     yield (models.Author.from_row(row) for row in result)
+/// ```
+pub fn stream(query: &Query, shape: &Shape, asynchronous: bool) -> Vec<ast::Stmt> {
+    let values = (!query.params.is_empty()).then(|| named(query));
+    let arguments = std::iter::once(name(&query.constant)).chain(values);
+    let result = match asynchronous {
+        true => CONNECTION.attr("stream").call(arguments),
+        false => (CONNECTION.attr("execute")).call_with(
+            arguments,
+            [keyword(
+                "execution_options",
+                dict(vec![(string("stream_results"), true_())]),
+            )],
+        ),
+    };
+    let rows = generator_of(shape.read(ROW), each(ROW, RESULT).asynchronous(asynchronous));
+    vec![with(asynchronous, vec![result.entered_as(RESULT)], vec![yield_(rows)])]
 }
 
 /// `{"id": id}`

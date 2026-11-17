@@ -4,23 +4,26 @@
 //! any correct output holds:
 //!
 //! - generating never panics, and generating twice gives the same result;
-//! - the files are exactly `models.py` and one module per query file, each a distinct path inside the output
-//!   directory, and each valid UTF-8;
+//! - the files are exactly `models.py` and one module per query file, so each is inside the output directory, and
+//!   each valid UTF-8;
 //! - every module parses, and ruff's formatter leaves it unchanged;
-//! - its only comments are the header it opens with;
+//! - its only comments are the header it opens with, which silences no tool;
 //! - every name a module binds is unique in its scope and public, except for the prelude a query module holds where
 //!   its library's stubs need one, to the letter and nowhere else: PyMySQL's connection under a private name, and
 //!   asyncmy's untyped methods as a private protocol that annotates with `Any`;
 //! - every name a module reads on import is bound by then;
 //! - no annotation mentions `Any`, except a driver row's, a psycopg connection's and `:execresult`'s;
-//! - every class but an enum and an error is exactly a frozen, slotted, keyword-only dataclass, and only a nullable
-//!   field of a record of parameters has a default, `None`;
+//! - every class but an enum and an error is a record of the one kind the options ask for: a frozen, slotted,
+//!   keyword-only dataclass, or a frozen pydantic model that forbids extra fields; and only a nullable field of a
+//!   record of parameters has a default, `None`;
 //! - the models are one enum per catalog enum, with its labels as members in order and each named after its label,
-//!   and one dataclass per table, with its columns as fields in order, each optional exactly when the column admits
-//!   NULL and a list exactly as deep as its array, and a `from_row` that reads each field from its own position;
-//! - each query module holds one statement and one function per query, in sqlc's order. Each function takes
-//!   `connection` first, annotated as the backend's connection, then every SQL parameter keyword-only, none with a
-//!   default, and is `async def` exactly when asked. Its parameters and result fields are named after sqlc's, and
+//!   and one record per table (or per table its queries use, with `omit_unused`), with its columns as fields in
+//!   order, each optional exactly when the column admits NULL and a list exactly as deep as its array, and a
+//!   `from_row` that reads each field from its own position;
+//! - each query module holds one statement and one function per query, in sqlc's order, and after each `:many` that
+//!   only reads its stream: of the same parameters, a context manager that yields, once, a generator of the rows of
+//!   its cursor. Each function takes `connection` first, annotated as the backend's connection, then every SQL
+//!   parameter keyword-only, none with a default, and is `async def` exactly when asked. Its parameters and result fields are named after sqlc's, and
 //!   they (or its bare result) are optional exactly when sqlc says and lists exactly as deep. It executes its own
 //!   statement once, binding each parameter as itself (by name, or in its placeholder's place), and does nothing else
 //!   with `connection`. A `Row`'s `from_row` reads each field from its own place, an embed from a contiguous slice.

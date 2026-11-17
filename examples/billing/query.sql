@@ -66,3 +66,9 @@ WHERE id = sqlc.arg(id);
 
 -- name: DeleteDraftInvoices :execresult
 DELETE FROM invoices WHERE customer_id = ? AND status = 'draft';
+
+-- name: Countdown :many
+-- Reads malformed JSON at its 800th row. Its function never returns, while its
+-- stream reads the rows before, as it reads each as it is iterated.
+WITH RECURSIVE numbers (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM numbers WHERE n < 900)
+SELECT CAST(JSON_EXTRACT(IF(n = 800, 'malformed', '1'), '$') AS SIGNED) AS share FROM numbers;

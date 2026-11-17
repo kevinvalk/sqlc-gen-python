@@ -75,7 +75,11 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
         .flat_map(|query| &query.params);
     let names = (models.chain(records).map(|field| field.name.as_str()))
         .chain(rows)
-        .chain(queries.map(|query| query.function.as_str()));
+        .chain(
+            queries
+                .flat_map(|query| std::iter::once(&query.function).chain(&query.stream))
+                .map(String::as_str),
+        );
     if let Some(name) = names.into_iter().find(|name| roots.iter().any(|root| root == name)) {
         bail!(
             "`{name}` would hide the module an override imports; name it otherwise with the \
@@ -85,7 +89,7 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
 
     let arrays = api.text_array_enums();
     for sql_enum in (api.enums.iter()).filter(|e| arrays.contains(e.name.as_str())) {
-        (config.backend.check_array_enum(sql_enum)).with_context(|| format!("enum class `{}`", sql_enum.name))?;
+        crate::backend::check_text_array(sql_enum).with_context(|| format!("enum class `{}`", sql_enum.name))?;
     }
     Ok(api)
 }

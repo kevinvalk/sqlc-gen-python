@@ -151,6 +151,75 @@ def checked(function: Callable[..., Any], called: set[str]) -> Callable[..., Any
     return wrapper
 
 
+def streamed(stream: Callable[..., Any], called: set[str]) -> Callable[..., Any]:
+    """Wrap a generated stream, a context manager of an iterator of rows, as a function that checks its arguments,
+    reads every row and checks it, and returns them as the list its query's function would.
+    """
+    hints = typing.get_type_hints(stream)
+    iterator, *_ = typing.get_args(hints["return"])
+    (row,) = typing.get_args(iterator)
+    rows = types.GenericAlias(list, (row,))
+    signature = inspect.signature(stream)
+    name = f"{stream.__module__}.{stream.__qualname__}"
+
+    def check_arguments(*args: object, **kwargs: object) -> None:
+        bound = signature.bind(*args, **kwargs)
+        for parameter, value in bound.arguments.items():
+            check(value, hints[parameter], f"{name}({parameter}=)")
+        called.add(name)
+
+    if inspect.isasyncgenfunction(inspect.unwrap(stream)):
+
+        @functools.wraps(stream)
+        async def async_wrapper(*args: object, **kwargs: object) -> list[object]:
+            check_arguments(*args, **kwargs)
+            try:
+                async with stream(*args, **kwargs) as items:
+                    read = [item async for item in items]
+            except pydantic.ValidationError as error:
+                refused(error, rows, f"{name}() ->")
+            check(read, rows, f"{name}() ->")
+            return read
+
+        return async_wrapper
+
+    @functools.wraps(stream)
+    def wrapper(*args: object, **kwargs: object) -> list[object]:
+        check_arguments(*args, **kwargs)
+        try:
+            with stream(*args, **kwargs) as items:
+                read = list(items)
+        except pydantic.ValidationError as error:
+            refused(error, rows, f"{name}() ->")
+        check(read, rows, f"{name}() ->")
+        return read
+
+    return wrapper
+
+
+def same(left: object, right: object, *, digits: int | None = None) -> bool:
+    """Whether two values are the same, a record's field by field and a list's item by item, and a float to ``digits``
+    significant digits where given.
+
+    A value is the same as itself, as a NaN is not equal to itself, and since Python 3.13 a dataclass compares its
+    fields by ``==`` alone.
+    """
+    if digits is not None and isinstance(left, float) and isinstance(right, float):
+        return f"{left:.{digits}g}" == f"{right:.{digits}g}"
+    if isinstance(left, list) and isinstance(right, list):
+        pairs = zip(typing.cast("list[object]", left), typing.cast("list[object]", right), strict=False)
+        return len(left) == len(right) and all(same(a, b, digits=digits) for a, b in pairs)
+    names = record_fields(left)
+    if names is not None and type(left) is type(right):
+        return all(same(getattr(left, name), getattr(right, name), digits=digits) for name in names)
+    return left is right or left == right
+
+
+def is_stream(function: Callable[..., Any]) -> bool:
+    """Whether a generated function is a stream, which `contextlib` wraps as a context manager."""
+    return inspect.unwrap(function) is not function
+
+
 def strip_none(hint: Any) -> tuple[Any, bool]:
     """`T`, and whether the hint was `T | None`."""
     arguments = typing.get_args(hint)

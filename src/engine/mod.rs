@@ -231,9 +231,28 @@ impl Engine {
     /// Whether `sql` is a `MERGE`, as not every driver reports the row count of one.
     pub fn merges(self, sql: &str) -> bool {
         match self {
-            Self::PostgreSql => postgresql::merges(sql),
+            Self::PostgreSql => (self.words(sql).windows(2))
+                .any(|pair| pair[0].eq_ignore_ascii_case("merge") && pair[1].eq_ignore_ascii_case("into")),
             // Neither has `MERGE`.
             Self::Sqlite | Self::MySql => false,
+        }
+    }
+
+    /// Whether `text` only reads: a `SELECT`, `VALUES` or `TABLE`, or a `WITH` of no statement that writes. A
+    /// `FOR UPDATE` or `FOR NO KEY UPDATE` only locks what it reads.
+    pub fn reads(self, text: &str) -> bool {
+        let words: Vec<String> = (self.words(text).into_iter())
+            .map(|word| word.to_lowercase())
+            .skip_while(|word| word == "(")
+            .collect();
+        let writes = |i: usize| {
+            ["insert", "update", "delete", "merge"].contains(&words[i].as_str())
+                && !(i > 0 && ["for", "key"].contains(&words[i - 1].as_str()))
+        };
+        match words.first().map(String::as_str) {
+            Some("select" | "values" | "table") => true,
+            Some("with") => !(0..words.len()).any(writes),
+            _ => false,
         }
     }
 
@@ -374,7 +393,6 @@ impl Engine {
         }
     }
 
-    /// The engine's own name for `data_type`, whichever spelling sqlc reported. Only PostgreSQL has several.
     /// Whether `name`, bare, is a type of the engine's own that we map, so never another schema's type of that name.
     pub fn is_own_type(self, name: &str) -> bool {
         match self {
@@ -384,6 +402,7 @@ impl Engine {
         }
     }
 
+    /// The engine's own name for `data_type`, whichever spelling sqlc reported. Only PostgreSQL has several.
     pub fn type_name(self, data_type: &str) -> String {
         match self {
             Self::PostgreSql => postgresql::type_name(data_type),

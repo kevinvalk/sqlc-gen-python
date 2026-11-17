@@ -3,7 +3,7 @@ use ruff_python_ast as ast;
 use super::dbapi::{Driver, Flavor};
 use crate::api::models::Field;
 use crate::python::vocabulary::{ANY, CONNECTION, JSON, JSONB, PSYCOPG, RANGE, TUPLE, TUPLE_ROW};
-use crate::python::{Expression, Json, Type, ellipsis, keyword, unless_none};
+use crate::python::{Expression, Json, Type, ellipsis, keyword, string, unless_none};
 
 /// We run each statement on a raw cursor, as it takes PostgreSQL's own `$N` placeholders as sqlc writes them, and ask
 /// for tuples whatever the connection's row factory.
@@ -12,6 +12,7 @@ pub const DRIVER: Driver = Driver {
         connection: || PSYCOPG.attr("Connection").index(ANY),
         closing: || cursor("RawCursor"),
         cursor: || cursor("RawCursor"),
+        streaming: |name| server_cursor("RawServerCursor", name),
         cursor_type: || cursor_type("RawCursor"),
         generic: false,
         untyped: false,
@@ -20,6 +21,7 @@ pub const DRIVER: Driver = Driver {
         connection: || PSYCOPG.attr("AsyncConnection").index(ANY),
         closing: || cursor("AsyncRawCursor"),
         cursor: || cursor("AsyncRawCursor"),
+        streaming: |name| server_cursor("AsyncRawServerCursor", name),
         cursor_type: || cursor_type("AsyncRawCursor"),
         generic: false,
         untyped: false,
@@ -36,6 +38,14 @@ pub const DRIVER: Driver = Driver {
 /// `psycopg.<class>(connection, row_factory=tuple_row)`
 fn cursor(class: &str) -> ast::Expr {
     (PSYCOPG.attr(class)).call_with([CONNECTION.into()], [keyword("row_factory", TUPLE_ROW)])
+}
+
+/// `psycopg.<class>(connection, "<name>", row_factory=tuple_row)`, a cursor PostgreSQL holds, which psycopg fetches
+/// from a page at a time. We name it after its stream, so one is open at a time per connection. Its `stream()` would
+/// need no transaction, but holds the connection's lock between rows, so one left before its end blocks the connection
+/// until it is garbage, and its stubs type it as an iterator that cannot be closed sooner.
+fn server_cursor(class: &str, name: &str) -> ast::Expr {
+    (PSYCOPG.attr(class)).call_with([CONNECTION.into(), string(name)], [keyword("row_factory", TUPLE_ROW)])
 }
 
 /// `psycopg.<class>[tuple[Any, ...]]`

@@ -65,3 +65,48 @@ fn a_mysql_statement_with_a_comment_that_is_code_is_not_read() {
     // To PostgreSQL it is a comment
     assert_eq!(Engine::PostgreSql.present(sql), ["a", "b"]);
 }
+
+#[test]
+fn a_statement_reads_unless_it_or_a_statement_it_runs_first_writes() {
+    for engine in [Engine::PostgreSql, Engine::MySql, Engine::Sqlite] {
+        for sql in [
+            "SELECT id FROM authors",
+            "(SELECT 1) UNION (SELECT 2)",
+            "VALUES (1), (2)",
+            "WITH a AS (SELECT 1) SELECT * FROM a",
+            "SELECT id FROM authors FOR UPDATE",
+            "WITH a AS (SELECT id FROM authors FOR NO KEY UPDATE) SELECT * FROM a",
+            "SELECT replace(name, 'a', 'b') FROM authors",
+            // A quoted name is no statement
+            r#"WITH a AS (SELECT "delete" FROM t) SELECT * FROM a"#,
+        ] {
+            assert!(engine.reads(sql), "{engine:?}: {sql}");
+        }
+        for sql in [
+            "DELETE FROM authors RETURNING id",
+            "INSERT INTO authors (name) VALUES ('a') RETURNING id",
+            "UPDATE authors SET name = 'a' RETURNING id",
+            "WITH gone AS (DELETE FROM authors RETURNING id) SELECT * FROM gone",
+            "REPLACE INTO authors (id) VALUES (1)",
+        ] {
+            assert!(!engine.reads(sql), "{engine:?}: {sql}");
+        }
+    }
+}
+
+#[test]
+fn a_merge_is_found_as_code() {
+    for sql in [
+        "MERGE INTO t USING s ON true WHEN MATCHED THEN DELETE",
+        "WITH s AS (SELECT 1) merge /* c */ into t USING s ON true WHEN MATCHED THEN DELETE",
+    ] {
+        assert!(Engine::PostgreSql.merges(sql), "{sql}");
+    }
+    for sql in [
+        "SELECT 'MERGE INTO'",
+        "SELECT merge FROM t -- merge into\n",
+        r#"SELECT "merge" into"#,
+    ] {
+        assert!(!Engine::PostgreSql.merges(sql), "{sql}");
+    }
+}

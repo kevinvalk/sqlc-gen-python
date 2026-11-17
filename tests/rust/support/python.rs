@@ -82,6 +82,11 @@ pub(super) fn strip_optional(annotation: &Expr) -> &Expr {
     }
 }
 
+/// An error a `:one` raises, which lives with the models, as the one module every query module reads.
+pub(super) fn is_error(class: &StmtClassDef) -> bool {
+    class.bases().iter().map(unparse).eq(["LookupError"])
+}
+
 pub(super) fn is_enum(class: &StmtClassDef) -> bool {
     class.bases().iter().map(unparse).eq(["enum.StrEnum"])
 }

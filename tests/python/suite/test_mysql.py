@@ -18,8 +18,7 @@ import pymysql
 import pytest
 import sqlalchemy
 from examples import GoldenCase
-from sqlalchemy.ext.asyncio import create_async_engine
-from suite.api import cases, functions, no_row, queries
+from suite.api import calls_every_function, cases, no_row, queries, sqlalchemy_connection, streams_lazily
 
 SCHEMA = cases("billing")[0].schema_sql.read_text()
 # Characters PyMySQL's `%` formatting, SQLAlchemy's `:name` binds or a careless generator could misread.
@@ -51,19 +50,16 @@ RUNS = [
 def test_every_function_against_mysql(
     case: GoldenCase, driver: str, prepared: int, mysql_server: sqlalchemy.URL
 ) -> None:
-    called: set[str] = set()
-    with mysql.database(mysql_server, SCHEMA) as database:
+    with mysql.database(mysql_server, SCHEMA) as database, calls_every_function(case) as called:
         _setup(database)
         url = database.set(drivername=f"mysql+{driver}")
         runs: dict[tuple[str, bool], Run] = {
             ("pymysql", False): _pymysql,
             ("pymysql", True): functools.partial(_asyncmy, prepared=prepared),
-            ("sqlalchemy", False): _sqlalchemy_sync,
-            ("sqlalchemy", True): _sqlalchemy_async,
+            ("sqlalchemy", False): _sqlalchemy,
+            ("sqlalchemy", True): _sqlalchemy,
         }
         asyncio.run(runs[case.backend, case.is_async](case, url, called))
-    public = functions(case)
-    assert called == public, f"never called: {sorted(public - called)}"
 
 
 def _setup(url: sqlalchemy.URL) -> None:
@@ -101,24 +97,9 @@ async def _asyncmy(case: GoldenCase, url: sqlalchemy.URL, called: set[str], *, p
         await connection.ensure_closed()
 
 
-async def _sqlalchemy_sync(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
-    engine = sqlalchemy.create_engine(url)
-    try:
-        with engine.connect() as connection:
-            await scenario(queries(case, connection, called))
-            connection.rollback()
-    finally:
-        engine.dispose()
-
-
-async def _sqlalchemy_async(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
-    engine = create_async_engine(url)
-    try:
-        async with engine.connect() as connection:
-            await scenario(queries(case, connection, called))
-            await connection.rollback()
-    finally:
-        await engine.dispose()
+async def _sqlalchemy(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
+    async with sqlalchemy_connection(url, asynchronous=case.is_async) as connection:
+        await scenario(queries(case, connection, called))
 
 
 async def scenario(api: Any) -> None:  # noqa: PLR0915
@@ -264,3 +245,5 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
     result = await query.delete_draft_invoices(customer_id=acme)
     assert result.rowcount == 1
     assert await query.count_invoices(customer_id=acme) == 1
+
+    await streams_lazily(api, query)

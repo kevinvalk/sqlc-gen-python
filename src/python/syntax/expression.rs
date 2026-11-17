@@ -127,6 +127,21 @@ pub fn list_of(item: impl Into<ast::Expr>, each: Each) -> ast::Expr {
     .into()
 }
 
+/// `(item for <each>)`, which reads `each` only as it is iterated.
+pub fn generator_of(item: impl Into<ast::Expr>, each: Each) -> ast::Expr {
+    node!(ast::ExprGenerator {
+        elt: Box::new(item.into()),
+        generators: vec![node!(ast::Comprehension {
+            target: target(&each.target),
+            iter: each.iter,
+            ifs: each.test.into_iter().collect(),
+            is_async: each.is_async,
+        })],
+        parenthesized: true,
+    })
+    .into()
+}
+
 /// `for target in iter`, of a comprehension ([`list_of`]) or a loop ([`super::for_`]).
 pub struct Each {
     pub(super) target: String,

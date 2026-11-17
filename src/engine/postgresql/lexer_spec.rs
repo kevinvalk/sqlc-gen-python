@@ -140,23 +140,6 @@ fn a_named_parameter_sqlc_left_as_written_is_an_error() {
 }
 
 #[test]
-fn a_merge_is_found_as_code() {
-    for sql in [
-        "MERGE INTO t USING s ON true WHEN MATCHED THEN DELETE",
-        "WITH s AS (SELECT 1) merge /* c */ into t USING s ON true WHEN MATCHED THEN DELETE",
-    ] {
-        assert!(merges(sql), "{sql}");
-    }
-    for sql in [
-        "SELECT 'MERGE INTO'",
-        "SELECT merge FROM t -- merge into\n",
-        r#"SELECT "merge" into"#,
-    ] {
-        assert!(!merges(sql), "{sql}");
-    }
-}
-
-#[test]
 fn an_identifier_is_one_word_to_postgresql() {
     for name in ["day", "_x", "größe", "a$1"] {
         assert!(is_identifier(name), "{name}");

@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 use anyhow::{Result, bail};
-use heck::ToUpperCamelCase;
+use heck::{ToSnakeCase, ToUpperCamelCase};
 use ruff_python_ast as ast;
 use ruff_python_stdlib::builtins::is_python_builtin;
 
@@ -32,6 +32,10 @@ pub struct Module {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Query {
     pub function: String,
+    /// The function that streams the rows of a `:many` that only reads, `stream_<function>`, as an iterator of them
+    /// inside a context manager that holds the cursor. A write is left out, as PostgreSQL's cursors only hold a query,
+    /// and psycopg would only run it once someone iterates.
+    pub stream: Option<String>,
     pub constant: String,
     pub comment: String,
     /// The statement as sqlc wrote it, cut at its placeholders.
@@ -225,7 +229,8 @@ pub fn modules(
                 "{other} and {file} both become the module \"{name}.py\"; rename one"
             ));
         }
-        for python_name in std::iter::once(resolved.function.as_str()).chain(resolved.classes()) {
+        let functions = std::iter::once(resolved.function.as_str()).chain(resolved.stream.as_deref());
+        for python_name in functions.chain(resolved.classes()) {
             if let Some(first) = defined.insert((name.clone(), python_name.to_owned()), &query.name) {
                 problems.note(anyhow::anyhow!(
                     "{file}: \"{first}\" and \"{}\" both become the Python name \"{python_name}\"",
@@ -333,7 +338,11 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
         false if config.max_params.is_some_and(|max| params.len() > max) => Takes::Record(params_class),
         false => Takes::Keywords,
     };
+    // A prefixed name hides no builtin or keyword, so it needs no trailing `_`
+    let stream = (matches!(command, Command::Many(_)) && !batch && resolver.engine.reads(&query.text))
+        .then(|| format!("stream_{}", query.name.to_snake_case()));
     let resolved = Query {
+        stream,
         constant: format!("_{}", function.to_uppercase()),
         function,
         comment: (query.comments.iter())

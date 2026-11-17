@@ -2,7 +2,9 @@
 # versions:
 #   sqlc v1.31.1
 # ruff: noqa: S105
+import contextlib
 import ipaddress
+from collections.abc import Generator, Iterator
 from decimal import Decimal
 from typing import Any, Final
 
@@ -43,6 +45,17 @@ def list_devices_under(
         return [models.Machine.from_row(row) for row in cur.fetchall()]
 
 
+@contextlib.contextmanager
+def stream_list_devices_under(
+    connection: psycopg.Connection[Any], *, location: str
+) -> Generator[Iterator[models.Machine], None, None]:
+    with psycopg.RawServerCursor(
+        connection, "stream_list_devices_under", row_factory=tuple_row
+    ) as cur:
+        cur.execute(_LIST_DEVICES_UNDER, (location,))
+        yield (models.Machine.from_row(row) for row in cur)
+
+
 _LIST_DEVICES_BY_TOKEN: Final = "SELECT id, ip, location, budget, sign_in FROM devices WHERE sign_in = 'token' ORDER BY id"
 
 
@@ -50,3 +63,14 @@ def list_devices_by_token(connection: psycopg.Connection[Any]) -> list[models.Ma
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_DEVICES_BY_TOKEN)
         return [models.Machine.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_devices_by_token(
+    connection: psycopg.Connection[Any],
+) -> Generator[Iterator[models.Machine], None, None]:
+    with psycopg.RawServerCursor(
+        connection, "stream_list_devices_by_token", row_factory=tuple_row
+    ) as cur:
+        cur.execute(_LIST_DEVICES_BY_TOKEN)
+        yield (models.Machine.from_row(row) for row in cur)

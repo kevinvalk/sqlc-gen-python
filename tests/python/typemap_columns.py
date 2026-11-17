@@ -18,17 +18,17 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import sqlalchemy
-from sqlalchemy.ext.asyncio import create_async_engine
-
-from suite.api import cases, functions, public_functions, queries
-from suite.deep import strip_none
+from postgres import aw
+from suite.api import calls_every_function, cases, public_functions, queries, sqlalchemy_connection
+from suite.deep import is_stream, strip_none
 from typemap_probe import Probe, describe, raised, short
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
     from contextlib import AbstractAsyncContextManager
     from typing import TypeVar
+
+    import sqlalchemy
 
     Value = TypeVar("Value")
 
@@ -73,41 +73,37 @@ def probe(engine: Engine, url: sqlalchemy.URL) -> list[Probe]:
 
 async def _drive(engine: Engine, driver: Driver, url: sqlalchemy.URL, probes: dict[str, Probe]) -> None:
     (case,) = (c for c in cases(engine.example) if c.name == driver.case)
-    called: set[str] = set()
-    async with driver.connect(url) as (connection, run):
-        for statement in engine.setup:
-            await run(statement)
+    with calls_every_function(case) as called:
+        async with driver.connect(url) as (connection, run):
+            for statement in engine.setup:
+                await run(statement)
 
-        api = queries(case, connection, called)
-        hints = typing.get_type_hints(api.models.Scalar)
-        columns = [(str(name), str(declared)) for name, declared in await run(engine.columns)]
-        if [name for name, _ in columns] != list(hints):
-            message = f"{case.name}: its model does not read the table of every type"
-            raise LookupError(message)
+            api = queries(case, connection, called)
+            hints = typing.get_type_hints(api.models.Scalar)
+            columns = [(str(name), str(declared)) for name, declared in await run(engine.columns)]
+            if [name for name, _ in columns] != list(hints):
+                message = f"{case.name}: its model does not read the table of every type"
+                raise LookupError(message)
 
-        # We read each edge through every other query that reads the table too.
-        readers = [
-            name
-            for name, function in public_functions(case, "query").items()
-            if len(inspect.signature(function).parameters) == 1
-        ]
-        stored = _Stored(engine, api.query, run, [name for name, _ in columns], readers)
-        for column, declared in columns:
-            annotation = strip_none(hints[column])[0]
-            probe = probes.setdefault(declared, Probe(declared, annotation))
-            probe.seen[driver.name] = set()
-            if probe.annotation != annotation:
-                wrong = f"MISMATCH: annotated {annotation} here, {probe.annotation} elsewhere"
-                probe.notes["annotation"][driver.name] = wrong
-            if declared not in engine.edges:
-                probe.notes["-"][driver.name] = "MISMATCH: no edge values to probe"
-            for edge in ("NULL", *engine.edges.get(declared, ())):
-                if (note := await stored.edge(probe.seen[driver.name], column, edge)) != "":
-                    probe.notes[edge][driver.name] = note
-
-    if len(uncalled := functions(case) - called) > 0:
-        message = f"{case.name}: never called: {sorted(uncalled)}"
-        raise LookupError(message)
+            # We read each edge through every other query that reads the table too, and its stream with it.
+            readers = [
+                name
+                for name, function in public_functions(case, "query").items()
+                if len(inspect.signature(function).parameters) == 1 and not is_stream(function)
+            ]
+            stored = _Stored(engine, api.query, run, [name for name, _ in columns], readers)
+            for column, declared in columns:
+                annotation = strip_none(hints[column])[0]
+                probe = probes.setdefault(declared, Probe(declared, annotation))
+                probe.seen[driver.name] = set()
+                if probe.annotation != annotation:
+                    wrong = f"MISMATCH: annotated {annotation} here, {probe.annotation} elsewhere"
+                    probe.notes["annotation"][driver.name] = wrong
+                if declared not in engine.edges:
+                    probe.notes["-"][driver.name] = "MISMATCH: no edge values to probe"
+                for edge in ("NULL", *engine.edges.get(declared, ())):
+                    if (note := await stored.edge(probe.seen[driver.name], column, edge)) != "":
+                        probe.notes[edge][driver.name] = note
 
 
 @dataclass(frozen=True)
@@ -164,39 +160,16 @@ async def _observed(call: Awaitable[Value], raising: str) -> tuple[Value | None,
         return None, f"{raising} {raised(error)}"
 
 
-def sqlalchemy_sync(drivername: str) -> Callable[[sqlalchemy.URL], Session]:
+def sqlalchemy_session(drivername: str, *, asynchronous: bool) -> Callable[[sqlalchemy.URL], Session]:
 
     @asynccontextmanager
     async def connect(url: sqlalchemy.URL) -> AsyncIterator[tuple[object, Run]]:
-        engine = sqlalchemy.create_engine(url.set(drivername=drivername))
-        try:
-            with engine.connect() as connection:
+        async with sqlalchemy_connection(url.set(drivername=drivername), asynchronous=asynchronous) as connection:
 
-                async def run(sql: str) -> list[tuple[Any, ...]]:
-                    result = connection.exec_driver_sql(sql)
-                    return [tuple(row) for row in result] if result.returns_rows else []
+            async def run(sql: str) -> list[tuple[Any, ...]]:
+                result = await aw(connection.exec_driver_sql(sql))
+                return [tuple(row) for row in result] if result.returns_rows else []
 
-                yield connection, run
-        finally:
-            engine.dispose()
-
-    return connect
-
-
-def sqlalchemy_async(drivername: str) -> Callable[[sqlalchemy.URL], Session]:
-
-    @asynccontextmanager
-    async def connect(url: sqlalchemy.URL) -> AsyncIterator[tuple[object, Run]]:
-        engine = create_async_engine(url.set(drivername=drivername))
-        try:
-            async with engine.connect() as connection:
-
-                async def run(sql: str) -> list[tuple[Any, ...]]:
-                    result = await connection.exec_driver_sql(sql)
-                    return [tuple(row) for row in result] if result.returns_rows else []
-
-                yield connection, run
-        finally:
-            await engine.dispose()
+            yield connection, run
 
     return connect

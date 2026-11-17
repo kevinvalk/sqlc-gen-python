@@ -171,7 +171,7 @@ fn query_modules_read_their_models_from_the_module_named_and_write_none() {
 }
 
 #[test]
-fn a_pydantic_record_is_a_frozen_model_that_forbids_extra_fields_and_hides_none_of_its_attributes() {
+fn a_pydantic_record_is_a_frozen_model_that_forbids_extra_fields() {
     use crate::api::fixtures::authors::{named, query};
     use crate::api::fixtures::{column, public, table};
     // pydantic warns of a field that shadows a `BaseModel` attribute, such as `json`

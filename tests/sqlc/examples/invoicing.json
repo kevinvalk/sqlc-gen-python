@@ -1155,6 +1155,42 @@
   },
   "queries": [
     {
+      "text": "SELECT (10000 / (5000 - n))::int AS share FROM generate_series(1, 10000) AS n",
+      "name": "Countdown",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "share",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "pg_catalog",
+            "name": "int4"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [
+        " Divides by zero at its 5000th row. Its function never returns, while its",
+        " stream reads the rows before, as it reads each as it is iterated."
+      ],
+      "filename": "countdown.sql",
+      "insert_into_table": null
+    },
+    {
       "text": "INSERT INTO customers (name, email, tags, preferred_method, accepted_methods, metadata)\nVALUES ($1, $2, $3, $4, $5, $6)\nRETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, created_at",
       "name": "CreateCustomer",
       "cmd": ":one",

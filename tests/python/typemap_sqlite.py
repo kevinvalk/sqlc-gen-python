@@ -17,7 +17,7 @@ import sqlalchemy
 
 import typemap_columns
 from examples import EXAMPLES, statements
-from typemap_columns import Driver, Engine, sqlalchemy_async, sqlalchemy_sync
+from typemap_columns import Driver, Engine, sqlalchemy_session
 from typemap_probe import Section, versions
 
 if TYPE_CHECKING:
@@ -81,12 +81,12 @@ ENGINE = Engine(
         Driver(
             "SQLAlchemy, sqlite3",
             "sqlitetypes_sqlalchemy",
-            sqlalchemy_sync("sqlite+pysqlite"),
+            sqlalchemy_session("sqlite+pysqlite", asynchronous=False),
         ),
         Driver(
             "SQLAlchemy, aiosqlite",
             "sqlitetypes_sqlalchemy_async",
-            sqlalchemy_async("sqlite+aiosqlite"),
+            sqlalchemy_session("sqlite+aiosqlite", asynchronous=True),
         ),
     ),
     edges=EDGES,

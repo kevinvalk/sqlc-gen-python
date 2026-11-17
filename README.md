@@ -52,6 +52,8 @@ The connection and its transaction are the caller's: nothing is committed.
 
 `backend` and `async` are required. See [`examples/`](examples/) for complete projects.
 
+There is no `asyncpg` backend. Measured on Python 3.11 (November 2026), asyncpg 0.32 reads a hundred thousand rows about a third faster than psycopg 3.3 and runs a one-row query about a fifth faster, which a real query's own time mostly hides. But it is async only, ships no types for a strict type checker, and sees a release a year where psycopg sees several a month. psycopg serves sync and async with one API, and its pipelines, `COPY` and server-side cursors are what the batches, `:copyfrom` and streams run on. On SQLAlchemy, asyncpg is a driver like any other.
+
 Each release is tested under the sqlc its notes name (v1.31.1 now), and the generated code on Python 3.11 and the newest, with psycopg 3.3 (libpq 14 at least), SQLAlchemy 2.0 and 2.1 (on psycopg, asyncpg, PyMySQL, asyncmy, `sqlite3` and aiosqlite), PyMySQL 1.2, asyncmy 0.2 (0.2.17 at least), aiosqlite 0.22 and pydantic 2.14. Every type each engine maps is read back through each of its drivers, at its edges ([`docs/typemap.md`](docs/typemap.md)).
 
 ### Types are never guessed
@@ -86,6 +88,16 @@ The plugin needs sqlc's static analysis: with a `database` block in `sqlc.yaml`,
 | `:batchexec`, `:batchone`, `:batchmany` | a `list` of one result per row (PostgreSQL only) |
 
 A row of one column is its value, a row of exactly a table's columns is that table's model, and any other is a `<Query>Row` beside the function. Every one is a frozen, keyword-only dataclass (or a pydantic model, with `records: pydantic`), and every enum an `enum.StrEnum`. `sqlc.embed(t)` is a field of `t`'s model, and `sqlc.slice` a `list`.
+
+A `:many` that only reads (a `SELECT`, or a `WITH` of nothing that writes) also has a `stream_<query>`, which takes what its function takes and reads each row from the database as you iterate, instead of all of them first. It is a context manager, which closes the cursor when you leave it, read to the end or not:
+
+```python
+with invoices.stream_list_invoices_by_status(connection, statuses=[InvoiceStatus.PAID]) as rows:
+    for row in rows:
+        export(row)
+```
+
+With `async: true` it is `async with` and `async for`. Each library streams its own way: on PostgreSQL a cursor the server holds, which it only opens in a transaction (so not on an autocommit connection), and psycopg one of a stream at a time per connection; an unbuffered `SSCursor` on PyMySQL and asyncmy; and the cursor itself on `sqlite3` and aiosqlite. Until you leave it, a MySQL connection runs nothing else, and a stream left early still reads the rest of its rows as it closes. asyncmy reads a stream's rows as text even where it prepares statements, so a `FLOAT` comes to six digits. A write (`... RETURNING`) has no stream, as a PostgreSQL cursor only holds a query. SQLAlchemy's asyncpg dialect raises asyncpg's own error, not a `sqlalchemy.exc.DBAPIError`, for what fails as a stream reads (2.0.57 and 2.1.8).
 
 A nullable parameter, such as a `sqlc.narg`, defaults to `None`, so a filter (`sqlc.narg(ids) IS NULL OR ...`) or a partial update (`coalesce(sqlc.narg(name), name)`) takes only what the caller has, `**` a dict of it included. Every other parameter is required.
 

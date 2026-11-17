@@ -92,7 +92,7 @@ mypy_path = "$MYPY_CONFIG_FILE_DIR"
 explicit_package_bases = true
 
 [tool.pytest.ini_options]
-# The runtime suite's tests import the shared `postgres` module from here.
+# The runtime suite's tests import the shared modules here (`postgres`, `mysql`, `examples`).
 pythonpath = ["."]
 addopts = ["-p", "no:cacheprovider"]
 # A proof that runs nothing proves nothing, so an empty parametrization fails and so does a skipped test (conftest.py).

@@ -34,14 +34,6 @@ fn a_backends_coroutines_take_the_connection_of_its_async_library() {
     }
 }
 
-#[test]
-fn a_package_defines_the_errors_of_a_one_only_where_its_library_has_none() {
-    assert!(!Backend::SqlAlchemy.defines_errors());
-    for driver in [Backend::Psycopg, Backend::Sqlite3, Backend::Pymysql] {
-        assert!(driver.defines_errors(), "{driver:?}");
-    }
-}
-
 /// A type only joins a map with driver evidence (`AGENTS.md`), which the runtime proof gets by reading a column of it
 /// (`tests/python/typemap_psycopg.py`).
 #[test]
@@ -85,4 +77,33 @@ fn a_type_the_drivers_disagree_on_is_the_backends_to_decide() {
     );
     assert_eq!(Backend::SqlAlchemy.scalar_type(Engine::PostgreSql, "point"), None);
     assert_eq!(Backend::Sqlite3.scalar_type(Engine::Sqlite, "int4range"), None);
+}
+
+#[test]
+fn sqlalchemy_streams_on_a_server_side_cursor_sync_and_async() {
+    use crate::api::fixtures::authors::{query, resolve};
+    use crate::api::fixtures::column;
+    use crate::api::queries::Command;
+
+    let many = resolve(crate::plugin::Query {
+        columns: vec![column("bio", "text", false)],
+        ..query(":many", "SELECT bio FROM authors")
+    });
+    let Command::Many(shape) = &many.command else {
+        panic!("not a :many")
+    };
+    let stream = |asynchronous| {
+        let body = Backend::SqlAlchemy.stream(&many, ("stream_get_author", shape), asynchronous);
+        crate::python::unparse_stmts(&body)
+    };
+    assert_eq!(
+        stream(false),
+        "with connection.execute(_GET_AUTHOR, execution_options={\"stream_results\": True}) as result:\n    \
+         yield (row[0] for row in result)"
+    );
+    assert_eq!(
+        stream(true),
+        "async with connection.stream(_GET_AUTHOR) as result:\n    \
+         yield (row[0] async for row in result)"
+    );
 }

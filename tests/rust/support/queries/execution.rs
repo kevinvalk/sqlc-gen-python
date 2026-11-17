@@ -39,10 +39,9 @@ pub(super) fn runs_its_statement(
         fn visit_expr(&mut self, expr: &'a Expr) {
             match expr {
                 Expr::Call(call)
-                    if call
-                        .func
-                        .as_attribute_expr()
-                        .is_some_and(|method| ["execute", "executemany", "copy"].contains(&method.attr.as_str())) =>
+                    if call.func.as_attribute_expr().is_some_and(|method| {
+                        ["execute", "executemany", "copy", "stream"].contains(&method.attr.as_str())
+                    }) =>
                 {
                     self.calls.push(call)
                 }
@@ -70,12 +69,14 @@ pub(super) fn runs_its_statement(
         ));
     };
 
-    // A `COPY` is entered with `async with`, so it is its row writes that are awaited.
-    let awaited = match unparse(&call.func).ends_with(".copy") {
+    // A `COPY` is entered with `async with`, so it is its row writes that are awaited. A `stream()` is an async
+    // iterator or context manager, which is never awaited.
+    let method = unparse(&call.func);
+    let awaited = match method.ends_with(".copy") {
         false => executes.awaited.contains(&call.range()),
         true => (executes.writes.iter()).all(|write| executes.awaited.contains(write)),
     };
-    if awaited != asynchronous {
+    if awaited != (asynchronous && !method.ends_with(".stream")) {
         problems.push(format!("{}: awaits its statement exactly when async", query.name));
     }
 
@@ -89,12 +90,21 @@ pub(super) fn runs_its_statement(
         statement = Some(&*method.value);
     }
 
-    // A batch on psycopg asks for each row's result: `returning=True`.
-    let keywords: Vec<String> = call.arguments.keywords.iter().map(|k| unparse(&k.value)).collect();
-    let returning = (call.arguments.keywords.iter())
-        .all(|k| k.arg.as_ref().is_some_and(|arg| arg.as_str() == "returning"))
-        && keywords.iter().all(|value| value == "True");
-    if !statement.is_some_and(|first| is_name(first, constant)) || !returning {
+    // A batch on psycopg asks for each row's result, `returning=True`, and a stream on SQLAlchemy for a server-side
+    // cursor.
+    let keywords: Vec<String> = (call.arguments.keywords.iter())
+        .map(|k| {
+            format!(
+                "{}={}",
+                k.arg.as_ref().map_or("", |arg| arg.as_str()),
+                unparse(&k.value)
+            )
+        })
+        .collect();
+    let options = keywords
+        .iter()
+        .all(|keyword| ["returning=True", r#"execution_options={"stream_results": True}"#].contains(&keyword.as_str()));
+    if !statement.is_some_and(|first| is_name(first, constant)) || !options {
         let arguments: Vec<String> = arguments.iter().map(unparse).collect();
         return problems.push(format!(
             "{}: executes ({}), not its own statement `{constant}`",

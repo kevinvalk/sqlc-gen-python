@@ -63,6 +63,12 @@ pub fn return_(value: impl Into<ast::Expr>) -> ast::Stmt {
     .into()
 }
 
+pub fn yield_(value: impl Into<ast::Expr>) -> ast::Stmt {
+    expression(node!(ast::ExprYield {
+        value: Some(Box::new(value.into())),
+    }))
+}
+
 pub fn raise(error: impl Into<ast::Expr>) -> ast::Stmt {
     node!(ast::StmtRaise {
         exc: Some(Box::new(error.into())),

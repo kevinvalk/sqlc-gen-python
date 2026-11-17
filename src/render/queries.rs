@@ -2,10 +2,13 @@ use ruff_python_ast as ast;
 
 use super::{Attribute, documentation, record};
 use crate::api::models::Field;
-use crate::api::queries::{Module, Query, RowField, Takes};
+use crate::api::queries::{Command, Module, Query, RowField, Takes};
 use crate::config::{Config, Records};
 use crate::python::Type;
-use crate::python::vocabulary::{CONNECTION, FINAL, FROM_ROW, ITERABLE, MODELS, PARAMS, PYDANTIC, ROW, ROWS};
+use crate::python::vocabulary::{
+    ASYNC_GENERATOR, ASYNC_ITERATOR, CONNECTION, CONTEXTLIB, FINAL, FROM_ROW, GENERATOR, ITERABLE, ITERATOR, MODELS,
+    PARAMS, PYDANTIC, ROW, ROWS, Symbol,
+};
 use crate::python::{Expression, Function, Scope, ann_assign, int, name, none, parameter, stmts, unless_none};
 
 /// For each query its statement, its class if it has one, and its function.
@@ -17,11 +20,8 @@ pub fn module(module: &Module, config: &Config) -> Vec<ast::Stmt> {
             .map(|(class, fields)| row_class(class, fields, config.records));
         // `Final` keeps the statement a literal, which psycopg's `execute` asks for (`LiteralString`)
         let statement = ann_assign(&query.constant, FINAL, config.backend.statement(query));
-        let function = function(query, config);
-        std::iter::once(statement)
-            .chain(parameters)
-            .chain(row)
-            .chain([function])
+        let functions = functions(query, config);
+        std::iter::once(statement).chain(parameters).chain(row).chain(functions)
     });
     (config.backend.prelude(config.asynchronous).into_iter())
         .chain(queries)
@@ -97,8 +97,9 @@ fn optional(parameter: &Field) -> Option<ast::Expr> {
     parameter.ty.optional.then(none)
 }
 
-/// The connection, then each parameter keyword-only, or all of them as one record, or the rows it runs for.
-fn function(query: &Query, config: &Config) -> ast::Stmt {
+/// The query's function, and its stream if it has one. Each takes the connection, then each parameter keyword-only, or
+/// all of them as one record, or the rows it runs for.
+fn functions(query: &Query, config: &Config) -> Vec<ast::Stmt> {
     let (backend, asynchronous) = (config.backend, config.asynchronous);
     let (positional, keyword_only) = match &query.takes {
         Takes::Record(class) => (Some(parameter(PARAMS, name(class))), vec![]),
@@ -114,12 +115,45 @@ fn function(query: &Query, config: &Config) -> ast::Stmt {
         }
     };
     let connection = parameter(CONNECTION, backend.connection(asynchronous));
-    Function {
+    let function = Function {
         parameters: std::iter::once(connection).chain(positional).collect(),
         keyword_only,
-        body: stmts![documentation(&query.comment), backend.body(query, asynchronous),],
+        body: stmts![documentation(&query.comment), backend.body(query, asynchronous)],
         is_async: asynchronous,
         ..Function::new(&query.function, backend.returns(query, asynchronous))
-    }
-    .into()
+    };
+
+    // A context manager, so the cursor closes when the caller is done with the rows, read or not
+    let stream = match (&query.stream, &query.command) {
+        (Some(stream), Command::Many(shape)) => Some((stream, shape)),
+        _ => None,
+    };
+    let stream = stream.map(|(stream, shape)| {
+        // The generator spelt out in full, as `contextlib` asks for one and one type argument needs Python 3.13
+        let rows = |iterator: Symbol| iterator.index(shape.annotation(false));
+        let (decorator, returns) = match asynchronous {
+            true => (
+                "asynccontextmanager",
+                ASYNC_GENERATOR.index_each(vec![rows(ASYNC_ITERATOR), none()]),
+            ),
+            false => (
+                "contextmanager",
+                GENERATOR.index_each(vec![rows(ITERATOR), none(), none()]),
+            ),
+        };
+        Function {
+            name: stream.clone(),
+            decorators: vec![CONTEXTLIB.attr(decorator)],
+            returns,
+            body: stmts![
+                documentation(&query.comment),
+                backend.stream(query, (stream, shape), asynchronous)
+            ],
+            parameters: function.parameters.clone(),
+            keyword_only: function.keyword_only.clone(),
+            is_async: asynchronous,
+        }
+        .into()
+    });
+    std::iter::once(function.into()).chain(stream).collect()
 }

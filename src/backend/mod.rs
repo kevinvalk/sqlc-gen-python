@@ -17,12 +17,12 @@ use anyhow::{Result, bail};
 use ruff_python_ast as ast;
 use serde::Deserialize;
 
-use crate::api::models::Enum;
-use crate::api::queries::{Command, Query, Takes};
+use crate::api::queries::{Command, Query, Shape, Takes};
 use crate::engine::Engine;
 use crate::python::vocabulary::{DATE, DATETIME, DECIMAL, INT, LIST, PARAMS, R, Symbol};
 use crate::python::{Expression, Type, name, none};
 use dbapi::Driver;
+pub use dbapi::check_text_array;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -80,7 +80,7 @@ impl Backend {
         // A MySQL driver's `executemany` rewrites an `INSERT` into one statement of many rows, and only some versions
         // format what follows its `VALUES` list (PyMySQL from 1.2.4, not mysqlclient). So a `%` there, doubled for the
         // driver, could reach MySQL doubled, in a string too!
-        if engine == Engine::MySql && matches!(query.takes, Takes::Rows(_)) && query.sql.text().contains('%') {
+        if engine == Engine::MySql && query.takes.rows() && query.sql.text().contains('%') {
             bail!(
                 ":copyfrom has a % in its statement, which a MySQL driver's executemany doubles \
                  or not by its version; write it without one, as MOD(a, b) for a % b"
@@ -89,13 +89,6 @@ impl Backend {
         match self.driver() {
             None => sqlalchemy::check(engine, query),
             Some(_) => Ok(()),
-        }
-    }
-
-    pub fn check_array_enum(self, sql_enum: &Enum) -> Result<()> {
-        match self.text_arrays() {
-            true => dbapi::check_text_array(sql_enum),
-            false => Ok(()),
         }
     }
 
@@ -144,6 +137,14 @@ impl Backend {
         match self.driver() {
             None => sqlalchemy::body(query, asynchronous),
             Some(driver) => dbapi::body(driver, query, asynchronous),
+        }
+    }
+
+    /// The body of a `:many`'s [stream](Query::stream) `name`, which yields an iterator of its rows of `shape`.
+    pub fn stream(self, query: &Query, (name, shape): (&str, &Shape), asynchronous: bool) -> Vec<ast::Stmt> {
+        match self.driver() {
+            None => sqlalchemy::stream(query, shape, asynchronous),
+            Some(driver) => dbapi::stream(driver, query, (name, shape), asynchronous),
         }
     }
 }

@@ -8,13 +8,14 @@ use crate::api::models::{Enum, Field};
 use crate::api::queries::{Command, CopyInto, Query, Shape};
 use crate::engine::Piece;
 use crate::python::vocabulary::{
-    ANY, CONNECTION, CONNECTION_TYPE, COPY, CUR, CURSOR, INT, LEN, MODELS, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, OBJECT,
-    PROTOCOL, R, RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPE_CHECKING, TYPED, TYPED_CURSOR, VALUE, VALUES,
+    ANY, ASYNC_ITERATOR, CONNECTION, CONNECTION_TYPE, COPY, CUR, CURSOR, INT, LEN, MODELS, MULTIPLE_ROWS_ERROR,
+    NO_ROW_ERROR, OBJECT, PROTOCOL, R, RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPE_CHECKING, TYPED,
+    TYPED_CURSOR, VALUE, VALUES,
 };
 use crate::python::{
-    Each, Expression, Function, Scope, ann_assign, assign, class, each, ellipsis, expression, for_, if_else, int,
-    keyword, list, list_of, match_, name, none, parameter, pattern, raise, receiver, return_, starred, stmts, string,
-    true_, tuple, with,
+    Each, Expression, Function, Scope, ann_assign, assign, class, each, ellipsis, expression, for_, generator_of,
+    if_else, int, keyword, list, list_of, match_, name, none, parameter, pattern, raise, receiver, return_, starred,
+    stmts, string, true_, tuple, with, yield_,
 };
 
 #[cfg(test)]
@@ -64,6 +65,9 @@ pub struct Flavor {
     pub closing: fn() -> ast::Expr,
     pub cursor: fn() -> ast::Expr,
     pub cursor_type: fn() -> ast::Expr,
+    /// The cursor a stream iterates, as `with` enters it, of the name it is given: one that reads each row from the
+    /// connection as it is iterated rather than all of them on `execute`.
+    pub streaming: fn(&str) -> ast::Expr,
     /// Whether the library's stubs leave `execute`, `executemany` and `fetchmany` untyped, so strict pyright rejects a
     /// call of them and generated code calls them through a protocol of its own ([`prelude`]). asyncmy's do, see
     /// "Workarounds" in AGENTS.md.
@@ -160,6 +164,7 @@ fn copy(into: &CopyInto) -> String {
 ///     async def execute(self, query: str, args: Sequence[Any] | None = None) -> int: ...
 ///     async def executemany(self, query: str, args: Sequence[Sequence[Any]]) -> object: ...
 ///     async def fetchmany(self, size: int) -> Sequence[Sequence[Any]]: ...
+///     def __aiter__(self) -> AsyncIterator[Sequence[Any]]: ...
 ///
 /// def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:
 ///     return cursor
@@ -191,7 +196,12 @@ fn bridge(flavor: &Flavor, asynchronous: bool) -> Vec<ast::Stmt> {
     // Without parameters a statement runs as written, so `args` is optional
     let mut args = parameter("args", values().or_none());
     args.default = Some(Box::new(none()));
-    let methods: [ast::Stmt; 3] = [
+    let iterate = Function {
+        parameters: vec![receiver(SELF)],
+        body: vec![expression(ellipsis())],
+        ..Function::new("__aiter__", ASYNC_ITERATOR.index(values()))
+    };
+    let methods: [ast::Stmt; 4] = [
         method("execute", vec![parameter("query", STR), args], INT.into()),
         method(
             "executemany",
@@ -199,6 +209,7 @@ fn bridge(flavor: &Flavor, asynchronous: bool) -> Vec<ast::Stmt> {
             OBJECT.into(),
         ),
         method("fetchmany", vec![parameter("size", INT)], SEQUENCE.index(values())),
+        iterate.into(),
     ];
     let typed = Function {
         parameters: vec![parameter(CURSOR, (flavor.cursor_type)())],
@@ -210,12 +221,7 @@ fn bridge(flavor: &Flavor, asynchronous: bool) -> Vec<ast::Stmt> {
 
 /// One execution of the statement on a cursor of its own, which is closed after, with the result shaped by the command.
 pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
-    let body = Body {
-        driver,
-        flavor: driver.flavor(asynchronous),
-        query,
-        asynchronous,
-    };
+    let body = Body::new(driver, query, asynchronous);
     let returning = || [keyword("returning", true_())];
     let on_cursor = match (&query.command, query.takes.rows()) {
         (Command::Exec, true) if driver.copies && query.copy_into.is_some() => return body.copy(),
@@ -262,6 +268,24 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt
     vec![with(asynchronous, vec![cursor], stmts![body.plain_rows(), on_cursor])]
 }
 
+/// The rows of a `:many`, read from a cursor of its own as the caller iterates them, which is closed after:
+///
+/// ```python
+/// with contextlib.closing(connection.cursor()) as cur:
+///     cur.execute(_LIST_AUTHORS, (name,))
+///     yield (models.Author.from_row(row) for row in cur)
+/// ```
+pub fn stream(driver: &Driver, query: &Query, (name, shape): (&str, &Shape), asynchronous: bool) -> Vec<ast::Stmt> {
+    let body = Body::new(driver, query, asynchronous);
+    let rows = generator_of(shape.read(ROW), each(ROW, body.typed(CUR)).asynchronous(asynchronous));
+    let cursor = (body.flavor.streaming)(name).entered_as(CUR);
+    vec![with(
+        asynchronous,
+        vec![cursor],
+        stmts![body.plain_rows(), expression(body.execute()), yield_(rows)],
+    )]
+}
+
 struct Body<'a> {
     driver: &'a Driver,
     flavor: &'a Flavor,
@@ -269,7 +293,16 @@ struct Body<'a> {
     asynchronous: bool,
 }
 
-impl Body<'_> {
+impl<'a> Body<'a> {
+    fn new(driver: &'a Driver, query: &'a Query, asynchronous: bool) -> Self {
+        Self {
+            driver,
+            flavor: driver.flavor(asynchronous),
+            query,
+            asynchronous,
+        }
+    }
+
     /// Only when the driver needs it and the rows are read, by the function or from the cursor it returns.
     fn plain_rows(&self) -> Option<ast::Stmt> {
         let read = matches!(

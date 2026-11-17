@@ -49,9 +49,15 @@ def is_error(error: Exception, sqlalchemy_error: type[Exception], package: str) 
 
 
 def database_error(error: Exception) -> BaseException | None:
-    """The driver's error behind ``error``, which SQLAlchemy wraps and a psycopg package raises as is."""
+    """The driver's error behind ``error``, which SQLAlchemy wraps and a psycopg package raises as is.
+
+    NOTE: SQLAlchemy's asyncpg adapter raises asyncpg's own error as is where a server-side cursor fetches, as a stream
+    does, since it translates none there (SQLAlchemy 2.0.57 and 2.1.8).
+    """
     if isinstance(error, sqlalchemy.exc.DBAPIError):
         return error.orig
+    if type(error).__module__.startswith("asyncpg."):
+        return error
     return error if isinstance(error, psycopg.Error) else None
 
 

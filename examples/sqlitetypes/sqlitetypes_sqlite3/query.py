@@ -4,7 +4,7 @@
 import contextlib
 import dataclasses
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Generator, Iterator, Sequence
 from typing import Any, Final
 
 from . import models
@@ -17,6 +17,16 @@ def list_scalars(connection: sqlite3.Connection, *, limit: int) -> list[models.S
         cur.row_factory = None
         cur.execute(_LIST_SCALARS, (limit,))
         return [models.Scalar.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_scalars(
+    connection: sqlite3.Connection, *, limit: int
+) -> Generator[Iterator[models.Scalar], None, None]:
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_SCALARS, (limit,))
+        yield (models.Scalar.from_row(row) for row in cur)
 
 
 _ADD_SCALARS: Final = """INSERT INTO scalars (
@@ -97,3 +107,16 @@ def list_derived(connection: sqlite3.Connection) -> list[ListDerivedRow]:
         cur.row_factory = None
         cur.execute(_LIST_DERIVED)
         return [ListDerivedRow.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_derived(
+    connection: sqlite3.Connection,
+) -> Generator[Iterator[ListDerivedRow], None, None]:
+    """What sqlc types otherwise than a column: a comparison is its `bool`, a
+    cast its type in lowercase.
+    """
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(_LIST_DERIVED)
+        yield (ListDerivedRow.from_row(row) for row in cur)
