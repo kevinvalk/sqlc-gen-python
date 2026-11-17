@@ -101,6 +101,7 @@ A nullable parameter, such as a `sqlc.narg`, defaults to `None`, so a filter (`s
 | `rename` | `{}` | Python names for SQL names: a table or enum (`schema.name`, or `name` in the default schema) to its class, a column or parameter to its name, an enum label to its member (`"+1": plus_one`) |
 | `models.module` | none | Import the models from this module (`app.models`), written by another entry of the same schema and backend, and write the query modules alone, beside your own code |
 | `models.only` | `false` | Write `models.py` alone, for the entries that set `models.module`. sqlc requires a query of every entry, so give this one a placeholder (`SELECT 1`), which writes nothing |
+| `models.omit_unused` | `false` | Write only the models and enums this entry's queries use, and report the problems (an unknown type) of those alone, so an entry over a large schema carries what it needs. Not with `models.only` or `models.module`, as an entry does not know what the others sharing its models use |
 | `models.exact_table_names` | `false` | Name model classes after their table, without singularising |
 | `models.inflection_exclude` | `[]` | Tables whose names are not singularised |
 | `records` | `dataclass` | `pydantic` makes every model, `Row` and `Params` a frozen `pydantic.BaseModel` that forbids unknown fields and validates what it is built from. A field that would hide a `BaseModel` attribute takes a trailing `_` (`json_`) |

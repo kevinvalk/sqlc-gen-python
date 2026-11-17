@@ -60,6 +60,19 @@ impl Query {
         }
     }
 
+    /// The models its rows are, or embed.
+    pub fn models(&self) -> Vec<&str> {
+        match &self.command {
+            Command::One(Shape::Model(model)) | Command::Many(Shape::Model(model)) => vec![model],
+            _ => (self.row().into_iter().flat_map(|(_, fields)| fields))
+                .filter_map(|field| match field {
+                    RowField::Embed { model, .. } => Some(model.as_str()),
+                    RowField::Column(_) => None,
+                })
+                .collect(),
+        }
+    }
+
     /// The classes the query defines: its `Params`, then its `Row`.
     pub fn classes(&self) -> impl Iterator<Item = &str> {
         (self.takes.class().into_iter()).chain(self.row().map(|(class, _)| class))

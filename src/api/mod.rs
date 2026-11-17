@@ -41,10 +41,21 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
     }
 
     let mut problems = Problems::default();
-    let (enums, models) = models::resolve(&resolver, &config.models, &mut problems);
+    // We match the queries against every table, and with `omit_unused` then write only the classes they use, whose
+    // problems alone are the user's
+    let mut unwritten = Problems::default();
+    let catalog_problems = match config.models.omit_unused {
+        true => &mut unwritten,
+        false => &mut problems,
+    };
+    let (enums, models) = models::resolve(&resolver, &config.models, None, catalog_problems);
     // The queries of an entry that writes only the models are a placeholder, as sqlc requires one
     let queries: &[plugin::Query] = if config.models.only { &[] } else { &request.queries };
     let modules = queries::modules(queries, &resolver, &models, config, &mut problems);
+    let (enums, models) = match config.models.omit_unused {
+        true => models::resolve(&resolver, &config.models, Some(&used(&modules)), &mut problems),
+        false => (enums, models),
+    };
     problems.check()?;
     resolver.check_used()?;
     let api = Api { enums, models, modules };
@@ -77,6 +88,20 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
         (config.backend.check_array_enum(sql_enum)).with_context(|| format!("enum class `{}`", sql_enum.name))?;
     }
     Ok(api)
+}
+
+/// The classes of the models module that `modules` use: the models of their rows and the enums of their fields.
+fn used(modules: &[queries::Module]) -> BTreeSet<String> {
+    let queries = modules.iter().flat_map(|module| &module.queries);
+    let enums = (queries.clone())
+        .flat_map(|query| query.params.iter().chain(&query.columns))
+        .filter_map(|field| match &field.ty.element {
+            Type::Enum(class) => Some(class.as_str()),
+            _ => None,
+        });
+    (queries.flat_map(queries::Query::models).chain(enums))
+        .map(String::from)
+        .collect()
 }
 
 /// We collect every problem of the schema and queries so that one run reports them all, as sqlc only shows a plugin's

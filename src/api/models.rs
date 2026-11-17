@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use anyhow::{Result, anyhow, bail};
 use ruff_python_ast as ast;
 
@@ -55,15 +57,24 @@ pub struct FieldType {
     pub as_text: bool,
 }
 
-/// The classes of the models module. A table with a problem still becomes a model, without the fields that have one, so
-/// we still check the queries against it.
-pub fn resolve(resolver: &Resolver, config: &ModelConfig, problems: &mut Problems) -> (Vec<Enum>, Vec<Model>) {
+/// The classes of the models module, or those of them `used` names. A table with a problem still becomes a model, without
+/// the fields that have one, so we still check the queries against it.
+pub fn resolve(
+    resolver: &Resolver,
+    config: &ModelConfig,
+    used: Option<&BTreeSet<String>>,
+    problems: &mut Problems,
+) -> (Vec<Enum>, Vec<Model>) {
+    let is_used = |name: &String| used.is_none_or(|used| used.contains(name));
     let mut enums = Vec::new();
     let mut models = Vec::new();
     for schema in resolver.catalog.user_schemas() {
         for sql_enum in &schema.enums {
             let what = format!("enum \"{}\"", sql_enum.name);
             let name = resolver.class_name(schema, &sql_enum.name);
+            if !is_used(&name) {
+                continue;
+            }
             problems.take(&what, usable(&name));
             enums.push(Enum {
                 name,
@@ -77,6 +88,9 @@ pub fn resolve(resolver: &Resolver, config: &ModelConfig, problems: &mut Problem
             let relation = table.rel.clone().unwrap_or_default();
             let what = format!("table \"{}\"", relation.name);
             let name = resolver.model_name(schema, &relation.name, config);
+            if !is_used(&name) {
+                continue;
+            }
             problems.take(&what, usable(&name));
             let fields = resolver.fields(&table.columns, &what, problems);
             models.push(Model {

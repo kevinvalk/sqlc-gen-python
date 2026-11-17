@@ -375,3 +375,66 @@ fn a_class_with_the_name_of_an_import_is_an_error() {
     let error = try_resolve(vec![sql_schema("public", vec![], vec![decimal])]).unwrap_err();
     assert!(error.to_string().starts_with("`Decimal` is a name"), "{error}");
 }
+
+#[test]
+fn omit_unused_writes_the_models_and_enums_the_queries_use_and_reports_no_others_problems() {
+    use crate::api::fixtures::authors::{authors, named, of_authors, query, selecting};
+    use crate::backend::Backend;
+    use crate::config::Config;
+
+    let enum_of = |name: &str| plugin::Enum {
+        name: name.into(),
+        vals: vec!["one".into()],
+        ..plugin::Enum::default()
+    };
+    let schemas = vec![sql_schema(
+        "public",
+        vec![
+            table("authors", authors()),
+            table("books", vec![column("id", "int8", true)]),
+            table("labels", vec![column("id", "int8", true)]),
+            // An unknown type, which is no problem of a table no query uses
+            table("reviews", vec![column("body", "amount", true)]),
+        ],
+        vec![enum_of("mood"), enum_of("colour")],
+    )];
+    let list_authors = plugin::Query {
+        name: "ListAuthors".into(),
+        text: selecting(&authors()),
+        columns: authors().into_iter().map(of_authors).collect(),
+        ..query(":many", "")
+    };
+    let books = plugin::Column {
+        name: "books".into(),
+        embed_table: Some(plugin::Identifier {
+            name: "books".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let get_book = plugin::Query {
+        name: "GetBook".into(),
+        columns: vec![books, column("total", "int8", true)],
+        ..query(":one", "SELECT books.id, t.total FROM books JOIN t ON true")
+    };
+    let set_mood = plugin::Query {
+        name: "SetMood".into(),
+        params: vec![named(1, "mood", "mood", true)],
+        ..query(":exec", "UPDATE authors SET bio = $1")
+    };
+    let request = request("postgresql", schemas, vec![list_authors, get_book, set_mood]);
+    let config = |omit_unused| Config {
+        models: ModelConfig {
+            omit_unused,
+            ..ModelConfig::default()
+        },
+        ..Config::of(Backend::SqlAlchemy)
+    };
+
+    let api = crate::api::resolve(&request, &config(true)).unwrap();
+    assert_eq!(model_names(&api), ["Author", "Book"]);
+    assert_eq!(api.enums.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), ["Mood"]);
+
+    let error = error_of(crate::api::resolve(&request, &config(false)));
+    assert!(error.contains(r#"table "reviews""#), "{error}");
+}

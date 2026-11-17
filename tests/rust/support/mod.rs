@@ -78,7 +78,47 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
         }
     }
     models_follow_catalog(request, models, &mut problems);
+    if Config::from_request(request).is_ok_and(|config| config.models.omit_unused) {
+        let sources: Vec<&str> = (modules.iter())
+            .filter(|(name, ..)| *name != "models.py")
+            .map(|(_, source, _)| *source)
+            .collect();
+        problems.extend(unused(models, &sources));
+    }
     problems
+}
+
+/// The classes of `models` that neither a query module of `sources` nor a model's field names, which `omit_unused`
+/// should have left out.
+fn unused(models: &[Stmt], sources: &[&str]) -> Vec<String> {
+    let classes: Vec<_> = (models.iter().filter_map(Stmt::as_class_def_stmt))
+        .filter(|class| !class.bases().iter().map(python::unparse).eq(["LookupError"]))
+        .collect();
+    let annotations: Vec<String> = (classes.iter().flat_map(|class| python::fields(class)))
+        .map(|(_, annotation)| python::unparse(annotation))
+        .collect();
+    // `models.Author` names `Author` but not `AuthorRole`
+    let names = |text: &str, class: &str| {
+        (text.match_indices(class)).any(|(at, _)| {
+            let is_part = |c: char| c.is_alphanumeric() || c == '_';
+            let before = text[..at].chars().next_back();
+            let after = text[at + class.len()..].chars().next();
+            before.is_none_or(|c| !is_part(c)) && after.is_none_or(|c| !is_part(c))
+        })
+    };
+    (classes.iter())
+        .filter(|class| {
+            let class = class.name.as_str();
+            let reference = format!("models.{class}");
+            !sources.iter().any(|source| names(source, &reference)) && !annotations.iter().any(|a| names(a, class))
+        })
+        .map(|class| {
+            format!(
+                "models.py: class `{}` is used by no query, which omit_unused omits",
+                class.name
+            )
+        })
+        .collect()
 }
 
 /// We hold the naming checks to the names after the options' `rename`, so each renamed column and parameter takes its

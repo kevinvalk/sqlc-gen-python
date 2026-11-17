@@ -100,6 +100,9 @@ pub struct ModelConfig {
     /// Writes the models alone, for other entries' `module` to read, as sqlc requires a query of every entry.
     pub only: bool,
 
+    /// Writes only the models and enums this entry's queries use, so an entry of a large schema carries its own alone.
+    pub omit_unused: bool,
+
     pub exact_table_names: bool,
 
     pub inflection_exclude: Vec<String>,
@@ -134,6 +137,13 @@ impl Config {
         }
         if config.models.only && config.models.module.is_some() {
             bail!("models.only writes the models, and models.module reads them from another entry; set one");
+        }
+        // Neither entry knows the queries of the entries that share its models, so it cannot tell what they use
+        if config.models.omit_unused && (config.models.only || config.models.module.is_some()) {
+            bail!(
+                "models.omit_unused writes the models this entry's queries use, which a shared models module may not \
+                 omit; drop it here"
+            );
         }
 
         for (i, rule) in config.overrides.iter().enumerate() {

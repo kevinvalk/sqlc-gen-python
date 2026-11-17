@@ -148,3 +148,17 @@ fn records_are_dataclasses_or_pydantic_models() {
         Records::Dataclass
     );
 }
+
+#[test]
+fn an_entry_that_shares_its_models_omits_none() {
+    for models in [
+        r#"{"only": true, "omit_unused": true}"#,
+        r#"{"module": "app.models", "omit_unused": true}"#,
+    ] {
+        let error = parse(&format!(
+            r#"{{"backend": "psycopg", "async": false, "models": {models}}}"#
+        ))
+        .unwrap_err();
+        assert!(format!("{error:#}").contains("drop it here"), "{error:#}");
+    }
+}

@@ -16,7 +16,8 @@ pub(super) fn models_follow_catalog(request: &plugin::GenerateRequest, models: &
     // The options' `rename` applies to enum labels too.
     let config = Config::from_request(request).ok();
     let rename = config.as_ref().map(|config| config.rename.clone()).unwrap_or_default();
-    let records = config.map_or(Records::Dataclass, |config| config.records);
+    let records = config.as_ref().map_or(Records::Dataclass, |config| config.records);
+    let omits_unused = config.is_some_and(|config| config.models.omit_unused);
     let mut tables: Vec<(&plugin::Table, Vec<(String, Shape)>)> = (schemas())
         .flat_map(|schema| &schema.tables)
         .map(|table| {
@@ -70,6 +71,10 @@ pub(super) fn models_follow_catalog(request: &plugin::GenerateRequest, models: &
         }
     }
 
+    // `module_problems` holds each class of such models to a query module's use instead
+    if omits_unused {
+        return;
+    }
     for (table, _) in tables {
         let name = table.rel.as_ref().map_or("", |rel| rel.name.as_str());
         problems.push(format!(

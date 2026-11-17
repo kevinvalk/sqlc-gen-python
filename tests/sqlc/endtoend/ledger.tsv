@@ -50,7 +50,7 @@ alias/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 alias/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 alias/mysql/request.json	unknown_any	ok	d809712c
 alias/postgresql/pgx/v4/request.json	exact_names	ok	ce6c15be
-alias/postgresql/pgx/v4/request.json	psycopg	ok	1d405513
+alias/postgresql/pgx/v4/request.json	psycopg	ok	630d516a
 alias/postgresql/pgx/v4/request.json	psycopg_async	ok	ab8b9d90
 alias/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 alias/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -80,7 +80,7 @@ alias/sqlite/request.json	sqlite3	ok	eef7abf9
 alias/sqlite/request.json	sqlite3_async	ok	9928d91b
 alias/sqlite/request.json	unknown_any	ok	824e817d
 any/pgx/v4/request.json	exact_names	ok	1a86e0e2
-any/pgx/v4/request.json	psycopg	ok	83ae8588
+any/pgx/v4/request.json	psycopg	ok	76bb9d87
 any/pgx/v4/request.json	psycopg_async	ok	26744174
 any/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 any/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -90,7 +90,7 @@ any/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresq
 any/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 any/pgx/v4/request.json	unknown_any	ok	9dfc9ae8
 array_in/pgx/v4/request.json	exact_names	ok	15f0fc46
-array_in/pgx/v4/request.json	psycopg	ok	cc33f8b8
+array_in/pgx/v4/request.json	psycopg	ok	5374cdc6
 array_in/pgx/v4/request.json	psycopg_async	ok	f863b4e0
 array_in/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 array_in/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -110,7 +110,7 @@ array_in/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend does n
 array_in/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 array_in/pgx/v4/request.managed-db.json	unknown_any	ok	36486216
 array_text/pgx/v4/request.json	exact_names	ok	2054c55b
-array_text/pgx/v4/request.json	psycopg	ok	3b6baa85
+array_text/pgx/v4/request.json	psycopg	ok	d82ce2b8
 array_text/pgx/v4/request.json	psycopg_async	ok	4303a1c5
 array_text/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 array_text/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -120,7 +120,7 @@ array_text/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run po
 array_text/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 array_text/pgx/v4/request.json	unknown_any	ok	35491b71
 array_text_join/pgx/v4/request.json	exact_names	ok	3d00a16f
-array_text_join/pgx/v4/request.json	psycopg	ok	7f50706a
+array_text_join/pgx/v4/request.json	psycopg	ok	851fe0b5
 array_text_join/pgx/v4/request.json	psycopg_async	ok	4be062d6
 array_text_join/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 array_text_join/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -170,7 +170,7 @@ batch_imports/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite
 batch_imports/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 batch_imports/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	f5e23ae5
 batch_parameter_limit/postgresql/pgx/request.json	exact_names	ok	eddddb78
-batch_parameter_limit/postgresql/pgx/request.json	psycopg	ok	32fddfe0
+batch_parameter_limit/postgresql/pgx/request.json	psycopg	ok	7c9e4eea
 batch_parameter_limit/postgresql/pgx/request.json	psycopg_async	ok	a4759524
 batch_parameter_limit/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 batch_parameter_limit/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -300,7 +300,7 @@ case_sensitive/sqlite/request.json	sqlite3	ok	d52b16a4
 case_sensitive/sqlite/request.json	sqlite3_async	ok	fdbdec80
 case_sensitive/sqlite/request.json	unknown_any	ok	93e2cadd
 case_stmt_bool/pgx/v4/request.json	exact_names	ok	5fc743b1
-case_stmt_bool/pgx/v4/request.json	psycopg	ok	3df33339
+case_stmt_bool/pgx/v4/request.json	psycopg	ok	88bff186
 case_stmt_bool/pgx/v4/request.json	psycopg_async	ok	fee83804
 case_stmt_bool/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 case_stmt_bool/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -320,7 +320,7 @@ case_stmt_bool/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend 
 case_stmt_bool/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 case_stmt_bool/pgx/v4/request.managed-db.json	unknown_any	ok	95dbdd66
 case_text/pgx/v4/request.json	exact_names	ok	c07a98cf
-case_text/pgx/v4/request.json	psycopg	ok	5ff63a70
+case_text/pgx/v4/request.json	psycopg	ok	796eb4e0
 case_text/pgx/v4/request.json	psycopg_async	ok	fa489b42
 case_text/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 case_text/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -340,7 +340,7 @@ case_value_param/mysql/request.json	sqlite3	error:the sqlite3 backend does not r
 case_value_param/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 case_value_param/mysql/request.json	unknown_any	ok	e9de9c77
 case_value_param/postgresql/request.json	exact_names	ok	9b5bc099
-case_value_param/postgresql/request.json	psycopg	ok	eba1cf75
+case_value_param/postgresql/request.json	psycopg	ok	37c60090
 case_value_param/postgresql/request.json	psycopg_async	ok	f9db215a
 case_value_param/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 case_value_param/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -350,7 +350,7 @@ case_value_param/postgresql/request.json	sqlite3	error:the sqlite3 backend does 
 case_value_param/postgresql/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 case_value_param/postgresql/request.json	unknown_any	ok	e9de9c77
 cast_coalesce/pgx/v4/request.json	exact_names	ok	fb373008
-cast_coalesce/pgx/v4/request.json	psycopg	ok	5caa95a4
+cast_coalesce/pgx/v4/request.json	psycopg	ok	11ba8d70
 cast_coalesce/pgx/v4/request.json	psycopg_async	ok	edff41f3
 cast_coalesce/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 cast_coalesce/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -360,7 +360,7 @@ cast_coalesce/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run
 cast_coalesce/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 cast_coalesce/pgx/v4/request.json	unknown_any	ok	168bb4d5
 cast_null/pgx/v4/request.json	exact_names	ok	224af571
-cast_null/pgx/v4/request.json	psycopg	ok	8450b2c6
+cast_null/pgx/v4/request.json	psycopg	ok	f04f821d
 cast_null/pgx/v4/request.json	psycopg_async	ok	c6f4a41b
 cast_null/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 cast_null/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -480,7 +480,7 @@ coalesce_as/sqlite/request.json	sqlite3	error:query.sql: query "SumBaz": column 
 coalesce_as/sqlite/request.json	sqlite3_async	ok	a285ecfe
 coalesce_as/sqlite/request.json	unknown_any	ok	2d148bfe
 coalesce_join/postgresql/request.json	exact_names	ok	8f8781f7
-coalesce_join/postgresql/request.json	psycopg	ok	a19d867d
+coalesce_join/postgresql/request.json	psycopg	ok	8bb20956
 coalesce_join/postgresql/request.json	psycopg_async	ok	3b0a00b1
 coalesce_join/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 coalesce_join/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -560,7 +560,7 @@ column_as/sqlite/request.json	sqlite3	error:2 problems: query.sql: query "WithAs
 column_as/sqlite/request.json	sqlite3_async	ok	8084612a
 column_as/sqlite/request.json	unknown_any	ok	f3497664
 comment_godoc/postgresql/pgx/v4/request.json	exact_names	ok	a7f4b964
-comment_godoc/postgresql/pgx/v4/request.json	psycopg	ok	5a0cc557
+comment_godoc/postgresql/pgx/v4/request.json	psycopg	ok	b3ceaeef
 comment_godoc/postgresql/pgx/v4/request.json	psycopg_async	ok	57e5e934
 comment_godoc/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 comment_godoc/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -570,7 +570,7 @@ comment_godoc/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend d
 comment_godoc/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 comment_godoc/postgresql/pgx/v4/request.json	unknown_any	ok	b2aa2b23
 comment_on/postgresql/pgx/v4/request.json	exact_names	ok	08e394ad
-comment_on/postgresql/pgx/v4/request.json	psycopg	ok	a120bf40
+comment_on/postgresql/pgx/v4/request.json	psycopg	ok	432d115c
 comment_on/postgresql/pgx/v4/request.json	psycopg_async	ok	ce76cdb8
 comment_on/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 comment_on/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -590,7 +590,7 @@ comment_syntax/mysql/request.json	sqlite3	error:the sqlite3 backend does not run
 comment_syntax/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 comment_syntax/mysql/request.json	unknown_any	ok	04118878
 comment_syntax/postgresql/pgx/v4/request.json	exact_names	ok	8ba4c775
-comment_syntax/postgresql/pgx/v4/request.json	psycopg	ok	7a67e98b
+comment_syntax/postgresql/pgx/v4/request.json	psycopg	ok	12e13b85
 comment_syntax/postgresql/pgx/v4/request.json	psycopg_async	ok	4a1a2908
 comment_syntax/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 comment_syntax/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -620,7 +620,7 @@ comparisons/mysql/request.json	sqlite3	error:the sqlite3 backend does not run my
 comparisons/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 comparisons/mysql/request.json	unknown_any	ok	f8364f98
 comparisons/postgresql/pgx/v4/request.json	exact_names	ok	54defb40
-comparisons/postgresql/pgx/v4/request.json	psycopg	ok	7e0b70e0
+comparisons/postgresql/pgx/v4/request.json	psycopg	ok	4a9dc167
 comparisons/postgresql/pgx/v4/request.json	psycopg_async	ok	b3e8ef24
 comparisons/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 comparisons/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -650,7 +650,7 @@ comparisons/sqlite/request.json	sqlite3	ok	0bfe9e1f
 comparisons/sqlite/request.json	sqlite3_async	ok	589e07c8
 comparisons/sqlite/request.json	unknown_any	ok	64f6ad3d
 composite_type/pgx/v4/request.json	exact_names	error:3 problems: table "paths": column "point_one" has type "point_type", which has no verified Python mapping query.sql: query "ListPaths": column "point_one" has type "point_type", which has no verified Python mapping name its Python type with an override (db_type "point_type"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "paths": column "point_two" has type "foo.point_type", which has no verified Python mapping name its Python type with an override (db_type "foo.point_type"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
-composite_type/pgx/v4/request.json	psycopg	error:3 problems: table "paths": column "point_one" has type "point_type", which has no verified Python mapping query.sql: query "ListPaths": column "point_one" has type "point_type", which has no verified Python mapping name its Python type with an override (db_type "point_type"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "paths": column "point_two" has type "foo.point_type", which has no verified Python mapping name its Python type with an override (db_type "foo.point_type"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
+composite_type/pgx/v4/request.json	psycopg	error:query.sql: query "ListPaths": column "point_one" has type "point_type", which has no verified Python mapping; name its Python type with an override (db_type "point_type"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
 composite_type/pgx/v4/request.json	psycopg_async	error:3 problems: table "paths": column "point_one" has type "point_type", which has no verified Python mapping query.sql: query "ListPaths": column "point_one" has type "point_type", which has no verified Python mapping name its Python type with an override (db_type "point_type"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "paths": column "point_two" has type "foo.point_type", which has no verified Python mapping name its Python type with an override (db_type "foo.point_type"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
 composite_type/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 composite_type/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -660,7 +660,7 @@ composite_type/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not ru
 composite_type/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 composite_type/pgx/v4/request.json	unknown_any	ok	4a987961
 conflicted_arg_name/postgresql/request.json	exact_names	ok	b17a5fc8
-conflicted_arg_name/postgresql/request.json	psycopg	ok	9fba89bd
+conflicted_arg_name/postgresql/request.json	psycopg	ok	ac440b80
 conflicted_arg_name/postgresql/request.json	psycopg_async	ok	7f410a50
 conflicted_arg_name/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 conflicted_arg_name/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -680,7 +680,7 @@ copyfrom/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql
 copyfrom/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 copyfrom/mysql/request.json	unknown_any	ok	8baa2815
 copyfrom/postgresql/pgx/v4/request.json	exact_names	ok	c4fead12
-copyfrom/postgresql/pgx/v4/request.json	psycopg	ok	706e2788
+copyfrom/postgresql/pgx/v4/request.json	psycopg	ok	9e7a67e3
 copyfrom/postgresql/pgx/v4/request.json	psycopg_async	ok	62e1397e
 copyfrom/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -700,7 +700,7 @@ copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 bac
 copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 copyfrom/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	7f59e53d
 copyfrom_imports/postgresql/pgx/v4/request.json	exact_names	ok	363a5641
-copyfrom_imports/postgresql/pgx/v4/request.json	psycopg	ok	d41e6f8e
+copyfrom_imports/postgresql/pgx/v4/request.json	psycopg	ok	6b540d19
 copyfrom_imports/postgresql/pgx/v4/request.json	psycopg_async	ok	ea502849
 copyfrom_imports/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom_imports/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -730,7 +730,7 @@ copyfrom_multicolumn_parameter_limit/mysql/request.json	sqlite3	error:the sqlite
 copyfrom_multicolumn_parameter_limit/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 copyfrom_multicolumn_parameter_limit/mysql/request.json	unknown_any	ok	be68ae6f
 copyfrom_named_params/postgresql/pgx/request.json	exact_names	ok	1eb6698b
-copyfrom_named_params/postgresql/pgx/request.json	psycopg	ok	ddc5f88f
+copyfrom_named_params/postgresql/pgx/request.json	psycopg	ok	72e0ad65
 copyfrom_named_params/postgresql/pgx/request.json	psycopg_async	ok	466fba49
 copyfrom_named_params/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom_named_params/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -740,7 +740,7 @@ copyfrom_named_params/postgresql/pgx/request.json	sqlite3	error:the sqlite3 back
 copyfrom_named_params/postgresql/pgx/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 copyfrom_named_params/postgresql/pgx/request.json	unknown_any	ok	622d13eb
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	exact_names	ok	90657b78
-copyfrom_singlecolumn/postgresql/pgx/v4/request.json	psycopg	ok	ac68a5af
+copyfrom_singlecolumn/postgresql/pgx/v4/request.json	psycopg	ok	26ecaadb
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	psycopg_async	ok	46902313
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -780,7 +780,7 @@ count_star/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mys
 count_star/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 count_star/mysql/request.json	unknown_any	ok	fe42c623
 count_star/postgresql/pgx/v4/request.json	exact_names	ok	db3989ec
-count_star/postgresql/pgx/v4/request.json	psycopg	ok	293ef4d3
+count_star/postgresql/pgx/v4/request.json	psycopg	ok	a685d716
 count_star/postgresql/pgx/v4/request.json	psycopg_async	ok	ac712af5
 count_star/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 count_star/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -800,7 +800,7 @@ count_star/sqlite/request.json	sqlite3	ok	5835344f
 count_star/sqlite/request.json	sqlite3_async	ok	c30ae1f8
 count_star/sqlite/request.json	unknown_any	ok	fe42c623
 create_materialized_view/postgresql/request.json	exact_names	ok	56daadf1
-create_materialized_view/postgresql/request.json	psycopg	ok	5b5e05ab
+create_materialized_view/postgresql/request.json	psycopg	ok	2f5012d8
 create_materialized_view/postgresql/request.json	psycopg_async	ok	6a397591
 create_materialized_view/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 create_materialized_view/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -810,7 +810,7 @@ create_materialized_view/postgresql/request.json	sqlite3	error:the sqlite3 backe
 create_materialized_view/postgresql/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 create_materialized_view/postgresql/request.json	unknown_any	ok	7a535576
 create_table_as/postgresql/request.json	exact_names	ok	43d08ddb
-create_table_as/postgresql/request.json	psycopg	ok	38c8c59d
+create_table_as/postgresql/request.json	psycopg	ok	1f521667
 create_table_as/postgresql/request.json	psycopg_async	ok	a0c1b2e2
 create_table_as/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 create_table_as/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -830,7 +830,7 @@ create_table_like/mysql/request.json	sqlite3	error:the sqlite3 backend does not 
 create_table_like/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 create_table_like/mysql/request.json	unknown_any	ok	9f89397f
 create_table_like/postgresql/request.json	exact_names	ok	ea5553a0
-create_table_like/postgresql/request.json	psycopg	ok	bf27eaa8
+create_table_like/postgresql/request.json	psycopg	ok	e0379aa8
 create_table_like/postgresql/request.json	psycopg_async	ok	5d0d9d01
 create_table_like/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 create_table_like/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -850,7 +850,7 @@ create_view/mysql/request.json	sqlite3	error:the sqlite3 backend does not run my
 create_view/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 create_view/mysql/request.json	unknown_any	ok	c12aa83b
 create_view/postgresql/request.json	exact_names	ok	f7d6c8f8
-create_view/postgresql/request.json	psycopg	ok	b3905d13
+create_view/postgresql/request.json	psycopg	ok	90add9ad
 create_view/postgresql/request.json	psycopg_async	ok	d48bd5a3
 create_view/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 create_view/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -940,7 +940,7 @@ cte_in_delete/mysql/request.json	sqlite3	error:the sqlite3 backend does not run 
 cte_in_delete/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 cte_in_delete/mysql/request.json	unknown_any	ok	815aad60
 cte_in_delete/pgx/v4/request.json	exact_names	ok	3ff15a2a
-cte_in_delete/pgx/v4/request.json	psycopg	ok	1ace6545
+cte_in_delete/pgx/v4/request.json	psycopg	ok	79f65086
 cte_in_delete/pgx/v4/request.json	psycopg_async	ok	e18f35e5
 cte_in_delete/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 cte_in_delete/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -960,7 +960,7 @@ cte_join_self/postgresql/pgx/request.managed-db.json	sqlite3	error:the sqlite3 b
 cte_join_self/postgresql/pgx/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 cte_join_self/postgresql/pgx/request.managed-db.json	unknown_any	ok	d0bd6421
 cte_left_join/postgresql/pgx/request.managed-db.json	exact_names	ok	901cb93c
-cte_left_join/postgresql/pgx/request.managed-db.json	psycopg	ok	9c0fcca3
+cte_left_join/postgresql/pgx/request.managed-db.json	psycopg	ok	cf8a0e57
 cte_left_join/postgresql/pgx/request.managed-db.json	psycopg_async	ok	af2fec8f
 cte_left_join/postgresql/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 cte_left_join/postgresql/pgx/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -970,7 +970,7 @@ cte_left_join/postgresql/pgx/request.managed-db.json	sqlite3	error:the sqlite3 b
 cte_left_join/postgresql/pgx/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 cte_left_join/postgresql/pgx/request.managed-db.json	unknown_any	ok	b1503e16
 cte_multiple_alias/postgresql/pgx/request.json	exact_names	ok	c20e54c7
-cte_multiple_alias/postgresql/pgx/request.json	psycopg	ok	6723bedd
+cte_multiple_alias/postgresql/pgx/request.json	psycopg	ok	7e510fbd
 cte_multiple_alias/postgresql/pgx/request.json	psycopg_async	ok	f5e4eb20
 cte_multiple_alias/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 cte_multiple_alias/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1000,7 +1000,7 @@ cte_recursive/mysql/request.json	sqlite3	error:the sqlite3 backend does not run 
 cte_recursive/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 cte_recursive/mysql/request.json	unknown_any	ok	2bda8a40
 cte_recursive/pgx/v4/request.json	exact_names	ok	d99e4867
-cte_recursive/pgx/v4/request.json	psycopg	ok	7ec0d697
+cte_recursive/pgx/v4/request.json	psycopg	ok	47b52c73
 cte_recursive/pgx/v4/request.json	psycopg_async	ok	2a7bacb3
 cte_recursive/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 cte_recursive/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1020,7 +1020,7 @@ cte_recursive/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend d
 cte_recursive/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 cte_recursive/pgx/v4/request.managed-db.json	unknown_any	ok	74225f2b
 cte_recursive_employees/postgresql/pgx/request.managed-db.json	exact_names	ok	ad7dd565
-cte_recursive_employees/postgresql/pgx/request.managed-db.json	psycopg	ok	670f4f71
+cte_recursive_employees/postgresql/pgx/request.managed-db.json	psycopg	ok	0b2740d3
 cte_recursive_employees/postgresql/pgx/request.managed-db.json	psycopg_async	ok	b5076790
 cte_recursive_employees/postgresql/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 cte_recursive_employees/postgresql/pgx/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1040,7 +1040,7 @@ cte_recursive_star/postgresql/pgx/request.managed-db.json	sqlite3	error:the sqli
 cte_recursive_star/postgresql/pgx/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 cte_recursive_star/postgresql/pgx/request.managed-db.json	unknown_any	ok	bb20d65e
 cte_recursive_subquery/postgresql/pgx/request.managed-db.json	exact_names	ok	0faadd7a
-cte_recursive_subquery/postgresql/pgx/request.managed-db.json	psycopg	ok	a27d2057
+cte_recursive_subquery/postgresql/pgx/request.managed-db.json	psycopg	ok	94d38579
 cte_recursive_subquery/postgresql/pgx/request.managed-db.json	psycopg_async	ok	473a09fa
 cte_recursive_subquery/postgresql/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 cte_recursive_subquery/postgresql/pgx/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1180,7 +1180,7 @@ datatype/sqlite/request.json	sqlite3	error:11 problems: table "dt_datetime": col
 datatype/sqlite/request.json	sqlite3_async	ok	d0e79fc4
 datatype/sqlite/request.json	unknown_any	ok	df82ae11
 ddl_alter_materialized_views_set_schema/postgresql/pgx/request.json	exact_names	ok	74edcdd3
-ddl_alter_materialized_views_set_schema/postgresql/pgx/request.json	psycopg	ok	0eaef59d
+ddl_alter_materialized_views_set_schema/postgresql/pgx/request.json	psycopg	ok	b4164b8c
 ddl_alter_materialized_views_set_schema/postgresql/pgx/request.json	psycopg_async	ok	26a74a37
 ddl_alter_materialized_views_set_schema/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_materialized_views_set_schema/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1200,7 +1200,7 @@ ddl_alter_table_add_column/mysql/request.json	sqlite3	error:the sqlite3 backend 
 ddl_alter_table_add_column/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_alter_table_add_column/mysql/request.json	unknown_any	ok	a80f7fd0
 ddl_alter_table_add_column/postgresql/pgx/v4/request.json	exact_names	ok	5c95617f
-ddl_alter_table_add_column/postgresql/pgx/v4/request.json	psycopg	ok	9468758a
+ddl_alter_table_add_column/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_add_column/postgresql/pgx/v4/request.json	psycopg_async	ok	c1aa7dea
 ddl_alter_table_add_column/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_add_column/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1210,7 +1210,7 @@ ddl_alter_table_add_column/postgresql/pgx/v4/request.json	sqlite3	error:the sqli
 ddl_alter_table_add_column/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_add_column/postgresql/pgx/v4/request.json	unknown_any	ok	d25c1049
 ddl_alter_table_add_column/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	5c95617f
-ddl_alter_table_add_column/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	9468758a
+ddl_alter_table_add_column/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_add_column/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	c1aa7dea
 ddl_alter_table_add_column/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_add_column/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1230,7 +1230,7 @@ ddl_alter_table_add_column/sqlite/request.json	sqlite3	ok	fb238c01
 ddl_alter_table_add_column/sqlite/request.json	sqlite3_async	ok	b6bd887a
 ddl_alter_table_add_column/sqlite/request.json	unknown_any	ok	9d3a50f5
 ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.json	exact_names	ok	a800eac7
-ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.json	psycopg	ok	73107f5a
+ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.json	psycopg_async	ok	d668b6a0
 ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1240,7 +1240,7 @@ ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.json	sqlite3	
 ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.json	unknown_any	ok	b2b4ea2a
 ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	a800eac7
-ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	73107f5a
+ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	d668b6a0
 ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_add_column_if_not_exists/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1260,7 +1260,7 @@ ddl_alter_table_alter_type/mysql/request.json	sqlite3	error:the sqlite3 backend 
 ddl_alter_table_alter_type/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_alter_table_alter_type/mysql/request.json	unknown_any	ok	ff986338
 ddl_alter_table_alter_type/postgresql/pgx/v4/request.json	exact_names	ok	d44d6854
-ddl_alter_table_alter_type/postgresql/pgx/v4/request.json	psycopg	ok	175c4f9e
+ddl_alter_table_alter_type/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_alter_type/postgresql/pgx/v4/request.json	psycopg_async	ok	69268b7f
 ddl_alter_table_alter_type/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_alter_type/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1270,7 +1270,7 @@ ddl_alter_table_alter_type/postgresql/pgx/v4/request.json	sqlite3	error:the sqli
 ddl_alter_table_alter_type/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_alter_type/postgresql/pgx/v4/request.json	unknown_any	ok	eae5011b
 ddl_alter_table_alter_type/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	d44d6854
-ddl_alter_table_alter_type/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	175c4f9e
+ddl_alter_table_alter_type/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_alter_type/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	69268b7f
 ddl_alter_table_alter_type/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_alter_type/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1300,7 +1300,7 @@ ddl_alter_table_change_column/mysql/request.json	sqlite3	error:the sqlite3 backe
 ddl_alter_table_change_column/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_alter_table_change_column/mysql/request.json	unknown_any	ok	979ae4ed
 ddl_alter_table_change_column/postgresql/pgx/v4/request.json	exact_names	ok	7505ca28
-ddl_alter_table_change_column/postgresql/pgx/v4/request.json	psycopg	ok	0d30cf63
+ddl_alter_table_change_column/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_change_column/postgresql/pgx/v4/request.json	psycopg_async	ok	9cf00464
 ddl_alter_table_change_column/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_change_column/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1310,7 +1310,7 @@ ddl_alter_table_change_column/postgresql/pgx/v4/request.json	sqlite3	error:the s
 ddl_alter_table_change_column/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_change_column/postgresql/pgx/v4/request.json	unknown_any	ok	a4fae665
 ddl_alter_table_change_column/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	7505ca28
-ddl_alter_table_change_column/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	0d30cf63
+ddl_alter_table_change_column/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_change_column/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	9cf00464
 ddl_alter_table_change_column/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_change_column/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1330,7 +1330,7 @@ ddl_alter_table_column_drop_not_null/mysql/request.json	sqlite3	error:the sqlite
 ddl_alter_table_column_drop_not_null/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_alter_table_column_drop_not_null/mysql/request.json	unknown_any	ok	ce39046f
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.json	exact_names	ok	2be4c712
-ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.json	psycopg	ok	118e3089
+ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.json	psycopg_async	ok	86481809
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1340,7 +1340,7 @@ ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.json	sqlite3	erro
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.json	unknown_any	ok	ce39046f
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	2be4c712
-ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	118e3089
+ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	86481809
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1350,7 +1350,7 @@ ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.managed-db.json	s
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_column_drop_not_null/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	ce39046f
 ddl_alter_table_drop_column/postgresql/pgx/v4/request.json	exact_names	ok	6672e46b
-ddl_alter_table_drop_column/postgresql/pgx/v4/request.json	psycopg	ok	1f12b8cd
+ddl_alter_table_drop_column/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_drop_column/postgresql/pgx/v4/request.json	psycopg_async	ok	9c2eab51
 ddl_alter_table_drop_column/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_drop_column/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1360,7 +1360,7 @@ ddl_alter_table_drop_column/postgresql/pgx/v4/request.json	sqlite3	error:the sql
 ddl_alter_table_drop_column/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_drop_column/postgresql/pgx/v4/request.json	unknown_any	ok	979ae4ed
 ddl_alter_table_drop_column/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	6672e46b
-ddl_alter_table_drop_column/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	1f12b8cd
+ddl_alter_table_drop_column/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_drop_column/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	9c2eab51
 ddl_alter_table_drop_column/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_drop_column/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1390,7 +1390,7 @@ ddl_alter_table_drop_column_if_exists/mysql/request.json	sqlite3	error:the sqlit
 ddl_alter_table_drop_column_if_exists/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_alter_table_drop_column_if_exists/mysql/request.json	unknown_any	ok	2200705c
 ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.json	exact_names	ok	c171fe53
-ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.json	psycopg	ok	b11021f5
+ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.json	psycopg_async	ok	c97db658
 ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1400,7 +1400,7 @@ ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.json	sqlite3	err
 ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.json	unknown_any	ok	2200705c
 ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	c171fe53
-ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	b11021f5
+ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	c97db658
 ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_drop_column_if_exists/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1420,7 +1420,7 @@ ddl_alter_table_drop_constraint/mysql/request.json	sqlite3	error:the sqlite3 bac
 ddl_alter_table_drop_constraint/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_alter_table_drop_constraint/mysql/request.json	unknown_any	ok	5b33026a
 ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.json	exact_names	ok	650af825
-ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.json	psycopg	ok	ec60ab2d
+ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.json	psycopg_async	ok	2453246e
 ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1430,7 +1430,7 @@ ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.json	sqlite3	error:the
 ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.json	unknown_any	ok	5b33026a
 ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	650af825
-ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	ec60ab2d
+ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	2453246e
 ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_drop_constraint/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1460,7 +1460,7 @@ ddl_alter_table_if_exists/postgresql/pgx/v4/request.managed-db.json	sqlite3	erro
 ddl_alter_table_if_exists/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_if_exists/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	b7fa6551
 ddl_alter_table_index/postgresql/pgx/v4/request.json	exact_names	ok	3ffe7a57
-ddl_alter_table_index/postgresql/pgx/v4/request.json	psycopg	ok	10e87f80
+ddl_alter_table_index/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_index/postgresql/pgx/v4/request.json	psycopg_async	ok	1a754c99
 ddl_alter_table_index/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_index/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1470,7 +1470,7 @@ ddl_alter_table_index/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 b
 ddl_alter_table_index/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_index/postgresql/pgx/v4/request.json	unknown_any	ok	4d1164ae
 ddl_alter_table_index/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	3ffe7a57
-ddl_alter_table_index/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	10e87f80
+ddl_alter_table_index/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_index/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	1a754c99
 ddl_alter_table_index/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_index/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1490,7 +1490,7 @@ ddl_alter_table_rename/mysql/request.json	sqlite3	error:the sqlite3 backend does
 ddl_alter_table_rename/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_alter_table_rename/mysql/request.json	unknown_any	ok	3b97e991
 ddl_alter_table_rename/postgresql/pgx/v4/request.json	exact_names	ok	d402f593
-ddl_alter_table_rename/postgresql/pgx/v4/request.json	psycopg	ok	901fa5f3
+ddl_alter_table_rename/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_rename/postgresql/pgx/v4/request.json	psycopg_async	ok	69d84a44
 ddl_alter_table_rename/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_rename/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1500,7 +1500,7 @@ ddl_alter_table_rename/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 
 ddl_alter_table_rename/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_rename/postgresql/pgx/v4/request.json	unknown_any	ok	e7c631e6
 ddl_alter_table_rename/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	d402f593
-ddl_alter_table_rename/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	901fa5f3
+ddl_alter_table_rename/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_rename/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	69d84a44
 ddl_alter_table_rename/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_rename/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1540,7 +1540,7 @@ ddl_alter_table_set_data_type/mysql/request.json	sqlite3	error:the sqlite3 backe
 ddl_alter_table_set_data_type/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_alter_table_set_data_type/mysql/request.json	unknown_any	ok	99cbeec5
 ddl_alter_table_set_data_type/postgresql/pgx/v4/request.json	exact_names	ok	0953f3ab
-ddl_alter_table_set_data_type/postgresql/pgx/v4/request.json	psycopg	ok	51b816cd
+ddl_alter_table_set_data_type/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_set_data_type/postgresql/pgx/v4/request.json	psycopg_async	ok	66fcccee
 ddl_alter_table_set_data_type/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_set_data_type/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1550,7 +1550,7 @@ ddl_alter_table_set_data_type/postgresql/pgx/v4/request.json	sqlite3	error:the s
 ddl_alter_table_set_data_type/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_set_data_type/postgresql/pgx/v4/request.json	unknown_any	ok	3acc47c6
 ddl_alter_table_set_data_type/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	0953f3ab
-ddl_alter_table_set_data_type/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	51b816cd
+ddl_alter_table_set_data_type/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_set_data_type/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	66fcccee
 ddl_alter_table_set_data_type/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_set_data_type/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1570,7 +1570,7 @@ ddl_alter_table_set_not_null/mysql/request.json	sqlite3	error:the sqlite3 backen
 ddl_alter_table_set_not_null/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_alter_table_set_not_null/mysql/request.json	unknown_any	ok	5982dd6e
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.json	exact_names	ok	cfafdeca
-ddl_alter_table_set_not_null/postgresql/pgx/v4/request.json	psycopg	ok	e7150da8
+ddl_alter_table_set_not_null/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.json	psycopg_async	ok	bd4560f5
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1580,7 +1580,7 @@ ddl_alter_table_set_not_null/postgresql/pgx/v4/request.json	sqlite3	error:the sq
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.json	unknown_any	ok	5982dd6e
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	cfafdeca
-ddl_alter_table_set_not_null/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	e7150da8
+ddl_alter_table_set_not_null/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	bd4560f5
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1590,7 +1590,7 @@ ddl_alter_table_set_not_null/postgresql/pgx/v4/request.managed-db.json	sqlite3	e
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_set_not_null/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	5982dd6e
 ddl_alter_table_set_schema/postgresql/pgx/v4/request.json	exact_names	ok	9de0da5a
-ddl_alter_table_set_schema/postgresql/pgx/v4/request.json	psycopg	ok	51414b1b
+ddl_alter_table_set_schema/postgresql/pgx/v4/request.json	psycopg	ok	822d3456
 ddl_alter_table_set_schema/postgresql/pgx/v4/request.json	psycopg_async	ok	81eaad9c
 ddl_alter_table_set_schema/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_table_set_schema/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1600,7 +1600,7 @@ ddl_alter_table_set_schema/postgresql/pgx/v4/request.json	sqlite3	error:the sqli
 ddl_alter_table_set_schema/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_table_set_schema/postgresql/pgx/v4/request.json	unknown_any	ok	3d3bccb7
 ddl_alter_type_add_value/postgresql/pgx/v4/request.json	exact_names	ok	b46a94ee
-ddl_alter_type_add_value/postgresql/pgx/v4/request.json	psycopg	ok	e7d8afa6
+ddl_alter_type_add_value/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_type_add_value/postgresql/pgx/v4/request.json	psycopg_async	ok	947acccd
 ddl_alter_type_add_value/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_type_add_value/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1610,7 +1610,7 @@ ddl_alter_type_add_value/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite
 ddl_alter_type_add_value/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_type_add_value/postgresql/pgx/v4/request.json	unknown_any	ok	6fb74dcc
 ddl_alter_type_add_value/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	b46a94ee
-ddl_alter_type_add_value/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	e7d8afa6
+ddl_alter_type_add_value/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_type_add_value/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	947acccd
 ddl_alter_type_add_value/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_type_add_value/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1630,7 +1630,7 @@ ddl_alter_type_rename/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 b
 ddl_alter_type_rename/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_type_rename/postgresql/pgx/v4/request.json	unknown_any	ok	7aee482b
 ddl_alter_type_rename_value/postgresql/pgx/v4/request.json	exact_names	ok	d9586922
-ddl_alter_type_rename_value/postgresql/pgx/v4/request.json	psycopg	ok	2436b2a8
+ddl_alter_type_rename_value/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_alter_type_rename_value/postgresql/pgx/v4/request.json	psycopg_async	ok	8b8677b5
 ddl_alter_type_rename_value/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_type_rename_value/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1640,7 +1640,7 @@ ddl_alter_type_rename_value/postgresql/pgx/v4/request.json	sqlite3	error:the sql
 ddl_alter_type_rename_value/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_alter_type_rename_value/postgresql/pgx/v4/request.json	unknown_any	ok	488fb2c3
 ddl_alter_type_rename_value/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	d9586922
-ddl_alter_type_rename_value/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	2436b2a8
+ddl_alter_type_rename_value/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_alter_type_rename_value/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	8b8677b5
 ddl_alter_type_rename_value/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_alter_type_rename_value/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1670,7 +1670,7 @@ ddl_comment/mysql/request.json	sqlite3	error:the sqlite3 backend does not run my
 ddl_comment/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_comment/mysql/request.json	unknown_any	ok	d475baf5
 ddl_comment/postgresql/pgx/v4/request.json	exact_names	ok	7ed0d3aa
-ddl_comment/postgresql/pgx/v4/request.json	psycopg	ok	626825ab
+ddl_comment/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_comment/postgresql/pgx/v4/request.json	psycopg_async	ok	af312f49
 ddl_comment/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_comment/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1680,7 +1680,7 @@ ddl_comment/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend doe
 ddl_comment/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_comment/postgresql/pgx/v4/request.json	unknown_any	ok	8b1ed0b3
 ddl_comment/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	7ed0d3aa
-ddl_comment/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	626825ab
+ddl_comment/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_comment/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	af312f49
 ddl_comment/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_comment/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1700,7 +1700,7 @@ ddl_create_enum/mysql/request.json	sqlite3	error:the sqlite3 backend does not ru
 ddl_create_enum/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_create_enum/mysql/request.json	unknown_any	error:enum "foo_digit": "0" does not become a usable Python name; give it one with the rename option	-
 ddl_create_enum/postgresql/pgx/v4/request.json	exact_names	error:enum "digit": "0" does not become a usable Python name; give it one with the rename option	-
-ddl_create_enum/postgresql/pgx/v4/request.json	psycopg	error:enum "digit": "0" does not become a usable Python name; give it one with the rename option	-
+ddl_create_enum/postgresql/pgx/v4/request.json	psycopg	ok	41b5edaa
 ddl_create_enum/postgresql/pgx/v4/request.json	psycopg_async	error:enum "digit": "0" does not become a usable Python name; give it one with the rename option	-
 ddl_create_enum/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_enum/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1720,7 +1720,7 @@ ddl_create_procedure/mysql/request.json	sqlite3	error:the sqlite3 backend does n
 ddl_create_procedure/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_create_procedure/mysql/request.json	unknown_any	ok	588b5580
 ddl_create_procedure/postgresql/pgx/v4/request.json	exact_names	ok	7271c789
-ddl_create_procedure/postgresql/pgx/v4/request.json	psycopg	ok	4c6300e3
+ddl_create_procedure/postgresql/pgx/v4/request.json	psycopg	ok	e00782c0
 ddl_create_procedure/postgresql/pgx/v4/request.json	psycopg_async	ok	9a19b45d
 ddl_create_procedure/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_procedure/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1730,7 +1730,7 @@ ddl_create_procedure/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 ba
 ddl_create_procedure/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_create_procedure/postgresql/pgx/v4/request.json	unknown_any	ok	66ac6457
 ddl_create_procedure/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	7271c789
-ddl_create_procedure/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	4c6300e3
+ddl_create_procedure/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	e00782c0
 ddl_create_procedure/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	9a19b45d
 ddl_create_procedure/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_procedure/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1750,7 +1750,7 @@ ddl_create_table/mysql/request.json	sqlite3	error:the sqlite3 backend does not r
 ddl_create_table/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_create_table/mysql/request.json	unknown_any	ok	074c7b24
 ddl_create_table/postgresql/pgx/v4/request.json	exact_names	ok	fc07c848
-ddl_create_table/postgresql/pgx/v4/request.json	psycopg	ok	281ec8e2
+ddl_create_table/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_create_table/postgresql/pgx/v4/request.json	psycopg_async	ok	abbeebda
 ddl_create_table/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_table/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1760,7 +1760,7 @@ ddl_create_table/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backen
 ddl_create_table/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_create_table/postgresql/pgx/v4/request.json	unknown_any	ok	074c7b24
 ddl_create_table/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	fc07c848
-ddl_create_table/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	281ec8e2
+ddl_create_table/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_create_table/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	abbeebda
 ddl_create_table/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_table/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1780,7 +1780,7 @@ ddl_create_table/sqlite/request.json	sqlite3	ok	e95e656d
 ddl_create_table/sqlite/request.json	sqlite3_async	ok	eba8871d
 ddl_create_table/sqlite/request.json	unknown_any	ok	074c7b24
 ddl_create_table_include/postgresql/pgx/v4/request.json	exact_names	ok	2a208aab
-ddl_create_table_include/postgresql/pgx/v4/request.json	psycopg	ok	d77b1992
+ddl_create_table_include/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_create_table_include/postgresql/pgx/v4/request.json	psycopg_async	ok	3d4ff014
 ddl_create_table_include/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_table_include/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1790,7 +1790,7 @@ ddl_create_table_include/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite
 ddl_create_table_include/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_create_table_include/postgresql/pgx/v4/request.json	unknown_any	ok	2f121814
 ddl_create_table_include/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	2a208aab
-ddl_create_table_include/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	d77b1992
+ddl_create_table_include/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_create_table_include/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	3d4ff014
 ddl_create_table_include/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_table_include/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1800,7 +1800,7 @@ ddl_create_table_include/postgresql/pgx/v4/request.managed-db.json	sqlite3	error
 ddl_create_table_include/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_create_table_include/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	2f121814
 ddl_create_table_inherits/postgresql/pgx/v4/request.json	exact_names	ok	3049a053
-ddl_create_table_inherits/postgresql/pgx/v4/request.json	psycopg	ok	d19e5b8c
+ddl_create_table_inherits/postgresql/pgx/v4/request.json	psycopg	ok	41f404c6
 ddl_create_table_inherits/postgresql/pgx/v4/request.json	psycopg_async	ok	94dccb07
 ddl_create_table_inherits/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_table_inherits/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1810,7 +1810,7 @@ ddl_create_table_inherits/postgresql/pgx/v4/request.json	sqlite3	error:the sqlit
 ddl_create_table_inherits/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_create_table_inherits/postgresql/pgx/v4/request.json	unknown_any	ok	b36c40dc
 ddl_create_table_like/postgresql/pgx/request.json	exact_names	ok	0cfbbe74
-ddl_create_table_like/postgresql/pgx/request.json	psycopg	ok	be624d4f
+ddl_create_table_like/postgresql/pgx/request.json	psycopg	ok	30c87567
 ddl_create_table_like/postgresql/pgx/request.json	psycopg_async	ok	ba95d575
 ddl_create_table_like/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_table_like/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1820,7 +1820,7 @@ ddl_create_table_like/postgresql/pgx/request.json	sqlite3	error:the sqlite3 back
 ddl_create_table_like/postgresql/pgx/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_create_table_like/postgresql/pgx/request.json	unknown_any	ok	a43c06b0
 ddl_create_table_partition/postgresql/pgx/v4/request.json	exact_names	ok	ce699553
-ddl_create_table_partition/postgresql/pgx/v4/request.json	psycopg	ok	1397b865
+ddl_create_table_partition/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_create_table_partition/postgresql/pgx/v4/request.json	psycopg_async	ok	1f8590e0
 ddl_create_table_partition/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_table_partition/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1830,7 +1830,7 @@ ddl_create_table_partition/postgresql/pgx/v4/request.json	sqlite3	error:the sqli
 ddl_create_table_partition/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_create_table_partition/postgresql/pgx/v4/request.json	unknown_any	ok	4e58ad1d
 ddl_create_table_partition/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	ce699553
-ddl_create_table_partition/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	1397b865
+ddl_create_table_partition/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_create_table_partition/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	1f8590e0
 ddl_create_table_partition/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_table_partition/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1850,7 +1850,7 @@ ddl_create_table_reserved/mysql/request.json	sqlite3	error:the sqlite3 backend d
 ddl_create_table_reserved/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 ddl_create_table_reserved/mysql/request.json	unknown_any	ok	5d9d8ab4
 ddl_create_table_reserved/postgresql/pgx/v4/request.json	exact_names	ok	5501d9d3
-ddl_create_table_reserved/postgresql/pgx/v4/request.json	psycopg	ok	9520b4df
+ddl_create_table_reserved/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_create_table_reserved/postgresql/pgx/v4/request.json	psycopg_async	ok	498a84da
 ddl_create_table_reserved/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_table_reserved/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1860,7 +1860,7 @@ ddl_create_table_reserved/postgresql/pgx/v4/request.json	sqlite3	error:the sqlit
 ddl_create_table_reserved/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_create_table_reserved/postgresql/pgx/v4/request.json	unknown_any	ok	5d9d8ab4
 ddl_create_table_reserved/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	5501d9d3
-ddl_create_table_reserved/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	9520b4df
+ddl_create_table_reserved/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_create_table_reserved/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	498a84da
 ddl_create_table_reserved/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_table_reserved/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1880,7 +1880,7 @@ ddl_create_table_without_rowid/sqlite/request.json	sqlite3	ok	b172aa16
 ddl_create_table_without_rowid/sqlite/request.json	sqlite3_async	ok	37d21319
 ddl_create_table_without_rowid/sqlite/request.json	unknown_any	ok	118251cc
 ddl_create_trigger/postgresql/pgx/v4/request.json	exact_names	ok	af485574
-ddl_create_trigger/postgresql/pgx/v4/request.json	psycopg	ok	038073bb
+ddl_create_trigger/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_create_trigger/postgresql/pgx/v4/request.json	psycopg_async	ok	56dc11c9
 ddl_create_trigger/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_trigger/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1890,7 +1890,7 @@ ddl_create_trigger/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 back
 ddl_create_trigger/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_create_trigger/postgresql/pgx/v4/request.json	unknown_any	ok	1c9b5dc1
 ddl_create_trigger/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	af485574
-ddl_create_trigger/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	038073bb
+ddl_create_trigger/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_create_trigger/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	56dc11c9
 ddl_create_trigger/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_create_trigger/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1930,7 +1930,7 @@ ddl_drop_table/sqlite/request.json	sqlite3	ok	58bfe859
 ddl_drop_table/sqlite/request.json	sqlite3_async	ok	40511482
 ddl_drop_table/sqlite/request.json	unknown_any	ok	b7fa6551
 ddl_generated_columns/postgresql/pgx/v4/request.json	exact_names	ok	763d73de
-ddl_generated_columns/postgresql/pgx/v4/request.json	psycopg	ok	8798c5f0
+ddl_generated_columns/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_generated_columns/postgresql/pgx/v4/request.json	psycopg_async	ok	071b6e47
 ddl_generated_columns/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_generated_columns/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1940,7 +1940,7 @@ ddl_generated_columns/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 b
 ddl_generated_columns/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_generated_columns/postgresql/pgx/v4/request.json	unknown_any	ok	a5cac858
 ddl_generated_columns/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	763d73de
-ddl_generated_columns/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	8798c5f0
+ddl_generated_columns/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_generated_columns/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	071b6e47
 ddl_generated_columns/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_generated_columns/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1950,7 +1950,7 @@ ddl_generated_columns/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:th
 ddl_generated_columns/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_generated_columns/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	a5cac858
 ddl_pg_temp/postgresql/pgx/v4/request.json	exact_names	ok	acdcb1f2
-ddl_pg_temp/postgresql/pgx/v4/request.json	psycopg	ok	a29da449
+ddl_pg_temp/postgresql/pgx/v4/request.json	psycopg	ok	09d66056
 ddl_pg_temp/postgresql/pgx/v4/request.json	psycopg_async	ok	19ca526b
 ddl_pg_temp/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_pg_temp/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1960,7 +1960,7 @@ ddl_pg_temp/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend doe
 ddl_pg_temp/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ddl_pg_temp/postgresql/pgx/v4/request.json	unknown_any	ok	98e5afac
 ddl_pg_temp/postgresql/pgx/v4/request.managed-db.json	exact_names	ok	acdcb1f2
-ddl_pg_temp/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	a29da449
+ddl_pg_temp/postgresql/pgx/v4/request.managed-db.json	psycopg	ok	09d66056
 ddl_pg_temp/postgresql/pgx/v4/request.managed-db.json	psycopg_async	ok	19ca526b
 ddl_pg_temp/postgresql/pgx/v4/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 ddl_pg_temp/postgresql/pgx/v4/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -1990,7 +1990,7 @@ delete_from/mysql/request.json	sqlite3	error:the sqlite3 backend does not run my
 delete_from/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 delete_from/mysql/request.json	unknown_any	ok	994785f9
 delete_from/postgresql/pgx/v4/request.json	exact_names	ok	f0fdcb86
-delete_from/postgresql/pgx/v4/request.json	psycopg	ok	4e1d781a
+delete_from/postgresql/pgx/v4/request.json	psycopg	ok	6416c4f4
 delete_from/postgresql/pgx/v4/request.json	psycopg_async	ok	c162d3df
 delete_from/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 delete_from/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2030,7 +2030,7 @@ delete_join/mysql/request.json	sqlite3	error:the sqlite3 backend does not run my
 delete_join/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 delete_join/mysql/request.json	unknown_any	ok	72060caf
 delete_using/postgresql/pgx/request.managed-db.json	exact_names	ok	ef2e6afd
-delete_using/postgresql/pgx/request.managed-db.json	psycopg	ok	9e3aacad
+delete_using/postgresql/pgx/request.managed-db.json	psycopg	ok	33661fa6
 delete_using/postgresql/pgx/request.managed-db.json	psycopg_async	ok	c34da715
 delete_using/postgresql/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 delete_using/postgresql/pgx/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2060,7 +2060,7 @@ diff_no_output/request.managed-db.json	sqlite3	error:the sqlite3 backend does no
 diff_no_output/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 diff_no_output/request.managed-db.json	unknown_any	ok	45056e36
 do/postgresql/pgx/request.json	exact_names	ok	8616500d
-do/postgresql/pgx/request.json	psycopg	ok	f2b02474
+do/postgresql/pgx/request.json	psycopg	ok	37c987b4
 do/postgresql/pgx/request.json	psycopg_async	ok	1b29d9f2
 do/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 do/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2070,7 +2070,7 @@ do/postgresql/pgx/request.json	sqlite3	error:the sqlite3 backend does not run po
 do/postgresql/pgx/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 do/postgresql/pgx/request.json	unknown_any	ok	73ce42a8
 duplicate_go_names/enum/request.json	exact_names	error:query.sql: query "GetFoos": :many has no result columns in sqlc's report; if the query returns rows, list them with casts (SELECT n::int, s::text FROM ...), otherwise use :exec	-
-duplicate_go_names/enum/request.json	psycopg	error:2 problems: more than one table or type would be the Python class `Foo` name one otherwise with the rename option query.sql: query "GetFoos": :many has no result columns in sqlc's report if the query returns rows, list them with casts (SELECT n::int, s::text FROM ...), otherwise use :exec	-
+duplicate_go_names/enum/request.json	psycopg	error:query.sql: query "GetFoos": :many has no result columns in sqlc's report; if the query returns rows, list them with casts (SELECT n::int, s::text FROM ...), otherwise use :exec	-
 duplicate_go_names/enum/request.json	psycopg_async	error:2 problems: more than one table or type would be the Python class `Foo` name one otherwise with the rename option query.sql: query "GetFoos": :many has no result columns in sqlc's report if the query returns rows, list them with casts (SELECT n::int, s::text FROM ...), otherwise use :exec	-
 duplicate_go_names/enum/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 duplicate_go_names/enum/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2140,7 +2140,7 @@ emit_db_and_json_tags/sqlite/request.json	sqlite3	ok	3e24a879
 emit_db_and_json_tags/sqlite/request.json	sqlite3_async	ok	7c84f828
 emit_db_and_json_tags/sqlite/request.json	unknown_any	ok	2dbcb72e
 emit_empty_slices/pgx/v4/request.json	exact_names	ok	51d907e9
-emit_empty_slices/pgx/v4/request.json	psycopg	ok	b3d44d70
+emit_empty_slices/pgx/v4/request.json	psycopg	ok	f128f7e0
 emit_empty_slices/pgx/v4/request.json	psycopg_async	ok	2802a19b
 emit_empty_slices/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 emit_empty_slices/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2170,7 +2170,7 @@ emit_enum_valid_and_values/request.managed-db.json	sqlite3	error:the sqlite3 bac
 emit_enum_valid_and_values/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 emit_enum_valid_and_values/request.managed-db.json	unknown_any	ok	3878bcae
 emit_exported_queries/pgx/v4/request.json	exact_names	ok	ac063235
-emit_exported_queries/pgx/v4/request.json	psycopg	ok	ad4caff5
+emit_exported_queries/pgx/v4/request.json	psycopg	ok	ef0800ea
 emit_exported_queries/pgx/v4/request.json	psycopg_async	ok	f16a76a4
 emit_exported_queries/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 emit_exported_queries/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2260,7 +2260,7 @@ emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json
 emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 emit_result_and_params_struct_pointers/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	56fbb2e4
 emit_sql_as_comment/stdlib/request.json	exact_names	ok	6a79945b
-emit_sql_as_comment/stdlib/request.json	psycopg	ok	512a3bcd
+emit_sql_as_comment/stdlib/request.json	psycopg	ok	2f03cfd6
 emit_sql_as_comment/stdlib/request.json	psycopg_async	ok	c78b49f1
 emit_sql_as_comment/stdlib/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 emit_sql_as_comment/stdlib/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2320,7 +2320,7 @@ enum_column/mysql/request.json	sqlite3	error:the sqlite3 backend does not run my
 enum_column/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 enum_column/mysql/request.json	unknown_any	ok	fda69530
 enum_ordering/postgresql/stdlib/request.json	exact_names	ok	2fc3fc1d
-enum_ordering/postgresql/stdlib/request.json	psycopg	ok	f60da5fd
+enum_ordering/postgresql/stdlib/request.json	psycopg	ok	8ab81793
 enum_ordering/postgresql/stdlib/request.json	psycopg_async	ok	127cd6a8
 enum_ordering/postgresql/stdlib/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 enum_ordering/postgresql/stdlib/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2360,7 +2360,7 @@ exec_create_table/sqlite/request.json	sqlite3	error:sqlite.query.sql: "sqlite.qu
 exec_create_table/sqlite/request.json	sqlite3_async	error:sqlite.query.sql: "sqlite.query" is not a lowercase Python module name; rename the file	-
 exec_create_table/sqlite/request.json	unknown_any	error:sqlite.query.sql: "sqlite.query" is not a lowercase Python module name; rename the file	-
 exec_imports/pgx/v4/request.json	exact_names	ok	d7c6f1c4
-exec_imports/pgx/v4/request.json	psycopg	ok	7ae1312c
+exec_imports/pgx/v4/request.json	psycopg	ok	17731d80
 exec_imports/pgx/v4/request.json	psycopg_async	ok	a8933dbc
 exec_imports/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 exec_imports/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2380,7 +2380,7 @@ exec_lastid/go_postgresql_stdlib/request.json	sqlite3	error:the sqlite3 backend 
 exec_lastid/go_postgresql_stdlib/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 exec_lastid/go_postgresql_stdlib/request.json	unknown_any	ok	62b1916f
 exec_no_return_struct/postgresql/pgx/request.json	exact_names	ok	408c078b
-exec_no_return_struct/postgresql/pgx/request.json	psycopg	ok	1bb195a8
+exec_no_return_struct/postgresql/pgx/request.json	psycopg	ok	0e0c9ac9
 exec_no_return_struct/postgresql/pgx/request.json	psycopg_async	ok	3c66149e
 exec_no_return_struct/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 exec_no_return_struct/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2390,7 +2390,7 @@ exec_no_return_struct/postgresql/pgx/request.json	sqlite3	error:the sqlite3 back
 exec_no_return_struct/postgresql/pgx/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 exec_no_return_struct/postgresql/pgx/request.json	unknown_any	ok	e6a483ee
 exec_result/go_postgresql_pgx/v4/request.json	exact_names	ok	759101c6
-exec_result/go_postgresql_pgx/v4/request.json	psycopg	ok	b56b6552
+exec_result/go_postgresql_pgx/v4/request.json	psycopg	ok	2642ce56
 exec_result/go_postgresql_pgx/v4/request.json	psycopg_async	ok	0f08aabc
 exec_result/go_postgresql_pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 exec_result/go_postgresql_pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2410,7 +2410,7 @@ exec_result/go_postgresql_pgx/v4/request.managed-db.json	sqlite3	error:the sqlit
 exec_result/go_postgresql_pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 exec_result/go_postgresql_pgx/v4/request.managed-db.json	unknown_any	ok	01f03b46
 exec_rows/go_postgresql_pgx/v4/request.json	exact_names	ok	251c08ad
-exec_rows/go_postgresql_pgx/v4/request.json	psycopg	ok	6c69e138
+exec_rows/go_postgresql_pgx/v4/request.json	psycopg	ok	be21c9dc
 exec_rows/go_postgresql_pgx/v4/request.json	psycopg_async	ok	412acc70
 exec_rows/go_postgresql_pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 exec_rows/go_postgresql_pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2560,7 +2560,7 @@ func_match_types/sqlite/request.json	sqlite3	error:query.sql: query "AuthorPages
 func_match_types/sqlite/request.json	sqlite3_async	ok	50d54863
 func_match_types/sqlite/request.json	unknown_any	ok	90b4c248
 func_out_param/pgx/request.json	exact_names	ok	855d9cd7
-func_out_param/pgx/request.json	psycopg	ok	457df1fd
+func_out_param/pgx/request.json	psycopg	ok	6502138f
 func_out_param/pgx/request.json	psycopg_async	ok	eb01b3fc
 func_out_param/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 func_out_param/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2600,7 +2600,7 @@ func_return_date/postgresql/pgx/v5/request.json	sqlite3	error:the sqlite3 backen
 func_return_date/postgresql/pgx/v5/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 func_return_date/postgresql/pgx/v5/request.json	unknown_any	error:query.sql: query "GetDate": :one has no result columns in sqlc's report; if the query returns rows, list them with casts (SELECT n::int, s::text FROM ...), otherwise use :exec	-
 func_return_record/postgresql/pgx/request.managed-db.json	exact_names	ok	7fd86004
-func_return_record/postgresql/pgx/request.managed-db.json	psycopg	ok	04640cb5
+func_return_record/postgresql/pgx/request.managed-db.json	psycopg	ok	e6f76060
 func_return_record/postgresql/pgx/request.managed-db.json	psycopg_async	ok	a52e0931
 func_return_record/postgresql/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 func_return_record/postgresql/pgx/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2660,7 +2660,7 @@ func_star_expansion/postgresql/pgx/request.managed-db.json	sqlite3	error:the sql
 func_star_expansion/postgresql/pgx/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 func_star_expansion/postgresql/pgx/request.managed-db.json	unknown_any	ok	20447bfd
 func_variadic/postgresql/stdlib/request.json	exact_names	ok	1ddf2db9
-func_variadic/postgresql/stdlib/request.json	psycopg	ok	410a9eac
+func_variadic/postgresql/stdlib/request.json	psycopg	ok	5fc3053f
 func_variadic/postgresql/stdlib/request.json	psycopg_async	ok	5c359bb9
 func_variadic/postgresql/stdlib/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 func_variadic/postgresql/stdlib/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2690,7 +2690,7 @@ geometric/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run pos
 geometric/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 geometric/pgx/v4/request.json	unknown_any	ok	52ef3982
 golang_initialisms_empty/request.json	exact_names	ok	30fe4829
-golang_initialisms_empty/request.json	psycopg	ok	abbaf39b
+golang_initialisms_empty/request.json	psycopg	ok	5d6cb248
 golang_initialisms_empty/request.json	psycopg_async	ok	ff4ffbb7
 golang_initialisms_empty/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 golang_initialisms_empty/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2710,7 +2710,7 @@ golang_initialisms_url/request.json	sqlite3	error:the sqlite3 backend does not r
 golang_initialisms_url/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 golang_initialisms_url/request.json	unknown_any	ok	7ddd40b8
 golang_invalid_sql_driver/request.json	exact_names	ok	ffd41d84
-golang_invalid_sql_driver/request.json	psycopg	ok	9504d7bf
+golang_invalid_sql_driver/request.json	psycopg	ok	9a6a38bb
 golang_invalid_sql_driver/request.json	psycopg_async	ok	2629c2f5
 golang_invalid_sql_driver/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 golang_invalid_sql_driver/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2730,7 +2730,7 @@ having/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 having/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 having/mysql/request.json	unknown_any	ok	aefd24e8
 having/postgresql/request.json	exact_names	ok	a6989411
-having/postgresql/request.json	psycopg	ok	28381e1a
+having/postgresql/request.json	psycopg	ok	728547e6
 having/postgresql/request.json	psycopg_async	ok	aee2376f
 having/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 having/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2750,7 +2750,7 @@ having/postgresql/request.managed-db.json	sqlite3	error:the sqlite3 backend does
 having/postgresql/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 having/postgresql/request.managed-db.json	unknown_any	ok	4f60f0e6
 hstore/pgx/v4/request.json	exact_names	ok	f13da9d7
-hstore/pgx/v4/request.json	psycopg	ok	6fcccdf7
+hstore/pgx/v4/request.json	psycopg	ok	8615ea0e
 hstore/pgx/v4/request.json	psycopg_async	ok	b99f946a
 hstore/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 hstore/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2770,7 +2770,7 @@ identical_tables/mysql/request.json	sqlite3	error:the sqlite3 backend does not r
 identical_tables/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 identical_tables/mysql/request.json	unknown_any	ok	666ffd40
 identical_tables/postgresql/pgx/v4/request.json	exact_names	ok	080c77c7
-identical_tables/postgresql/pgx/v4/request.json	psycopg	ok	16d74afa
+identical_tables/postgresql/pgx/v4/request.json	psycopg	ok	509d8606
 identical_tables/postgresql/pgx/v4/request.json	psycopg_async	ok	3418f3a4
 identical_tables/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 identical_tables/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2840,7 +2840,7 @@ inflection/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mys
 inflection/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 inflection/mysql/request.json	unknown_any	ok	3771ed2e
 inflection/postgresql/pgx/v4/request.json	exact_names	ok	c8456b4d
-inflection/postgresql/pgx/v4/request.json	psycopg	ok	245a0f65
+inflection/postgresql/pgx/v4/request.json	psycopg	ok	197eef55
 inflection/postgresql/pgx/v4/request.json	psycopg_async	ok	ef115ee3
 inflection/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 inflection/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2880,7 +2880,7 @@ inflection_exclude_table_names/postgresql/pgx/v4/request.managed-db.json	sqlite3
 inflection_exclude_table_names/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 inflection_exclude_table_names/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	6e4d7810
 insert_cte/pgx/v4/request.json	exact_names	ok	0c4e1ffb
-insert_cte/pgx/v4/request.json	psycopg	ok	b1908ec3
+insert_cte/pgx/v4/request.json	psycopg	ok	8504016e
 insert_cte/pgx/v4/request.json	psycopg_async	ok	555e73ea
 insert_cte/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 insert_cte/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2920,7 +2920,7 @@ insert_select/mysql/request.json	sqlite3	error:the sqlite3 backend does not run 
 insert_select/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 insert_select/mysql/request.json	unknown_any	ok	8cc3bdcb
 insert_select/postgresql/pgx/v4/request.json	exact_names	ok	85634521
-insert_select/postgresql/pgx/v4/request.json	psycopg	ok	7ff9f598
+insert_select/postgresql/pgx/v4/request.json	psycopg	ok	4c76b904
 insert_select/postgresql/pgx/v4/request.json	psycopg_async	ok	2627212d
 insert_select/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 insert_select/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -2980,7 +2980,7 @@ insert_values/mysql/request.json	sqlite3	error:the sqlite3 backend does not run 
 insert_values/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 insert_values/mysql/request.json	unknown_any	ok	01fd606c
 insert_values/postgresql/pgx/v4/request.json	exact_names	ok	1d1335e0
-insert_values/postgresql/pgx/v4/request.json	psycopg	ok	f075a421
+insert_values/postgresql/pgx/v4/request.json	psycopg	ok	442ed1bf
 insert_values/postgresql/pgx/v4/request.json	psycopg_async	ok	cf0fce70
 insert_values/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 insert_values/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3010,7 +3010,7 @@ insert_values/sqlite/request.json	sqlite3	ok	9b9701aa
 insert_values/sqlite/request.json	sqlite3_async	ok	9d37100e
 insert_values/sqlite/request.json	unknown_any	ok	01fd606c
 insert_values_only/postgresql/pgx/request.managed-db.json	exact_names	ok	631fb59c
-insert_values_only/postgresql/pgx/request.managed-db.json	psycopg	ok	361bbbdc
+insert_values_only/postgresql/pgx/request.managed-db.json	psycopg	ok	c5400581
 insert_values_only/postgresql/pgx/request.managed-db.json	psycopg_async	ok	00247907
 insert_values_only/postgresql/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 insert_values_only/postgresql/pgx/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3030,7 +3030,7 @@ insert_values_public/mysql/request.json	sqlite3	error:the sqlite3 backend does n
 insert_values_public/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 insert_values_public/mysql/request.json	unknown_any	ok	3d221297
 insert_values_public/postgresql/pgx/v4/request.json	exact_names	ok	41c5b46f
-insert_values_public/postgresql/pgx/v4/request.json	psycopg	ok	fd96c516
+insert_values_public/postgresql/pgx/v4/request.json	psycopg	ok	ae911026
 insert_values_public/postgresql/pgx/v4/request.json	psycopg_async	ok	6cdd898f
 insert_values_public/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 insert_values_public/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3080,7 +3080,7 @@ join_alias/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mys
 join_alias/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 join_alias/mysql/request.json	unknown_any	ok	166e4621
 join_alias/postgresql/pgx/v4/request.json	exact_names	ok	50976927
-join_alias/postgresql/pgx/v4/request.json	psycopg	ok	28a7a4f1
+join_alias/postgresql/pgx/v4/request.json	psycopg	ok	57827930
 join_alias/postgresql/pgx/v4/request.json	psycopg_async	ok	19fa6af6
 join_alias/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_alias/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3110,7 +3110,7 @@ join_alias/sqlite/request.json	sqlite3	ok	a0e56330
 join_alias/sqlite/request.json	sqlite3_async	ok	aa58acac
 join_alias/sqlite/request.json	unknown_any	ok	166e4621
 join_clauses_order/postgresql/request.json	exact_names	ok	075236b3
-join_clauses_order/postgresql/request.json	psycopg	ok	f7444637
+join_clauses_order/postgresql/request.json	psycopg	ok	02cca3db
 join_clauses_order/postgresql/request.json	psycopg_async	ok	9588d0fc
 join_clauses_order/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_clauses_order/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3130,7 +3130,7 @@ join_from/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysq
 join_from/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 join_from/mysql/request.json	unknown_any	ok	c5c1d3ff
 join_from/postgresql/pgx/v4/request.json	exact_names	ok	d201dbca
-join_from/postgresql/pgx/v4/request.json	psycopg	ok	eeb26f20
+join_from/postgresql/pgx/v4/request.json	psycopg	ok	228eda50
 join_from/postgresql/pgx/v4/request.json	psycopg_async	ok	2111dd4b
 join_from/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_from/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3150,7 +3150,7 @@ join_from/sqlite/request.json	sqlite3	ok	a686e0b7
 join_from/sqlite/request.json	sqlite3_async	ok	6dfe4073
 join_from/sqlite/request.json	unknown_any	ok	c5c1d3ff
 join_full/postgresql/request.json	exact_names	ok	c20f5f17
-join_full/postgresql/request.json	psycopg	ok	c8eb9a5a
+join_full/postgresql/request.json	psycopg	ok	f06085a7
 join_full/postgresql/request.json	psycopg_async	ok	bc3ffcdf
 join_full/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_full/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3170,7 +3170,7 @@ join_full/postgresql/request.managed-db.json	sqlite3	error:the sqlite3 backend d
 join_full/postgresql/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 join_full/postgresql/request.managed-db.json	unknown_any	ok	a9fa349f
 join_group_by_alias/postgresql/stdlib/request.json	exact_names	ok	da94bfa6
-join_group_by_alias/postgresql/stdlib/request.json	psycopg	ok	6771be8b
+join_group_by_alias/postgresql/stdlib/request.json	psycopg	ok	bf14051c
 join_group_by_alias/postgresql/stdlib/request.json	psycopg_async	ok	685d8207
 join_group_by_alias/postgresql/stdlib/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_group_by_alias/postgresql/stdlib/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3180,7 +3180,7 @@ join_group_by_alias/postgresql/stdlib/request.json	sqlite3	error:the sqlite3 bac
 join_group_by_alias/postgresql/stdlib/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 join_group_by_alias/postgresql/stdlib/request.json	unknown_any	ok	38b9ef0c
 join_inner/postgresql/request.json	exact_names	ok	f69f35e1
-join_inner/postgresql/request.json	psycopg	ok	d1df6478
+join_inner/postgresql/request.json	psycopg	ok	8d57a1de
 join_inner/postgresql/request.json	psycopg_async	ok	9de577c2
 join_inner/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_inner/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3200,7 +3200,7 @@ join_left/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysq
 join_left/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 join_left/mysql/request.json	unknown_any	ok	373c649b
 join_left/postgresql/request.json	exact_names	ok	3f06d763
-join_left/postgresql/request.json	psycopg	ok	89bf0124
+join_left/postgresql/request.json	psycopg	ok	62de2f3c
 join_left/postgresql/request.json	psycopg_async	ok	3e987524
 join_left/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_left/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3230,7 +3230,7 @@ join_left_same_table/mysql/request.json	sqlite3	error:the sqlite3 backend does n
 join_left_same_table/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 join_left_same_table/mysql/request.json	unknown_any	ok	3410eeb6
 join_left_same_table/postgres/request.json	exact_names	ok	729a3495
-join_left_same_table/postgres/request.json	psycopg	ok	6bc832e4
+join_left_same_table/postgres/request.json	psycopg	ok	a7b65d0f
 join_left_same_table/postgres/request.json	psycopg_async	ok	ef800d46
 join_left_same_table/postgres/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_left_same_table/postgres/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3250,7 +3250,7 @@ join_left_same_table/sqlite/request.json	sqlite3	ok	bec708e9
 join_left_same_table/sqlite/request.json	sqlite3_async	ok	d42ee72d
 join_left_same_table/sqlite/request.json	unknown_any	ok	e436abd6
 join_left_table_alias/postgresql/pgx/request.json	exact_names	ok	a18fd822
-join_left_table_alias/postgresql/pgx/request.json	psycopg	ok	eb1e1776
+join_left_table_alias/postgresql/pgx/request.json	psycopg	ok	84068dc7
 join_left_table_alias/postgresql/pgx/request.json	psycopg_async	ok	747d643c
 join_left_table_alias/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_left_table_alias/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3260,7 +3260,7 @@ join_left_table_alias/postgresql/pgx/request.json	sqlite3	error:the sqlite3 back
 join_left_table_alias/postgresql/pgx/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 join_left_table_alias/postgresql/pgx/request.json	unknown_any	ok	41804316
 join_order_by/postgresql/pgx/request.managed-db.json	exact_names	ok	d04bbc3e
-join_order_by/postgresql/pgx/request.managed-db.json	psycopg	ok	816d4b5d
+join_order_by/postgresql/pgx/request.managed-db.json	psycopg	ok	56c997e6
 join_order_by/postgresql/pgx/request.managed-db.json	psycopg_async	ok	c86bf7c3
 join_order_by/postgresql/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_order_by/postgresql/pgx/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3270,7 +3270,7 @@ join_order_by/postgresql/pgx/request.managed-db.json	sqlite3	error:the sqlite3 b
 join_order_by/postgresql/pgx/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 join_order_by/postgresql/pgx/request.managed-db.json	unknown_any	ok	08c825c5
 join_order_by_alias/postgresql/stdlib/request.json	exact_names	ok	2d03d977
-join_order_by_alias/postgresql/stdlib/request.json	psycopg	ok	461824b7
+join_order_by_alias/postgresql/stdlib/request.json	psycopg	ok	cbe6d24e
 join_order_by_alias/postgresql/stdlib/request.json	psycopg_async	ok	15411cb5
 join_order_by_alias/postgresql/stdlib/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_order_by_alias/postgresql/stdlib/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3290,7 +3290,7 @@ join_right/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mys
 join_right/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 join_right/mysql/request.json	unknown_any	ok	dbb40d1c
 join_right/postgresql/request.json	exact_names	ok	28a5c50b
-join_right/postgresql/request.json	psycopg	ok	75aad15f
+join_right/postgresql/request.json	psycopg	ok	946d70d2
 join_right/postgresql/request.json	psycopg_async	ok	149d7cf9
 join_right/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_right/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3320,7 +3320,7 @@ join_table_name/mysql/request.json	sqlite3	error:the sqlite3 backend does not ru
 join_table_name/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 join_table_name/mysql/request.json	unknown_any	ok	6a19da89
 join_table_name/postgresql/pgx/v4/request.json	exact_names	ok	9c84b81c
-join_table_name/postgresql/pgx/v4/request.json	psycopg	ok	915f80c1
+join_table_name/postgresql/pgx/v4/request.json	psycopg	ok	ac82da9c
 join_table_name/postgresql/pgx/v4/request.json	psycopg_async	ok	3ae8e542
 join_table_name/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_table_name/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3360,7 +3360,7 @@ join_two_tables/mysql/request.json	sqlite3	error:the sqlite3 backend does not ru
 join_two_tables/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 join_two_tables/mysql/request.json	unknown_any	ok	64506ed3
 join_two_tables/postgresql/pgx/v4/request.json	exact_names	ok	dcfda8c3
-join_two_tables/postgresql/pgx/v4/request.json	psycopg	ok	63b0da66
+join_two_tables/postgresql/pgx/v4/request.json	psycopg	ok	8228c5f5
 join_two_tables/postgresql/pgx/v4/request.json	psycopg_async	ok	14ed274f
 join_two_tables/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_two_tables/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3380,7 +3380,7 @@ join_two_tables/sqlite/request.json	sqlite3	ok	f4d9dc02
 join_two_tables/sqlite/request.json	sqlite3_async	ok	606e7c8f
 join_two_tables/sqlite/request.json	unknown_any	ok	64506ed3
 join_update/postgresql/pgx/request.json	exact_names	ok	37c8dc4f
-join_update/postgresql/pgx/request.json	psycopg	ok	2c015e4d
+join_update/postgresql/pgx/request.json	psycopg	ok	88ed2f30
 join_update/postgresql/pgx/request.json	psycopg_async	ok	016f722a
 join_update/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_update/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3410,7 +3410,7 @@ join_where_clause/mysql/request.json	sqlite3	error:the sqlite3 backend does not 
 join_where_clause/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 join_where_clause/mysql/request.json	unknown_any	ok	3b5c3453
 join_where_clause/postgresql/pgx/v4/request.json	exact_names	ok	a011448a
-join_where_clause/postgresql/pgx/v4/request.json	psycopg	ok	884ed5de
+join_where_clause/postgresql/pgx/v4/request.json	psycopg	ok	fbe95489
 join_where_clause/postgresql/pgx/v4/request.json	psycopg_async	ok	c86a95dd
 join_where_clause/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 join_where_clause/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3450,7 +3450,7 @@ json/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 json/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 json/mysql/request.json	unknown_any	ok	709407fd
 json/postgresql/pgx/v4/request.json	exact_names	ok	2892782e
-json/postgresql/pgx/v4/request.json	psycopg	ok	78e25070
+json/postgresql/pgx/v4/request.json	psycopg	ok	03428115
 json/postgresql/pgx/v4/request.json	psycopg_async	ok	e0984461
 json/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 json/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3460,7 +3460,7 @@ json/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not r
 json/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 json/postgresql/pgx/v4/request.json	unknown_any	ok	35a698b7
 json_array_elements/postgresql/pgx/request.managed-db.json	exact_names	ok	83542a20
-json_array_elements/postgresql/pgx/request.managed-db.json	psycopg	ok	398bea97
+json_array_elements/postgresql/pgx/request.managed-db.json	psycopg	ok	6084c734
 json_array_elements/postgresql/pgx/request.managed-db.json	psycopg_async	ok	447a84fd
 json_array_elements/postgresql/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 json_array_elements/postgresql/pgx/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3530,7 +3530,7 @@ json_tags_null_enum/camel_case/postgresql/stdlib/request.managed-db.json	sqlite3
 json_tags_null_enum/camel_case/postgresql/stdlib/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 json_tags_null_enum/camel_case/postgresql/stdlib/request.managed-db.json	unknown_any	ok	d8ba79f8
 jsonb/pgx/request.json	exact_names	ok	5942d69f
-jsonb/pgx/request.json	psycopg	ok	e5669813
+jsonb/pgx/request.json	psycopg	ok	951f9ede
 jsonb/pgx/request.json	psycopg_async	ok	7ba89fa3
 jsonb/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 jsonb/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3540,7 +3540,7 @@ jsonb/pgx/request.json	sqlite3	error:the sqlite3 backend does not run postgresql
 jsonb/pgx/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 jsonb/pgx/request.json	unknown_any	ok	ffc7208d
 jsonb/pgx/request.managed-db.json	exact_names	ok	5942d69f
-jsonb/pgx/request.managed-db.json	psycopg	ok	e5669813
+jsonb/pgx/request.managed-db.json	psycopg	ok	951f9ede
 jsonb/pgx/request.managed-db.json	psycopg_async	ok	7ba89fa3
 jsonb/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 jsonb/pgx/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3570,7 +3570,7 @@ limit/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 limit/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 limit/mysql/request.json	unknown_any	ok	b8dc23a5
 limit/pgx/v4/request.json	exact_names	ok	7294bfb9
-limit/pgx/v4/request.json	psycopg	ok	f044d987
+limit/pgx/v4/request.json	psycopg	ok	be663993
 limit/pgx/v4/request.json	psycopg_async	ok	fe004332
 limit/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 limit/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3590,7 +3590,7 @@ limit/sqlite/request.json	sqlite3	ok	fdc03cdc
 limit/sqlite/request.json	sqlite3_async	ok	a894dce6
 limit/sqlite/request.json	unknown_any	ok	4354a7d9
 lower/pgx/v4/request.json	exact_names	ok	41a8fc77
-lower/pgx/v4/request.json	psycopg	ok	fbdadd56
+lower/pgx/v4/request.json	psycopg	ok	8d9c6ef7
 lower/pgx/v4/request.json	psycopg_async	ok	28bf310d
 lower/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 lower/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3600,7 +3600,7 @@ lower/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgre
 lower/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 lower/pgx/v4/request.json	unknown_any	ok	9fbf6fe0
 lower_switched_order/pgx/v4/request.json	exact_names	ok	6da2c073
-lower_switched_order/pgx/v4/request.json	psycopg	ok	7eb459ce
+lower_switched_order/pgx/v4/request.json	psycopg	ok	af3f612f
 lower_switched_order/pgx/v4/request.json	psycopg_async	ok	be9688a7
 lower_switched_order/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 lower_switched_order/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3610,7 +3610,7 @@ lower_switched_order/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does 
 lower_switched_order/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 lower_switched_order/pgx/v4/request.json	unknown_any	ok	959ed47d
 materialized_views/postgresql/pgx/v4/request.json	exact_names	ok	89dd96a0
-materialized_views/postgresql/pgx/v4/request.json	psycopg	ok	1f8387e3
+materialized_views/postgresql/pgx/v4/request.json	psycopg	ok	c72cb4fd
 materialized_views/postgresql/pgx/v4/request.json	psycopg_async	ok	6b26c3b1
 materialized_views/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 materialized_views/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3670,7 +3670,7 @@ mix_param_types/mysql/request.json	sqlite3	error:the sqlite3 backend does not ru
 mix_param_types/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 mix_param_types/mysql/request.json	unknown_any	ok	b9af98b8
 mix_param_types/postgresql/request.json	exact_names	ok	45f9b816
-mix_param_types/postgresql/request.json	psycopg	ok	dd4a3f8e
+mix_param_types/postgresql/request.json	psycopg	ok	e8f95b7c
 mix_param_types/postgresql/request.json	psycopg_async	ok	85e3cecf
 mix_param_types/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 mix_param_types/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3680,7 +3680,7 @@ mix_param_types/postgresql/request.json	sqlite3	error:the sqlite3 backend does n
 mix_param_types/postgresql/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 mix_param_types/postgresql/request.json	unknown_any	ok	21e193f2
 multidimension_array/pgx/v4/request.json	exact_names	ok	a085e586
-multidimension_array/pgx/v4/request.json	psycopg	ok	34dfd74d
+multidimension_array/pgx/v4/request.json	psycopg	ok	ea5ad3e0
 multidimension_array/pgx/v4/request.json	psycopg_async	ok	916a3c2a
 multidimension_array/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 multidimension_array/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3690,7 +3690,7 @@ multidimension_array/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does 
 multidimension_array/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 multidimension_array/pgx/v4/request.json	unknown_any	ok	58efbf3f
 multischema/pgx/v4/request.json	exact_names	ok	fd376d6f
-multischema/pgx/v4/request.json	psycopg	ok	66c0579a
+multischema/pgx/v4/request.json	psycopg	ok	34960cbc
 multischema/pgx/v4/request.json	psycopg_async	ok	6eeed16e
 multischema/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 multischema/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3810,7 +3810,7 @@ null_if_type/postgresql/pganalyzer/request.managed-db.json	sqlite3	error:the sql
 null_if_type/postgresql/pganalyzer/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 null_if_type/postgresql/pganalyzer/request.managed-db.json	unknown_any	ok	5cee17a0
 null_if_type/postgresql/stdlib/request.json	exact_names	ok	50c1bc80
-null_if_type/postgresql/stdlib/request.json	psycopg	ok	6a723974
+null_if_type/postgresql/stdlib/request.json	psycopg	ok	4fb7a32b
 null_if_type/postgresql/stdlib/request.json	psycopg_async	ok	dac71443
 null_if_type/postgresql/stdlib/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 null_if_type/postgresql/stdlib/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3840,7 +3840,7 @@ omit_sqlc_version/request.managed-db.json	sqlite3	error:the sqlite3 backend does
 omit_sqlc_version/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 omit_sqlc_version/request.managed-db.json	unknown_any	ok	168cbf63
 omit_unused_structs/postgresql/stdlib/request.json	exact_names	ok	8fcaeaa0
-omit_unused_structs/postgresql/stdlib/request.json	psycopg	ok	536c6e6a
+omit_unused_structs/postgresql/stdlib/request.json	psycopg	ok	cea3353b
 omit_unused_structs/postgresql/stdlib/request.json	psycopg_async	ok	9ce0bb31
 omit_unused_structs/postgresql/stdlib/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 omit_unused_structs/postgresql/stdlib/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3870,7 +3870,7 @@ on_duplicate_key_update/mysql/request.json	sqlite3	error:the sqlite3 backend doe
 on_duplicate_key_update/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 on_duplicate_key_update/mysql/request.json	unknown_any	ok	50c01d4c
 on_duplicate_key_update/postgresql/request.json	exact_names	ok	782ea835
-on_duplicate_key_update/postgresql/request.json	psycopg	ok	c0b819f9
+on_duplicate_key_update/postgresql/request.json	psycopg	ok	6607c388
 on_duplicate_key_update/postgresql/request.json	psycopg_async	ok	ad17331c
 on_duplicate_key_update/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 on_duplicate_key_update/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3880,7 +3880,7 @@ on_duplicate_key_update/postgresql/request.json	sqlite3	error:the sqlite3 backen
 on_duplicate_key_update/postgresql/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 on_duplicate_key_update/postgresql/request.json	unknown_any	ok	98e42803
 operator_string_concat/postgresql/pgx/v4/request.json	exact_names	ok	ef4fe47e
-operator_string_concat/postgresql/pgx/v4/request.json	psycopg	ok	085ec46d
+operator_string_concat/postgresql/pgx/v4/request.json	psycopg	ok	b2e48ad3
 operator_string_concat/postgresql/pgx/v4/request.json	psycopg_async	ok	326383ce
 operator_string_concat/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 operator_string_concat/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3930,7 +3930,7 @@ order_by_union/mysql/request.json	sqlite3	error:the sqlite3 backend does not run
 order_by_union/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 order_by_union/mysql/request.json	unknown_any	ok	814e7848
 order_by_union/postgresql/request.json	exact_names	ok	89524334
-order_by_union/postgresql/request.json	psycopg	ok	ddf5cb96
+order_by_union/postgresql/request.json	psycopg	ok	6d45a998
 order_by_union/postgresql/request.json	psycopg_async	ok	f04404ca
 order_by_union/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 order_by_union/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3940,7 +3940,7 @@ order_by_union/postgresql/request.json	sqlite3	error:the sqlite3 backend does no
 order_by_union/postgresql/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 order_by_union/postgresql/request.json	unknown_any	ok	5323603e
 output_file_names/pgx/v4/request.json	exact_names	ok	fbd60d30
-output_file_names/pgx/v4/request.json	psycopg	ok	7764b6e0
+output_file_names/pgx/v4/request.json	psycopg	ok	06155a89
 output_file_names/pgx/v4/request.json	psycopg_async	ok	94ca1ca2
 output_file_names/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 output_file_names/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3960,7 +3960,7 @@ output_file_names/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backe
 output_file_names/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 output_file_names/pgx/v4/request.managed-db.json	unknown_any	ok	4314da04
 output_file_names/pgx/v5/request.json	exact_names	ok	9311b407
-output_file_names/pgx/v5/request.json	psycopg	ok	7764b6e0
+output_file_names/pgx/v5/request.json	psycopg	ok	06155a89
 output_file_names/pgx/v5/request.json	psycopg_async	ok	94ca1ca2
 output_file_names/pgx/v5/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 output_file_names/pgx/v5/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -3980,7 +3980,7 @@ output_file_names/pgx/v5/request.managed-db.json	sqlite3	error:the sqlite3 backe
 output_file_names/pgx/v5/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 output_file_names/pgx/v5/request.managed-db.json	unknown_any	ok	f811fdcc
 output_file_names/stdlib/request.json	exact_names	ok	aea30de1
-output_file_names/stdlib/request.json	psycopg	ok	71db242e
+output_file_names/stdlib/request.json	psycopg	ok	fc6bc6ca
 output_file_names/stdlib/request.json	psycopg_async	ok	1bc19866
 output_file_names/stdlib/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 output_file_names/stdlib/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4150,7 +4150,7 @@ overrides_go_types/mysql/request.json	sqlite3	error:the sqlite3 backend does not
 overrides_go_types/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 overrides_go_types/mysql/request.json	unknown_any	ok	05191d45
 overrides_go_types/postgresql/pgx/v4/request.json	exact_names	ok	99306783
-overrides_go_types/postgresql/pgx/v4/request.json	psycopg	ok	a55d44e7
+overrides_go_types/postgresql/pgx/v4/request.json	psycopg	ok	52c1d3f4
 overrides_go_types/postgresql/pgx/v4/request.json	psycopg_async	ok	49edf33b
 overrides_go_types/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 overrides_go_types/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4160,7 +4160,7 @@ overrides_go_types/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 back
 overrides_go_types/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 overrides_go_types/postgresql/pgx/v4/request.json	unknown_any	ok	a6e56050
 overrides_go_types/postgresql/pgx/v5/request.json	exact_names	ok	911cd7d6
-overrides_go_types/postgresql/pgx/v5/request.json	psycopg	ok	3871b172
+overrides_go_types/postgresql/pgx/v5/request.json	psycopg	ok	5fa7bff4
 overrides_go_types/postgresql/pgx/v5/request.json	psycopg_async	ok	be4e5548
 overrides_go_types/postgresql/pgx/v5/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 overrides_go_types/postgresql/pgx/v5/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4220,7 +4220,7 @@ overrides_pointers/mysql/request.json	sqlite3	error:the sqlite3 backend does not
 overrides_pointers/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 overrides_pointers/mysql/request.json	unknown_any	ok	fbc069c2
 overrides_pointers/postgresql/pgx/v4/request.json	exact_names	ok	9eeb71a2
-overrides_pointers/postgresql/pgx/v4/request.json	psycopg	ok	5f83c8aa
+overrides_pointers/postgresql/pgx/v4/request.json	psycopg	ok	2af055db
 overrides_pointers/postgresql/pgx/v4/request.json	psycopg_async	ok	09dd0a0a
 overrides_pointers/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 overrides_pointers/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4230,7 +4230,7 @@ overrides_pointers/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 back
 overrides_pointers/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 overrides_pointers/postgresql/pgx/v4/request.json	unknown_any	ok	37a6b0cf
 overrides_result_tag/stdlib/request.json	exact_names	ok	25ea9b6c
-overrides_result_tag/stdlib/request.json	psycopg	ok	d2c363f7
+overrides_result_tag/stdlib/request.json	psycopg	ok	3e936367
 overrides_result_tag/stdlib/request.json	psycopg_async	ok	2568eb6c
 overrides_result_tag/stdlib/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 overrides_result_tag/stdlib/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4260,7 +4260,7 @@ params_duplicate/mysql/request.json	sqlite3	error:the sqlite3 backend does not r
 params_duplicate/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 params_duplicate/mysql/request.json	unknown_any	error:query.sql: query "SelectUserByID": parameter ? #2 ("id") is used as int and as Any | None; cast each use to one type	-
 params_duplicate/postgresql/request.json	exact_names	ok	f148a879
-params_duplicate/postgresql/request.json	psycopg	ok	b1ff5383
+params_duplicate/postgresql/request.json	psycopg	ok	bad5aa82
 params_duplicate/postgresql/request.json	psycopg_async	ok	6a1a4f97
 params_duplicate/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 params_duplicate/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4280,7 +4280,7 @@ params_duplicate/postgresql/request.managed-db.json	sqlite3	error:the sqlite3 ba
 params_duplicate/postgresql/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 params_duplicate/postgresql/request.managed-db.json	unknown_any	ok	3f7e047c
 params_go_keywords/postgresql/request.json	exact_names	ok	d1bfaee0
-params_go_keywords/postgresql/request.json	psycopg	ok	313ff95a
+params_go_keywords/postgresql/request.json	psycopg	ok	4d460ab8
 params_go_keywords/postgresql/request.json	psycopg_async	ok	69ec63c3
 params_go_keywords/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 params_go_keywords/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4300,7 +4300,7 @@ params_in_nested_func/mysql/request.json	sqlite3	error:the sqlite3 backend does 
 params_in_nested_func/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 params_in_nested_func/mysql/request.json	unknown_any	ok	1ec43320
 params_in_nested_func/postgresql/request.json	exact_names	ok	c8f6be51
-params_in_nested_func/postgresql/request.json	psycopg	ok	a7b64997
+params_in_nested_func/postgresql/request.json	psycopg	ok	6d67213a
 params_in_nested_func/postgresql/request.json	psycopg_async	ok	f7e56059
 params_in_nested_func/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 params_in_nested_func/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4330,7 +4330,7 @@ params_location/mysql/request.json	sqlite3	error:the sqlite3 backend does not ru
 params_location/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 params_location/mysql/request.json	unknown_any	ok	471f03e7
 params_location/postgresql/pgx/v4/request.json	exact_names	ok	f3340b14
-params_location/postgresql/pgx/v4/request.json	psycopg	ok	9bc1809e
+params_location/postgresql/pgx/v4/request.json	psycopg	ok	cf19fbd7
 params_location/postgresql/pgx/v4/request.json	psycopg_async	ok	f3e5c981
 params_location/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 params_location/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4400,7 +4400,7 @@ pattern_matching/mysql/request.json	sqlite3	error:the sqlite3 backend does not r
 pattern_matching/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 pattern_matching/mysql/request.json	unknown_any	ok	6d8b7b91
 pattern_matching/postgresql/request.json	exact_names	ok	32698154
-pattern_matching/postgresql/request.json	psycopg	ok	b22b7fef
+pattern_matching/postgresql/request.json	psycopg	ok	578f30fc
 pattern_matching/postgresql/request.json	psycopg_async	ok	43a13a90
 pattern_matching/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 pattern_matching/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4430,7 +4430,7 @@ pg_dump/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 pg_dump/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 pg_dump/request.json	unknown_any	ok	6fd424b5
 pg_ext_ltree/postgresql/pgx/v4/request.json	exact_names	error:3 problems: table "foo": column "name_query" has type "lquery", which has no verified Python mapping query.sql: query "ListFoo": column "name_query" has type "lquery", which has no verified Python mapping name its Python type with an override (db_type "lquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "foo": column "fts_name_query" has type "ltxtquery", which has no verified Python mapping name its Python type with an override (db_type "ltxtquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
-pg_ext_ltree/postgresql/pgx/v4/request.json	psycopg	error:3 problems: table "foo": column "name_query" has type "lquery", which has no verified Python mapping query.sql: query "ListFoo": column "name_query" has type "lquery", which has no verified Python mapping name its Python type with an override (db_type "lquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "foo": column "fts_name_query" has type "ltxtquery", which has no verified Python mapping name its Python type with an override (db_type "ltxtquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
+pg_ext_ltree/postgresql/pgx/v4/request.json	psycopg	error:query.sql: query "ListFoo": column "name_query" has type "lquery", which has no verified Python mapping; name its Python type with an override (db_type "lquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
 pg_ext_ltree/postgresql/pgx/v4/request.json	psycopg_async	error:3 problems: table "foo": column "name_query" has type "lquery", which has no verified Python mapping query.sql: query "ListFoo": column "name_query" has type "lquery", which has no verified Python mapping name its Python type with an override (db_type "lquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "foo": column "fts_name_query" has type "ltxtquery", which has no verified Python mapping name its Python type with an override (db_type "ltxtquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
 pg_ext_ltree/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 pg_ext_ltree/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4470,7 +4470,7 @@ pg_timezone_names/request.0.json	sqlite3	error:the sqlite3 backend does not run 
 pg_timezone_names/request.0.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 pg_timezone_names/request.0.json	unknown_any	ok	a5f3f5ad
 pg_vector/postgresql/pgx/request.json	exact_names	error:3 problems: table "items": column "embedding" has type "vector", which has no verified Python mapping query.sql: query "InsertVector": parameter $1 ("embedding") has type "vector", which has no verified Python mapping query.sql: query "NearestNeighbor": column "embedding" has type "vector", which has no verified Python mapping name its Python type with an override (db_type "vector"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
-pg_vector/postgresql/pgx/request.json	psycopg	error:3 problems: table "items": column "embedding" has type "vector", which has no verified Python mapping query.sql: query "InsertVector": parameter $1 ("embedding") has type "vector", which has no verified Python mapping query.sql: query "NearestNeighbor": column "embedding" has type "vector", which has no verified Python mapping name its Python type with an override (db_type "vector"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
+pg_vector/postgresql/pgx/request.json	psycopg	error:2 problems: query.sql: query "InsertVector": parameter $1 ("embedding") has type "vector", which has no verified Python mapping query.sql: query "NearestNeighbor": column "embedding" has type "vector", which has no verified Python mapping name its Python type with an override (db_type "vector"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
 pg_vector/postgresql/pgx/request.json	psycopg_async	error:3 problems: table "items": column "embedding" has type "vector", which has no verified Python mapping query.sql: query "InsertVector": parameter $1 ("embedding") has type "vector", which has no verified Python mapping query.sql: query "NearestNeighbor": column "embedding" has type "vector", which has no verified Python mapping name its Python type with an override (db_type "vector"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
 pg_vector/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 pg_vector/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4510,7 +4510,7 @@ prepared_queries/mysql/request.json	sqlite3	error:the sqlite3 backend does not r
 prepared_queries/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 prepared_queries/mysql/request.json	unknown_any	ok	29c1c77d
 prepared_queries/postgresql/stdlib/request.json	exact_names	ok	fd9abee5
-prepared_queries/postgresql/stdlib/request.json	psycopg	ok	31469b9f
+prepared_queries/postgresql/stdlib/request.json	psycopg	ok	f4562a24
 prepared_queries/postgresql/stdlib/request.json	psycopg_async	ok	337e0f0e
 prepared_queries/postgresql/stdlib/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 prepared_queries/postgresql/stdlib/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4570,7 +4570,7 @@ query_parameter_limit_invalid/postgresql/request.managed-db.json	sqlite3	error:t
 query_parameter_limit_invalid/postgresql/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 query_parameter_limit_invalid/postgresql/request.managed-db.json	unknown_any	ok	0bd04a5b
 query_parameter_limit_param_only/postgresql/request.json	exact_names	ok	0ce71bbe
-query_parameter_limit_param_only/postgresql/request.json	psycopg	ok	7952f211
+query_parameter_limit_param_only/postgresql/request.json	psycopg	ok	632dda40
 query_parameter_limit_param_only/postgresql/request.json	psycopg_async	ok	a1c4e1f4
 query_parameter_limit_param_only/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 query_parameter_limit_param_only/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4630,7 +4630,7 @@ quoted_tablename/sqlite/request.json	sqlite3	ok	20b41182
 quoted_tablename/sqlite/request.json	sqlite3_async	ok	f2775a71
 quoted_tablename/sqlite/request.json	unknown_any	ok	cc288a32
 ranges/pgx/v5/request.json	exact_names	error:13 problems: table "test_table": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping table "test_table": column "v_datemultirange" has type "datemultirange", which has no verified Python mapping query.sql: query "SelectTest": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping name its Python type with an override (db_type "datemultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_tsmultirange_null" has type "tsmultirange", which has no verified Python mapping table "test_table": column "v_tsmultirange" has type "tsmultirange", which has no verified Python mapping name its Python type with an override (db_type "tsmultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_tstzmultirange_null" has type "tstzmultirange", which has no verified Python mapping table "test_table": column "v_tstzmultirange" has type "tstzmultirange", which has no verified Python mapping name its Python type with an override (db_type "tstzmultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_nummultirange_null" has type "nummultirange", which has no verified Python mapping table "test_table": column "v_nummultirange" has type "nummultirange", which has no verified Python mapping name its Python type with an override (db_type "nummultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_int4multirange_null" has type "int4multirange", which has no verified Python mapping table "test_table": column "v_int4multirange" has type "int4multirange", which has no verified Python mapping name its Python type with an override (db_type "int4multirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_int8multirange_null" has type "int8multirange", which has no verified Python mapping table "test_table": column "v_int8multirange" has type "int8multirange", which has no verified Python mapping name its Python type with an override (db_type "int8multirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
-ranges/pgx/v5/request.json	psycopg	error:13 problems: table "test_table": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping table "test_table": column "v_datemultirange" has type "datemultirange", which has no verified Python mapping query.sql: query "SelectTest": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping name its Python type with an override (db_type "datemultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_tsmultirange_null" has type "tsmultirange", which has no verified Python mapping table "test_table": column "v_tsmultirange" has type "tsmultirange", which has no verified Python mapping name its Python type with an override (db_type "tsmultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_tstzmultirange_null" has type "tstzmultirange", which has no verified Python mapping table "test_table": column "v_tstzmultirange" has type "tstzmultirange", which has no verified Python mapping name its Python type with an override (db_type "tstzmultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_nummultirange_null" has type "nummultirange", which has no verified Python mapping table "test_table": column "v_nummultirange" has type "nummultirange", which has no verified Python mapping name its Python type with an override (db_type "nummultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_int4multirange_null" has type "int4multirange", which has no verified Python mapping table "test_table": column "v_int4multirange" has type "int4multirange", which has no verified Python mapping name its Python type with an override (db_type "int4multirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_int8multirange_null" has type "int8multirange", which has no verified Python mapping table "test_table": column "v_int8multirange" has type "int8multirange", which has no verified Python mapping name its Python type with an override (db_type "int8multirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
+ranges/pgx/v5/request.json	psycopg	error:query.sql: query "SelectTest": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping; name its Python type with an override (db_type "datemultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
 ranges/pgx/v5/request.json	psycopg_async	error:13 problems: table "test_table": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping table "test_table": column "v_datemultirange" has type "datemultirange", which has no verified Python mapping query.sql: query "SelectTest": column "v_datemultirange_null" has type "datemultirange", which has no verified Python mapping name its Python type with an override (db_type "datemultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_tsmultirange_null" has type "tsmultirange", which has no verified Python mapping table "test_table": column "v_tsmultirange" has type "tsmultirange", which has no verified Python mapping name its Python type with an override (db_type "tsmultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_tstzmultirange_null" has type "tstzmultirange", which has no verified Python mapping table "test_table": column "v_tstzmultirange" has type "tstzmultirange", which has no verified Python mapping name its Python type with an override (db_type "tstzmultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_nummultirange_null" has type "nummultirange", which has no verified Python mapping table "test_table": column "v_nummultirange" has type "nummultirange", which has no verified Python mapping name its Python type with an override (db_type "nummultirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_int4multirange_null" has type "int4multirange", which has no verified Python mapping table "test_table": column "v_int4multirange" has type "int4multirange", which has no verified Python mapping name its Python type with an override (db_type "int4multirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "test_table": column "v_int8multirange_null" has type "int8multirange", which has no verified Python mapping table "test_table": column "v_int8multirange" has type "int8multirange", which has no verified Python mapping name its Python type with an override (db_type "int8multirange"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
 ranges/pgx/v5/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 ranges/pgx/v5/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4640,7 +4640,7 @@ ranges/pgx/v5/request.json	sqlite3	error:the sqlite3 backend does not run postgr
 ranges/pgx/v5/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 ranges/pgx/v5/request.json	unknown_any	ok	8d933101
 refreshmatview/postgresql/pgx/v4/request.json	exact_names	error:table "myview": column "column_1" has a type sqlc could not infer; add a cast, as <expr>::<type>, or coalesce(<expr>, <default>)::<type> if it can be NULL, as sqlc reports every cast NOT NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
-refreshmatview/postgresql/pgx/v4/request.json	psycopg	error:table "myview": column "column_1" has a type sqlc could not infer; add a cast, as <expr>::<type>, or coalesce(<expr>, <default>)::<type> if it can be NULL, as sqlc reports every cast NOT NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
+refreshmatview/postgresql/pgx/v4/request.json	psycopg	ok	7a050116
 refreshmatview/postgresql/pgx/v4/request.json	psycopg_async	error:table "myview": column "column_1" has a type sqlc could not infer; add a cast, as <expr>::<type>, or coalesce(<expr>, <default>)::<type> if it can be NULL, as sqlc reports every cast NOT NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 refreshmatview/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 refreshmatview/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4680,7 +4680,7 @@ schema_scoped_create/mysql/request.json	sqlite3	error:the sqlite3 backend does n
 schema_scoped_create/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 schema_scoped_create/mysql/request.json	unknown_any	ok	291bc9da
 schema_scoped_create/postgresql/pgx/v4/request.json	exact_names	ok	6a035c65
-schema_scoped_create/postgresql/pgx/v4/request.json	psycopg	ok	b8bbfb28
+schema_scoped_create/postgresql/pgx/v4/request.json	psycopg	ok	a1b3a064
 schema_scoped_create/postgresql/pgx/v4/request.json	psycopg_async	ok	6efc35cb
 schema_scoped_create/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 schema_scoped_create/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4710,7 +4710,7 @@ schema_scoped_delete/mysql/request.json	sqlite3	error:the sqlite3 backend does n
 schema_scoped_delete/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 schema_scoped_delete/mysql/request.json	unknown_any	ok	736b272a
 schema_scoped_delete/postgresql/pgx/v4/request.json	exact_names	ok	bbb17818
-schema_scoped_delete/postgresql/pgx/v4/request.json	psycopg	ok	72f60452
+schema_scoped_delete/postgresql/pgx/v4/request.json	psycopg	ok	c2587df6
 schema_scoped_delete/postgresql/pgx/v4/request.json	psycopg_async	ok	0e60aa5d
 schema_scoped_delete/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 schema_scoped_delete/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4730,7 +4730,7 @@ schema_scoped_delete/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:the
 schema_scoped_delete/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 schema_scoped_delete/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	d282a3dd
 schema_scoped_enum/pgx/v4/request.json	exact_names	ok	6d13c213
-schema_scoped_enum/pgx/v4/request.json	psycopg	ok	d0057c79
+schema_scoped_enum/pgx/v4/request.json	psycopg	ok	3cb585f8
 schema_scoped_enum/pgx/v4/request.json	psycopg_async	ok	3c67858e
 schema_scoped_enum/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 schema_scoped_enum/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4750,7 +4750,7 @@ schema_scoped_filter/mysql/request.json	sqlite3	error:the sqlite3 backend does n
 schema_scoped_filter/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 schema_scoped_filter/mysql/request.json	unknown_any	ok	17c23768
 schema_scoped_filter/postgresql/pgx/v4/request.json	exact_names	ok	175108a9
-schema_scoped_filter/postgresql/pgx/v4/request.json	psycopg	ok	208ebb05
+schema_scoped_filter/postgresql/pgx/v4/request.json	psycopg	ok	176f426d
 schema_scoped_filter/postgresql/pgx/v4/request.json	psycopg_async	ok	ba1fa4e5
 schema_scoped_filter/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 schema_scoped_filter/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4780,7 +4780,7 @@ schema_scoped_list/mysql/request.json	sqlite3	error:the sqlite3 backend does not
 schema_scoped_list/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 schema_scoped_list/mysql/request.json	unknown_any	ok	9d3eae1f
 schema_scoped_list/postgresql/pgx/v4/request.json	exact_names	ok	93823769
-schema_scoped_list/postgresql/pgx/v4/request.json	psycopg	ok	349617d9
+schema_scoped_list/postgresql/pgx/v4/request.json	psycopg	ok	b8c81c1f
 schema_scoped_list/postgresql/pgx/v4/request.json	psycopg_async	ok	4e3f52f8
 schema_scoped_list/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 schema_scoped_list/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4800,7 +4800,7 @@ schema_scoped_update/mysql/request.json	sqlite3	error:the sqlite3 backend does n
 schema_scoped_update/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 schema_scoped_update/mysql/request.json	unknown_any	ok	36e10b25
 schema_scoped_update/postgresql/pgx/v4/request.json	exact_names	ok	724bd8c0
-schema_scoped_update/postgresql/pgx/v4/request.json	psycopg	ok	6eaf50a8
+schema_scoped_update/postgresql/pgx/v4/request.json	psycopg	ok	5ad1ec23
 schema_scoped_update/postgresql/pgx/v4/request.json	psycopg_async	ok	2d94b4d2
 schema_scoped_update/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 schema_scoped_update/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4820,7 +4820,7 @@ schema_scoped_update/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:the
 schema_scoped_update/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 schema_scoped_update/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	3ca8335e
 schema_table_column_ref/postgresql/pgx/request.json	exact_names	ok	13cd3fe8
-schema_table_column_ref/postgresql/pgx/request.json	psycopg	ok	5e556a26
+schema_table_column_ref/postgresql/pgx/request.json	psycopg	ok	062e7365
 schema_table_column_ref/postgresql/pgx/request.json	psycopg_async	ok	7355d831
 schema_table_column_ref/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 schema_table_column_ref/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4850,7 +4850,7 @@ select_column_cast/mysql/request.json	sqlite3	error:the sqlite3 backend does not
 select_column_cast/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 select_column_cast/mysql/request.json	unknown_any	ok	6c92ec37
 select_column_cast/postgresql/pgx/v4/request.json	exact_names	ok	a7b2fd87
-select_column_cast/postgresql/pgx/v4/request.json	psycopg	ok	57fa80a5
+select_column_cast/postgresql/pgx/v4/request.json	psycopg	ok	864d7596
 select_column_cast/postgresql/pgx/v4/request.json	psycopg_async	ok	187ee466
 select_column_cast/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 select_column_cast/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4900,7 +4900,7 @@ select_empty_column_list/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite
 select_empty_column_list/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 select_empty_column_list/postgresql/pgx/v4/request.json	unknown_any	error:query.sql: query "GetBars": :many has no result columns in sqlc's report; if the query returns rows, list them with casts (SELECT n::int, s::text FROM ...), otherwise use :exec	-
 select_exists/pgx/v4/request.json	exact_names	ok	29c8f8db
-select_exists/pgx/v4/request.json	psycopg	ok	b0a6e63f
+select_exists/pgx/v4/request.json	psycopg	ok	76ce22eb
 select_exists/pgx/v4/request.json	psycopg_async	ok	8a9137e9
 select_exists/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 select_exists/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4950,7 +4950,7 @@ select_limit/mysql/request.json	sqlite3	error:the sqlite3 backend does not run m
 select_limit/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 select_limit/mysql/request.json	unknown_any	ok	8467d6a1
 select_limit/postgresql/pgx/v4/request.json	exact_names	ok	d73023e3
-select_limit/postgresql/pgx/v4/request.json	psycopg	ok	ac61baba
+select_limit/postgresql/pgx/v4/request.json	psycopg	ok	33fe7898
 select_limit/postgresql/pgx/v4/request.json	psycopg_async	ok	285d9fde
 select_limit/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 select_limit/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -4980,7 +4980,7 @@ select_nested_count/mysql/request.json	sqlite3	error:the sqlite3 backend does no
 select_nested_count/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 select_nested_count/mysql/request.json	unknown_any	ok	4951e409
 select_nested_count/postgresql/request.json	exact_names	ok	912c5732
-select_nested_count/postgresql/request.json	psycopg	ok	1c7533b6
+select_nested_count/postgresql/request.json	psycopg	ok	e030cf0f
 select_nested_count/postgresql/request.json	psycopg_async	ok	ad5685bb
 select_nested_count/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 select_nested_count/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5000,7 +5000,7 @@ select_nested_count/sqlite/request.json	sqlite3	ok	f4746672
 select_nested_count/sqlite/request.json	sqlite3_async	ok	afed7c79
 select_nested_count/sqlite/request.json	unknown_any	ok	4951e409
 select_not_exists/pgx/v4/request.json	exact_names	ok	87f39861
-select_not_exists/pgx/v4/request.json	psycopg	ok	98346fc9
+select_not_exists/pgx/v4/request.json	psycopg	ok	58a8f29e
 select_not_exists/pgx/v4/request.json	psycopg_async	ok	10bd8a06
 select_not_exists/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 select_not_exists/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5080,7 +5080,7 @@ select_star_quoted/mysql/request.json	sqlite3	error:the sqlite3 backend does not
 select_star_quoted/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 select_star_quoted/mysql/request.json	unknown_any	ok	0fee4fdf
 select_star_quoted/postgresql/pgx/v4/request.json	exact_names	ok	32c44594
-select_star_quoted/postgresql/pgx/v4/request.json	psycopg	ok	5ef8646e
+select_star_quoted/postgresql/pgx/v4/request.json	psycopg	ok	48ce1260
 select_star_quoted/postgresql/pgx/v4/request.json	psycopg_async	ok	6ff5e9fb
 select_star_quoted/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 select_star_quoted/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5090,7 +5090,7 @@ select_star_quoted/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 back
 select_star_quoted/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 select_star_quoted/postgresql/pgx/v4/request.json	unknown_any	ok	e014118e
 select_subquery/postgresql/stdlib/request.managed-db.json	exact_names	ok	6314a501
-select_subquery/postgresql/stdlib/request.managed-db.json	psycopg	ok	5cdb21c3
+select_subquery/postgresql/stdlib/request.managed-db.json	psycopg	ok	591eaebe
 select_subquery/postgresql/stdlib/request.managed-db.json	psycopg_async	ok	28620db5
 select_subquery/postgresql/stdlib/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 select_subquery/postgresql/stdlib/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5140,7 +5140,7 @@ select_subquery_no_alias/sqlite/request.json	sqlite3	ok	f9682db6
 select_subquery_no_alias/sqlite/request.json	sqlite3_async	ok	255f01b3
 select_subquery_no_alias/sqlite/request.json	unknown_any	ok	8cbc150a
 select_system/pgx/request.managed-db.json	exact_names	error:query.sql: query "GetSystemColumns": column "xmin" has type "xid", which has no verified Python mapping; name its Python type with an override (db_type "xid"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
-select_system/pgx/request.managed-db.json	psycopg	ok	5baea265
+select_system/pgx/request.managed-db.json	psycopg	ok	3a372899
 select_system/pgx/request.managed-db.json	psycopg_async	ok	cb8c20b0
 select_system/pgx/request.managed-db.json	pymysql	error:the pymysql backend does not run postgresql	-
 select_system/pgx/request.managed-db.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5170,7 +5170,7 @@ select_union/mysql/request.json	sqlite3	error:the sqlite3 backend does not run m
 select_union/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 select_union/mysql/request.json	unknown_any	ok	a687d544
 select_union/postgres/pgx/v4/request.json	exact_names	ok	00c27e24
-select_union/postgres/pgx/v4/request.json	psycopg	ok	1acd39c8
+select_union/postgres/pgx/v4/request.json	psycopg	ok	6b424d61
 select_union/postgres/pgx/v4/request.json	psycopg_async	ok	1b51ee3b
 select_union/postgres/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 select_union/postgres/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5240,7 +5240,7 @@ single_param_conflict/mysql/request.json	sqlite3	error:the sqlite3 backend does 
 single_param_conflict/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 single_param_conflict/mysql/request.json	unknown_any	ok	4851aae4
 single_param_conflict/postgresql/pgx/v4/request.json	exact_names	ok	fef75e23
-single_param_conflict/postgresql/pgx/v4/request.json	psycopg	ok	534edd5a
+single_param_conflict/postgresql/pgx/v4/request.json	psycopg	ok	809eb005
 single_param_conflict/postgresql/pgx/v4/request.json	psycopg_async	ok	d03f061f
 single_param_conflict/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 single_param_conflict/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5290,7 +5290,7 @@ sqlc_arg/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql
 sqlc_arg/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 sqlc_arg/mysql/request.json	unknown_any	ok	e337f2ed
 sqlc_arg/postgresql/pgx/v4/request.json	exact_names	ok	824dcb56
-sqlc_arg/postgresql/pgx/v4/request.json	psycopg	ok	155c7af7
+sqlc_arg/postgresql/pgx/v4/request.json	psycopg	ok	f309b42a
 sqlc_arg/postgresql/pgx/v4/request.json	psycopg_async	ok	f09cba2f
 sqlc_arg/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 sqlc_arg/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5360,7 +5360,7 @@ sqlc_narg/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysq
 sqlc_narg/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 sqlc_narg/mysql/request.json	unknown_any	ok	e47e2988
 sqlc_narg/postgresql/pgx/v4/request.json	exact_names	ok	bed0bb2b
-sqlc_narg/postgresql/pgx/v4/request.json	psycopg	ok	4e683637
+sqlc_narg/postgresql/pgx/v4/request.json	psycopg	ok	276b51f1
 sqlc_narg/postgresql/pgx/v4/request.json	psycopg_async	ok	6800eda2
 sqlc_narg/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 sqlc_narg/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5500,7 +5500,7 @@ star_expansion/sqlite/request.json	sqlite3	ok	7a185d95
 star_expansion/sqlite/request.json	sqlite3_async	ok	9004738d
 star_expansion/sqlite/request.json	unknown_any	ok	2bb2a52e
 star_expansion_cte/pgx/v4/request.json	exact_names	ok	d6d1ee26
-star_expansion_cte/pgx/v4/request.json	psycopg	ok	4f2ce0b3
+star_expansion_cte/pgx/v4/request.json	psycopg	ok	34223925
 star_expansion_cte/pgx/v4/request.json	psycopg_async	ok	7fbb4c25
 star_expansion_cte/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 star_expansion_cte/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5510,7 +5510,7 @@ star_expansion_cte/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does no
 star_expansion_cte/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 star_expansion_cte/pgx/v4/request.json	unknown_any	ok	a5453a4e
 star_expansion_from_cte/pgx/v4/request.json	exact_names	ok	7bb593be
-star_expansion_from_cte/pgx/v4/request.json	psycopg	ok	e1febaef
+star_expansion_from_cte/pgx/v4/request.json	psycopg	ok	027c0cb3
 star_expansion_from_cte/pgx/v4/request.json	psycopg_async	ok	0fbb66ca
 star_expansion_from_cte/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 star_expansion_from_cte/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5530,7 +5530,7 @@ star_expansion_join/mysql/request.json	sqlite3	error:the sqlite3 backend does no
 star_expansion_join/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 star_expansion_join/mysql/request.json	unknown_any	ok	de0694d4
 star_expansion_join/postgresql/pgx/v4/request.json	exact_names	ok	e86b7ec4
-star_expansion_join/postgresql/pgx/v4/request.json	psycopg	ok	5c581aa8
+star_expansion_join/postgresql/pgx/v4/request.json	psycopg	ok	b2b0e5f2
 star_expansion_join/postgresql/pgx/v4/request.json	psycopg_async	ok	de038609
 star_expansion_join/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 star_expansion_join/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5680,7 +5680,7 @@ truncate/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql
 truncate/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 truncate/mysql/request.json	unknown_any	ok	0233752e
 truncate/postgresql/pgx/v4/request.json	exact_names	ok	439ad996
-truncate/postgresql/pgx/v4/request.json	psycopg	ok	49e51f58
+truncate/postgresql/pgx/v4/request.json	psycopg	ok	a842c9fd
 truncate/postgresql/pgx/v4/request.json	psycopg_async	ok	0b4b14f4
 truncate/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 truncate/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5710,7 +5710,7 @@ unknown_func/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run 
 unknown_func/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 unknown_func/pgx/v4/request.json	unknown_any	ok	503a6b59
 unnest/postgresql/pgx/v4/request.json	exact_names	ok	bc89e199
-unnest/postgresql/pgx/v4/request.json	psycopg	ok	e1045fe4
+unnest/postgresql/pgx/v4/request.json	psycopg	ok	d6e72ce1
 unnest/postgresql/pgx/v4/request.json	psycopg_async	ok	fb1baca0
 unnest/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 unnest/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5730,7 +5730,7 @@ unnest_star/postgresql/pgx/request.managed-db.json	sqlite3	error:the sqlite3 bac
 unnest_star/postgresql/pgx/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 unnest_star/postgresql/pgx/request.managed-db.json	unknown_any	ok	a8cabdae
 unnest_with_ordinality/postgresql/pgx/v4/request.json	exact_names	ok	443f1c33
-unnest_with_ordinality/postgresql/pgx/v4/request.json	psycopg	ok	3073c0c0
+unnest_with_ordinality/postgresql/pgx/v4/request.json	psycopg	ok	d688616b
 unnest_with_ordinality/postgresql/pgx/v4/request.json	psycopg_async	ok	af4e178e
 unnest_with_ordinality/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 unnest_with_ordinality/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5770,7 +5770,7 @@ update_array_index/postgresql/pgx/request.managed-db.json	sqlite3	error:the sqli
 update_array_index/postgresql/pgx/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 update_array_index/postgresql/pgx/request.managed-db.json	unknown_any	ok	9f87d98b
 update_cte/pgx/v4/request.json	exact_names	ok	d7f95a2e
-update_cte/pgx/v4/request.json	psycopg	ok	ab9b26ab
+update_cte/pgx/v4/request.json	psycopg	ok	03f34735
 update_cte/pgx/v4/request.json	psycopg_async	ok	92cff1be
 update_cte/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 update_cte/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5810,7 +5810,7 @@ update_join/mysql/request.json	sqlite3	error:the sqlite3 backend does not run my
 update_join/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 update_join/mysql/request.json	unknown_any	ok	60e4399d
 update_join/postgresql/request.json	exact_names	ok	32f7bf7e
-update_join/postgresql/request.json	psycopg	ok	6497e492
+update_join/postgresql/request.json	psycopg	ok	1f9f44f4
 update_join/postgresql/request.json	psycopg_async	ok	71bbab96
 update_join/postgresql/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 update_join/postgresql/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5840,7 +5840,7 @@ update_set/myql/request.json	sqlite3	error:the sqlite3 backend does not run mysq
 update_set/myql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 update_set/myql/request.json	unknown_any	ok	c4b95ab7
 update_set/postgresql/pgx/v4/request.json	exact_names	ok	5346e784
-update_set/postgresql/pgx/v4/request.json	psycopg	ok	87144140
+update_set/postgresql/pgx/v4/request.json	psycopg	ok	70c017b0
 update_set/postgresql/pgx/v4/request.json	psycopg_async	ok	cf9db78a
 update_set/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 update_set/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
@@ -5870,7 +5870,7 @@ update_set_multiple/mysql/request.json	sqlite3	error:the sqlite3 backend does no
 update_set_multiple/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 update_set_multiple/mysql/request.json	unknown_any	ok	88cbdebe
 update_set_multiple/postgresql/pgx/v4/request.json	exact_names	ok	da70b997
-update_set_multiple/postgresql/pgx/v4/request.json	psycopg	ok	5a221ad7
+update_set_multiple/postgresql/pgx/v4/request.json	psycopg	ok	abb1458c
 update_set_multiple/postgresql/pgx/v4/request.json	psycopg_async	ok	cbbca2a7
 update_set_multiple/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 update_set_multiple/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
