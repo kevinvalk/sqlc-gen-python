@@ -61,11 +61,43 @@ pub(super) fn module_problems(
     }
 
     let mut problems = Vec::new();
+    only_defines(&own, &mut problems);
     comments_are_the_header(parsed, source, &mut problems);
     scopes("module", &own, &mut problems);
     annotations_are_precise(&own, accepts_any, &mut problems);
     records_are_values(&own, records, &mut problems);
     problems
+}
+
+/// Importing a module only defines it: it imports, declares classes and functions, and binds each statement to a
+/// constant. Anything else on import, like registering a driver's adapter, would change how the whole application reads
+/// its rows. The query checks pin what a statement calls, and [`records_are_values`] a class's decorators and bases.
+fn only_defines(body: &[Stmt], problems: &mut Vec<String>) {
+    fn is_statement(value: &Expr) -> bool {
+        match value {
+            Expr::StringLiteral(_) => true,
+            Expr::Call(call) => {
+                unparse(&call.func) == "sqlalchemy.text"
+                    || (call.func.as_attribute_expr()).is_some_and(|method| is_statement(&method.value))
+            }
+            _ => false,
+        }
+    }
+
+    for stmt in body {
+        let defines = match stmt {
+            Stmt::Import(_) | Stmt::ImportFrom(_) | Stmt::ClassDef(_) => true,
+            Stmt::FunctionDef(function) => (function.decorator_list.iter())
+                .all(|decorator| unparse(&decorator.expression).starts_with("contextlib.")),
+            Stmt::AnnAssign(constant) => constant.value.as_deref().is_some_and(is_statement),
+            _ => false,
+        };
+        if !defines {
+            let written = unparse_stmt(stmt);
+            let line = written.lines().next().unwrap_or_default();
+            problems.push(format!("`{line}` does more than define on import"));
+        }
+    }
 }
 
 /// The only comments are the header the module opens with, and its one comment for a tool is

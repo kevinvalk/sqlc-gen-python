@@ -131,7 +131,7 @@ fn no_parameter_or_result_mentions_any_but_the_drivers_own() {
 fn only_dunders_and_module_constants_may_start_with_an_underscore() {
     assert_eq!(
         module(
-            "import enum\n\n_GET_INVOICE = 1\n\n\nclass A(enum.StrEnum):\n    def __str__(self) -> str:\n        return \"\"\n"
+            "import enum\n\n_GET_INVOICE: Final = \"\"\n\n\nclass A(enum.StrEnum):\n    def __str__(self) -> str:\n        return \"\"\n"
         ),
         ""
     );
@@ -309,6 +309,21 @@ fn a_module_binds_each_name_once() {
 }
 
 #[test]
+fn a_module_only_defines_on_import() {
+    for source in [
+        "import psycopg\n\npsycopg.adapters.register_loader(\"x\", None)\n",
+        "import typing\n\n_GET_X: typing.Final = register()\n",
+        "import functools\n\n\n@functools.cache\ndef get_x() -> None:\n    pass\n",
+    ] {
+        let problems = module(source);
+        assert!(
+            problems.contains("does more than define on import"),
+            "{source:?}: {problems}"
+        );
+    }
+}
+
+#[test]
 fn the_only_comments_are_the_header() {
     // A `# type: ignore` would silence both type checkers on its line.
     let problems = planted(
@@ -331,7 +346,7 @@ fn the_only_comments_are_the_header() {
     )
     .join("\n");
     assert!(problems.contains("`# ruff: noqa` silences a tool"), "{problems}");
-    assert_eq!(module("# a\n# b\nx = 1\n"), "");
+    assert_eq!(module("# a\n# b\nimport enum\n"), "");
 }
 
 #[test]

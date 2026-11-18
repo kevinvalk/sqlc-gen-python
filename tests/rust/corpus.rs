@@ -6,6 +6,7 @@
 //! - generating never panics, and generating twice gives the same result;
 //! - the files are exactly `models.py` and one module per query file, so each is inside the output directory;
 //! - its only comments are the header it opens with, which silences no tool;
+//! - importing it only defines it: imports, classes, functions and statement constants, and nothing that registers;
 //! - every name a module binds is unique in its scope and public, except for the prelude a query module holds where
 //!   its library's stubs need one, to the letter and nowhere else: PyMySQL's connection under a private name, and
 //!   asyncmy's untyped methods as a private protocol that annotates with `Any`;
