@@ -212,7 +212,10 @@ fn case_directory(name: &str) -> Option<PathBuf> {
         .map(|example| example.path())
         .find(|example| {
             let config = fs::read_to_string(example.join("sqlc.yaml")).unwrap_or_default();
-            config.lines().any(|line| line.trim() == format!("- out: {name}"))
+            let config: serde_yaml_ng::Value = serde_yaml_ng::from_str(&config).unwrap_or_default();
+            (config["sql"].as_sequence().into_iter().flatten())
+                .flat_map(|package| package["codegen"].as_sequence().into_iter().flatten())
+                .any(|codegen| codegen["out"].as_str() == Some(name))
         })
         .map(|example| example.join(name))
 }
@@ -279,7 +282,21 @@ impl GenDir {
     }
 }
 
-/// `python <arg>` in the `tests/python` uv project, in the Python 3.11 environment the static gate also uses. We keep
+/// The oldest supported Python, as the `tests/python` project's `requires-python` says: `>=3.11` is `3.11`.
+fn minimum_python() -> String {
+    let path = root().join("tests/python/pyproject.toml");
+    let project: toml::Table = toml::from_str(&fs::read_to_string(&path).expect("tests/python/pyproject.toml"))
+        .expect("tests/python/pyproject.toml is TOML");
+    let python = project["project"]["requires-python"]
+        .as_str()
+        .and_then(|requires| requires.strip_prefix(">="));
+    python
+        .expect("tests/python/pyproject.toml says `requires-python = \">=3.x\"`")
+        .to_string()
+}
+
+/// `python <arg>` in the `tests/python` uv project, in the environment of the oldest supported Python, which the static
+/// gate also uses. We keep
 /// everything under `target/`, what Hypothesis keeps of its draws included, so nothing is created under `tests/python`
 /// or anywhere else in the tree.
 fn uv_python(arg: &str) -> Command {
@@ -287,12 +304,20 @@ fn uv_python(arg: &str) -> Command {
     // - `-B` writes no bytecode
     // - `-E` and `-s` keep out the caller's `PYTHON*` variables and user site-packages, while a script's own directory
     //   stays importable (which `-I` would not allow)
+    let python = minimum_python();
     let mut command = Command::new("uv");
     command
-        .args(["run", "--quiet", "--project=tests/python", "--locked"])
-        .args(["--managed-python", "--python=3.11", "python", "-B", "-E", "-s"])
+        .args([
+            "run",
+            "--quiet",
+            "--project=tests/python",
+            "--locked",
+            "--managed-python",
+        ])
+        .arg(format!("--python={python}"))
+        .args(["python", "-B", "-E", "-s"])
         .arg(arg)
-        .env("UV_PROJECT_ENVIRONMENT", root().join("target/py/3.11"))
+        .env("UV_PROJECT_ENVIRONMENT", root().join("target/py").join(&python))
         .env("HYPOTHESIS_STORAGE_DIRECTORY", root().join("target/py/hypothesis"))
         .current_dir(root());
     command

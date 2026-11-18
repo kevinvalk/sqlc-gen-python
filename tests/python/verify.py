@@ -113,7 +113,7 @@ def ruff_format(source: str) -> str:
     no_magic = ["--config", "format.skip-magic-trailing-comma=true"]
     for arguments in (["check", "--select", "I", "--fix"], ["format", *no_magic]):
         source = subprocess.run(
-            [ruff, *arguments, "--isolated", "--target-version", "py311", "-"],
+            [ruff, *arguments, "--isolated", "--target-version", f"py{PYTHONS[0].replace('.', '')}", "-"],
             input=source,
             capture_output=True,
             text=True,

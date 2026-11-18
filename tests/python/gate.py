@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import tomllib
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
@@ -25,10 +26,11 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-PYTHONS = ("3.11", "3.15")  # The oldest supported Python and the newest stable one
-
 PROJECT = Path(__file__).resolve().parent
 CONFIG = PROJECT / "pyproject.toml"
+
+# The oldest supported Python, the project's `requires-python`, and the newest stable one.
+PYTHONS = (tomllib.loads(CONFIG.read_text())["project"]["requires-python"].removeprefix(">="), "3.15")
 RUFF_OPTIONS = ("--output-format=json", "--no-cache", f"--config={CONFIG}")
 
 # We run this inside an environment, so it imports with warnings as errors and prints a JSON line per failing module.

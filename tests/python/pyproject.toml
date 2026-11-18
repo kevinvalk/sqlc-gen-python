@@ -46,9 +46,6 @@ dev = [
 # uv.lock decides every package either way.
 required-version = ">=0.13.7,<0.14"
 
-[tool.ruff]
-target-version = "py311"
-
 # The lint contract for generated code: every rule, minus those generated code cannot or should not satisfy. `gate.py`
 # applies exactly this to everything the plugin emits, and the developer scripts extend it in `ruff.toml`. We set no
 # pydocstyle `convention`, as that would turn off more rules than these, unlisted.
@@ -76,12 +73,10 @@ ignore = [
 ]
 
 [tool.pyright]
-pythonVersion = "3.11"
 typeCheckingMode = "strict"
 reportUnnecessaryTypeIgnoreComment = "error"
 
 [tool.mypy]
-python_version = "3.11"
 strict = true
 # Without paths we check the developer scripts and the suite (`cargo xtask check`). The gate names the generated
 # packages it checks itself, and `suite/usage.py` too, as that is written against them.

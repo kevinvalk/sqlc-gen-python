@@ -36,12 +36,25 @@ pub fn is_public_name(name: &str) -> bool {
     name.is_ascii() && ruff_python_stdlib::identifiers::is_identifier(name) && !name.starts_with('_')
 }
 
-/// A public CapWords name (ruff N801) that hides no builtin of any supported Python (`Warning`, `ExceptionGroup`).
+/// Whether `name` is a builtin of any Python ruff knows of, which a name generated code binds must not hide (ruff
+/// A001): a function `list` would turn every `list[...]` of its module into an error. Ruff lists a builtin from the
+/// Python that added it on, so we ask it of a version no Python has yet, and a ruff upgrade brings the next one's.
+pub fn hides_builtin(name: &str) -> bool {
+    ruff_python_stdlib::builtins::is_python_builtin(name, u8::MAX, false)
+}
+
+/// Whether `name` is a builtin of every Python, so generated code may read it bare: ruff's builtins of no particular
+/// version, which `frozendict` (3.15) is not.
+pub fn is_builtin(name: &str) -> bool {
+    ruff_python_stdlib::builtins::is_python_builtin(name, 0, false)
+}
+
+/// A public CapWords name (ruff N801) that hides no builtin (`Warning`, `ExceptionGroup`).
 pub fn is_class_name(name: &str) -> bool {
     is_public_name(name)
         && name.starts_with(|c: char| c.is_ascii_uppercase())
         && !name.contains('_')
-        && !(10..=14).any(|minor| ruff_python_stdlib::builtins::is_python_builtin(name, minor, false))
+        && !hides_builtin(name)
 }
 
 /// A public lowercase name (ruff N999), so no two modules are one file on a case-insensitive file system.

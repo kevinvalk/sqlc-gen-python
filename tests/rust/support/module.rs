@@ -5,7 +5,6 @@ use ruff_python_ast::visitor::{Visitor, walk_expr, walk_stmt};
 use ruff_python_ast::{Expr, ModModule, Stmt};
 use ruff_python_formatter::{PyFormatOptions, format_module_source};
 use ruff_python_parser::{Parsed, parse_module};
-use ruff_python_stdlib::builtins::is_python_builtin;
 use ruff_text_size::Ranged;
 
 use super::python::{docstring, is_enum, is_error, unparse, unparse_stmt, unwrapped};
@@ -194,7 +193,7 @@ fn bound<'a>(scope: &str, names: impl Iterator<Item = &'a str>, problems: &mut V
     }
 }
 
-/// Every name the module reads is bound by an earlier statement, or is a builtin of Python 3.11, the oldest we support.
+/// Every name the module reads is bound by an earlier statement, or is a builtin of every Python.
 /// Class bodies and their annotations run on import, so a name read too early or never bound (a model annotated with
 /// a class we did not generate) is a `NameError` the moment anyone imports the module.
 fn reads_resolve(body: &[Stmt], problems: &mut Vec<String>) {
@@ -203,7 +202,7 @@ fn reads_resolve(body: &[Stmt], problems: &mut Vec<String>) {
         let mut reads = Names::default();
         reads.visit_stmt(stmt);
         for name in reads.0 {
-            if !bound.contains(name) && !is_python_builtin(name, 11, false) {
+            if !bound.contains(name) && !sqlc_gen_python::python::is_builtin(name) {
                 problems.push(format!("`{name}` is read before it is bound"));
             }
         }

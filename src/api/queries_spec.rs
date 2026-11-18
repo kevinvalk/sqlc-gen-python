@@ -177,7 +177,13 @@ fn a_query_is_a_snake_case_function_a_private_constant_and_perhaps_a_class() {
 
 #[test]
 fn a_function_named_like_a_keyword_reserved_name_or_builtin_takes_a_trailing_underscore() {
-    for (name, function) in [("Import", "import_"), ("Models", "models_"), ("Any", "any_")] {
+    // A builtin of any Python it runs on: `sentinel` is new in 3.15
+    for (name, function) in [
+        ("Import", "import_"),
+        ("Models", "models_"),
+        ("Any", "any_"),
+        ("Sentinel", "sentinel_"),
+    ] {
         let query = resolve(plugin::Query {
             name: name.into(),
             ..query(":exec", "SELECT 1")

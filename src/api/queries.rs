@@ -5,7 +5,6 @@ use std::path::Path;
 use anyhow::{Result, bail};
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use ruff_python_ast as ast;
-use ruff_python_stdlib::builtins::is_python_builtin;
 
 use super::models::{Field, FieldType, Model};
 use super::names::{self, Binding, Repeats};
@@ -334,7 +333,7 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
         Records::Dataclass,
     )?
     .remove(0);
-    let function = match is_python_builtin(&function, 11, false) {
+    let function = match python::hides_builtin(&function) {
         true => function + "_",
         false => function,
     };

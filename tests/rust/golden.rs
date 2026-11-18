@@ -81,15 +81,18 @@ fn diff(case_directory: &Path, generated: &Files) -> Option<String> {
 /// the same ruff release. Renovate bumps them in one pull request, and this test makes sure it stays that way.
 #[test]
 fn the_gate_formats_with_the_ruff_the_plugin_renders_with() {
-    let read = |path: &str| fs::read_to_string(support::root().join(path)).unwrap();
+    let read = |path: &str| -> toml::Table {
+        toml::from_str(&fs::read_to_string(support::root().join(path)).unwrap()).unwrap()
+    };
     let cargo = read("Cargo.toml");
-    let tags: std::collections::BTreeSet<&str> = (cargo.lines())
-        .filter(|line| line.starts_with("ruff_"))
-        .filter_map(|line| line.split("tag = \"").nth(1)?.split('"').next())
+    let tags: std::collections::BTreeSet<&str> = (["dependencies", "dev-dependencies"].iter())
+        .flat_map(|section| cargo[*section].as_table().into_iter().flatten())
+        .filter(|(name, _)| name.starts_with("ruff_"))
+        .filter_map(|(_, dependency)| dependency.get("tag")?.as_str())
         .collect();
     let pyproject = read("tests/python/pyproject.toml");
-    let pin = (pyproject.lines())
-        .find_map(|line| line.trim().strip_prefix("\"ruff==")?.strip_suffix("\","))
+    let pin = (pyproject["dependency-groups"]["dev"].as_array().into_iter().flatten())
+        .find_map(|requirement| requirement.as_str()?.strip_prefix("ruff=="))
         .expect("tests/python/pyproject.toml pins ruff");
     assert_eq!(tags, [pin].into(), "Cargo.toml's ruff crates and the gate's ruff");
 }
