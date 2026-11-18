@@ -44,7 +44,8 @@ SELECT CAST(COUNT(*) AS SIGNED) AS invoice_count FROM invoices WHERE customer_id
 UPDATE invoices SET status = 'issued', issued_on = ? WHERE id = ? AND status = 'draft';
 
 -- name: AddLineItems :copyfrom
-INSERT INTO line_items (invoice_id, position, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?);
+-- A line already at its position is skipped, so it returns how many it added.
+INSERT IGNORE INTO line_items (invoice_id, position, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?);
 
 -- name: ListLineItems :many
 SELECT * FROM line_items WHERE invoice_id = ? ORDER BY position;

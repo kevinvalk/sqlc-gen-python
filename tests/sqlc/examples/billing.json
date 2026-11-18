@@ -2708,7 +2708,7 @@
       "insert_into_table": null
     },
     {
-      "text": "INSERT INTO line_items (invoice_id, position, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
+      "text": "INSERT IGNORE INTO line_items (invoice_id, position, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
       "name": "AddLineItems",
       "cmd": ":copyfrom",
       "columns": [],
@@ -2859,7 +2859,9 @@
           }
         }
       ],
-      "comments": [],
+      "comments": [
+        " A line already at its position is skipped, so it returns how many it added."
+      ],
       "filename": "query.sql",
       "insert_into_table": {
         "catalog": "",

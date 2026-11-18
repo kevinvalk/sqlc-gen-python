@@ -7,12 +7,12 @@ use crate::api::models::{Field, FieldType};
 use crate::api::queries::{Command, Query, Shape};
 use crate::engine::Engine;
 use crate::python::vocabulary::{
-    ANY, ASYNC_CONNECTION, CONNECTION, DICT, LIST, MODELS, PARAMS, POSTGRESQL, R, RESULT, ROW, ROWS, SQLALCHEMY, STR,
-    VALUE, VALUES,
+    ANY, ASYNC_CONNECTION, CONNECTION, DICT, LEN, LIST, MODELS, PARAMS, POSTGRESQL, R, RESULT, ROW, ROWS, SQLALCHEMY,
+    STR, VALUE, VALUES,
 };
 use crate::python::{
-    Expression, Json, Scope, Type, ann_assign, assign, dict, each, expression, for_, generator_of, if_, keyword, list,
-    list_of, name, return_, starred, stmts, string, true_, unless_none, with, yield_,
+    Expression, Json, Scope, Type, ann_assign, assign, dict, each, expression, for_, generator_of, if_, int, keyword,
+    list, list_of, name, return_, starred, stmts, string, true_, unless_none, with, yield_,
 };
 
 pub fn check(engine: Engine, query: &Query) -> Result<()> {
@@ -128,7 +128,7 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
 
     // A batch binds each row's values (`r.p`), but all at once as `params` if it returns nothing
     let values = match (rows, &query.command, query.params.is_empty()) {
-        (true, Command::Exec, _) => Some(PARAMS.into()),
+        (true, Command::Exec | Command::CopyFrom { .. }, _) => Some(PARAMS.into()),
         (false, _, true) => None,
         _ => Some(named(query)),
     };
@@ -145,6 +145,22 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
             ];
         }
         Command::Exec => return vec![expression(executed)],
+        // asyncpg counts no list of rows (-1), but on PostgreSQL every row is written or the call raises
+        Command::CopyFrom { every_row } => {
+            let params = assign(PARAMS, list_of(named(query), each(R, ROWS)));
+            return match every_row {
+                true => stmts![
+                    params,
+                    if_(PARAMS, vec![expression(executed)]),
+                    return_(LEN.call([PARAMS.into()])),
+                ],
+                false => stmts![
+                    params,
+                    if_(PARAMS, vec![return_(executed.attr("rowcount"))]),
+                    return_(int(0)),
+                ],
+            };
+        }
         Command::ExecRows => (vec![], executed.attr("rowcount")),
         Command::ExecLastId => (vec![], executed.attr("lastrowid")),
         Command::ExecResult => (vec![], executed),

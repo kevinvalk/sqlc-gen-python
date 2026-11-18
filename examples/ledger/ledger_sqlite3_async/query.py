@@ -195,11 +195,12 @@ class BookManyParams:
 
 async def book_many(
     connection: aiosqlite.Connection, rows: Iterable[BookManyParams]
-) -> None:
+) -> int:
     async with connection.cursor() as cur:
         await cur.executemany(
             _BOOK_MANY, [(r.account_id, r.amount_cents, r.memo) for r in rows]
         )
+        return cur.rowcount
 
 
 _BOOK_RETURNING_ID: Final = """INSERT INTO entries (account_id, amount_cents, memo) VALUES (?, ?, ?)

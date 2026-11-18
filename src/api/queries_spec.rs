@@ -526,3 +526,17 @@ fn a_many_that_only_reads_also_streams_under_its_name_with_no_trailing_underscor
     );
     assert_eq!(stream(":one", "GetAuthor", select), None);
 }
+
+#[test]
+fn a_copyfrom_returns_how_many_rows_it_wrote_which_on_postgresql_is_every_one() {
+    // sqlc refuses a conflict clause on PostgreSQL alone, where a row that fails raises; MySQL's `INSERT IGNORE` skips
+    let command = |engine| on(engine, query(":copyfrom", "SELECT 1")).unwrap().command;
+    assert_eq!(command("postgresql"), Command::CopyFrom { every_row: true });
+    assert_eq!(command("mysql"), Command::CopyFrom { every_row: false });
+    assert_eq!(command("sqlite"), Command::CopyFrom { every_row: false });
+
+    let copy = resolve(query(":copyfrom", "SELECT 1"));
+    for backend in [Backend::SqlAlchemy, Backend::Psycopg] {
+        assert_eq!(crate::python::unparse(&backend.returns(&copy, false)), "int");
+    }
+}

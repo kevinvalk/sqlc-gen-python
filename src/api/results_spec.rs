@@ -14,9 +14,9 @@ fn the_commands_that_return_no_rows_ignore_any_columns() {
     assert_eq!(returning(":exec", id()), Command::Exec);
     assert_eq!(returning(":execrows", id()), Command::ExecRows);
     assert_eq!(returning(":execresult", vec![]), Command::ExecResult);
-    // A `:copyfrom` is an `:exec` of each row.
+    // A `:copyfrom` writes each row, and returns how many it wrote.
     let copy = resolve(self::query(":copyfrom", "SELECT 1"));
-    assert_eq!(copy.command, Command::Exec);
+    assert_eq!(copy.command, Command::CopyFrom { every_row: true });
     assert_eq!(copy.takes, Takes::Rows("GetAuthorParams".into()));
 }
 

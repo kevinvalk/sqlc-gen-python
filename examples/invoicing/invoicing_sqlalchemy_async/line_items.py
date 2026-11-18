@@ -29,7 +29,7 @@ class CreateLineItemsParams:
 
 async def create_line_items(
     connection: AsyncConnection, rows: Iterable[CreateLineItemsParams]
-) -> None:
+) -> int:
     params = [
         {
             "invoice_id": r.invoice_id,
@@ -43,6 +43,7 @@ async def create_line_items(
     ]
     if params:
         await connection.execute(_CREATE_LINE_ITEMS, params)
+    return len(params)
 
 
 _LIST_LINE_ITEMS: Final = sqlalchemy.text(

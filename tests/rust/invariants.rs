@@ -541,8 +541,8 @@ fn a_function_runs_its_own_statement_with_each_parameter_as_itself() {
         (
             "invoicing_psycopg",
             "line_items.py",
-            "r.quantity,\n                    r.unit_price,",
-            "r.unit_price,\n                    r.quantity,",
+            "r.quantity,\n                        r.unit_price,",
+            "r.unit_price,\n                        r.quantity,",
             "not each parameter as itself",
         ),
         (
@@ -713,6 +713,12 @@ fn a_result_is_read_and_shaped_as_its_command_returns_it() {
             "-> list[models.LineItem]:",
             "-> tuple[models.LineItem, ...]:",
             ":many returns `tuple",
+        ),
+        (
+            "line_items.py",
+            "rows: Iterable[CreateLineItemsParams]\n) -> int:",
+            "rows: Iterable[CreateLineItemsParams]\n) -> None:",
+            ":copyfrom returns `None`",
         ),
         ("models.py", "    vat_rate: Decimal\n", "", "6 fields for 7 columns"),
     ] {

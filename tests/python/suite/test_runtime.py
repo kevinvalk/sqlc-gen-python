@@ -287,8 +287,8 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
             vat_rate=Decimal("0.0900"),
         ),
     ]
-    assert await api.line_items.create_line_items(lines) is None
-    assert await api.line_items.create_line_items([]) is None
+    assert await api.line_items.create_line_items(lines) == 2
+    assert await api.line_items.create_line_items([]) == 0
     stored = await api.line_items.list_line_items(invoice_id=first.id)
     assert [(line.position, line.description) for line in stored] == [
         (1, AWKWARD),

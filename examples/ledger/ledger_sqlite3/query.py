@@ -178,11 +178,12 @@ class BookManyParams:
     memo: str | None = None
 
 
-def book_many(connection: sqlite3.Connection, rows: Iterable[BookManyParams]) -> None:
+def book_many(connection: sqlite3.Connection, rows: Iterable[BookManyParams]) -> int:
     with contextlib.closing(connection.cursor()) as cur:
         cur.executemany(
             _BOOK_MANY, [(r.account_id, r.amount_cents, r.memo) for r in rows]
         )
+        return cur.rowcount
 
 
 _BOOK_RETURNING_ID: Final = """INSERT INTO entries (account_id, amount_cents, memo) VALUES (?, ?, ?)

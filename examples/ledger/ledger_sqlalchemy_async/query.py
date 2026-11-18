@@ -149,15 +149,14 @@ class BookManyParams:
     memo: str | None = None
 
 
-async def book_many(
-    connection: AsyncConnection, rows: Iterable[BookManyParams]
-) -> None:
+async def book_many(connection: AsyncConnection, rows: Iterable[BookManyParams]) -> int:
     params = [
         {"account_id": r.account_id, "amount_cents": r.amount_cents, "memo": r.memo}
         for r in rows
     ]
     if params:
-        await connection.execute(_BOOK_MANY, params)
+        return (await connection.execute(_BOOK_MANY, params)).rowcount
+    return 0
 
 
 _BOOK_RETURNING_ID: Final = sqlalchemy.text("""INSERT INTO entries (account_id, amount_cents, memo) VALUES (:account_id, :amount_cents, :memo)

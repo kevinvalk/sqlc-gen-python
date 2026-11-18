@@ -122,6 +122,12 @@ pub struct CopyInto {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     Exec,
+    /// Writes the rows it takes and returns how many it wrote, as sqlc's Go does. On PostgreSQL that is `every_row`, as
+    /// sqlc refuses a conflict clause there and any row that fails raises, while a MySQL `INSERT IGNORE` or
+    /// `ON DUPLICATE KEY UPDATE` writes as many as the database counts.
+    CopyFrom {
+        every_row: bool,
+    },
     ExecRows,
     ExecResult,
     /// Returns the id the `INSERT` generated.
@@ -374,7 +380,12 @@ fn command(
         ":exec" => (Command::Exec, Vec::new()),
         ":execrows" => (Command::ExecRows, Vec::new()),
         ":execresult" => (Command::ExecResult, Vec::new()),
-        ":copyfrom" => (Command::Exec, Vec::new()),
+        ":copyfrom" => (
+            Command::CopyFrom {
+                every_row: resolver.engine == Engine::PostgreSql,
+            },
+            Vec::new(),
+        ),
         ":one" | ":many" => {
             let (fields, columns) = results::columns(query, resolver, models)?;
             let shape = match fields.as_slice() {

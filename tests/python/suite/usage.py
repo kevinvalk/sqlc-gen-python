@@ -51,7 +51,7 @@ def sync_api(conn: sqlalchemy.Connection, some: UUID) -> None:
         customers.list_vip_customers(conn),
         list[customers.ListVipCustomersRow],
     )
-    assert_type(line_items.create_line_items(conn, []), None)
+    assert_type(line_items.create_line_items(conn, []), int)
     payment = payments.record_payment(
         conn,
         invoice_id=some,

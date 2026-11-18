@@ -257,7 +257,7 @@ def issue_invoice(
 
 
 _ADD_LINE_ITEMS: Final = sqlalchemy.text(
-    "INSERT INTO line_items (invoice_id, position, description, quantity, unit_price) VALUES (:invoice_id, :position, :description, :quantity, :unit_price)"
+    "INSERT IGNORE INTO line_items (invoice_id, position, description, quantity, unit_price) VALUES (:invoice_id, :position, :description, :quantity, :unit_price)"
 )
 
 
@@ -272,7 +272,8 @@ class AddLineItemsParams:
 
 def add_line_items(
     connection: sqlalchemy.Connection, rows: Iterable[AddLineItemsParams]
-) -> None:
+) -> int:
+    """A line already at its position is skipped, so it returns how many it added."""
     params = [
         {
             "invoice_id": r.invoice_id,
@@ -284,7 +285,8 @@ def add_line_items(
         for r in rows
     ]
     if params:
-        connection.execute(_ADD_LINE_ITEMS, params)
+        return connection.execute(_ADD_LINE_ITEMS, params).rowcount
+    return 0
 
 
 _LIST_LINE_ITEMS: Final = sqlalchemy.text(

@@ -152,8 +152,8 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
         query.BookManyParams(account_id=cash.id, amount_cents=300, memo=AWKWARD),
         query.BookManyParams(account_id=cash.id, amount_cents=200, memo=None),
     ]
-    assert await query.book_many(rows=rows) is None
-    assert await query.book_many(rows=[]) is None
+    assert await query.book_many(rows=rows) == 2
+    assert await query.book_many(rows=[]) == 0
     assert await query.balance(account_id=cash.id) == 500
 
     await streams_lazily(api, query)

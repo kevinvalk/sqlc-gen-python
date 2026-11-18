@@ -43,7 +43,7 @@ alias/mysql/request.json	exact_names	ok	ce6c15be
 alias/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 alias/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 alias/mysql/request.json	pymysql	ok	390ece54
-alias/mysql/request.json	pymysql_async	ok	4c0bf9c3
+alias/mysql/request.json	pymysql_async	ok	b8be2689
 alias/mysql/request.json	sqlalchemy	ok	ce6c15be
 alias/mysql/request.json	sqlalchemy_async	ok	1716fa21
 alias/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -193,7 +193,7 @@ between_args/mysql/request.json	exact_names	ok	2013d5df
 between_args/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 between_args/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 between_args/mysql/request.json	pymysql	ok	1d26ee65
-between_args/mysql/request.json	pymysql_async	ok	eb6db6cf
+between_args/mysql/request.json	pymysql_async	ok	f89f7813
 between_args/mysql/request.json	sqlalchemy	ok	1ec3c47d
 between_args/mysql/request.json	sqlalchemy_async	ok	7cab417e
 between_args/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -333,7 +333,7 @@ case_value_param/mysql/request.json	exact_names	ok	9b5bc099
 case_value_param/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 case_value_param/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 case_value_param/mysql/request.json	pymysql	ok	e3e358b1
-case_value_param/mysql/request.json	pymysql_async	ok	10fc2e08
+case_value_param/mysql/request.json	pymysql_async	ok	a548772e
 case_value_param/mysql/request.json	sqlalchemy	ok	9b5bc099
 case_value_param/mysql/request.json	sqlalchemy_async	ok	a8ae3be5
 case_value_param/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -583,7 +583,7 @@ comment_syntax/mysql/request.json	exact_names	ok	0f0d1bba
 comment_syntax/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 comment_syntax/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 comment_syntax/mysql/request.json	pymysql	ok	49862153
-comment_syntax/mysql/request.json	pymysql_async	ok	ad64f878
+comment_syntax/mysql/request.json	pymysql_async	ok	b7a9604f
 comment_syntax/mysql/request.json	sqlalchemy	ok	0f0d1bba
 comment_syntax/mysql/request.json	sqlalchemy_async	ok	411ade72
 comment_syntax/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -613,7 +613,7 @@ comparisons/mysql/request.json	exact_names	ok	9d677eff
 comparisons/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 comparisons/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 comparisons/mysql/request.json	pymysql	ok	2a71800b
-comparisons/mysql/request.json	pymysql_async	ok	99629335
+comparisons/mysql/request.json	pymysql_async	ok	809e4f62
 comparisons/mysql/request.json	sqlalchemy	ok	9d677eff
 comparisons/mysql/request.json	sqlalchemy_async	ok	d13bef93
 comparisons/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -669,26 +669,26 @@ conflicted_arg_name/postgresql/request.json	sqlalchemy_async	ok	676b993e
 conflicted_arg_name/postgresql/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 conflicted_arg_name/postgresql/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 conflicted_arg_name/postgresql/request.json	unknown_any	ok	84eecd88
-copyfrom/mysql/request.json	exact_names	ok	79f20e7d
+copyfrom/mysql/request.json	exact_names	ok	42d5ccea
 copyfrom/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 copyfrom/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
-copyfrom/mysql/request.json	pymysql	ok	7b4ef9b1
-copyfrom/mysql/request.json	pymysql_async	ok	17f356e9
-copyfrom/mysql/request.json	sqlalchemy	ok	79f20e7d
-copyfrom/mysql/request.json	sqlalchemy_async	ok	20e8b0d3
+copyfrom/mysql/request.json	pymysql	ok	b23cf5dd
+copyfrom/mysql/request.json	pymysql_async	ok	8e911bc5
+copyfrom/mysql/request.json	sqlalchemy	ok	42d5ccea
+copyfrom/mysql/request.json	sqlalchemy_async	ok	8546896e
 copyfrom/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 copyfrom/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
-copyfrom/mysql/request.json	unknown_any	ok	8baa2815
-copyfrom/postgresql/pgx/v4/request.json	exact_names	ok	c4fead12
-copyfrom/postgresql/pgx/v4/request.json	psycopg	ok	9e7a67e3
-copyfrom/postgresql/pgx/v4/request.json	psycopg_async	ok	62e1397e
+copyfrom/mysql/request.json	unknown_any	ok	f1db1975
+copyfrom/postgresql/pgx/v4/request.json	exact_names	ok	5952d6b7
+copyfrom/postgresql/pgx/v4/request.json	psycopg	ok	c145aad2
+copyfrom/postgresql/pgx/v4/request.json	psycopg_async	ok	9ceeff8e
 copyfrom/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
-copyfrom/postgresql/pgx/v4/request.json	sqlalchemy	ok	c4fead12
-copyfrom/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	cd765220
+copyfrom/postgresql/pgx/v4/request.json	sqlalchemy	ok	5952d6b7
+copyfrom/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	73edb7e5
 copyfrom/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-copyfrom/postgresql/pgx/v4/request.json	unknown_any	ok	c5e39612
+copyfrom/postgresql/pgx/v4/request.json	unknown_any	ok	7485359c
 copyfrom/postgresql/pgx/v4/request.managed-db.json	exact_names	error:query.sql: query "InsertValues": parameter $2 ("b") has a type sqlc could not infer; add a cast, as @b::<type>, or sqlc.narg('b')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 copyfrom/postgresql/pgx/v4/request.managed-db.json	psycopg	error:query.sql: query "InsertValues": parameter $2 ("b") has a type sqlc could not infer; add a cast, as @b::<type>, or sqlc.narg('b')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 copyfrom/postgresql/pgx/v4/request.managed-db.json	psycopg_async	error:query.sql: query "InsertValues": parameter $2 ("b") has a type sqlc could not infer; add a cast, as @b::<type>, or sqlc.narg('b')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
@@ -698,17 +698,17 @@ copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	error:query.sql: q
 copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	error:query.sql: query "InsertValues": parameter $2 ("b") has a type sqlc could not infer; add a cast, as @b::<type>, or sqlc.narg('b')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-copyfrom/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	7f59e53d
-copyfrom_imports/postgresql/pgx/v4/request.json	exact_names	ok	363a5641
-copyfrom_imports/postgresql/pgx/v4/request.json	psycopg	ok	6b540d19
-copyfrom_imports/postgresql/pgx/v4/request.json	psycopg_async	ok	ea502849
+copyfrom/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	f0633c47
+copyfrom_imports/postgresql/pgx/v4/request.json	exact_names	ok	271e1789
+copyfrom_imports/postgresql/pgx/v4/request.json	psycopg	ok	5cfef722
+copyfrom_imports/postgresql/pgx/v4/request.json	psycopg_async	ok	564e949b
 copyfrom_imports/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom_imports/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
-copyfrom_imports/postgresql/pgx/v4/request.json	sqlalchemy	ok	363a5641
-copyfrom_imports/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	aadb0654
+copyfrom_imports/postgresql/pgx/v4/request.json	sqlalchemy	ok	271e1789
+copyfrom_imports/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	92dea78e
 copyfrom_imports/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom_imports/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-copyfrom_imports/postgresql/pgx/v4/request.json	unknown_any	ok	59cb2dcf
+copyfrom_imports/postgresql/pgx/v4/request.json	unknown_any	ok	873545f1
 copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	exact_names	error:query.sql: query "InsertValues": parameter $2 ("b") has a type sqlc could not infer; add a cast, as @b::<type>, or sqlc.narg('b')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	psycopg	error:query.sql: query "InsertValues": parameter $2 ("b") has a type sqlc could not infer; add a cast, as @b::<type>, or sqlc.narg('b')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	psycopg_async	error:query.sql: query "InsertValues": parameter $2 ("b") has a type sqlc could not infer; add a cast, as @b::<type>, or sqlc.narg('b')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
@@ -718,37 +718,37 @@ copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	error:quer
 copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	error:query.sql: query "InsertValues": parameter $2 ("b") has a type sqlc could not infer; add a cast, as @b::<type>, or sqlc.narg('b')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	a16ce315
-copyfrom_multicolumn_parameter_limit/mysql/request.json	exact_names	ok	ce4c1793
+copyfrom_imports/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	5fc29fbe
+copyfrom_multicolumn_parameter_limit/mysql/request.json	exact_names	ok	5db80acc
 copyfrom_multicolumn_parameter_limit/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 copyfrom_multicolumn_parameter_limit/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
-copyfrom_multicolumn_parameter_limit/mysql/request.json	pymysql	ok	202eb89f
-copyfrom_multicolumn_parameter_limit/mysql/request.json	pymysql_async	ok	4dc0c297
-copyfrom_multicolumn_parameter_limit/mysql/request.json	sqlalchemy	ok	ce4c1793
-copyfrom_multicolumn_parameter_limit/mysql/request.json	sqlalchemy_async	ok	2133f18a
+copyfrom_multicolumn_parameter_limit/mysql/request.json	pymysql	ok	48f5f38f
+copyfrom_multicolumn_parameter_limit/mysql/request.json	pymysql_async	ok	b6dda76e
+copyfrom_multicolumn_parameter_limit/mysql/request.json	sqlalchemy	ok	5db80acc
+copyfrom_multicolumn_parameter_limit/mysql/request.json	sqlalchemy_async	ok	2ef1c14f
 copyfrom_multicolumn_parameter_limit/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 copyfrom_multicolumn_parameter_limit/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
-copyfrom_multicolumn_parameter_limit/mysql/request.json	unknown_any	ok	be68ae6f
-copyfrom_named_params/postgresql/pgx/request.json	exact_names	ok	1eb6698b
-copyfrom_named_params/postgresql/pgx/request.json	psycopg	ok	72e0ad65
-copyfrom_named_params/postgresql/pgx/request.json	psycopg_async	ok	466fba49
+copyfrom_multicolumn_parameter_limit/mysql/request.json	unknown_any	ok	248287dd
+copyfrom_named_params/postgresql/pgx/request.json	exact_names	ok	f5a0339e
+copyfrom_named_params/postgresql/pgx/request.json	psycopg	ok	70559c42
+copyfrom_named_params/postgresql/pgx/request.json	psycopg_async	ok	faa8a0ab
 copyfrom_named_params/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom_named_params/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
-copyfrom_named_params/postgresql/pgx/request.json	sqlalchemy	ok	7b15fe8e
-copyfrom_named_params/postgresql/pgx/request.json	sqlalchemy_async	ok	c8d04430
+copyfrom_named_params/postgresql/pgx/request.json	sqlalchemy	ok	a4a0921b
+copyfrom_named_params/postgresql/pgx/request.json	sqlalchemy_async	ok	f1a7f1e1
 copyfrom_named_params/postgresql/pgx/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom_named_params/postgresql/pgx/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-copyfrom_named_params/postgresql/pgx/request.json	unknown_any	ok	622d13eb
-copyfrom_singlecolumn/postgresql/pgx/v4/request.json	exact_names	ok	90657b78
-copyfrom_singlecolumn/postgresql/pgx/v4/request.json	psycopg	ok	26ecaadb
-copyfrom_singlecolumn/postgresql/pgx/v4/request.json	psycopg_async	ok	46902313
+copyfrom_named_params/postgresql/pgx/request.json	unknown_any	ok	25898631
+copyfrom_singlecolumn/postgresql/pgx/v4/request.json	exact_names	ok	2c04583e
+copyfrom_singlecolumn/postgresql/pgx/v4/request.json	psycopg	ok	68fd36ec
+copyfrom_singlecolumn/postgresql/pgx/v4/request.json	psycopg_async	ok	01f58ceb
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
-copyfrom_singlecolumn/postgresql/pgx/v4/request.json	sqlalchemy	ok	371770e9
-copyfrom_singlecolumn/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	e3541638
+copyfrom_singlecolumn/postgresql/pgx/v4/request.json	sqlalchemy	ok	0751c3ec
+copyfrom_singlecolumn/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	6763ddda
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-copyfrom_singlecolumn/postgresql/pgx/v4/request.json	unknown_any	ok	a5ffc126
+copyfrom_singlecolumn/postgresql/pgx/v4/request.json	unknown_any	ok	a44fb416
 copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	exact_names	error:query.sql: query "CreateAuthors": parameter $1 ("author_id") has a type sqlc could not infer; add a cast, as @author_id::<type>, or sqlc.narg('author_id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	psycopg	error:query.sql: query "CreateAuthors": parameter $1 ("author_id") has a type sqlc could not infer; add a cast, as @author_id::<type>, or sqlc.narg('author_id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	psycopg_async	error:query.sql: query "CreateAuthors": parameter $1 ("author_id") has a type sqlc could not infer; add a cast, as @author_id::<type>, or sqlc.narg('author_id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
@@ -758,22 +758,22 @@ copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	error
 copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	error:query.sql: query "CreateAuthors": parameter $1 ("author_id") has a type sqlc could not infer; add a cast, as @author_id::<type>, or sqlc.narg('author_id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	a4115f7d
-copyfrom_singlecolumn_struct_only/mysql/request.json	exact_names	ok	33b151a5
+copyfrom_singlecolumn/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	33bc26ae
+copyfrom_singlecolumn_struct_only/mysql/request.json	exact_names	ok	a7422128
 copyfrom_singlecolumn_struct_only/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 copyfrom_singlecolumn_struct_only/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
-copyfrom_singlecolumn_struct_only/mysql/request.json	pymysql	ok	b0ecd9b1
-copyfrom_singlecolumn_struct_only/mysql/request.json	pymysql_async	ok	0fbde4f3
-copyfrom_singlecolumn_struct_only/mysql/request.json	sqlalchemy	ok	33b151a5
-copyfrom_singlecolumn_struct_only/mysql/request.json	sqlalchemy_async	ok	367e02ba
+copyfrom_singlecolumn_struct_only/mysql/request.json	pymysql	ok	f53d66ba
+copyfrom_singlecolumn_struct_only/mysql/request.json	pymysql_async	ok	dcc035f3
+copyfrom_singlecolumn_struct_only/mysql/request.json	sqlalchemy	ok	a7422128
+copyfrom_singlecolumn_struct_only/mysql/request.json	sqlalchemy_async	ok	95df44c0
 copyfrom_singlecolumn_struct_only/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 copyfrom_singlecolumn_struct_only/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
-copyfrom_singlecolumn_struct_only/mysql/request.json	unknown_any	ok	c46c7878
+copyfrom_singlecolumn_struct_only/mysql/request.json	unknown_any	ok	b6bfd5ec
 count_star/mysql/request.json	exact_names	ok	db3989ec
 count_star/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 count_star/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 count_star/mysql/request.json	pymysql	ok	e9b00de4
-count_star/mysql/request.json	pymysql_async	ok	c44e3bbd
+count_star/mysql/request.json	pymysql_async	ok	b428ad29
 count_star/mysql/request.json	sqlalchemy	ok	db3989ec
 count_star/mysql/request.json	sqlalchemy_async	ok	47852d10
 count_star/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -823,7 +823,7 @@ create_table_like/mysql/request.json	exact_names	ok	aa339d68
 create_table_like/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 create_table_like/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 create_table_like/mysql/request.json	pymysql	ok	ebdf88dc
-create_table_like/mysql/request.json	pymysql_async	ok	0bf61710
+create_table_like/mysql/request.json	pymysql_async	ok	0fe7a675
 create_table_like/mysql/request.json	sqlalchemy	ok	ba14717c
 create_table_like/mysql/request.json	sqlalchemy_async	ok	400db0e4
 create_table_like/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -843,7 +843,7 @@ create_view/mysql/request.json	exact_names	ok	847822c2
 create_view/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 create_view/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 create_view/mysql/request.json	pymysql	ok	9f1d4eaa
-create_view/mysql/request.json	pymysql_async	ok	619943bc
+create_view/mysql/request.json	pymysql_async	ok	3ca0dd84
 create_view/mysql/request.json	sqlalchemy	ok	847822c2
 create_view/mysql/request.json	sqlalchemy_async	ok	33774c25
 create_view/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -883,7 +883,7 @@ cte_count/mysql/request.json	exact_names	ok	059223f1
 cte_count/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 cte_count/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 cte_count/mysql/request.json	pymysql	ok	dcff8e1e
-cte_count/mysql/request.json	pymysql_async	ok	d76d4472
+cte_count/mysql/request.json	pymysql_async	ok	2c789dd0
 cte_count/mysql/request.json	sqlalchemy	ok	059223f1
 cte_count/mysql/request.json	sqlalchemy_async	ok	69650902
 cte_count/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -903,7 +903,7 @@ cte_filter/mysql/request.json	exact_names	ok	4e180839
 cte_filter/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 cte_filter/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 cte_filter/mysql/request.json	pymysql	ok	0db67f79
-cte_filter/mysql/request.json	pymysql_async	ok	fcee5c4e
+cte_filter/mysql/request.json	pymysql_async	ok	07f71799
 cte_filter/mysql/request.json	sqlalchemy	ok	4e180839
 cte_filter/mysql/request.json	sqlalchemy_async	ok	b7c1fa7f
 cte_filter/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -933,7 +933,7 @@ cte_in_delete/mysql/request.json	exact_names	ok	e918085b
 cte_in_delete/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 cte_in_delete/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 cte_in_delete/mysql/request.json	pymysql	ok	9ec4b1cd
-cte_in_delete/mysql/request.json	pymysql_async	ok	06a5e433
+cte_in_delete/mysql/request.json	pymysql_async	ok	cf11466d
 cte_in_delete/mysql/request.json	sqlalchemy	ok	e918085b
 cte_in_delete/mysql/request.json	sqlalchemy_async	ok	68f9b715
 cte_in_delete/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -993,7 +993,7 @@ cte_recursive/mysql/request.json	exact_names	ok	1a8b5c02
 cte_recursive/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 cte_recursive/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 cte_recursive/mysql/request.json	pymysql	ok	ea70d77b
-cte_recursive/mysql/request.json	pymysql_async	ok	617ae504
+cte_recursive/mysql/request.json	pymysql_async	ok	7e46d4a6
 cte_recursive/mysql/request.json	sqlalchemy	ok	1a8b5c02
 cte_recursive/mysql/request.json	sqlalchemy_async	ok	1a3e3627
 cte_recursive/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1113,7 +1113,7 @@ data_type_boolean/mysql/request.json	exact_names	ok	64ec8dde
 data_type_boolean/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 data_type_boolean/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 data_type_boolean/mysql/request.json	pymysql	ok	bcf1e76a
-data_type_boolean/mysql/request.json	pymysql_async	ok	2c037cbc
+data_type_boolean/mysql/request.json	pymysql_async	ok	6eeac337
 data_type_boolean/mysql/request.json	sqlalchemy	ok	64ec8dde
 data_type_boolean/mysql/request.json	sqlalchemy_async	ok	351fb491
 data_type_boolean/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1193,7 +1193,7 @@ ddl_alter_table_add_column/mysql/request.json	exact_names	ok	394bf720
 ddl_alter_table_add_column/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_alter_table_add_column/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_alter_table_add_column/mysql/request.json	pymysql	ok	14833955
-ddl_alter_table_add_column/mysql/request.json	pymysql_async	ok	b3299a27
+ddl_alter_table_add_column/mysql/request.json	pymysql_async	ok	946eae04
 ddl_alter_table_add_column/mysql/request.json	sqlalchemy	ok	394bf720
 ddl_alter_table_add_column/mysql/request.json	sqlalchemy_async	ok	934065cc
 ddl_alter_table_add_column/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1253,7 +1253,7 @@ ddl_alter_table_alter_type/mysql/request.json	exact_names	ok	61b1b9fb
 ddl_alter_table_alter_type/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_alter_table_alter_type/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_alter_table_alter_type/mysql/request.json	pymysql	ok	39669d8d
-ddl_alter_table_alter_type/mysql/request.json	pymysql_async	ok	eaefc2d5
+ddl_alter_table_alter_type/mysql/request.json	pymysql_async	ok	b6cdbab4
 ddl_alter_table_alter_type/mysql/request.json	sqlalchemy	ok	61b1b9fb
 ddl_alter_table_alter_type/mysql/request.json	sqlalchemy_async	ok	82ffe186
 ddl_alter_table_alter_type/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1293,7 +1293,7 @@ ddl_alter_table_change_column/mysql/request.json	exact_names	ok	6672e46b
 ddl_alter_table_change_column/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_alter_table_change_column/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_alter_table_change_column/mysql/request.json	pymysql	ok	2adfbf33
-ddl_alter_table_change_column/mysql/request.json	pymysql_async	ok	07899288
+ddl_alter_table_change_column/mysql/request.json	pymysql_async	ok	623ada5a
 ddl_alter_table_change_column/mysql/request.json	sqlalchemy	ok	6672e46b
 ddl_alter_table_change_column/mysql/request.json	sqlalchemy_async	ok	a971cc85
 ddl_alter_table_change_column/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1323,7 +1323,7 @@ ddl_alter_table_column_drop_not_null/mysql/request.json	exact_names	ok	2be4c712
 ddl_alter_table_column_drop_not_null/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_alter_table_column_drop_not_null/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_alter_table_column_drop_not_null/mysql/request.json	pymysql	ok	864c2ebb
-ddl_alter_table_column_drop_not_null/mysql/request.json	pymysql_async	ok	70ce1c1c
+ddl_alter_table_column_drop_not_null/mysql/request.json	pymysql_async	ok	b057715f
 ddl_alter_table_column_drop_not_null/mysql/request.json	sqlalchemy	ok	2be4c712
 ddl_alter_table_column_drop_not_null/mysql/request.json	sqlalchemy_async	ok	92e7d820
 ddl_alter_table_column_drop_not_null/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1383,7 +1383,7 @@ ddl_alter_table_drop_column_if_exists/mysql/request.json	exact_names	ok	c171fe53
 ddl_alter_table_drop_column_if_exists/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_alter_table_drop_column_if_exists/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_alter_table_drop_column_if_exists/mysql/request.json	pymysql	ok	d5ffd551
-ddl_alter_table_drop_column_if_exists/mysql/request.json	pymysql_async	ok	9392d7f5
+ddl_alter_table_drop_column_if_exists/mysql/request.json	pymysql_async	ok	9eb4bf00
 ddl_alter_table_drop_column_if_exists/mysql/request.json	sqlalchemy	ok	c171fe53
 ddl_alter_table_drop_column_if_exists/mysql/request.json	sqlalchemy_async	ok	e9e98ae7
 ddl_alter_table_drop_column_if_exists/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1413,7 +1413,7 @@ ddl_alter_table_drop_constraint/mysql/request.json	exact_names	ok	650af825
 ddl_alter_table_drop_constraint/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_alter_table_drop_constraint/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_alter_table_drop_constraint/mysql/request.json	pymysql	ok	e070d086
-ddl_alter_table_drop_constraint/mysql/request.json	pymysql_async	ok	40ad7d74
+ddl_alter_table_drop_constraint/mysql/request.json	pymysql_async	ok	f7cbbf64
 ddl_alter_table_drop_constraint/mysql/request.json	sqlalchemy	ok	9e2ca725
 ddl_alter_table_drop_constraint/mysql/request.json	sqlalchemy_async	ok	73c472a9
 ddl_alter_table_drop_constraint/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1483,7 +1483,7 @@ ddl_alter_table_rename/mysql/request.json	exact_names	ok	cd808261
 ddl_alter_table_rename/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_alter_table_rename/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_alter_table_rename/mysql/request.json	pymysql	ok	cf481ba1
-ddl_alter_table_rename/mysql/request.json	pymysql_async	ok	15cca07b
+ddl_alter_table_rename/mysql/request.json	pymysql_async	ok	91eb8c52
 ddl_alter_table_rename/mysql/request.json	sqlalchemy	ok	ecdbf7d8
 ddl_alter_table_rename/mysql/request.json	sqlalchemy_async	ok	4bf3e0fe
 ddl_alter_table_rename/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1533,7 +1533,7 @@ ddl_alter_table_set_data_type/mysql/request.json	exact_names	ok	e9b29bd2
 ddl_alter_table_set_data_type/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_alter_table_set_data_type/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_alter_table_set_data_type/mysql/request.json	pymysql	ok	ccbfbbe1
-ddl_alter_table_set_data_type/mysql/request.json	pymysql_async	ok	06a00cc4
+ddl_alter_table_set_data_type/mysql/request.json	pymysql_async	ok	a1e842ed
 ddl_alter_table_set_data_type/mysql/request.json	sqlalchemy	ok	e9b29bd2
 ddl_alter_table_set_data_type/mysql/request.json	sqlalchemy_async	ok	310bd26f
 ddl_alter_table_set_data_type/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1563,7 +1563,7 @@ ddl_alter_table_set_not_null/mysql/request.json	exact_names	ok	cfafdeca
 ddl_alter_table_set_not_null/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_alter_table_set_not_null/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_alter_table_set_not_null/mysql/request.json	pymysql	ok	57ba59bc
-ddl_alter_table_set_not_null/mysql/request.json	pymysql_async	ok	52252f6e
+ddl_alter_table_set_not_null/mysql/request.json	pymysql_async	ok	2c75ef43
 ddl_alter_table_set_not_null/mysql/request.json	sqlalchemy	ok	cfafdeca
 ddl_alter_table_set_not_null/mysql/request.json	sqlalchemy_async	ok	697311d9
 ddl_alter_table_set_not_null/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1663,7 +1663,7 @@ ddl_comment/mysql/request.json	exact_names	ok	00bdde41
 ddl_comment/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_comment/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_comment/mysql/request.json	pymysql	ok	7cd6fd84
-ddl_comment/mysql/request.json	pymysql_async	ok	abe9950f
+ddl_comment/mysql/request.json	pymysql_async	ok	65ea2fc7
 ddl_comment/mysql/request.json	sqlalchemy	ok	00bdde41
 ddl_comment/mysql/request.json	sqlalchemy_async	ok	caef906a
 ddl_comment/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1713,7 +1713,7 @@ ddl_create_procedure/mysql/request.json	exact_names	ok	0b214a92
 ddl_create_procedure/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_create_procedure/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_create_procedure/mysql/request.json	pymysql	ok	85cbfc2c
-ddl_create_procedure/mysql/request.json	pymysql_async	ok	f91de6a6
+ddl_create_procedure/mysql/request.json	pymysql_async	ok	3538c460
 ddl_create_procedure/mysql/request.json	sqlalchemy	ok	0b214a92
 ddl_create_procedure/mysql/request.json	sqlalchemy_async	ok	1983e4bf
 ddl_create_procedure/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1743,7 +1743,7 @@ ddl_create_table/mysql/request.json	exact_names	ok	fc07c848
 ddl_create_table/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_create_table/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_create_table/mysql/request.json	pymysql	ok	1c08f1fe
-ddl_create_table/mysql/request.json	pymysql_async	ok	a7d85f3c
+ddl_create_table/mysql/request.json	pymysql_async	ok	f1c1c6d0
 ddl_create_table/mysql/request.json	sqlalchemy	ok	8cb66df6
 ddl_create_table/mysql/request.json	sqlalchemy_async	ok	64dc64e9
 ddl_create_table/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1843,7 +1843,7 @@ ddl_create_table_reserved/mysql/request.json	exact_names	ok	5501d9d3
 ddl_create_table_reserved/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_create_table_reserved/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_create_table_reserved/mysql/request.json	pymysql	ok	38c68fdc
-ddl_create_table_reserved/mysql/request.json	pymysql_async	ok	5852f39f
+ddl_create_table_reserved/mysql/request.json	pymysql_async	ok	8fa07bd8
 ddl_create_table_reserved/mysql/request.json	sqlalchemy	ok	7039aac0
 ddl_create_table_reserved/mysql/request.json	sqlalchemy_async	ok	24a1dec5
 ddl_create_table_reserved/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1913,7 +1913,7 @@ ddl_drop_schema/mysql/request.json	exact_names	ok	7f68a315
 ddl_drop_schema/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 ddl_drop_schema/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 ddl_drop_schema/mysql/request.json	pymysql	ok	ea05fb58
-ddl_drop_schema/mysql/request.json	pymysql_async	ok	4d8e33c5
+ddl_drop_schema/mysql/request.json	pymysql_async	ok	20dfed4e
 ddl_drop_schema/mysql/request.json	sqlalchemy	ok	7f68a315
 ddl_drop_schema/mysql/request.json	sqlalchemy_async	ok	64babd89
 ddl_drop_schema/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -1983,7 +1983,7 @@ delete_from/mysql/request.json	exact_names	ok	f0fdcb86
 delete_from/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 delete_from/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 delete_from/mysql/request.json	pymysql	ok	7e47ca19
-delete_from/mysql/request.json	pymysql_async	ok	f2493071
+delete_from/mysql/request.json	pymysql_async	ok	5eacd234
 delete_from/mysql/request.json	sqlalchemy	ok	f0fdcb86
 delete_from/mysql/request.json	sqlalchemy_async	ok	b4a47939
 delete_from/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2013,7 +2013,7 @@ delete_inner_join/mysql/request.json	exact_names	ok	33773142
 delete_inner_join/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 delete_inner_join/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 delete_inner_join/mysql/request.json	pymysql	ok	c153c52e
-delete_inner_join/mysql/request.json	pymysql_async	ok	652030c9
+delete_inner_join/mysql/request.json	pymysql_async	ok	f296cd3f
 delete_inner_join/mysql/request.json	sqlalchemy	ok	33773142
 delete_inner_join/mysql/request.json	sqlalchemy_async	ok	d59961a0
 delete_inner_join/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2023,7 +2023,7 @@ delete_join/mysql/request.json	exact_names	ok	06735e6b
 delete_join/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 delete_join/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 delete_join/mysql/request.json	pymysql	ok	c0954fd4
-delete_join/mysql/request.json	pymysql_async	ok	85aa5ee5
+delete_join/mysql/request.json	pymysql_async	ok	4b4d3828
 delete_join/mysql/request.json	sqlalchemy	ok	06735e6b
 delete_join/mysql/request.json	sqlalchemy_async	ok	f0f19e8b
 delete_join/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2113,7 +2113,7 @@ emit_db_and_json_tags/mysql/request.json	exact_names	ok	3fe9ee2f
 emit_db_and_json_tags/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 emit_db_and_json_tags/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 emit_db_and_json_tags/mysql/request.json	pymysql	ok	8d68b005
-emit_db_and_json_tags/mysql/request.json	pymysql_async	ok	9bf12be9
+emit_db_and_json_tags/mysql/request.json	pymysql_async	ok	fbf333a1
 emit_db_and_json_tags/mysql/request.json	sqlalchemy	ok	882a8f6e
 emit_db_and_json_tags/mysql/request.json	sqlalchemy_async	ok	a2a41629
 emit_db_and_json_tags/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2233,7 +2233,7 @@ emit_result_and_params_struct_pointers/mysql/request.json	exact_names	ok	3b347af
 emit_result_and_params_struct_pointers/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 emit_result_and_params_struct_pointers/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 emit_result_and_params_struct_pointers/mysql/request.json	pymysql	ok	0968e98a
-emit_result_and_params_struct_pointers/mysql/request.json	pymysql_async	ok	d551a29d
+emit_result_and_params_struct_pointers/mysql/request.json	pymysql_async	ok	793b0745
 emit_result_and_params_struct_pointers/mysql/request.json	sqlalchemy	ok	3b347afa
 emit_result_and_params_struct_pointers/mysql/request.json	sqlalchemy_async	ok	f74b71b5
 emit_result_and_params_struct_pointers/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2283,7 +2283,7 @@ enum/mysql/request.json	exact_names	ok	2bbc5810
 enum/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 enum/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 enum/mysql/request.json	pymysql	ok	57aebe29
-enum/mysql/request.json	pymysql_async	ok	e384205c
+enum/mysql/request.json	pymysql_async	ok	cd98c7f0
 enum/mysql/request.json	sqlalchemy	ok	e6de777c
 enum/mysql/request.json	sqlalchemy_async	ok	33b7e99f
 enum/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2373,7 +2373,7 @@ exec_lastid/go_postgresql_stdlib/request.json	exact_names	ok	0c1c57d8
 exec_lastid/go_postgresql_stdlib/request.json	psycopg	error:the psycopg backend does not run mysql	-
 exec_lastid/go_postgresql_stdlib/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 exec_lastid/go_postgresql_stdlib/request.json	pymysql	ok	328940fc
-exec_lastid/go_postgresql_stdlib/request.json	pymysql_async	ok	10b52f90
+exec_lastid/go_postgresql_stdlib/request.json	pymysql_async	ok	47bc3e5f
 exec_lastid/go_postgresql_stdlib/request.json	sqlalchemy	ok	0c1c57d8
 exec_lastid/go_postgresql_stdlib/request.json	sqlalchemy_async	ok	a79c7b1d
 exec_lastid/go_postgresql_stdlib/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2503,7 +2503,7 @@ func_call_cast/mysql/request.json	exact_names	ok	9c4e4cb2
 func_call_cast/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 func_call_cast/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 func_call_cast/mysql/request.json	pymysql	ok	a83675f0
-func_call_cast/mysql/request.json	pymysql_async	ok	98740830
+func_call_cast/mysql/request.json	pymysql_async	ok	1c1db3aa
 func_call_cast/mysql/request.json	sqlalchemy	ok	9c4e4cb2
 func_call_cast/mysql/request.json	sqlalchemy_async	ok	78e03ac5
 func_call_cast/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2723,7 +2723,7 @@ having/mysql/request.json	exact_names	ok	88072849
 having/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 having/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 having/mysql/request.json	pymysql	ok	5f552b8c
-having/mysql/request.json	pymysql_async	ok	32578afa
+having/mysql/request.json	pymysql_async	ok	4dc76116
 having/mysql/request.json	sqlalchemy	ok	88072849
 having/mysql/request.json	sqlalchemy_async	ok	df81eb30
 having/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2763,7 +2763,7 @@ identical_tables/mysql/request.json	exact_names	ok	fab2e63b
 identical_tables/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 identical_tables/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 identical_tables/mysql/request.json	pymysql	ok	0ef24d14
-identical_tables/mysql/request.json	pymysql_async	ok	656df0ed
+identical_tables/mysql/request.json	pymysql_async	ok	f79547e8
 identical_tables/mysql/request.json	sqlalchemy	ok	fab2e63b
 identical_tables/mysql/request.json	sqlalchemy_async	ok	f10e2584
 identical_tables/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2793,7 +2793,7 @@ identifier_case_sensitivity/request.json	exact_names	ok	c99f1a2e
 identifier_case_sensitivity/request.json	psycopg	error:the psycopg backend does not run mysql	-
 identifier_case_sensitivity/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 identifier_case_sensitivity/request.json	pymysql	ok	9d4fa27d
-identifier_case_sensitivity/request.json	pymysql_async	ok	e2874605
+identifier_case_sensitivity/request.json	pymysql_async	ok	9684d61a
 identifier_case_sensitivity/request.json	sqlalchemy	ok	d18046bc
 identifier_case_sensitivity/request.json	sqlalchemy_async	ok	ff79d655
 identifier_case_sensitivity/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2823,7 +2823,7 @@ in_union/mysql/request.json	exact_names	ok	be4435a2
 in_union/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 in_union/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 in_union/mysql/request.json	pymysql	ok	851c40ba
-in_union/mysql/request.json	pymysql_async	ok	99bf031d
+in_union/mysql/request.json	pymysql_async	ok	44c9b04c
 in_union/mysql/request.json	sqlalchemy	ok	66bef21b
 in_union/mysql/request.json	sqlalchemy_async	ok	03645d6c
 in_union/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2833,7 +2833,7 @@ inflection/mysql/request.json	exact_names	ok	22468854
 inflection/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 inflection/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 inflection/mysql/request.json	pymysql	ok	ad6033d8
-inflection/mysql/request.json	pymysql_async	ok	ea0d895f
+inflection/mysql/request.json	pymysql_async	ok	58ea8661
 inflection/mysql/request.json	sqlalchemy	ok	190c28e2
 inflection/mysql/request.json	sqlalchemy_async	ok	877c7742
 inflection/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2913,7 +2913,7 @@ insert_select/mysql/request.json	exact_names	ok	fbdd6c7e
 insert_select/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 insert_select/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 insert_select/mysql/request.json	pymysql	ok	7aacf478
-insert_select/mysql/request.json	pymysql_async	ok	3d587509
+insert_select/mysql/request.json	pymysql_async	ok	b30f0a6a
 insert_select/mysql/request.json	sqlalchemy	ok	fbdd6c7e
 insert_select/mysql/request.json	sqlalchemy_async	ok	d660d0e4
 insert_select/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -2973,7 +2973,7 @@ insert_values/mysql/request.json	exact_names	ok	1d1335e0
 insert_values/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 insert_values/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 insert_values/mysql/request.json	pymysql	ok	29ba882c
-insert_values/mysql/request.json	pymysql_async	ok	c0c1369c
+insert_values/mysql/request.json	pymysql_async	ok	7fd0466d
 insert_values/mysql/request.json	sqlalchemy	ok	ad2ee339
 insert_values/mysql/request.json	sqlalchemy_async	ok	c109de94
 insert_values/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3023,7 +3023,7 @@ insert_values_public/mysql/request.json	exact_names	ok	41c5b46f
 insert_values_public/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 insert_values_public/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 insert_values_public/mysql/request.json	pymysql	ok	f7b042f4
-insert_values_public/mysql/request.json	pymysql_async	ok	dee028c5
+insert_values_public/mysql/request.json	pymysql_async	ok	1ae68798
 insert_values_public/mysql/request.json	sqlalchemy	ok	41c5b46f
 insert_values_public/mysql/request.json	sqlalchemy_async	ok	3c259fc2
 insert_values_public/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3073,7 +3073,7 @@ join_alias/mysql/request.json	exact_names	ok	276b40ad
 join_alias/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 join_alias/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 join_alias/mysql/request.json	pymysql	ok	5f61dff6
-join_alias/mysql/request.json	pymysql_async	ok	c71f7bf5
+join_alias/mysql/request.json	pymysql_async	ok	f56cdf2c
 join_alias/mysql/request.json	sqlalchemy	ok	276b40ad
 join_alias/mysql/request.json	sqlalchemy_async	ok	32fb0a85
 join_alias/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3123,7 +3123,7 @@ join_from/mysql/request.json	exact_names	ok	78fa0a60
 join_from/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 join_from/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 join_from/mysql/request.json	pymysql	ok	01e13373
-join_from/mysql/request.json	pymysql_async	ok	0709ffe3
+join_from/mysql/request.json	pymysql_async	ok	d5723cd9
 join_from/mysql/request.json	sqlalchemy	ok	78fa0a60
 join_from/mysql/request.json	sqlalchemy_async	ok	1f9d2914
 join_from/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3193,7 +3193,7 @@ join_left/mysql/request.json	exact_names	ok	be4af9f8
 join_left/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 join_left/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 join_left/mysql/request.json	pymysql	ok	ba6cf39f
-join_left/mysql/request.json	pymysql_async	ok	5cb9998b
+join_left/mysql/request.json	pymysql_async	ok	febb8a25
 join_left/mysql/request.json	sqlalchemy	ok	bbc40737
 join_left/mysql/request.json	sqlalchemy_async	ok	8605c975
 join_left/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3223,7 +3223,7 @@ join_left_same_table/mysql/request.json	exact_names	ok	3771f247
 join_left_same_table/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 join_left_same_table/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 join_left_same_table/mysql/request.json	pymysql	ok	a6ea293a
-join_left_same_table/mysql/request.json	pymysql_async	ok	891cf5fa
+join_left_same_table/mysql/request.json	pymysql_async	ok	fc0d1ea8
 join_left_same_table/mysql/request.json	sqlalchemy	ok	d9932e40
 join_left_same_table/mysql/request.json	sqlalchemy_async	ok	691e68c5
 join_left_same_table/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3283,7 +3283,7 @@ join_right/mysql/request.json	exact_names	ok	580c56b4
 join_right/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 join_right/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 join_right/mysql/request.json	pymysql	ok	43d8e13b
-join_right/mysql/request.json	pymysql_async	ok	e151d6e7
+join_right/mysql/request.json	pymysql_async	ok	fbb4548b
 join_right/mysql/request.json	sqlalchemy	ok	580c56b4
 join_right/mysql/request.json	sqlalchemy_async	ok	948cf4ce
 join_right/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3313,7 +3313,7 @@ join_table_name/mysql/request.json	exact_names	ok	9c84b81c
 join_table_name/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 join_table_name/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 join_table_name/mysql/request.json	pymysql	ok	af51427c
-join_table_name/mysql/request.json	pymysql_async	ok	5b4d338c
+join_table_name/mysql/request.json	pymysql_async	ok	5e731934
 join_table_name/mysql/request.json	sqlalchemy	ok	9c84b81c
 join_table_name/mysql/request.json	sqlalchemy_async	ok	1c04c48e
 join_table_name/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3353,7 +3353,7 @@ join_two_tables/mysql/request.json	exact_names	ok	d7a75332
 join_two_tables/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 join_two_tables/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 join_two_tables/mysql/request.json	pymysql	ok	fbe5370b
-join_two_tables/mysql/request.json	pymysql_async	ok	34fe0127
+join_two_tables/mysql/request.json	pymysql_async	ok	f29d0105
 join_two_tables/mysql/request.json	sqlalchemy	ok	d7a75332
 join_two_tables/mysql/request.json	sqlalchemy_async	ok	a9bef979
 join_two_tables/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3403,7 +3403,7 @@ join_where_clause/mysql/request.json	exact_names	ok	81e0cf81
 join_where_clause/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 join_where_clause/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 join_where_clause/mysql/request.json	pymysql	ok	8aacbe18
-join_where_clause/mysql/request.json	pymysql_async	ok	22f1d8b5
+join_where_clause/mysql/request.json	pymysql_async	ok	14af6779
 join_where_clause/mysql/request.json	sqlalchemy	ok	81e0cf81
 join_where_clause/mysql/request.json	sqlalchemy_async	ok	582b26ba
 join_where_clause/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3439,16 +3439,16 @@ join_where_clause/sqlite/request.json	sqlalchemy_async	ok	582b26ba
 join_where_clause/sqlite/request.json	sqlite3	ok	91c83791
 join_where_clause/sqlite/request.json	sqlite3_async	ok	36430690
 join_where_clause/sqlite/request.json	unknown_any	ok	128d465e
-json/mysql/request.json	exact_names	ok	69787643
+json/mysql/request.json	exact_names	ok	b4745181
 json/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 json/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
-json/mysql/request.json	pymysql	ok	7a7507bf
-json/mysql/request.json	pymysql_async	ok	650d8dd1
-json/mysql/request.json	sqlalchemy	ok	69787643
-json/mysql/request.json	sqlalchemy_async	ok	ef1f746a
+json/mysql/request.json	pymysql	ok	73e2d804
+json/mysql/request.json	pymysql_async	ok	86ac4cd0
+json/mysql/request.json	sqlalchemy	ok	b4745181
+json/mysql/request.json	sqlalchemy_async	ok	9088c7fa
 json/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 json/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
-json/mysql/request.json	unknown_any	ok	709407fd
+json/mysql/request.json	unknown_any	ok	99536e95
 json/postgresql/pgx/v4/request.json	exact_names	ok	2892782e
 json/postgresql/pgx/v4/request.json	psycopg	ok	03428115
 json/postgresql/pgx/v4/request.json	psycopg_async	ok	e0984461
@@ -3563,7 +3563,7 @@ limit/mysql/request.json	exact_names	ok	6ffc0cdf
 limit/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 limit/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 limit/mysql/request.json	pymysql	ok	5cd1a9d3
-limit/mysql/request.json	pymysql_async	ok	83577fcd
+limit/mysql/request.json	pymysql_async	ok	982a2418
 limit/mysql/request.json	sqlalchemy	ok	6ffc0cdf
 limit/mysql/request.json	sqlalchemy_async	ok	a18233da
 limit/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3653,7 +3653,7 @@ missing_semicolon/mysql/request.json	exact_names	ok	f8c7f17c
 missing_semicolon/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 missing_semicolon/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 missing_semicolon/mysql/request.json	pymysql	ok	716bb0b9
-missing_semicolon/mysql/request.json	pymysql_async	ok	55969923
+missing_semicolon/mysql/request.json	pymysql_async	ok	49120633
 missing_semicolon/mysql/request.json	sqlalchemy	ok	2b2549eb
 missing_semicolon/mysql/request.json	sqlalchemy_async	ok	83c599bb
 missing_semicolon/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3663,7 +3663,7 @@ mix_param_types/mysql/request.json	exact_names	ok	98e6f8f0
 mix_param_types/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 mix_param_types/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 mix_param_types/mysql/request.json	pymysql	ok	eababe0e
-mix_param_types/mysql/request.json	pymysql_async	ok	22f6bc3f
+mix_param_types/mysql/request.json	pymysql_async	ok	4d4e6c0b
 mix_param_types/mysql/request.json	sqlalchemy	ok	cad03978
 mix_param_types/mysql/request.json	sqlalchemy_async	ok	11a2b28d
 mix_param_types/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3703,7 +3703,7 @@ mysql_default_value/mysql/request.json	exact_names	ok	689c836e
 mysql_default_value/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 mysql_default_value/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 mysql_default_value/mysql/request.json	pymysql	ok	7e5319b7
-mysql_default_value/mysql/request.json	pymysql_async	ok	d5a5025c
+mysql_default_value/mysql/request.json	pymysql_async	ok	0be0907b
 mysql_default_value/mysql/request.json	sqlalchemy	ok	24ff65ca
 mysql_default_value/mysql/request.json	sqlalchemy_async	ok	f37fd6f0
 mysql_default_value/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3713,7 +3713,7 @@ mysql_optimizer_hints/mysql/request.json	exact_names	ok	61eb742d
 mysql_optimizer_hints/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 mysql_optimizer_hints/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 mysql_optimizer_hints/mysql/request.json	pymysql	ok	45e66b3d
-mysql_optimizer_hints/mysql/request.json	pymysql_async	ok	b2136d9d
+mysql_optimizer_hints/mysql/request.json	pymysql_async	ok	16d67269
 mysql_optimizer_hints/mysql/request.json	sqlalchemy	ok	61eb742d
 mysql_optimizer_hints/mysql/request.json	sqlalchemy_async	ok	8bf58fd9
 mysql_optimizer_hints/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3863,7 +3863,7 @@ on_duplicate_key_update/mysql/request.json	exact_names	ok	6ff666c7
 on_duplicate_key_update/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 on_duplicate_key_update/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 on_duplicate_key_update/mysql/request.json	pymysql	ok	5d514ea4
-on_duplicate_key_update/mysql/request.json	pymysql_async	ok	8abdc139
+on_duplicate_key_update/mysql/request.json	pymysql_async	ok	a2221151
 on_duplicate_key_update/mysql/request.json	sqlalchemy	ok	5cb7463d
 on_duplicate_key_update/mysql/request.json	sqlalchemy_async	ok	7a0ddcc4
 on_duplicate_key_update/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3923,7 +3923,7 @@ order_by_union/mysql/request.json	exact_names	ok	6b9783a5
 order_by_union/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 order_by_union/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 order_by_union/mysql/request.json	pymysql	ok	1db62cc4
-order_by_union/mysql/request.json	pymysql_async	ok	6e9c0496
+order_by_union/mysql/request.json	pymysql_async	ok	6bb44d21
 order_by_union/mysql/request.json	sqlalchemy	ok	c59362e0
 order_by_union/mysql/request.json	sqlalchemy_async	ok	16d3fc66
 order_by_union/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -3939,16 +3939,16 @@ order_by_union/postgresql/request.json	sqlalchemy_async	ok	ec8d2394
 order_by_union/postgresql/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 order_by_union/postgresql/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 order_by_union/postgresql/request.json	unknown_any	ok	a5a7b5a9
-output_file_names/pgx/v4/request.json	exact_names	ok	f4e13a03
-output_file_names/pgx/v4/request.json	psycopg	ok	3f05755a
-output_file_names/pgx/v4/request.json	psycopg_async	ok	f4d1ce95
+output_file_names/pgx/v4/request.json	exact_names	ok	31f633c2
+output_file_names/pgx/v4/request.json	psycopg	ok	d93868ea
+output_file_names/pgx/v4/request.json	psycopg_async	ok	fcdee08c
 output_file_names/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 output_file_names/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
-output_file_names/pgx/v4/request.json	sqlalchemy	ok	f4e13a03
-output_file_names/pgx/v4/request.json	sqlalchemy_async	ok	bc3dc1c6
+output_file_names/pgx/v4/request.json	sqlalchemy	ok	31f633c2
+output_file_names/pgx/v4/request.json	sqlalchemy_async	ok	c78583ea
 output_file_names/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 output_file_names/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-output_file_names/pgx/v4/request.json	unknown_any	ok	70c3c97c
+output_file_names/pgx/v4/request.json	unknown_any	ok	36074eb7
 output_file_names/pgx/v4/request.managed-db.json	exact_names	error:2 problems: query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer query.sql: query "UsersC": parameter $1 ("id") has a type sqlc could not infer add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 output_file_names/pgx/v4/request.managed-db.json	psycopg	error:2 problems: query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer query.sql: query "UsersC": parameter $1 ("id") has a type sqlc could not infer add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 output_file_names/pgx/v4/request.managed-db.json	psycopg_async	error:2 problems: query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer query.sql: query "UsersC": parameter $1 ("id") has a type sqlc could not infer add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
@@ -3958,17 +3958,17 @@ output_file_names/pgx/v4/request.managed-db.json	sqlalchemy	error:2 problems: qu
 output_file_names/pgx/v4/request.managed-db.json	sqlalchemy_async	error:2 problems: query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer query.sql: query "UsersC": parameter $1 ("id") has a type sqlc could not infer add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 output_file_names/pgx/v4/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 output_file_names/pgx/v4/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-output_file_names/pgx/v4/request.managed-db.json	unknown_any	ok	89e61c9b
-output_file_names/pgx/v5/request.json	exact_names	ok	a2b2e49a
-output_file_names/pgx/v5/request.json	psycopg	ok	3f05755a
-output_file_names/pgx/v5/request.json	psycopg_async	ok	f4d1ce95
+output_file_names/pgx/v4/request.managed-db.json	unknown_any	ok	82e3514c
+output_file_names/pgx/v5/request.json	exact_names	ok	cd623875
+output_file_names/pgx/v5/request.json	psycopg	ok	d93868ea
+output_file_names/pgx/v5/request.json	psycopg_async	ok	fcdee08c
 output_file_names/pgx/v5/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 output_file_names/pgx/v5/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
-output_file_names/pgx/v5/request.json	sqlalchemy	ok	a2b2e49a
-output_file_names/pgx/v5/request.json	sqlalchemy_async	ok	402cc012
+output_file_names/pgx/v5/request.json	sqlalchemy	ok	cd623875
+output_file_names/pgx/v5/request.json	sqlalchemy_async	ok	4cec7a79
 output_file_names/pgx/v5/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 output_file_names/pgx/v5/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-output_file_names/pgx/v5/request.json	unknown_any	ok	834df782
+output_file_names/pgx/v5/request.json	unknown_any	ok	68d4e527
 output_file_names/pgx/v5/request.managed-db.json	exact_names	error:2 problems: query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer query.sql: query "UsersC": parameter $1 ("id") has a type sqlc could not infer add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 output_file_names/pgx/v5/request.managed-db.json	psycopg	error:2 problems: query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer query.sql: query "UsersC": parameter $1 ("id") has a type sqlc could not infer add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 output_file_names/pgx/v5/request.managed-db.json	psycopg_async	error:2 problems: query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer query.sql: query "UsersC": parameter $1 ("id") has a type sqlc could not infer add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
@@ -3978,7 +3978,7 @@ output_file_names/pgx/v5/request.managed-db.json	sqlalchemy	error:2 problems: qu
 output_file_names/pgx/v5/request.managed-db.json	sqlalchemy_async	error:2 problems: query.sql: query "UsersB": parameter $1 ("id") has a type sqlc could not infer query.sql: query "UsersC": parameter $1 ("id") has a type sqlc could not infer add a cast, as @id::<type>, or sqlc.narg('id')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 output_file_names/pgx/v5/request.managed-db.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 output_file_names/pgx/v5/request.managed-db.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-output_file_names/pgx/v5/request.managed-db.json	unknown_any	ok	3ddf9cff
+output_file_names/pgx/v5/request.managed-db.json	unknown_any	ok	d676f1c1
 output_file_names/stdlib/request.json	exact_names	ok	e15cbc38
 output_file_names/stdlib/request.json	psycopg	ok	372634e9
 output_file_names/stdlib/request.json	psycopg_async	ok	f98bbf9a
@@ -4143,7 +4143,7 @@ overrides_go_types/mysql/request.json	exact_names	ok	daa031ac
 overrides_go_types/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 overrides_go_types/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 overrides_go_types/mysql/request.json	pymysql	ok	f64e8936
-overrides_go_types/mysql/request.json	pymysql_async	ok	fbd082a8
+overrides_go_types/mysql/request.json	pymysql_async	ok	43715a97
 overrides_go_types/mysql/request.json	sqlalchemy	ok	daa031ac
 overrides_go_types/mysql/request.json	sqlalchemy_async	ok	45c445d0
 overrides_go_types/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4213,7 +4213,7 @@ overrides_pointers/mysql/request.json	exact_names	ok	d9ff506b
 overrides_pointers/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 overrides_pointers/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 overrides_pointers/mysql/request.json	pymysql	ok	e730e83a
-overrides_pointers/mysql/request.json	pymysql_async	ok	8545ca16
+overrides_pointers/mysql/request.json	pymysql_async	ok	54decfe5
 overrides_pointers/mysql/request.json	sqlalchemy	ok	d9ff506b
 overrides_pointers/mysql/request.json	sqlalchemy_async	ok	4b44dc50
 overrides_pointers/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4243,7 +4243,7 @@ overrides_unsigned/mysql/request.json	exact_names	ok	116f798c
 overrides_unsigned/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 overrides_unsigned/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 overrides_unsigned/mysql/request.json	pymysql	ok	4b17ccd0
-overrides_unsigned/mysql/request.json	pymysql_async	ok	493c97b0
+overrides_unsigned/mysql/request.json	pymysql_async	ok	51f6c3a4
 overrides_unsigned/mysql/request.json	sqlalchemy	ok	d2771cda
 overrides_unsigned/mysql/request.json	sqlalchemy_async	ok	277c459d
 overrides_unsigned/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4323,7 +4323,7 @@ params_location/mysql/request.json	exact_names	ok	2a7f9cd6
 params_location/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 params_location/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 params_location/mysql/request.json	pymysql	ok	8cdfe9ba
-params_location/mysql/request.json	pymysql_async	ok	603850ec
+params_location/mysql/request.json	pymysql_async	ok	5cda21ff
 params_location/mysql/request.json	sqlalchemy	ok	142667b8
 params_location/mysql/request.json	sqlalchemy_async	ok	12cee568
 params_location/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4343,7 +4343,7 @@ params_placeholder_in_left_expr/mysql/request.json	exact_names	ok	7016b3b8
 params_placeholder_in_left_expr/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 params_placeholder_in_left_expr/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 params_placeholder_in_left_expr/mysql/request.json	pymysql	ok	f6e5526e
-params_placeholder_in_left_expr/mysql/request.json	pymysql_async	ok	56859e65
+params_placeholder_in_left_expr/mysql/request.json	pymysql_async	ok	13a3c12e
 params_placeholder_in_left_expr/mysql/request.json	sqlalchemy	ok	695bfbb6
 params_placeholder_in_left_expr/mysql/request.json	sqlalchemy_async	ok	4ac7935e
 params_placeholder_in_left_expr/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4363,7 +4363,7 @@ params_two/mysql/request.json	exact_names	ok	4e62cdda
 params_two/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 params_two/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 params_two/mysql/request.json	pymysql	ok	314eccb7
-params_two/mysql/request.json	pymysql_async	ok	580ef419
+params_two/mysql/request.json	pymysql_async	ok	64ff44ce
 params_two/mysql/request.json	sqlalchemy	ok	4e62cdda
 params_two/mysql/request.json	sqlalchemy_async	ok	e12fc1fc
 params_two/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4383,7 +4383,7 @@ pattern_in_expr/mysql/request.json	exact_names	ok	55e0eb4a
 pattern_in_expr/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 pattern_in_expr/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 pattern_in_expr/mysql/request.json	pymysql	ok	0db62d1a
-pattern_in_expr/mysql/request.json	pymysql_async	ok	06b0fcb1
+pattern_in_expr/mysql/request.json	pymysql_async	ok	5f6a5025
 pattern_in_expr/mysql/request.json	sqlalchemy	ok	55e0eb4a
 pattern_in_expr/mysql/request.json	sqlalchemy_async	ok	095c1381
 pattern_in_expr/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4393,7 +4393,7 @@ pattern_matching/mysql/request.json	exact_names	ok	89dd618f
 pattern_matching/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 pattern_matching/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 pattern_matching/mysql/request.json	pymysql	ok	33756216
-pattern_matching/mysql/request.json	pymysql_async	ok	87a18802
+pattern_matching/mysql/request.json	pymysql_async	ok	5fc49aee
 pattern_matching/mysql/request.json	sqlalchemy	ok	89dd618f
 pattern_matching/mysql/request.json	sqlalchemy_async	ok	b4c5fa3a
 pattern_matching/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4503,7 +4503,7 @@ prepared_queries/mysql/request.json	exact_names	ok	11d1bcf5
 prepared_queries/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 prepared_queries/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 prepared_queries/mysql/request.json	pymysql	ok	4684142a
-prepared_queries/mysql/request.json	pymysql_async	ok	584fbcac
+prepared_queries/mysql/request.json	pymysql_async	ok	7a30c051
 prepared_queries/mysql/request.json	sqlalchemy	ok	bf6e41e1
 prepared_queries/mysql/request.json	sqlalchemy_async	ok	b038078f
 prepared_queries/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4673,7 +4673,7 @@ schema_scoped_create/mysql/request.json	exact_names	ok	48b65b8c
 schema_scoped_create/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 schema_scoped_create/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 schema_scoped_create/mysql/request.json	pymysql	ok	3f1a028f
-schema_scoped_create/mysql/request.json	pymysql_async	ok	c1def2d5
+schema_scoped_create/mysql/request.json	pymysql_async	ok	5c6dd902
 schema_scoped_create/mysql/request.json	sqlalchemy	ok	48b65b8c
 schema_scoped_create/mysql/request.json	sqlalchemy_async	ok	f265e0ce
 schema_scoped_create/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4703,7 +4703,7 @@ schema_scoped_delete/mysql/request.json	exact_names	ok	bbb17818
 schema_scoped_delete/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 schema_scoped_delete/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 schema_scoped_delete/mysql/request.json	pymysql	ok	561f848b
-schema_scoped_delete/mysql/request.json	pymysql_async	ok	67d38adc
+schema_scoped_delete/mysql/request.json	pymysql_async	ok	980bcee3
 schema_scoped_delete/mysql/request.json	sqlalchemy	ok	bbb17818
 schema_scoped_delete/mysql/request.json	sqlalchemy_async	ok	cd2209f6
 schema_scoped_delete/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4743,7 +4743,7 @@ schema_scoped_filter/mysql/request.json	exact_names	ok	7d5c9430
 schema_scoped_filter/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 schema_scoped_filter/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 schema_scoped_filter/mysql/request.json	pymysql	ok	2fe41477
-schema_scoped_filter/mysql/request.json	pymysql_async	ok	1587e3fe
+schema_scoped_filter/mysql/request.json	pymysql_async	ok	6fbaff55
 schema_scoped_filter/mysql/request.json	sqlalchemy	ok	7d5c9430
 schema_scoped_filter/mysql/request.json	sqlalchemy_async	ok	020159bf
 schema_scoped_filter/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4773,7 +4773,7 @@ schema_scoped_list/mysql/request.json	exact_names	ok	6a27208e
 schema_scoped_list/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 schema_scoped_list/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 schema_scoped_list/mysql/request.json	pymysql	ok	5192daf5
-schema_scoped_list/mysql/request.json	pymysql_async	ok	65bcf241
+schema_scoped_list/mysql/request.json	pymysql_async	ok	30d7dc95
 schema_scoped_list/mysql/request.json	sqlalchemy	ok	6a27208e
 schema_scoped_list/mysql/request.json	sqlalchemy_async	ok	00135a84
 schema_scoped_list/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4793,7 +4793,7 @@ schema_scoped_update/mysql/request.json	exact_names	ok	e2276812
 schema_scoped_update/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 schema_scoped_update/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 schema_scoped_update/mysql/request.json	pymysql	ok	38fdbb75
-schema_scoped_update/mysql/request.json	pymysql_async	ok	3d033512
+schema_scoped_update/mysql/request.json	pymysql_async	ok	66f806ee
 schema_scoped_update/mysql/request.json	sqlalchemy	ok	e2276812
 schema_scoped_update/mysql/request.json	sqlalchemy_async	ok	bb3a8029
 schema_scoped_update/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4843,7 +4843,7 @@ select_column_cast/mysql/request.json	exact_names	ok	813b1062
 select_column_cast/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 select_column_cast/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 select_column_cast/mysql/request.json	pymysql	ok	bb6aeae7
-select_column_cast/mysql/request.json	pymysql_async	ok	e4fb67cf
+select_column_cast/mysql/request.json	pymysql_async	ok	009c80b4
 select_column_cast/mysql/request.json	sqlalchemy	ok	813b1062
 select_column_cast/mysql/request.json	sqlalchemy_async	ok	5cd2a3cc
 select_column_cast/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4943,7 +4943,7 @@ select_limit/mysql/request.json	exact_names	ok	02531ea9
 select_limit/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 select_limit/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 select_limit/mysql/request.json	pymysql	ok	fc087de2
-select_limit/mysql/request.json	pymysql_async	ok	d61879c3
+select_limit/mysql/request.json	pymysql_async	ok	eca0b52a
 select_limit/mysql/request.json	sqlalchemy	ok	02531ea9
 select_limit/mysql/request.json	sqlalchemy_async	ok	88fb04ec
 select_limit/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -4973,7 +4973,7 @@ select_nested_count/mysql/request.json	exact_names	ok	91bd7fc1
 select_nested_count/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 select_nested_count/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 select_nested_count/mysql/request.json	pymysql	ok	83f8aa93
-select_nested_count/mysql/request.json	pymysql_async	ok	207a58da
+select_nested_count/mysql/request.json	pymysql_async	ok	aa1916c4
 select_nested_count/mysql/request.json	sqlalchemy	ok	0ae0f29d
 select_nested_count/mysql/request.json	sqlalchemy_async	ok	ffc6cd21
 select_nested_count/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5043,7 +5043,7 @@ select_star/mysql/request.json	exact_names	ok	977ce229
 select_star/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 select_star/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 select_star/mysql/request.json	pymysql	ok	7115d8db
-select_star/mysql/request.json	pymysql_async	ok	71850c31
+select_star/mysql/request.json	pymysql_async	ok	3dff113d
 select_star/mysql/request.json	sqlalchemy	ok	498d0938
 select_star/mysql/request.json	sqlalchemy_async	ok	4293699f
 select_star/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5073,7 +5073,7 @@ select_star_quoted/mysql/request.json	exact_names	ok	3c7866c1
 select_star_quoted/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 select_star_quoted/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 select_star_quoted/mysql/request.json	pymysql	ok	785860fc
-select_star_quoted/mysql/request.json	pymysql_async	ok	363c2e64
+select_star_quoted/mysql/request.json	pymysql_async	ok	db6bde86
 select_star_quoted/mysql/request.json	sqlalchemy	ok	23b80f6f
 select_star_quoted/mysql/request.json	sqlalchemy_async	ok	7a4898fd
 select_star_quoted/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5113,7 +5113,7 @@ select_subquery_no_alias/mysql/request.json	exact_names	ok	35162053
 select_subquery_no_alias/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 select_subquery_no_alias/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 select_subquery_no_alias/mysql/request.json	pymysql	ok	ccd9e74b
-select_subquery_no_alias/mysql/request.json	pymysql_async	ok	ac0723bf
+select_subquery_no_alias/mysql/request.json	pymysql_async	ok	079bce1e
 select_subquery_no_alias/mysql/request.json	sqlalchemy	ok	35162053
 select_subquery_no_alias/mysql/request.json	sqlalchemy_async	ok	5eca0065
 select_subquery_no_alias/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5163,7 +5163,7 @@ select_union/mysql/request.json	exact_names	ok	f0bf4ccc
 select_union/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 select_union/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 select_union/mysql/request.json	pymysql	ok	36921d8b
-select_union/mysql/request.json	pymysql_async	ok	fa3c41ad
+select_union/mysql/request.json	pymysql_async	ok	a2df0312
 select_union/mysql/request.json	sqlalchemy	ok	f0bf4ccc
 select_union/mysql/request.json	sqlalchemy_async	ok	6cea9a9c
 select_union/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5193,7 +5193,7 @@ select_union_subquery/mysql/request.json	exact_names	ok	ac3b5afb
 select_union_subquery/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 select_union_subquery/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 select_union_subquery/mysql/request.json	pymysql	ok	79c84cd8
-select_union_subquery/mysql/request.json	pymysql_async	ok	abf53ab6
+select_union_subquery/mysql/request.json	pymysql_async	ok	bed9c582
 select_union_subquery/mysql/request.json	sqlalchemy	ok	863fd242
 select_union_subquery/mysql/request.json	sqlalchemy_async	ok	02b8d7e0
 select_union_subquery/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5233,7 +5233,7 @@ single_param_conflict/mysql/request.json	exact_names	ok	9af4e486
 single_param_conflict/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 single_param_conflict/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 single_param_conflict/mysql/request.json	pymysql	ok	4979a79b
-single_param_conflict/mysql/request.json	pymysql_async	ok	00bd6fe4
+single_param_conflict/mysql/request.json	pymysql_async	ok	f674d8e1
 single_param_conflict/mysql/request.json	sqlalchemy	ok	ac6b022c
 single_param_conflict/mysql/request.json	sqlalchemy_async	ok	ca5812b7
 single_param_conflict/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5283,7 +5283,7 @@ sqlc_arg/mysql/request.json	exact_names	ok	edda3d12
 sqlc_arg/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 sqlc_arg/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 sqlc_arg/mysql/request.json	pymysql	ok	5d8ad6b4
-sqlc_arg/mysql/request.json	pymysql_async	ok	0cb012d9
+sqlc_arg/mysql/request.json	pymysql_async	ok	f5f6d51a
 sqlc_arg/mysql/request.json	sqlalchemy	ok	edda3d12
 sqlc_arg/mysql/request.json	sqlalchemy_async	ok	38c7f956
 sqlc_arg/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5313,7 +5313,7 @@ sqlc_embed/mysql/request.json	exact_names	ok	245d64ee
 sqlc_embed/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 sqlc_embed/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 sqlc_embed/mysql/request.json	pymysql	ok	9dd9e4cc
-sqlc_embed/mysql/request.json	pymysql_async	ok	cac1fae0
+sqlc_embed/mysql/request.json	pymysql_async	ok	4bebbd7b
 sqlc_embed/mysql/request.json	sqlalchemy	ok	de59ec74
 sqlc_embed/mysql/request.json	sqlalchemy_async	ok	1dde348d
 sqlc_embed/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5353,7 +5353,7 @@ sqlc_narg/mysql/request.json	exact_names	ok	8e1786ed
 sqlc_narg/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 sqlc_narg/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 sqlc_narg/mysql/request.json	pymysql	ok	fc9aa5f7
-sqlc_narg/mysql/request.json	pymysql_async	ok	fa7d45b4
+sqlc_narg/mysql/request.json	pymysql_async	ok	1a4f88f3
 sqlc_narg/mysql/request.json	sqlalchemy	ok	8e1786ed
 sqlc_narg/mysql/request.json	sqlalchemy_async	ok	4d60e283
 sqlc_narg/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5383,7 +5383,7 @@ sqlc_slice/mysql/request.json	exact_names	ok	b0a7393b
 sqlc_slice/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 sqlc_slice/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 sqlc_slice/mysql/request.json	pymysql	ok	e2139286
-sqlc_slice/mysql/request.json	pymysql_async	ok	71c86909
+sqlc_slice/mysql/request.json	pymysql_async	ok	0ff81d9a
 sqlc_slice/mysql/request.json	sqlalchemy	ok	b0a7393b
 sqlc_slice/mysql/request.json	sqlalchemy_async	ok	0fe300db
 sqlc_slice/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5473,7 +5473,7 @@ star_expansion/mysql/request.json	exact_names	ok	05064d8e
 star_expansion/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 star_expansion/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 star_expansion/mysql/request.json	pymysql	ok	c4c425d9
-star_expansion/mysql/request.json	pymysql_async	ok	3061fed1
+star_expansion/mysql/request.json	pymysql_async	ok	6614e5f8
 star_expansion/mysql/request.json	sqlalchemy	ok	05064d8e
 star_expansion/mysql/request.json	sqlalchemy_async	ok	b02bd753
 star_expansion/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5523,7 +5523,7 @@ star_expansion_join/mysql/request.json	exact_names	ok	0f248e72
 star_expansion_join/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 star_expansion_join/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 star_expansion_join/mysql/request.json	pymysql	ok	d2f76a79
-star_expansion_join/mysql/request.json	pymysql_async	ok	72b8907b
+star_expansion_join/mysql/request.json	pymysql_async	ok	4fb6c5b6
 star_expansion_join/mysql/request.json	sqlalchemy	ok	0f248e72
 star_expansion_join/mysql/request.json	sqlalchemy_async	ok	a169e8d3
 star_expansion_join/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5543,7 +5543,7 @@ star_expansion_reserved/mysql/request.json	exact_names	ok	f8d67e45
 star_expansion_reserved/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 star_expansion_reserved/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 star_expansion_reserved/mysql/request.json	pymysql	ok	8c487e98
-star_expansion_reserved/mysql/request.json	pymysql_async	ok	03861235
+star_expansion_reserved/mysql/request.json	pymysql_async	ok	63abc2cc
 star_expansion_reserved/mysql/request.json	sqlalchemy	ok	f8d67e45
 star_expansion_reserved/mysql/request.json	sqlalchemy_async	ok	b8cda8f3
 star_expansion_reserved/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5573,7 +5573,7 @@ star_expansion_subquery/mysql/request.json	exact_names	ok	8cf06728
 star_expansion_subquery/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 star_expansion_subquery/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 star_expansion_subquery/mysql/request.json	pymysql	ok	601c4643
-star_expansion_subquery/mysql/request.json	pymysql_async	ok	24024215
+star_expansion_subquery/mysql/request.json	pymysql_async	ok	26d2a715
 star_expansion_subquery/mysql/request.json	sqlalchemy	ok	8cf06728
 star_expansion_subquery/mysql/request.json	sqlalchemy_async	ok	62612bcc
 star_expansion_subquery/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5673,7 +5673,7 @@ truncate/mysql/request.json	exact_names	ok	439ad996
 truncate/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 truncate/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 truncate/mysql/request.json	pymysql	ok	7a9bb6b2
-truncate/mysql/request.json	pymysql_async	ok	5c2d2859
+truncate/mysql/request.json	pymysql_async	ok	271c43e4
 truncate/mysql/request.json	sqlalchemy	ok	439ad996
 truncate/mysql/request.json	sqlalchemy_async	ok	8e75b66c
 truncate/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5743,7 +5743,7 @@ unsigned_params/mysql/request.json	exact_names	ok	c7f3c776
 unsigned_params/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 unsigned_params/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 unsigned_params/mysql/request.json	pymysql	ok	25019721
-unsigned_params/mysql/request.json	pymysql_async	ok	e7b1c5fd
+unsigned_params/mysql/request.json	pymysql_async	ok	ef57ffde
 unsigned_params/mysql/request.json	sqlalchemy	ok	c7f3c776
 unsigned_params/mysql/request.json	sqlalchemy_async	ok	9b9f3185
 unsigned_params/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5793,7 +5793,7 @@ update_inner_join/request.json	exact_names	ok	f842b06e
 update_inner_join/request.json	psycopg	error:the psycopg backend does not run mysql	-
 update_inner_join/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 update_inner_join/request.json	pymysql	ok	2a3a0316
-update_inner_join/request.json	pymysql_async	ok	aa35c78f
+update_inner_join/request.json	pymysql_async	ok	2fe32c83
 update_inner_join/request.json	sqlalchemy	ok	f842b06e
 update_inner_join/request.json	sqlalchemy_async	ok	1311585a
 update_inner_join/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5803,7 +5803,7 @@ update_join/mysql/request.json	exact_names	ok	cb655e05
 update_join/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 update_join/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 update_join/mysql/request.json	pymysql	ok	22ecc951
-update_join/mysql/request.json	pymysql_async	ok	9c5bae18
+update_join/mysql/request.json	pymysql_async	ok	f8a302c2
 update_join/mysql/request.json	sqlalchemy	ok	8cb371c5
 update_join/mysql/request.json	sqlalchemy_async	ok	0225d9ee
 update_join/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5833,7 +5833,7 @@ update_set/myql/request.json	exact_names	ok	3e7a7e6e
 update_set/myql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 update_set/myql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 update_set/myql/request.json	pymysql	ok	de3ae724
-update_set/myql/request.json	pymysql_async	ok	c6ab4432
+update_set/myql/request.json	pymysql_async	ok	d7269454
 update_set/myql/request.json	sqlalchemy	ok	3e7a7e6e
 update_set/myql/request.json	sqlalchemy_async	ok	8f556f44
 update_set/myql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5863,7 +5863,7 @@ update_set_multiple/mysql/request.json	exact_names	ok	864d3ae7
 update_set_multiple/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 update_set_multiple/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 update_set_multiple/mysql/request.json	pymysql	ok	894292f3
-update_set_multiple/mysql/request.json	pymysql_async	ok	6dc8d08e
+update_set_multiple/mysql/request.json	pymysql_async	ok	04029373
 update_set_multiple/mysql/request.json	sqlalchemy	ok	864d3ae7
 update_set_multiple/mysql/request.json	sqlalchemy_async	ok	d355df91
 update_set_multiple/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5893,7 +5893,7 @@ update_two_table/mysql/request.json	exact_names	ok	c953c291
 update_two_table/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 update_two_table/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 update_two_table/mysql/request.json	pymysql	ok	8f760742
-update_two_table/mysql/request.json	pymysql_async	ok	ab31d928
+update_two_table/mysql/request.json	pymysql_async	ok	248b003c
 update_two_table/mysql/request.json	sqlalchemy	ok	adf34d98
 update_two_table/mysql/request.json	sqlalchemy_async	ok	b77eb5d3
 update_two_table/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
@@ -5993,7 +5993,7 @@ wrap_errors/mysql/request.json	exact_names	ok	60e83139
 wrap_errors/mysql/request.json	psycopg	error:the psycopg backend does not run mysql	-
 wrap_errors/mysql/request.json	psycopg_async	error:the psycopg backend does not run mysql	-
 wrap_errors/mysql/request.json	pymysql	ok	d8519bf8
-wrap_errors/mysql/request.json	pymysql_async	ok	b7bac4a5
+wrap_errors/mysql/request.json	pymysql_async	ok	12ab3ab4
 wrap_errors/mysql/request.json	sqlalchemy	ok	e08a7497
 wrap_errors/mysql/request.json	sqlalchemy_async	ok	b0611a66
 wrap_errors/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-

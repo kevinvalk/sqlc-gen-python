@@ -84,6 +84,10 @@ pub(super) fn result_follows_sqlc(
         (":many", _) => {
             return problems.push(format!("{}: {} returns `{}`", query.name, query.cmd, unparse(returns)));
         }
+        // How many rows it wrote, as sqlc's Go returns
+        (":copyfrom", returns) if !is_name(returns, "int") => {
+            return problems.push(format!("{}: :copyfrom returns `{}`", query.name, unparse(returns)));
+        }
         _ => return,
     };
 

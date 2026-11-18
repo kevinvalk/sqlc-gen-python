@@ -19,7 +19,7 @@ class _Cursor(typing.Protocol):
 
     async def executemany(
         self, query: str, args: Sequence[Sequence[Any]]
-    ) -> object: ...
+    ) -> int | None: ...
 
     async def fetchmany(self, size: int) -> Sequence[Sequence[Any]]: ...
 
@@ -302,7 +302,7 @@ async def issue_invoice(
         return await _typed(cur).execute(_ISSUE_INVOICE, (issued_on, id))
 
 
-_ADD_LINE_ITEMS: Final = "INSERT INTO line_items (invoice_id, position, description, quantity, unit_price) VALUES (%s, %s, %s, %s, %s)"
+_ADD_LINE_ITEMS: Final = "INSERT IGNORE INTO line_items (invoice_id, position, description, quantity, unit_price) VALUES (%s, %s, %s, %s, %s)"
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
@@ -316,14 +316,18 @@ class AddLineItemsParams:
 
 async def add_line_items(
     connection: asyncmy.Connection, rows: Iterable[AddLineItemsParams]
-) -> None:
+) -> int:
+    """A line already at its position is skipped, so it returns how many it added."""
     async with connection.cursor(asyncmy.cursors.Cursor) as cur:
-        await _typed(cur).executemany(
-            _ADD_LINE_ITEMS,
-            [
-                (r.invoice_id, r.position, r.description, r.quantity, r.unit_price)
-                for r in rows
-            ],
+        return (
+            await _typed(cur).executemany(
+                _ADD_LINE_ITEMS,
+                [
+                    (r.invoice_id, r.position, r.description, r.quantity, r.unit_price)
+                    for r in rows
+                ],
+            )
+            or 0
         )
 
 

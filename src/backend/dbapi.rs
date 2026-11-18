@@ -9,8 +9,8 @@ use crate::api::queries::{Command, CopyInto, Query, Shape};
 use crate::engine::Piece;
 use crate::python::vocabulary::{
     ANY, ASYNC_ITERATOR, CONNECTION, CONNECTION_TYPE, COPY, CUR, CURSOR, INT, LEN, MODELS, MULTIPLE_ROWS_ERROR,
-    NO_ROW_ERROR, OBJECT, PROTOCOL, R, RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPE_CHECKING, TYPED,
-    TYPED_CURSOR, VALUE, VALUES,
+    NO_ROW_ERROR, PROTOCOL, R, RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPE_CHECKING, TYPED, TYPED_CURSOR,
+    VALUE, VALUES,
 };
 use crate::python::{
     Each, Expression, Function, Scope, ann_assign, assign, class, each, ellipsis, expression, for_, generator_of,
@@ -206,7 +206,7 @@ fn bridge(flavor: &Flavor, asynchronous: bool) -> Vec<ast::Stmt> {
         method(
             "executemany",
             vec![parameter("query", STR), parameter("args", SEQUENCE.index(values()))],
-            OBJECT.into(),
+            INT.or_none(),
         ),
         method("fetchmany", vec![parameter("size", INT)], SEQUENCE.index(values())),
         iterate.into(),
@@ -224,13 +224,16 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt
     let body = Body::new(driver, query, asynchronous);
     let returning = || [keyword("returning", true_())];
     let on_cursor = match (&query.command, query.takes.rows()) {
-        (Command::Exec, true) if driver.copies && query.copy_into.is_some() => return body.copy(),
+        (Command::CopyFrom { .. }, _) if driver.copies && query.copy_into.is_some() => return body.copy(),
+        // A MySQL driver counts what `executemany` wrote, but returns `None` for no rows
+        (Command::CopyFrom { .. }, _) if driver.execute_counts => vec![return_(body.execute_many([]).or(int(0)))],
+        (Command::CopyFrom { .. }, _) => stmts![body.counted(body.execute_many([])), return_(CUR.attr("rowcount"))],
         // The cursor is the result, so it stays open
         (Command::ExecResult, _) => {
             return stmts![
                 assign(CUR, (body.flavor.cursor)()),
                 body.plain_rows(),
-                body.counted(),
+                body.counted(body.execute()),
                 return_(CUR),
             ];
         }
@@ -253,7 +256,7 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt
         ],
         (Command::Exec, false) => vec![expression(body.execute())],
         (Command::ExecRows, _) if driver.execute_counts => vec![return_(body.execute())],
-        (Command::ExecRows, _) => stmts![body.counted(), return_(CUR.attr("rowcount"))],
+        (Command::ExecRows, _) => stmts![body.counted(body.execute()), return_(CUR.attr("rowcount"))],
         (Command::ExecLastId, _) => {
             stmts![expression(body.execute()), return_(CUR.attr("lastrowid")),]
         }
@@ -338,9 +341,9 @@ impl<'a> Body<'a> {
             .awaited(self.asynchronous)
     }
 
-    /// [`Self::execute`], in a pipeline of its own if the driver only counts a statement of a pipeline once it syncs.
-    fn counted(&self) -> ast::Stmt {
-        let execute = expression(self.execute());
+    /// `execute`, in a pipeline of its own if the driver only counts a statement of a pipeline once it syncs.
+    fn counted(&self, execute: ast::Expr) -> ast::Stmt {
+        let execute = expression(execute);
         match self.driver.pipelines {
             true => {
                 let pipeline = CONNECTION.attr("pipeline").call([]).entered();
@@ -350,17 +353,22 @@ impl<'a> Body<'a> {
         }
     }
 
-    /// We enter the cursor and the copy in one `with`, as ruff's SIM117 wants.
+    /// We read the count `COPY` reports while the cursor is open, as closing it forgets it.
     fn copy(&self) -> Vec<ast::Stmt> {
         let columns: Vec<&Field> = self.query.params.iter().collect();
         let write = (COPY.attr("write_row"))
             .call([self.values(&columns)])
             .awaited(self.asynchronous);
         let copy = CUR.attr("copy").call([name(&self.query.constant)]);
+        let copied = with(
+            self.asynchronous,
+            vec![copy.entered_as(COPY)],
+            vec![for_(each(R, ROWS), vec![expression(write)])],
+        );
         vec![with(
             self.asynchronous,
-            vec![(self.flavor.closing)().entered_as(CUR), copy.entered_as(COPY)],
-            vec![for_(each(R, ROWS), vec![expression(write)])],
+            vec![(self.flavor.closing)().entered_as(CUR)],
+            vec![copied, return_(CUR.attr("rowcount"))],
         )]
     }
 

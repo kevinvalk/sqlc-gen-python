@@ -154,6 +154,7 @@ impl Backend {
 fn returns(query: &Query, result: fn() -> ast::Expr) -> ast::Expr {
     let run = match &query.command {
         Command::Exec => return none(),
+        Command::CopyFrom { .. } => return INT.into(),
         Command::ExecRows | Command::ExecLastId => INT.into(),
         Command::ExecResult => result(),
         Command::One(shape) => shape.annotation(!query.raises),

@@ -28,22 +28,21 @@ class CreateLineItemsParams:
 
 async def create_line_items(
     connection: psycopg.AsyncConnection[Any], rows: Iterable[CreateLineItemsParams]
-) -> None:
-    async with (
-        psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur,
-        cur.copy(_CREATE_LINE_ITEMS) as copy,
-    ):
-        for r in rows:
-            await copy.write_row(
-                (
-                    r.invoice_id,
-                    r.position,
-                    r.description,
-                    r.quantity,
-                    r.unit_price,
-                    r.vat_rate,
+) -> int:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
+        async with cur.copy(_CREATE_LINE_ITEMS) as copy:
+            for r in rows:
+                await copy.write_row(
+                    (
+                        r.invoice_id,
+                        r.position,
+                        r.description,
+                        r.quantity,
+                        r.unit_price,
+                        r.vat_rate,
+                    )
                 )
-            )
+        return cur.rowcount
 
 
 _LIST_LINE_ITEMS: Final = "SELECT id, invoice_id, position, description, quantity, unit_price, vat_rate FROM line_items WHERE invoice_id = $1 ORDER BY position"

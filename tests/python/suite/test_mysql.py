@@ -223,7 +223,9 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
             unit_price=Decimal("0.10"),
         ),
     ]
-    assert await query.add_line_items(rows=rows) is None
+    # `INSERT IGNORE` skips the line at a taken position, and returns how many it wrote.
+    assert await query.add_line_items(rows=[*rows, rows[0]]) == 2
+    assert await query.add_line_items(rows=[]) == 0
     items = await query.list_line_items(invoice_id=invoice_id)
     assert [(i.description, i.quantity, i.unit_price) for i in items] == [
         (AWKWARD, Decimal("1.500"), Decimal("12.50")),

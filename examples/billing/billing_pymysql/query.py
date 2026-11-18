@@ -300,7 +300,7 @@ def issue_invoice(
         return cur.execute(_ISSUE_INVOICE, (issued_on, id))
 
 
-_ADD_LINE_ITEMS: Final = "INSERT INTO line_items (invoice_id, position, description, quantity, unit_price) VALUES (%s, %s, %s, %s, %s)"
+_ADD_LINE_ITEMS: Final = "INSERT IGNORE INTO line_items (invoice_id, position, description, quantity, unit_price) VALUES (%s, %s, %s, %s, %s)"
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
@@ -312,14 +312,18 @@ class AddLineItemsParams:
     unit_price: Decimal
 
 
-def add_line_items(connection: _Connection, rows: Iterable[AddLineItemsParams]) -> None:
+def add_line_items(connection: _Connection, rows: Iterable[AddLineItemsParams]) -> int:
+    """A line already at its position is skipped, so it returns how many it added."""
     with connection.cursor(pymysql.cursors.Cursor) as cur:
-        cur.executemany(
-            _ADD_LINE_ITEMS,
-            [
-                (r.invoice_id, r.position, r.description, r.quantity, r.unit_price)
-                for r in rows
-            ],
+        return (
+            cur.executemany(
+                _ADD_LINE_ITEMS,
+                [
+                    (r.invoice_id, r.position, r.description, r.quantity, r.unit_price)
+                    for r in rows
+                ],
+            )
+            or 0
         )
 
 

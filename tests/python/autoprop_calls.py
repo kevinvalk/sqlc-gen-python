@@ -124,6 +124,10 @@ class Call:
                 return "inconclusive", False
             raise
         await aw(nested.commit())
+        # On PostgreSQL a `:copyfrom` writes every row, or raises
+        if cmd == ":copyfrom" and result != len(rows):
+            message = f"{self.name}: wrote {result} of {len(rows)} rows"
+            raise AssertionError(message)
         pool.harvest(result)
         return self.outcome(result, expected)
 
