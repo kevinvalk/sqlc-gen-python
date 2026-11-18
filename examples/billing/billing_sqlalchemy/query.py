@@ -123,6 +123,32 @@ def stream_list_customers_by_ids(
         yield (models.Customer.from_row(row) for row in result)
 
 
+_LIST_CUSTOMERS_EXCEPT: Final = sqlalchemy.text(
+    "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE id NOT IN :ids ORDER BY id"
+).bindparams(sqlalchemy.bindparam("ids", expanding=True))
+
+
+def list_customers_except(
+    connection: sqlalchemy.Connection, *, ids: list[int]
+) -> list[models.Customer]:
+    """Every customer but those among the ids, so every customer for none."""
+    return [
+        models.Customer.from_row(row)
+        for row in connection.execute(_LIST_CUSTOMERS_EXCEPT, {"ids": ids})
+    ]
+
+
+@contextlib.contextmanager
+def stream_list_customers_except(
+    connection: sqlalchemy.Connection, *, ids: list[int]
+) -> Generator[Iterator[models.Customer], None, None]:
+    """Every customer but those among the ids, so every customer for none."""
+    with connection.execute(
+        _LIST_CUSTOMERS_EXCEPT, {"ids": ids}, execution_options={"stream_results": True}
+    ) as result:
+        yield (models.Customer.from_row(row) for row in result)
+
+
 _CREATE_INVOICE: Final = sqlalchemy.text("""INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (:customer_id, :number, :issued_on, :notes, :attachment, :pay_within)""")
 

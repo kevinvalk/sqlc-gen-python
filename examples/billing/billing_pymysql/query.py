@@ -144,6 +144,40 @@ def stream_list_customers_by_ids(
         yield (models.Customer.from_row(row) for row in cur)
 
 
+_LIST_CUSTOMERS_EXCEPT: Final = "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE id NOT IN (/*SLICE:ids*/%s) ORDER BY id"
+
+
+def list_customers_except(
+    connection: _Connection, *, ids: list[int]
+) -> list[models.Customer]:
+    """Every customer but those among the ids, so every customer for none."""
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
+        cur.execute(
+            _LIST_CUSTOMERS_EXCEPT.replace(
+                "/*SLICE:ids*/%s",
+                ", ".join(["%s"] * len(ids)) or "SELECT NULL FROM DUAL WHERE FALSE",
+            ),
+            (*ids,),
+        )
+        return [models.Customer.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_customers_except(
+    connection: _Connection, *, ids: list[int]
+) -> Generator[Iterator[models.Customer], None, None]:
+    """Every customer but those among the ids, so every customer for none."""
+    with connection.cursor(pymysql.cursors.SSCursor) as cur:
+        cur.execute(
+            _LIST_CUSTOMERS_EXCEPT.replace(
+                "/*SLICE:ids*/%s",
+                ", ".join(["%s"] * len(ids)) or "SELECT NULL FROM DUAL WHERE FALSE",
+            ),
+            (*ids,),
+        )
+        yield (models.Customer.from_row(row) for row in cur)
+
+
 _CREATE_INVOICE: Final = """INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (%s, %s, %s, %s, %s, %s)"""
 

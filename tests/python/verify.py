@@ -136,12 +136,13 @@ class Mutant:
     old: str
     new: str
     case: str = CASE
+    everywhere: bool = False  # Whether every `old` changes, as a generator bug would, and not only the first
 
     def plant(self, source: str) -> str:
         if self.old not in source:
             message = f"mutant no longer applies: {self.old!r} in {self.file}"
             raise ValueError(message)
-        return source.replace(self.old, self.new, 1)
+        return source.replace(self.old, self.new, -1 if self.everywhere else 1)
 
 
 MUTANTS = {
@@ -347,6 +348,20 @@ MUTANTS = {
         "accepted_methods=BillingPaymentMethod.from_array(row[5])",
         "accepted_methods=row[5]",
         case="invoicing_psycopg",
+    ),
+    # An empty slice is a subquery of no rows, as `x NOT IN (NULL)` is NULL and keeps no row.
+    "empty slice as NULL": Mutant(
+        MYSQL_RUNTIME,
+        "assert [] == [",
+        "query.py",
+        """            _LIST_CUSTOMERS_EXCEPT.replace(
+                "/*SLICE:ids*/%s",
+                ", ".join(["%s"] * len(ids)) or "SELECT NULL FROM DUAL WHERE FALSE",""",
+        """            _LIST_CUSTOMERS_EXCEPT.replace(
+                "/*SLICE:ids*/%s",
+                ", ".join(["%s"] * len(ids)) or "NULL",""",
+        case="billing_pymysql",
+        everywhere=True,  # The function and its stream, or they would read different rows
     ),
     # PyMySQL formats the statement with `%`, so a literal `%` must be `%%`.
     "percent left undoubled for PyMySQL": Mutant(

@@ -160,6 +160,9 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
     assert [c.id for c in listed] == [acme, twin]
     assert [c.id for c in await query.list_customers_by_ids(ids=[bare])] == [bare]
     assert await query.list_customers_by_ids(ids=[]) == []
+    # Of none, `NOT IN` keeps every row, where `NOT IN (NULL)` would keep none.
+    assert [c.id for c in await query.list_customers_except(ids=[])] == [acme, bare, twin]
+    assert [c.id for c in await query.list_customers_except(ids=[acme])] == [bare, twin]
 
     attachment = bytes(range(256))
     pay_within = -dt.timedelta(hours=1, minutes=2, seconds=3)

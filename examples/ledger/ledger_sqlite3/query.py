@@ -149,6 +149,40 @@ def stream_list_accounts_by_ids(
         yield (models.Account.from_row(row) for row in cur)
 
 
+_LIST_ACCOUNTS_EXCEPT: Final = "SELECT id, name, archived, opened_on, settings FROM accounts WHERE id NOT IN (/*SLICE:ids*/?) ORDER BY id"
+
+
+def list_accounts_except(
+    connection: sqlite3.Connection, *, ids: list[int]
+) -> list[models.Account]:
+    """Every account but those among the ids, so every account for none."""
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(
+            _LIST_ACCOUNTS_EXCEPT.replace(
+                "/*SLICE:ids*/?", ", ".join(["?"] * len(ids)) or "SELECT NULL WHERE 0"
+            ),
+            (*ids,),
+        )
+        return [models.Account.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_accounts_except(
+    connection: sqlite3.Connection, *, ids: list[int]
+) -> Generator[Iterator[models.Account], None, None]:
+    """Every account but those among the ids, so every account for none."""
+    with contextlib.closing(connection.cursor()) as cur:
+        cur.row_factory = None
+        cur.execute(
+            _LIST_ACCOUNTS_EXCEPT.replace(
+                "/*SLICE:ids*/?", ", ".join(["?"] * len(ids)) or "SELECT NULL WHERE 0"
+            ),
+            (*ids,),
+        )
+        yield (models.Account.from_row(row) for row in cur)
+
+
 _BOOK: Final = """INSERT INTO entries (account_id, amount_cents, rate, memo, receipt)
 VALUES (?, ?, ?, ?, ?)"""
 

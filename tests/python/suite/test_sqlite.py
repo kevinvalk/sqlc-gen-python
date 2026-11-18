@@ -87,6 +87,9 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
     # A slice: several ids, and none.
     assert await query.list_accounts_by_ids(ids=[cash.id + 1, cash.id]) == [archived]
     assert await query.list_accounts_by_ids(ids=[]) == []
+    # Of none, `NOT IN` keeps every row, where `NOT IN (NULL)` would keep none.
+    assert await query.list_accounts_except(ids=[]) == [archived]
+    assert await query.list_accounts_except(ids=[cash.id]) == []
 
     receipt = bytes(range(256))
     assert (

@@ -124,6 +124,30 @@ async def stream_list_customers_by_ids(
         yield (models.Customer.from_row(row) async for row in result)
 
 
+_LIST_CUSTOMERS_EXCEPT: Final = sqlalchemy.text(
+    "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE id NOT IN :ids ORDER BY id"
+).bindparams(sqlalchemy.bindparam("ids", expanding=True))
+
+
+async def list_customers_except(
+    connection: AsyncConnection, *, ids: list[int]
+) -> list[models.Customer]:
+    """Every customer but those among the ids, so every customer for none."""
+    return [
+        models.Customer.from_row(row)
+        for row in await connection.execute(_LIST_CUSTOMERS_EXCEPT, {"ids": ids})
+    ]
+
+
+@contextlib.asynccontextmanager
+async def stream_list_customers_except(
+    connection: AsyncConnection, *, ids: list[int]
+) -> AsyncGenerator[AsyncIterator[models.Customer], None]:
+    """Every customer but those among the ids, so every customer for none."""
+    async with connection.stream(_LIST_CUSTOMERS_EXCEPT, {"ids": ids}) as result:
+        yield (models.Customer.from_row(row) async for row in result)
+
+
 _CREATE_INVOICE: Final = sqlalchemy.text("""INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (:customer_id, :number, :issued_on, :notes, :attachment, :pay_within)""")
 

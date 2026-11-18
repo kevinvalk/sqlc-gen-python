@@ -17,6 +17,10 @@ ORDER BY name;
 -- name: ListCustomersByIds :many
 SELECT * FROM customers WHERE id IN (sqlc.slice(ids)) ORDER BY id;
 
+-- name: ListCustomersExcept :many
+-- Every customer but those among the ids, so every customer for none.
+SELECT * FROM customers WHERE id NOT IN (sqlc.slice(ids)) ORDER BY id;
+
 -- name: CreateInvoice :execlastid
 INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (?, ?, ?, ?, ?, ?);

@@ -20,6 +20,10 @@ SELECT * FROM accounts ORDER BY name;
 -- name: ListAccountsByIds :many
 SELECT * FROM accounts WHERE id IN (sqlc.slice(ids)) ORDER BY id;
 
+-- name: ListAccountsExcept :many
+-- Every account but those among the ids, so every account for none.
+SELECT * FROM accounts WHERE id NOT IN (sqlc.slice(ids)) ORDER BY id;
+
 -- name: Book :exec
 INSERT INTO entries (account_id, amount_cents, rate, memo, receipt)
 VALUES (?, ?, ?, ?, ?);

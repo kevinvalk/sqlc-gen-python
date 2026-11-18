@@ -148,6 +148,40 @@ async def stream_list_customers_by_ids(
         yield (models.Customer.from_row(row) async for row in _typed(cur))
 
 
+_LIST_CUSTOMERS_EXCEPT: Final = "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE id NOT IN (/*SLICE:ids*/%s) ORDER BY id"
+
+
+async def list_customers_except(
+    connection: asyncmy.Connection, *, ids: list[int]
+) -> list[models.Customer]:
+    """Every customer but those among the ids, so every customer for none."""
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
+        await _typed(cur).execute(
+            _LIST_CUSTOMERS_EXCEPT.replace(
+                "/*SLICE:ids*/%s",
+                ", ".join(["%s"] * len(ids)) or "SELECT NULL FROM DUAL WHERE FALSE",
+            ),
+            (*ids,),
+        )
+        return [models.Customer.from_row(row) for row in await cur.fetchall()]
+
+
+@contextlib.asynccontextmanager
+async def stream_list_customers_except(
+    connection: asyncmy.Connection, *, ids: list[int]
+) -> AsyncGenerator[AsyncIterator[models.Customer], None]:
+    """Every customer but those among the ids, so every customer for none."""
+    async with connection.cursor(asyncmy.cursors.SSCursor) as cur:
+        await _typed(cur).execute(
+            _LIST_CUSTOMERS_EXCEPT.replace(
+                "/*SLICE:ids*/%s",
+                ", ".join(["%s"] * len(ids)) or "SELECT NULL FROM DUAL WHERE FALSE",
+            ),
+            (*ids,),
+        )
+        yield (models.Customer.from_row(row) async for row in _typed(cur))
+
+
 _CREATE_INVOICE: Final = """INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (%s, %s, %s, %s, %s, %s)"""
 

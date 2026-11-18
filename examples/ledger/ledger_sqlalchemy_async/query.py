@@ -112,6 +112,30 @@ async def stream_list_accounts_by_ids(
         yield (models.Account.from_row(row) async for row in result)
 
 
+_LIST_ACCOUNTS_EXCEPT: Final = sqlalchemy.text(
+    "SELECT id, name, archived, opened_on, settings FROM accounts WHERE id NOT IN :ids ORDER BY id"
+).bindparams(sqlalchemy.bindparam("ids", expanding=True))
+
+
+async def list_accounts_except(
+    connection: AsyncConnection, *, ids: list[int]
+) -> list[models.Account]:
+    """Every account but those among the ids, so every account for none."""
+    return [
+        models.Account.from_row(row)
+        for row in await connection.execute(_LIST_ACCOUNTS_EXCEPT, {"ids": ids})
+    ]
+
+
+@contextlib.asynccontextmanager
+async def stream_list_accounts_except(
+    connection: AsyncConnection, *, ids: list[int]
+) -> AsyncGenerator[AsyncIterator[models.Account], None]:
+    """Every account but those among the ids, so every account for none."""
+    async with connection.stream(_LIST_ACCOUNTS_EXCEPT, {"ids": ids}) as result:
+        yield (models.Account.from_row(row) async for row in result)
+
+
 _BOOK: Final = sqlalchemy.text("""INSERT INTO entries (account_id, amount_cents, rate, memo, receipt)
 VALUES (:account_id, :amount_cents, :rate, :memo, :receipt)""")
 
