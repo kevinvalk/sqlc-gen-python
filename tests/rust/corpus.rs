@@ -4,14 +4,11 @@
 //! any correct output holds:
 //!
 //! - generating never panics, and generating twice gives the same result;
-//! - the files are exactly `models.py` and one module per query file, so each is inside the output directory, and
-//!   each valid UTF-8;
-//! - every module parses, and ruff's formatter leaves it unchanged;
+//! - the files are exactly `models.py` and one module per query file, so each is inside the output directory;
 //! - its only comments are the header it opens with, which silences no tool;
 //! - every name a module binds is unique in its scope and public, except for the prelude a query module holds where
 //!   its library's stubs need one, to the letter and nowhere else: PyMySQL's connection under a private name, and
 //!   asyncmy's untyped methods as a private protocol that annotates with `Any`;
-//! - every name a module reads on import is bound by then;
 //! - no annotation mentions `Any`, except a driver row's, a psycopg connection's and `:execresult`'s;
 //! - every class but an enum and an error is a record of the one kind the options ask for: a frozen, slotted,
 //!   keyword-only dataclass, or a frozen pydantic model that forbids extra fields; and only a nullable field of a
@@ -32,6 +29,7 @@
 //! - every docstring is the comment of what it documents, and every comment (a table's, column's, enum's or
 //!   query's) is a docstring.
 //!
+//! That each formats, type-checks and imports is the static gate's, which reads these outputs too (`GEN_DIR`).
 //! [`support::check_output`] checks all but the first, which is checked here, and `invariants.rs` plants a bug for
 //! each of them.
 //!

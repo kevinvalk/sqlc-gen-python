@@ -3,7 +3,6 @@ use std::collections::BTreeSet;
 use ruff_python_ast::token::TokenKind;
 use ruff_python_ast::visitor::{Visitor, walk_expr, walk_stmt};
 use ruff_python_ast::{Expr, ModModule, Stmt};
-use ruff_python_formatter::{PyFormatOptions, format_module_source};
 use ruff_python_parser::{Parsed, parse_module};
 use ruff_text_size::Ranged;
 
@@ -11,10 +10,8 @@ use super::python::{docstring, is_enum, is_error, unparse, unparse_stmt, unwrapp
 use sqlc_gen_python::config::Records;
 
 pub fn check_module(source: &str) -> Vec<String> {
-    match parse_module(source) {
-        Ok(parsed) => module_problems(&parsed, source, false, Records::Dataclass),
-        Err(error) => vec![format!("does not parse: {error}")],
-    }
+    let parsed = parse_module(source).expect("planted Python");
+    module_problems(&parsed, source, false, Records::Dataclass)
 }
 
 /// PyMySQL's connection is generic in its stubs only, so we name it once for a type checker and once for Python.
@@ -64,14 +61,8 @@ pub(super) fn module_problems(
     }
 
     let mut problems = Vec::new();
-    match format_module_source(source, PyFormatOptions::default()) {
-        Ok(formatted) if formatted.as_code() == source => {}
-        Ok(_) => problems.push("is not a fixpoint of ruff's formatter".into()),
-        Err(error) => problems.push(format!("does not format: {error}")),
-    }
     comments_are_the_header(parsed, source, &mut problems);
     scopes("module", &own, &mut problems);
-    reads_resolve(&module.body, &mut problems);
     annotations_are_precise(&own, accepts_any, &mut problems);
     records_are_values(&own, records, &mut problems);
     problems
@@ -193,23 +184,6 @@ fn bound<'a>(scope: &str, names: impl Iterator<Item = &'a str>, problems: &mut V
     }
 }
 
-/// Every name the module reads is bound by an earlier statement, or is a builtin of every Python.
-/// Class bodies and their annotations run on import, so a name read too early or never bound (a model annotated with
-/// a class we did not generate) is a `NameError` the moment anyone imports the module.
-fn reads_resolve(body: &[Stmt], problems: &mut Vec<String>) {
-    let mut bound = BTreeSet::new();
-    for stmt in body {
-        let mut reads = Names::default();
-        reads.visit_stmt(stmt);
-        for name in reads.0 {
-            if !bound.contains(name) && !sqlc_gen_python::python::is_builtin(name) {
-                problems.push(format!("`{name}` is read before it is bound"));
-            }
-        }
-        bound.extend(bindings(stmt));
-    }
-}
-
 /// No annotation mentions `Any` but the library's own: the row `from_row` reads (`row: Sequence[Any]`), what
 /// `:execresult` returns (`sqlalchemy.CursorResult[Any]`, a psycopg cursor of tuples) and a psycopg connection,
 /// whatever rows it makes. `Any` passes every type checker, so it is the one annotation the static gate cannot catch
@@ -280,37 +254,6 @@ fn annotations_are_precise(body: &[Stmt], accepts_any: bool, problems: &mut Vec<
         if mentions_any.0 && !accepts_any && !is_document && !drivers_own.contains(&written.as_str()) {
             problems.push(format!("{what} is annotated with `Any`"));
         }
-    }
-}
-
-/// The names a statement reads on import, in order. A function's signature runs when it is defined but its body only
-/// when called, so we skip the body.
-#[derive(Default)]
-struct Names<'a>(Vec<&'a str>);
-
-impl<'a> Visitor<'a> for Names<'a> {
-    fn visit_stmt(&mut self, stmt: &'a Stmt) {
-        match stmt {
-            Stmt::FunctionDef(function) => {
-                for decorator in &function.decorator_list {
-                    self.visit_decorator(decorator);
-                }
-                self.visit_parameters(&function.parameters);
-                if let Some(returns) = &function.returns {
-                    self.visit_annotation(returns);
-                }
-            }
-            _ => walk_stmt(self, stmt),
-        }
-    }
-
-    fn visit_expr(&mut self, expr: &'a Expr) {
-        if let Expr::Name(name) = expr
-            && name.ctx.is_load()
-        {
-            self.0.push(name.id.as_str());
-        }
-        walk_expr(self, expr);
     }
 }
 

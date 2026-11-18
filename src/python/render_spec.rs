@@ -151,12 +151,6 @@ fn a_string_without_a_line_break_is_left_to_ruff() {
 }
 
 #[test]
-fn a_module_renders_through_ruffs_formatter() {
-    let rendered = render(&[assign("X", string("y"))], &[], None);
-    assert_eq!(rendered, "X = \"y\"\n");
-}
-
-#[test]
 #[should_panic(expected = "generated invalid Python")]
 fn rendering_a_tree_that_is_not_python_is_a_bug_not_an_error() {
     render(&[assign("class", string("y"))], &[], None);

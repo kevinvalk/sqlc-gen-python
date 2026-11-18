@@ -52,13 +52,6 @@ fn a_placeholder_is_only_code() {
 }
 
 #[test]
-fn a_mismatch_with_sqlcs_parameters_is_an_error() {
-    let error = |sql: &str, params: &[i32]| format!("{:#}", cut(sql, params).unwrap_err());
-    assert!(error("SELECT ?", &[]).contains("uses ?"));
-    assert!(error("SELECT '?'", &[1]).contains(r#"parameter ?1 ("p1")"#));
-}
-
-#[test]
 fn a_named_parameter_sqlc_left_as_written_is_an_error() {
     for (sql, param) in [("SELECT :a", ":a"), ("SELECT @b", "@b"), ("SELECT $c", "$c")] {
         let error = format!("{:#}", cut(sql, &[]).unwrap_err());

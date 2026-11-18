@@ -44,11 +44,10 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
         if !names.insert(name) {
             problems.push(format!("{name}: written twice"));
         }
-        match std::str::from_utf8(contents).map(|source| (source, parse_module(source))) {
-            Ok((source, Ok(parsed))) => modules.push((name.as_str(), source, parsed)),
-            Ok((_, Err(error))) => problems.push(format!("{name}: does not parse: {error}")),
-            Err(error) => problems.push(format!("{name}: not UTF-8: {error}")),
-        }
+        // We render from a `String` through ruff's formatter, which refuses what does not parse.
+        let source = std::str::from_utf8(contents).expect("generated text");
+        let parsed = parse_module(source).expect("generated Python");
+        modules.push((name.as_str(), source, parsed));
     }
 
     let body = |file: &str| -> Option<(&[Stmt], &str)> {

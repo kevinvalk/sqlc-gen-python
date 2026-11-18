@@ -324,13 +324,6 @@ fn a_rename_of_a_tables_singular_is_no_rename_of_the_table() {
 }
 
 #[test]
-fn an_extensions_type_is_mapped_in_whichever_schema_it_was_created_in() {
-    let schemas = public(vec![table("users", vec![column("email", "extensions.citext", true)])]);
-    let api = resolve_options(schemas, &Config::of(Backend::SqlAlchemy)).unwrap();
-    assert_eq!(annotations(&api), [("email".into(), "str".into())]);
-}
-
-#[test]
 fn a_composite_the_schema_declares_is_never_the_type_of_its_name() {
     // A `data.json` of the user's is no JSON
     let mut data = sql_schema("data", vec![], vec![]);

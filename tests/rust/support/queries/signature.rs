@@ -57,9 +57,11 @@ pub(super) fn function_follows_sqlc(
         };
         let column = parameter.column.clone().unwrap_or_default();
 
-        // A slice is a list of its column's type, and a parameter used twice is optional if either use is.
-        let optional = (query.params.iter().zip(&uses))
-            .any(|(other, &f)| f == first && !other.column.as_ref().is_some_and(|c| c.not_null));
+        // A slice is a list of its column's type and never NULL, as each of its items is bound, and a parameter used
+        // twice is optional if either use is.
+        let optional = !column.is_sqlc_slice
+            && (query.params.iter().zip(&uses))
+                .any(|(other, &f)| f == first && !other.column.as_ref().is_some_and(|c| c.not_null));
         let expected = Shape {
             optional,
             depth: column.array_dims as usize + usize::from(column.is_sqlc_slice),

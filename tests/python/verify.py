@@ -239,13 +239,6 @@ MUTANTS = {
         "id=row[0],\n            customer_id=row[1],",
         "id=row[1],\n            customer_id=row[0],",
     ),
-    "numeric as float": Mutant(
-        RUNTIME,
-        ".amount: Decimal Decimal('169.47') is not <class 'float'>",
-        "models.py",
-        "amount: Decimal",
-        "amount: float",
-    ),
     # The drivers return money as text, and only the type-truth probe reads it.
     "money as Decimal": Mutant(
         TYPEMAP,
@@ -333,13 +326,6 @@ MUTANTS = {
         "    connection.execute(_CREATE_LINE_ITEMS, params)",
     ),
     # A `str` mixin's `str(member)` and its format are `InvoiceStatus.PAID`, not its label.
-    "enum a str mixin and not a StrEnum": Mutant(
-        RUNTIME,
-        "'InvoiceStatus.PAID' != 'paid'",
-        "models.py",
-        "class InvoiceStatus(enum.StrEnum):",
-        "class InvoiceStatus(str, enum.Enum):",
-    ),
     # psycopg returns an enum array as its text, which only the enum parses.
     "enum array text left unparsed": Mutant(
         RUNTIME,

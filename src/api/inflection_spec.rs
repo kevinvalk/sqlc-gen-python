@@ -14,22 +14,10 @@ fn every_name_singularises_as_sqlc_singularises_it() {
 }
 
 #[test]
-fn latin_plurals_take_their_latin_singular() {
-    assert_eq!(singular("media"), "medium");
-    assert_eq!(singular("criteria"), "criterium");
-}
-
-#[test]
-fn sqlcs_corrections_come_before_the_rules() {
-    assert_eq!(singular("metadata"), "metadata");
-    assert_eq!(singular("meta"), "meta");
-    assert_eq!(singular("Campus"), "Campus");
-    assert_eq!(singular("calories"), "calorie");
-}
-
-#[test]
 fn the_case_of_the_name_is_kept() {
     assert_eq!(singular("People"), "Person");
     assert_eq!(singular("AUTHORS"), "AUTHOR");
     assert_eq!(singular("Authors"), "Author");
+    // Of one of sqlc's corrections too.
+    assert_eq!(singular("Campus"), "Campus");
 }

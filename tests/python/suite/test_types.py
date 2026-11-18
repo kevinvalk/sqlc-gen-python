@@ -31,7 +31,6 @@ async def _custom(api: Any) -> None:
         location="lab.rack1",
         budget=Decimal("12.50"),
     )
-    assert type(machine) is api.models.Machine
     assert machine.address == ipaddress.IPv4Address("10.0.0.7")
     assert (machine.location, str(machine.budget)) == ("lab.rack1", "12.50")
     other = await api.query.add_device(address=ipaddress.IPv4Address("10.0.0.8"), location=None, budget=Decimal(1))

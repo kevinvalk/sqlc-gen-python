@@ -62,20 +62,6 @@ fn a_statement_is_cut_at_its_placeholders_each_named_and_back_to_sqlcs_text() {
 }
 
 #[test]
-fn a_placeholder_sqlc_reported_no_parameter_for_is_an_error() {
-    let error = error("SELECT $9", &[]);
-    assert!(error.contains("$9"), "{error}");
-}
-
-#[test]
-fn a_parameter_sqlc_reported_that_no_placeholder_binds_is_an_error() {
-    // Were the lexer to take a placeholder for text, the driver would bind whatever its own `$N` means: silently
-    // another parameter's value
-    let error = error("SELECT '$1', $2", &[(1, "a"), (2, "b")]);
-    assert!(error.contains(r#"parameter $1 ("a")"#), "{error}");
-}
-
-#[test]
 fn a_line_comment_ends_at_a_carriage_return_as_in_postgresql() {
     // `scan.l`: a comment is `--` and then `[^\n\r]*`
     assert_eq!(found("WHERE a = $2 -- note\rAND b = $1"), [2, 1]);

@@ -106,7 +106,7 @@ Each layer catches what the one before cannot see. `cargo xtask help` lists the 
 - **`cargo test`** pins every golden case byte for byte, and holds every golden and corpus output to the invariants no type checker or runtime can see (`tests/rust/corpus.rs`, each with a planted bug in `tests/rust/invariants.rs`): a NOT NULL column annotated `X | None`, two parameters bound to each other's names, a `# type: ignore`.
 - **`cargo xtask check`** runs every distinct output through the static gate (`tests/python/gate.py`): ruff with every rule, pyright strict and mypy strict, as `tests/python/pyproject.toml` sets them. And the scanner proof (`tests/python/scanner.py`) holds the `text()` rewriting to libpg_query, the scanner sqlc parses with, on a few thousand statements Hypothesis draws from what PostgreSQL scans specially.
 - **`cargo xtask verify`** (`tests/python/verify.py`) runs the generated code:
-  - the gate over `tests/python/suite/usage.py`, which pins the types application code sees and the mistakes that must stay type errors;
+  - the gate over `tests/python/suite/usage.py`, which pins the types application code sees and the wrong values that must stay type errors;
   - pytest (`tests/python/suite/`): a scenario through every function of every backend, sync and async, on PostgreSQL, MySQL and SQLite, every value held to its annotation;
   - the type probe (`tests/python/typemap.py`): every mapped type at its edges through every driver, written to `docs/typemap.md`;
   - the runtime sweep (`tests/python/autoprop.py`): every PostgreSQL function of the golden cases and the corpus called with drawn arguments, each result compared with sqlc's own SQL run directly. What sqlc misreports is in `tests/python/known-failures.tsv`;

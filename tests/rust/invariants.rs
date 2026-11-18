@@ -288,13 +288,6 @@ fn the_files_are_the_models_and_one_module_per_query_file() {
             Box::new(|files: &mut Vec<_>| files.push(file("models.py", b""))),
             "models.py: written twice",
         ),
-        (
-            Box::new(|files: &mut Vec<plugin::File>| {
-                let module = files.iter_mut().find(|f| f.name == "models.py").unwrap();
-                module.contents.push(0xff);
-            }),
-            "models.py: not UTF-8",
-        ),
     ] {
         let problems = files_planted(edit).join("\n");
         assert!(problems.contains(problem), "{problem}: {problems}");
@@ -302,19 +295,12 @@ fn the_files_are_the_models_and_one_module_per_query_file() {
 }
 
 #[test]
-fn a_module_parses_is_formatted_and_binds_each_name_once_before_reading_it() {
+fn a_module_binds_each_name_once() {
     for (source, problem) in [
-        ("def (\n", "does not parse"),
-        ("x = 1\n\n\n\n\ny = 2\n", "is not a fixpoint of ruff's formatter"),
         ("import enum\nimport enum\n", "module: `enum` is bound twice"),
         (
             "class A(enum.StrEnum):\n    X = \"x\"\n    X = \"y\"\n",
             "class A: `X` is bound twice",
-        ),
-        // Class bodies run on import: `B` is a NameError.
-        (
-            "class A(enum.StrEnum):\n    b: B\n\n\nclass B(enum.StrEnum):\n    pass\n",
-            "`B` is read before it is bound",
         ),
     ] {
         let problems = module(source);

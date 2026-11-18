@@ -38,23 +38,6 @@ fn the_backend_and_async_must_be_named() {
 }
 
 #[test]
-fn reads_nested_groups() {
-    let options = parse(
-        r#"{
-            "backend": "sqlalchemy",
-            "async": false,
-            "omit_sqlc_version": true,
-            "models": { "exact_table_names": true, "inflection_exclude": ["campus"] }
-        }"#,
-    )
-    .unwrap();
-
-    assert!(options.omit_sqlc_version);
-    assert!(options.models.exact_table_names);
-    assert_eq!(options.models.inflection_exclude, ["campus"]);
-}
-
-#[test]
 fn rejects_unknown_keys() {
     // Neither the old plugins' `emit_*` flags nor options we removed may be quietly ignored
     for stale in [

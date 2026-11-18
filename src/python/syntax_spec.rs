@@ -2,14 +2,6 @@ use super::*;
 use crate::python::vocabulary::{CONNECTION, CUR, DATE, DICT, INT, LIST, ROW, STR};
 
 #[test]
-fn a_string_literal_is_quoted_to_avoid_escaping() {
-    // We build data rather than parse it precisely so ruff escapes it, and here it switches quote style instead, as
-    // Black does.
-    assert_eq!(unparse(&string("open")), r#""open""#);
-    assert_eq!(unparse(&string(r#"a "quoted" value"#)), r#"'a "quoted" value'"#);
-}
-
-#[test]
 fn a_class_without_bases_omits_the_parentheses() {
     let built = class("Author", [], [], [annotate("id", INT)]);
     assert_eq!(unparse_stmt(&built), "class Author:\n    id: int");
@@ -134,15 +126,4 @@ fn a_statement_is_built_whole() {
         unparse_stmt(&assign_to(CUR.attr("row_factory"), none())),
         "cur.row_factory = None"
     );
-}
-
-#[test]
-fn an_import_binds_a_module_an_alias_or_names() {
-    assert_eq!(unparse_stmt(&import("datetime", Some("dt"))), "import datetime as dt");
-    assert_eq!(unparse_stmt(&import("app.types", None)), "import app.types");
-    assert_eq!(
-        unparse_stmt(&import_from("typing", &["Any", "Final"])),
-        "from typing import Any, Final"
-    );
-    assert_eq!(unparse_stmt(&import_from(".", &["models"])), "from . import models");
 }

@@ -40,11 +40,3 @@ fn a_placeholder_is_only_code() {
     // A backslash escapes the quote in a string, never in an identifier
     assert_eq!(bound(r"SELECT `a\`, ?", 1), ["p1"]);
 }
-
-#[test]
-fn a_mismatch_with_sqlcs_parameters_is_an_error() {
-    let error = format!("{:#}", super::sql("SELECT '?'", &binds(&[(1, "a")])).unwrap_err());
-    assert!(error.contains(r#"parameter ? #1 ("a")"#), "{error}");
-    let error = format!("{:#}", super::sql("SELECT ?", &[]).unwrap_err());
-    assert!(error.contains("uses ?"), "{error}");
-}

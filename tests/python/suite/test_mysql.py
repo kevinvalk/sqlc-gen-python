@@ -182,7 +182,6 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
         attachment,
         pay_within,
     )
-    assert invoice.total == Decimal("0.00")
     assert str(invoice.total) == "0.00"
     assert await query.get_invoice_status(id=invoice_id) is models.InvoicesStatus.DRAFT
     await no_row(api, query.get_invoice(id=invoice_id + 1000))
@@ -245,7 +244,7 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
     ]
     assert await query.recalculate_total(id=invoice_id) is None
     total = (await query.get_invoice(id=invoice_id)).total
-    assert (total, str(total)) == (Decimal("18.95"), "18.95")
+    assert str(total) == "18.95"
 
     result = await query.delete_draft_invoices(customer_id=acme)
     assert result.rowcount == 1

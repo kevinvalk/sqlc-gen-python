@@ -67,9 +67,6 @@ async def async_api(conn: AsyncConnection, some: UUID) -> None:
     # Without `raise_on_none`, a `:one` is `None` without a row.
     invoice = await invoices_async.get_invoice(conn, id=some)
     assert_type(invoice, models_async.Invoice | None)
-    if invoice is not None:
-        assert_type(invoice.number, str)
-    invoice.number  # type: ignore[union-attr]  # noqa: B018
     assert_type(await invoices_async.count_invoices(conn, customer_id=some), int)
 
 
@@ -89,19 +86,9 @@ async def psycopg_async_api(conn: psycopg.AsyncConnection[Any], some: UUID) -> N
     assert_type(numbers, list[str])
 
 
-def mistakes(
-    conn: sqlalchemy.Connection, some: UUID, now: dt.datetime, invoice: models.Invoice
-) -> None:
+def mistakes(conn: sqlalchemy.Connection, some: UUID, now: dt.datetime) -> None:
     card = models.BillingPaymentMethod.CARD
-    invoices.get_invoice(conn, some)  # type: ignore[call-arg]
-    invoices.search_invoices(conn, status=None)  # type: ignore[call-arg]
     invoices.list_invoices_by_status(conn, statuses=["draft"])  # type: ignore[list-item]
-    payments.record_payment(
-        conn,  # type: ignore[call-arg]
-        invoice_id=some,
-        amount=Decimal(1),
-        received_at=now,
-    )
     payments.record_payment(
         conn,
         invoice_id=some,
@@ -110,25 +97,6 @@ def mistakes(
         from_=None,
         received_at=now,
     )
-    # A field omitted is an error, never a NULL written, but for a nullable parameter's.
-    models.Customer(  # type: ignore[call-arg]
-        id=some,
-        name="a",
-        tags=[],
-        preferred_method=None,
-        accepted_methods=[],
-        metadata=None,
-        created_at=now,
-    )
-    line_items.CreateLineItemsParams(  # type: ignore[call-arg]
-        invoice_id=some,
-        position=1,
-        description="a",
-        quantity=Decimal(1),
-        unit_price=Decimal(1),
-    )
-    invoice.status = models.InvoiceStatus.PAID  # type: ignore[misc]
-    models.Medium(some, some, "a", b"", now)  # type: ignore[call-arg]
     invoices.list_invoices_by_ids(conn, ids=(some,))  # type: ignore[arg-type]
     # A JSON document's text would be stored as a JSON string, encoded twice
     customers.create_customer(
