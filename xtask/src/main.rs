@@ -174,9 +174,7 @@ fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<
             .display()
             .to_string();
 
-        // NOTE: tests/rust/golden.rs exports each case as `cases__<name>`, keep the prefix in sync with it.
-        mirror_generated(&generated.0.join(format!("cases__{name}")), &directory)
-            .map_err(|error| format!("writing {shown}: {error}"))?;
+        mirror_generated(&generated.0.join(name), &directory).map_err(|error| format!("writing {shown}: {error}"))?;
         println!("  {shown}");
     }
     if ledger_changed {

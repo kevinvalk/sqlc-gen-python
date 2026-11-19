@@ -8,10 +8,9 @@ from typing import Any, Final
 from uuid import UUID
 
 import psycopg
+from invoicing_models import models
 from psycopg.rows import tuple_row
 from psycopg.types.json import Jsonb
-
-from . import models
 
 _CREATE_CUSTOMER: Final = """INSERT INTO customers (name, email, tags, preferred_method, accepted_methods, metadata)
 VALUES ($1, $2, $3, $4, $5, $6)

@@ -26,7 +26,7 @@ import mysql
 import postgres
 import typemap
 import typemap_postgres
-from examples import ROOT
+from examples import ROOT, golden_cases
 from gate import PYTHONS, Environment, sync
 from typemap_probe import release
 
@@ -57,8 +57,8 @@ PYTHON_FLAGS = ("-B", "-E", "-s")
 
 def golden(generated: Path, root: Path) -> Path:
     """Lay the generated golden cases out as ``root/<case>/``, with the options of their examples' ``sqlc.yaml``."""
-    for package in sorted(generated.glob("cases__*/")):
-        shutil.copytree(package, root / package.name.removeprefix("cases__"))
+    for case in golden_cases():
+        shutil.copytree(generated / case.name, root / case.name)
     return root
 
 
@@ -325,7 +325,6 @@ MUTANTS = {
         "    if params:\n        connection.execute(_CREATE_LINE_ITEMS, params)",
         "    connection.execute(_CREATE_LINE_ITEMS, params)",
     ),
-    # A `str` mixin's `str(member)` and its format are `InvoiceStatus.PAID`, not its label.
     # psycopg returns an enum array as its text, which only the enum parses.
     "enum array text left unparsed": Mutant(
         RUNTIME,
@@ -333,7 +332,7 @@ MUTANTS = {
         "models.py",
         "accepted_methods=BillingPaymentMethod.from_array(row[5])",
         "accepted_methods=row[5]",
-        case="invoicing_psycopg",
+        case="invoicing_models",
     ),
     # An empty slice is a subquery of no rows, as `x NOT IN (NULL)` is NULL and keeps no row.
     "empty slice as NULL": Mutant(

@@ -10,9 +10,8 @@ from typing import Any, Final
 from uuid import UUID
 
 import psycopg
+from invoicing_models import models
 from psycopg.rows import tuple_row
-
-from . import models
 
 _CREATE_INVOICE: Final = """INSERT INTO invoices (customer_id, number, currency, issued_on, due_on, notes)
 VALUES ($1, $2, $3, $4, $5, $6)

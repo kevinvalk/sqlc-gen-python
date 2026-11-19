@@ -10,18 +10,30 @@ sql:
     schema: schema.sql
     queries: query
     codegen:
+      # The psycopg packages, sync and async, share one set of models, so a row of either is the same class.
+      - out: invoicing_models
+        plugin: python
+        options:
+          backend: psycopg
+          async: false
+          models:
+            only: true
       - out: invoicing_psycopg
         plugin: python
         options:
           backend: psycopg
           async: false
           raise_on_none: true
+          models:
+            module: invoicing_models.models
       - out: invoicing_psycopg_async
         plugin: python
         options:
           backend: psycopg
           async: true
           max_params: 3
+          models:
+            module: invoicing_models.models
       - out: invoicing_sqlalchemy
         plugin: python
         options:

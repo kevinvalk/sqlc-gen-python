@@ -24,10 +24,13 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
     let config = Config::from_request(request).ok();
     let request = &renamed(request, config.as_ref());
     let mut problems = Vec::new();
-    let stems: BTreeSet<String> = (request.queries.iter()).map(|query| stem(&query.filename)).collect();
-    let expected: BTreeSet<String> = ["models.py"]
-        .map(String::from)
-        .into_iter()
+    let models_module = config.as_ref().and_then(|config| config.models.module.as_deref());
+    let models_only = config.as_ref().is_some_and(|config| config.models.only);
+    let stems: BTreeSet<String> = match models_only {
+        true => BTreeSet::new(),
+        false => (request.queries.iter()).map(|query| stem(&query.filename)).collect(),
+    };
+    let expected: BTreeSet<String> = (models_module.is_none().then(|| "models.py".to_string()).into_iter())
         .chain(stems.iter().map(|stem| format!("{stem}.py")))
         .collect();
     // Exactly these names, so none can reach outside `out` either, which sqlc refuses
@@ -55,7 +58,13 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
             .find(|(name, ..)| *name == file)
             .map(|(_, source, parsed)| (&parsed.syntax().body[..], *source))
     };
-    let models = body("models.py").map_or(&[][..], |(models, _)| models);
+    // Query modules that read another entry's models are held to those it writes of the same request, and that entry
+    // holds them to the catalog.
+    let shared = models_module.map(|_| parse_module(&shared_models(request)).expect("generated Python"));
+    let models = match &shared {
+        Some(shared) => &shared.syntax().body[..],
+        None => body("models.py").map_or(&[][..], |(models, _)| models),
+    };
     // The annotation the user asked for every type we cannot verify is no imprecision of ours, and wherever such a type
     // is read or returned it stands in it (`list[Any]`, `Any | None`); the other profiles hold the same requests strictly
     let accepts_any = config
@@ -76,8 +85,25 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
             problems.extend(found.into_iter().map(|p| format!("{file}: {p}")));
         }
     }
-    models_follow_catalog((request, config.as_ref()), models, &mut problems);
+    if models_module.is_none() {
+        models_follow_catalog((request, config.as_ref()), models, &mut problems);
+    }
     problems
+}
+
+/// The `models.py` an entry of `models.only` writes for the same request and options.
+fn shared_models(request: &plugin::GenerateRequest) -> String {
+    let mut options: serde_json::Value = serde_json::from_slice(&request.plugin_options).unwrap();
+    let models = options["models"].as_object_mut().unwrap();
+    models.remove("module");
+    models.insert("only".into(), true.into());
+    let request = plugin::GenerateRequest {
+        plugin_options: serde_json::to_vec(&options).unwrap(),
+        ..request.clone()
+    };
+    let files = sqlc_gen_python::generate(&request).unwrap();
+    let models = files.into_iter().find(|file| file.name == "models.py").unwrap();
+    String::from_utf8(models.contents).unwrap()
 }
 
 /// We hold the naming checks to the names after the options' `rename`, so each renamed column and parameter takes its

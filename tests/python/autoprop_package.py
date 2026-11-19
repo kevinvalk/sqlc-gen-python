@@ -36,6 +36,7 @@ EXAMPLES = 100
 @dataclass(frozen=True)
 class Target:
     package: str
+    models: str
     request: Path
     schema: Path
     known: tuple[str, ...] = ()  # What the failures listed for it in `autoprop.KNOWN` say
@@ -105,8 +106,8 @@ class Sweep:
         self.conninfo = conninfo(url)
         # A generated package is a namespace package, whose `__path__` is no list
         stems = {path.stem for directory in package.__path__ for path in Path(directory).glob("*.py")}
-        modules = {stem: importlib.import_module(f"{package.__name__}.{stem}") for stem in sorted(stems)}
-        models = modules.pop("models", None)
+        modules = {stem: importlib.import_module(f"{package.__name__}.{stem}") for stem in sorted(stems - {"models"})}
+        models = importlib.import_module(target.models)
 
         def queries(stem: str) -> list[Json]:
             return [query for query in request["queries"] if module_of(query["filename"]) == stem]

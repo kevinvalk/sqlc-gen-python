@@ -30,9 +30,10 @@ sys.dont_write_bytecode = True  # We keep the golden cases free of __pycache__
 
 def cases(example: str = "invoicing") -> list[GoldenCase]:
     """The suite's scenarios are written for the invoicing, ledger, billing and custom examples, and the type-truth
-    probe reads the types examples. The other golden cases are only for the static gate and the runtime sweep.
+    probe reads the types examples. The other golden cases are only for the static gate and the runtime sweep, and a
+    case of models alone has no function to run.
     """
-    return [case for case in golden_cases() if case.example == example]
+    return [case for case in golden_cases() if case.example == example and not case.is_models_only]
 
 
 def module(case: GoldenCase, stem: str) -> ModuleType:
@@ -96,7 +97,7 @@ def queries(case: GoldenCase, connection: object, called: set[str]) -> Any:
             for name, function in public.items()
         }
         modules[stem] = SimpleNamespace(**{**vars(module(case, stem)), **bound})
-    api = SimpleNamespace(models=module(case, "models"), **modules)
+    api = SimpleNamespace(models=importlib.import_module(case.models), **modules)
 
     api.rollback = lambda: aw(typing.cast("Any", connection).rollback())
 

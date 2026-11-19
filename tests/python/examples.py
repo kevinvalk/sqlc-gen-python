@@ -42,6 +42,15 @@ class GoldenCase:
         return bool(self.options["async"])
 
     @property
+    def models(self) -> str:
+        """The module of the case's models: its own, or the one ``models.module`` names."""
+        return str(self.options.get("models", {}).get("module", f"{self.name}.models"))
+
+    @property
+    def is_models_only(self) -> bool:
+        return self.options.get("models", {}).get("only") is True
+
+    @property
     def schema_sql(self) -> Path:
         return EXAMPLES / self.example / "schema.sql"
 

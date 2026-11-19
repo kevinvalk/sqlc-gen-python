@@ -48,8 +48,8 @@ fn generate_case(case: &support::Case) -> Files {
     let problems = support::check_output(&request, &files);
     assert!(problems.is_empty(), "{directory:?}:\n  {}", problems.join("\n  "));
 
-    // NOTE: `cargo xtask bless` copies a case back from this package, so keep the `cases__` prefix in sync with it.
-    support::export(&format!("cases__{}", case.name), &files);
+    // A case is exported as the package it is, as another case's `models.module` may import it.
+    support::export(&case.name, &files);
 
     (files.into_iter())
         .map(|file| (file.name, String::from_utf8(file.contents).unwrap()))

@@ -9,9 +9,8 @@ from typing import Any, Final
 from uuid import UUID
 
 import psycopg
+from invoicing_models import models
 from psycopg.rows import tuple_row
-
-from . import models
 
 _CREATE_LINE_ITEMS: Final = 'COPY "line_items" ("invoice_id", "position", "description", "quantity", "unit_price", "vat_rate") FROM STDIN'
 

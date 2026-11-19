@@ -14,9 +14,9 @@ from uuid import UUID
 
 import psycopg
 import sqlalchemy
+from invoicing_models import models as psycopg_models
+from invoicing_models.models import NoRowError
 from invoicing_psycopg import invoices as psycopg_invoices
-from invoicing_psycopg import models as psycopg_models
-from invoicing_psycopg.models import NoRowError
 from invoicing_psycopg_async import invoices as psycopg_invoices_async
 from invoicing_sqlalchemy import customers, invoices, line_items, models, payments
 from invoicing_sqlalchemy_async import invoices as invoices_async
@@ -84,6 +84,9 @@ def psycopg_api(conn: psycopg.Connection[Any], some: UUID) -> None:
 async def psycopg_async_api(conn: psycopg.AsyncConnection[Any], some: UUID) -> None:
     numbers = await psycopg_invoices_async.list_invoice_numbers(conn, customer_id=some)
     assert_type(numbers, list[str])
+    # The models the sync package returns, as both read `invoicing_models`.
+    invoice = await psycopg_invoices_async.get_invoice(conn, id=some)
+    assert_type(invoice, psycopg_models.Invoice | None)
 
 
 def mistakes(conn: sqlalchemy.Connection, some: UUID, now: dt.datetime) -> None:

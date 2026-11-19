@@ -10,9 +10,8 @@ from typing import Any, Final
 from uuid import UUID
 
 import psycopg
+from invoicing_models import models
 from psycopg.rows import tuple_row
-
-from . import models
 
 _RECORD_PAYMENT: Final = """INSERT INTO billing.payments (invoice_id, method, amount, "from", received_at)
 VALUES ($1, $2, $3, $4, $5)
