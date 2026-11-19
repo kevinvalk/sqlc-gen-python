@@ -15,11 +15,6 @@ sql:
         options:
           backend: sqlalchemy
           async: false
-      - out: pgtypes_sqlalchemy_async
-        plugin: python
-        options:
-          backend: sqlalchemy
-          async: true
       - out: pgtypes_pydantic
         plugin: python
         options:

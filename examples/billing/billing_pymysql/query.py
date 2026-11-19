@@ -210,6 +210,42 @@ def stream_list_customers_except(
         yield (models.Customer.from_row(row) for row in cur)
 
 
+_LIST_CUSTOMERS_KNOWN_AS: Final = """SELECT id FROM customers
+WHERE vip = %s AND (name IN (/*SLICE:names*/%s) OR email IN (/*SLICE:names*/%s))
+ORDER BY id"""
+
+
+def list_customers_known_as(
+    connection: _Connection, *, vip: bool, names: list[str]
+) -> list[int]:
+    """The customers known by one of the names, as their name or their email: one slice, used twice after a parameter."""
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
+        cur.execute(
+            _LIST_CUSTOMERS_KNOWN_AS.replace(
+                "/*SLICE:names*/%s",
+                ", ".join(["%s"] * len(names)) or "SELECT NULL FROM DUAL WHERE FALSE",
+            ),
+            (vip, *names, *names),
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_customers_known_as(
+    connection: _Connection, *, vip: bool, names: list[str]
+) -> Generator[Iterator[int], None, None]:
+    """The customers known by one of the names, as their name or their email: one slice, used twice after a parameter."""
+    with connection.cursor(pymysql.cursors.SSCursor) as cur:
+        cur.execute(
+            _LIST_CUSTOMERS_KNOWN_AS.replace(
+                "/*SLICE:names*/%s",
+                ", ".join(["%s"] * len(names)) or "SELECT NULL FROM DUAL WHERE FALSE",
+            ),
+            (vip, *names, *names),
+        )
+        yield (row[0] for row in cur)
+
+
 _CREATE_INVOICE: Final = """INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (%s, %s, %s, %s, %s, %s)"""
 

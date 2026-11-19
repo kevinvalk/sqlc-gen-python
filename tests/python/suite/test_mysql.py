@@ -165,6 +165,11 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
     # Of none, `NOT IN` keeps every row, where `NOT IN (NULL)` would keep none.
     assert [c.id for c in await query.list_customers_except(ids=[])] == [acme, bare, twin]
     assert [c.id for c in await query.list_customers_except(ids=[acme])] == [bare, twin]
+    # One slice twice: each of its places gets every item, after the parameter before them.
+    assert await query.list_customers_known_as(vip=False, names=["x:test", "twin@example.com"]) == [bare, twin]
+    assert await query.list_customers_known_as(vip=False, names=[AWKWARD]) == [twin]
+    assert await query.list_customers_known_as(vip=True, names=[AWKWARD]) == [acme]
+    assert await query.list_customers_known_as(vip=False, names=[]) == []
 
     attachment = bytes(range(256))
     pay_within = -dt.timedelta(hours=1, minutes=2, seconds=3)

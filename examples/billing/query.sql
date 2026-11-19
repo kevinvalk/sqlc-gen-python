@@ -29,6 +29,12 @@ SELECT * FROM customers WHERE id IN (sqlc.slice(ids)) ORDER BY id;
 -- Every customer but those among the ids, so every customer for none.
 SELECT * FROM customers WHERE id NOT IN (sqlc.slice(ids)) ORDER BY id;
 
+-- name: ListCustomersKnownAs :many
+-- The customers known by one of the names, as their name or their email: one slice, used twice after a parameter.
+SELECT id FROM customers
+WHERE vip = sqlc.arg(vip) AND (name IN (sqlc.slice(names)) OR email IN (sqlc.slice(names)))
+ORDER BY id;
+
 -- name: CreateInvoice :execlastid
 INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (?, ?, ?, ?, ?, ?);

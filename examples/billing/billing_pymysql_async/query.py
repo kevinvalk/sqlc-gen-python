@@ -216,6 +216,42 @@ async def stream_list_customers_except(
         yield (models.Customer.from_row(row) async for row in _typed(cur))
 
 
+_LIST_CUSTOMERS_KNOWN_AS: Final = """SELECT id FROM customers
+WHERE vip = %s AND (name IN (/*SLICE:names*/%s) OR email IN (/*SLICE:names*/%s))
+ORDER BY id"""
+
+
+async def list_customers_known_as(
+    connection: asyncmy.Connection, *, vip: bool, names: list[str]
+) -> list[int]:
+    """The customers known by one of the names, as their name or their email: one slice, used twice after a parameter."""
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
+        await _typed(cur).execute(
+            _LIST_CUSTOMERS_KNOWN_AS.replace(
+                "/*SLICE:names*/%s",
+                ", ".join(["%s"] * len(names)) or "SELECT NULL FROM DUAL WHERE FALSE",
+            ),
+            (vip, *names, *names),
+        )
+        return [row[0] for row in await cur.fetchall()]
+
+
+@contextlib.asynccontextmanager
+async def stream_list_customers_known_as(
+    connection: asyncmy.Connection, *, vip: bool, names: list[str]
+) -> AsyncGenerator[AsyncIterator[int], None]:
+    """The customers known by one of the names, as their name or their email: one slice, used twice after a parameter."""
+    async with connection.cursor(asyncmy.cursors.SSCursor) as cur:
+        await _typed(cur).execute(
+            _LIST_CUSTOMERS_KNOWN_AS.replace(
+                "/*SLICE:names*/%s",
+                ", ".join(["%s"] * len(names)) or "SELECT NULL FROM DUAL WHERE FALSE",
+            ),
+            (vip, *names, *names),
+        )
+        yield (row[0] async for row in _typed(cur))
+
+
 _CREATE_INVOICE: Final = """INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (%s, %s, %s, %s, %s, %s)"""
 

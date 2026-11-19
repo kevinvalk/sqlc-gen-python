@@ -175,6 +175,35 @@ def stream_list_customers_except(
         yield (models.Customer.from_row(row) for row in result)
 
 
+_LIST_CUSTOMERS_KNOWN_AS: Final = sqlalchemy.text("""SELECT id FROM customers
+WHERE vip = :vip AND (name IN :names OR email IN :names)
+ORDER BY id""").bindparams(sqlalchemy.bindparam("names", expanding=True))
+
+
+def list_customers_known_as(
+    connection: sqlalchemy.Connection, *, vip: bool, names: list[str]
+) -> list[int]:
+    """The customers known by one of the names, as their name or their email: one slice, used twice after a parameter."""
+    return list(
+        connection.execute(
+            _LIST_CUSTOMERS_KNOWN_AS, {"vip": vip, "names": names}
+        ).scalars()
+    )
+
+
+@contextlib.contextmanager
+def stream_list_customers_known_as(
+    connection: sqlalchemy.Connection, *, vip: bool, names: list[str]
+) -> Generator[Iterator[int], None, None]:
+    """The customers known by one of the names, as their name or their email: one slice, used twice after a parameter."""
+    with connection.execute(
+        _LIST_CUSTOMERS_KNOWN_AS,
+        {"vip": vip, "names": names},
+        execution_options={"stream_results": True},
+    ) as result:
+        yield (row[0] for row in result)
+
+
 _CREATE_INVOICE: Final = sqlalchemy.text("""INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (:customer_id, :number, :issued_on, :notes, :attachment, :pay_within)""")
 
