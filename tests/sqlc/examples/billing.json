@@ -1024,6 +1024,120 @@
       "insert_into_table": null
     },
     {
+      "text": "SELECT '\"\"\"' AS triple_quotes, '\\\\ %s :x' AS backslash,\n  -- naïve – café, not ? or :x\n  name\nFROM customers WHERE id = ?",
+      "name": "GetQuotedText",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "triple_quotes",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "backslash",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "name",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": 100,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "customers"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "varchar"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "name",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "id",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "customers"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "bigint"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "id",
+            "unsigned": true,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [
+        " Text the driver must get as written: triple quotes, a backslash, and `%s`, `:x` and placeholders in strings and in a",
+        " comment of non-ASCII text before a parameter."
+      ],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
       "text": "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE name = ?",
       "name": "FindCustomerByName",
       "cmd": ":one",

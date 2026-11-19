@@ -40,6 +40,10 @@ Each is for someone else's bug, and goes when the bug does.
   - Fixed upstream when, after an asyncmy upgrade, `cargo xtask verify --mutants` no longer catches "asyncmy's execute called without the bridge".
   - Then remove `Flavor::untyped`, `prelude` and `Body::typed` (`src/backend/dbapi.rs`), `Backend::prelude` and its call (`src/render/queries.rs`) if no other prelude is left, the names only they read (`src/python/vocabulary.rs`), `ASYNCMY` (`tests/rust/support/module.rs`), the mutant and their specs; make the fixed release the minimum asyncmy (in the README), and re-bless.
 
+- **sqlc's SQLite parser** places each statement by characters but cuts the file by bytes, so after non-ASCII text every statement of the file is shifted and cut short ([sqlc#4235](https://github.com/sqlc-dev/sqlc/issues/4235)). We refuse such a file (`modules` in `src/api/queries.rs`).
+  - Fixed upstream when, after a sqlc upgrade and `cargo xtask capture`, a SQLite query after a non-ASCII comment reaches us whole.
+  - Then remove the check, its spec and the README limitation, and re-bless.
+
 ## Testing conventions
 
 - Unit specs live in a `_spec.rs` sibling (`foo.rs` / `foo_spec.rs`, `mod.rs` / `spec.rs`). Each spec names one rule and checks it.

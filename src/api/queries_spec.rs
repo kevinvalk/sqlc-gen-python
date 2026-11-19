@@ -18,6 +18,29 @@ fn each_query_file_is_a_module_named_after_its_stem_in_sqlc_order() {
 }
 
 #[test]
+fn a_sqlite_query_from_the_first_non_ascii_text_of_its_file_on_is_an_error() {
+    let query = |name: &str, filename: &str, comment: &str| plugin::Query {
+        name: name.into(),
+        filename: filename.into(),
+        comments: vec![comment.into()],
+        ..query(":exec", "SELECT 1")
+    };
+    let queries = vec![
+        query("A", "a.sql", "plain"),
+        query("B", "a.sql", "café"),
+        query("C", "a.sql", "plain"),
+        query("D", "b.sql", "plain"),
+    ];
+    let error = error_of(try_resolve_on("sqlite", queries.clone()));
+    assert!(error.contains(r#"a.sql: query "B": sqlc misplaces"#), "{error}");
+    assert!(!error.contains(r#"query "C""#), "one problem per file: {error}");
+
+    let resolved = try_resolve_on("sqlite", vec![queries[0].clone(), queries[3].clone()]).unwrap();
+    assert_eq!(resolved.len(), 2);
+    assert!(try_resolve_on("postgresql", queries).is_ok());
+}
+
+#[test]
 fn a_query_file_that_would_replace_a_generated_module_is_an_error() {
     // On a case-insensitive file system, `Models.py` is `models.py`.
     for (filename, stem) in [

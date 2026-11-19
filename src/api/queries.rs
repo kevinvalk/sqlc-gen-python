@@ -210,8 +210,25 @@ pub fn modules(
     let mut defined = HashMap::new(); // Each module's functions and classes, with the query each is for
     let mut misnamed = HashSet::new();
     let mut files: HashMap<String, &String> = HashMap::new();
+    let mut shifted = HashSet::new();
     for query in queries {
         let file = &query.filename;
+
+        // sqlc's SQLite parser places a statement by characters but cuts the file by bytes, so from the first non-ASCII
+        // character on, each statement of the file comes out shifted into the next and cut short.
+        // NOTE: A workaround for https://github.com/sqlc-dev/sqlc/issues/4235, see "Workarounds" in AGENTS.md.
+        let is_ascii = query.text.is_ascii() && query.comments.iter().all(|comment| comment.is_ascii());
+        if resolver.engine == Engine::Sqlite && (!is_ascii || shifted.contains(file)) {
+            if shifted.insert(file) {
+                problems.note(anyhow::anyhow!(
+                    "{file}: query \"{}\": sqlc misplaces every SQLite statement after non-ASCII text in its file, so \
+                     keep the file's SQL and comments ASCII",
+                    query.name
+                ));
+            }
+            continue;
+        }
+
         let name = match module_name(file) {
             Ok(name) => Some(name),
             // A file's name is one problem, however many queries it holds.

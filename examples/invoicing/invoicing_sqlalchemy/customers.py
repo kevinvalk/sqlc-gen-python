@@ -85,6 +85,33 @@ def get_customer(connection: sqlalchemy.Connection, *, id: UUID) -> models.Custo
     return models.Customer.from_row(connection.execute(_GET_CUSTOMER, {"id": id}).one())
 
 
+_GET_QUOTED_TEXT: Final = sqlalchemy.text("""SELECT '\"\""'\\:\\:text AS triple_quotes, '\\ %s \\:x'\\:\\:text AS backslash, E'\\\\ $2\\n'\\:\\:text AS escaped,
+  -- naïve – café, not $2, ? or \\:x
+  name
+FROM customers WHERE id = :id""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class GetQuotedTextRow:
+    triple_quotes: str
+    backslash: str
+    escaped: str
+    name: str
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "GetQuotedTextRow":
+        return cls(triple_quotes=row[0], backslash=row[1], escaped=row[2], name=row[3])
+
+
+def get_quoted_text(connection: sqlalchemy.Connection, *, id: UUID) -> GetQuotedTextRow:
+    """Text the driver must get as written: triple quotes, backslashes, and `%s`, `:x` and placeholders in strings and in a
+    comment of non-ASCII text before a parameter.
+    """
+    return GetQuotedTextRow.from_row(
+        connection.execute(_GET_QUOTED_TEXT, {"id": id}).one()
+    )
+
+
 _GET_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
     "SELECT id, name, email, tags, preferred_method, accepted_methods, metadata, created_at FROM customers WHERE name = :name"
 ).columns(

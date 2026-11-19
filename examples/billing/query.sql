@@ -4,6 +4,14 @@ INSERT INTO customers (name, email, vip, preferred_method, metadata) VALUES (?, 
 -- name: GetCustomer :one
 SELECT * FROM customers WHERE id = ?;
 
+-- name: GetQuotedText :one
+-- Text the driver must get as written: triple quotes, a backslash, and `%s`, `:x` and placeholders in strings and in a
+-- comment of non-ASCII text before a parameter.
+SELECT '"""' AS triple_quotes, '\\ %s :x' AS backslash,
+  -- naïve – café, not ? or :x
+  name
+FROM customers WHERE id = ?;
+
 -- name: FindCustomerByName :one
 -- Names are not unique: more than one match is an error, never a guess.
 SELECT * FROM customers WHERE name = ?;

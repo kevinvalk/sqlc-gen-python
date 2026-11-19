@@ -164,6 +164,8 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
 
     assert await api.customers.get_customer(id=ada.id) == ada
     await no_row(api, api.customers.get_customer(id=uuid4()))
+    quoted = await api.customers.get_quoted_text(id=ada.id)
+    assert (quoted.triple_quotes, quoted.backslash, quoted.escaped) == ('"""', "\\ %s :x", "\\ $2\n")
 
     async with api.pipeline():
         assert await api.customers.update_customer_email(email="ada@example.com", id=ada.id) == 1

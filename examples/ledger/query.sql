@@ -5,6 +5,14 @@ RETURNING *;
 -- name: GetAccount :one
 SELECT * FROM accounts WHERE id = ?;
 
+-- name: GetQuotedText :one
+-- Text the driver must get as written: triple quotes, a backslash, and `%s`, `:x` and placeholders in strings and in a
+-- comment before a parameter. Not a non-ASCII one, which sqlc cuts a SQLite statement short after.
+SELECT CAST('"""' AS TEXT) AS triple_quotes, CAST('\ %s :x' AS TEXT) AS backslash,
+  -- not ? or :x
+  name
+FROM accounts WHERE id = ?;
+
 -- name: GetAccountByName :one
 SELECT * FROM accounts WHERE name = sqlc.arg(name);
 

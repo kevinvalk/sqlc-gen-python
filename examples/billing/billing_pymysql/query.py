@@ -60,6 +60,38 @@ def get_customer(connection: _Connection, *, id: int) -> models.Customer | None:
                 raise models.MultipleRowsError
 
 
+_GET_QUOTED_TEXT: Final = """SELECT '\"\""' AS triple_quotes, '\\\\ %%s :x' AS backslash,
+  -- naïve – café, not ? or :x
+  name
+FROM customers WHERE id = %s"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class GetQuotedTextRow:
+    triple_quotes: str
+    backslash: str
+    name: str
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "GetQuotedTextRow":
+        return cls(triple_quotes=row[0], backslash=row[1], name=row[2])
+
+
+def get_quoted_text(connection: _Connection, *, id: int) -> GetQuotedTextRow | None:
+    """Text the driver must get as written: triple quotes, a backslash, and `%s`, `:x` and placeholders in strings and in a
+    comment of non-ASCII text before a parameter.
+    """
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
+        cur.execute(_GET_QUOTED_TEXT, (id,))
+        match cur.fetchmany(2):
+            case [row]:
+                return GetQuotedTextRow.from_row(row)
+            case []:
+                return None
+            case _:
+                raise models.MultipleRowsError
+
+
 _FIND_CUSTOMER_BY_NAME: Final = "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE name = %s"
 
 

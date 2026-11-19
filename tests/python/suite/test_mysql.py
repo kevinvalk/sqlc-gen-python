@@ -122,6 +122,8 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
     assert json.loads(customer.metadata) == json.loads(metadata)
     assert customer.created_at.tzinfo is None
     await no_row(api, query.get_customer(id=acme + 1000))
+    quoted = await query.get_quoted_text(id=acme)
+    assert (quoted.triple_quotes, quoted.backslash, quoted.name) == ('"""', "\\ %s :x", AWKWARD)
 
     bare = await query.create_customer(
         name="x:test",

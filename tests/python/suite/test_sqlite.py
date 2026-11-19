@@ -75,6 +75,8 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
     assert cash.settings == '{"a": 1}'
     assert await query.get_account(id=cash.id) == cash
     await no_row(api, query.get_account(id=cash.id + 1))
+    quoted = await query.get_quoted_text(id=cash.id)
+    assert (quoted.triple_quotes, quoted.backslash, quoted.name) == ('"""', "\\ %s :x", "Cash")
     assert await query.get_account_by_name(name="Cash") == cash
 
     # A BOOLEAN is stored as 0 or 1, and read back as a bool.

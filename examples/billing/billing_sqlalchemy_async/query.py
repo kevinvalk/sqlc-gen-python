@@ -53,6 +53,33 @@ async def get_customer(
     return None if row is None else models.Customer.from_row(row)
 
 
+_GET_QUOTED_TEXT: Final = sqlalchemy.text("""SELECT '\"\""' AS triple_quotes, '\\\\ %s \\:x' AS backslash,
+  -- naïve – café, not ? or \\:x
+  name
+FROM customers WHERE id = :id""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class GetQuotedTextRow:
+    triple_quotes: str
+    backslash: str
+    name: str
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "GetQuotedTextRow":
+        return cls(triple_quotes=row[0], backslash=row[1], name=row[2])
+
+
+async def get_quoted_text(
+    connection: AsyncConnection, *, id: int
+) -> GetQuotedTextRow | None:
+    """Text the driver must get as written: triple quotes, a backslash, and `%s`, `:x` and placeholders in strings and in a
+    comment of non-ASCII text before a parameter.
+    """
+    row = (await connection.execute(_GET_QUOTED_TEXT, {"id": id})).one_or_none()
+    return None if row is None else GetQuotedTextRow.from_row(row)
+
+
 _FIND_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
     "SELECT id, name, email, vip, preferred_method, metadata, created_at FROM customers WHERE name = :name"
 )

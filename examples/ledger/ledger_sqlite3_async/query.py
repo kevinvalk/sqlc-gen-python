@@ -53,6 +53,41 @@ async def get_account(
                 raise models.MultipleRowsError
 
 
+_GET_QUOTED_TEXT: Final = """SELECT CAST('\"\""' AS TEXT) AS triple_quotes, CAST('\\ %s :x' AS TEXT) AS backslash,
+  -- not ? or :x
+  name
+FROM accounts WHERE id = ?"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class GetQuotedTextRow:
+    triple_quotes: str
+    backslash: str
+    name: str
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "GetQuotedTextRow":
+        return cls(triple_quotes=row[0], backslash=row[1], name=row[2])
+
+
+async def get_quoted_text(
+    connection: aiosqlite.Connection, *, id: int
+) -> GetQuotedTextRow | None:
+    """Text the driver must get as written: triple quotes, a backslash, and `%s`, `:x` and placeholders in strings and in a
+    comment before a parameter. Not a non-ASCII one, which sqlc cuts a SQLite statement short after.
+    """
+    async with connection.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_GET_QUOTED_TEXT, (id,))
+        match await cur.fetchmany(2):
+            case [row]:
+                return GetQuotedTextRow.from_row(row)
+            case []:
+                return None
+            case _:
+                raise models.MultipleRowsError
+
+
 _GET_ACCOUNT_BY_NAME: Final = (
     "SELECT id, name, archived, opened_on, settings FROM accounts WHERE name = ?"
 )

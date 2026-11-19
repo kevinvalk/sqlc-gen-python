@@ -6,6 +6,14 @@ RETURNING *;
 -- name: GetCustomer :one
 SELECT * FROM customers WHERE id = $1;
 
+-- name: GetQuotedText :one
+-- Text the driver must get as written: triple quotes, backslashes, and `%s`, `:x` and placeholders in strings and in a
+-- comment of non-ASCII text before a parameter.
+SELECT '"""'::text AS triple_quotes, '\ %s :x'::text AS backslash, E'\\ $2\n'::text AS escaped,
+  -- naïve – café, not $2, ? or :x
+  name
+FROM customers WHERE id = $1;
+
 -- Names are not unique: more than one match is an error, never a guess.
 -- name: GetCustomerByName :one
 SELECT * FROM customers WHERE name = $1;

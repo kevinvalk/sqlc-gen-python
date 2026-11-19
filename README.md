@@ -166,7 +166,7 @@ What sqlc reports is never second-guessed, but where the statement proves sqlc w
 - **A `:one` that writes** has written before it raises on a second row, and a batch is not atomic: run them in a transaction you can roll back.
 - **psycopg** returns what the connection's adapters make: a loader registered on it (`register_hstore`, pgvector's) changes what the generated code gets. Its `COPY` fires no rule and copies into no view.
 - **MySQL** returns a `FLOAT` to six digits, a `TIMESTAMP` naive in the session's zone, and a zero date as text; `:execrows` counts the rows changed, not matched, unless the connection sets `CLIENT.FOUND_ROWS` (SQLAlchemy does). A boolean that is NULL reads as `False`, and an asyncmy coroutine cancelled mid-statement leaves its connection unusable.
-- **SQLite** types are affinities, not constraints: another program may store a `str` in an `INTEGER` column. Use `STRICT` tables, and declare a `TEXT` primary key `NOT NULL`, as SQLite lets it be NULL. A boolean that is NULL reads as `False`, as on MySQL.
+- **SQLite** types are affinities, not constraints: another program may store a `str` in an `INTEGER` column. Use `STRICT` tables, and declare a `TEXT` primary key `NOT NULL`, as SQLite lets it be NULL. A boolean that is NULL reads as `False`, as on MySQL. A query file must be ASCII, comments included, as sqlc cuts every statement after a non-ASCII character short ([sqlc#4235](https://github.com/sqlc-dev/sqlc/issues/4235)); we refuse it.
 - **SQLAlchemy on asyncpg** raises asyncpg's own error, not a `DBAPIError`, for what fails while a stream reads.
 - **An override's module** is sorted with the third-party imports: list it under ruff's `known-third-party`.
 

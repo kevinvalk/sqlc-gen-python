@@ -334,6 +334,15 @@ MUTANTS = {
         "accepted_methods=row[5]",
         case="invoicing_models",
     ),
+    # A statement's backslashes are Python escapes unless doubled: a `\n` would reach PostgreSQL as a line break.
+    "backslashes of a statement left undoubled": Mutant(
+        RUNTIME,
+        "' $2\\n'",
+        "customers.py",
+        r"E'\\\\ $2\\n'",
+        r"E'\\ $2\n'",
+        case="invoicing_psycopg",
+    ),
     # An empty slice is a subquery of no rows, as `x NOT IN (NULL)` is NULL and keeps no row.
     "empty slice as NULL": Mutant(
         MYSQL_RUNTIME,
