@@ -93,6 +93,28 @@ fn inflection_exclude_keeps_the_tables_it_names_verbatim_in_any_case() {
 }
 
 #[test]
+fn inflection_exclude_names_a_table_outside_the_default_schema_by_its_schema() {
+    let config = ModelConfig {
+        inflection_exclude: vec!["analytics.events".into(), "media".into()],
+        ..ModelConfig::default()
+    };
+    let resolved = resolve(
+        vec![
+            sql_schema("public", vec![table("events", vec![])], vec![]),
+            sql_schema(
+                "analytics",
+                vec![table("events", vec![]), table("media", vec![])],
+                vec![],
+            ),
+        ],
+        &config,
+    );
+
+    // A bare name is the default schema's, as in `rename`
+    assert_eq!(model_names(&resolved), ["AnalyticsEvents", "AnalyticsMedium", "Event"]);
+}
+
+#[test]
 fn a_table_outside_the_default_schema_is_qualified() {
     // Two `events` tables in one catalog must not collapse to one class.
     let resolved = resolve(

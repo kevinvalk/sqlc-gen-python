@@ -11,7 +11,7 @@ from psycopg.rows import tuple_row
 
 from . import models
 
-_GET_SCALARS: Final = "SELECT id, small, regular, big, approximate, exact, price, flag, label, fixed, varying, raw, identifier, document, day, clock, moment, duration, address, feeling, object, single, title, email, mac, mac8, markup, search, wall, naive, plain_json, network, pairs, tree, relation, span, big_span, amounts, days, times, moments FROM scalars WHERE id = $1"
+_GET_SCALARS: Final = "SELECT id, small, regular, big, approximate, exact, price, flag, label, fixed, varying, raw, identifier, document, day, clock, moment, duration, address, feeling, object, single, title, email, mac, mac8, markup, search, wall, naive, plain_json, network, pairs, tree, pattern, text_query, relation, span, big_span, amounts, days, times, moments FROM scalars WHERE id = $1"
 
 
 def get_scalars(
@@ -73,7 +73,9 @@ def stream_list_oddities(
 _FIND_SCALARS: Final = """SELECT id FROM scalars
 WHERE email = ANY($1::citext[])
   OR tree = ANY($2::ltree[])
-  OR search = ANY($3::tsvector[])"""
+  OR tree ? $3::lquery[]
+  OR ltxtq_exec(tree, $4::ltxtquery)
+  OR search = ANY($5::tsvector[])"""
 
 
 class FindScalarsParams(pydantic.BaseModel):
@@ -82,6 +84,8 @@ class FindScalarsParams(pydantic.BaseModel):
     )
     emails: list[str]
     trees: list[str]
+    patterns: list[str]
+    text_query: str
     searches: list[str]
 
 
@@ -89,7 +93,16 @@ def find_scalars(
     connection: psycopg.Connection[Any], params: FindScalarsParams
 ) -> list[int]:
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
-        cur.execute(_FIND_SCALARS, (params.emails, params.trees, params.searches))
+        cur.execute(
+            _FIND_SCALARS,
+            (
+                params.emails,
+                params.trees,
+                params.patterns,
+                params.text_query,
+                params.searches,
+            ),
+        )
         return [row[0] for row in cur.fetchall()]
 
 
@@ -100,5 +113,14 @@ def stream_find_scalars(
     with psycopg.RawServerCursor(
         connection, "stream_find_scalars", row_factory=tuple_row
     ) as cur:
-        cur.execute(_FIND_SCALARS, (params.emails, params.trees, params.searches))
+        cur.execute(
+            _FIND_SCALARS,
+            (
+                params.emails,
+                params.trees,
+                params.patterns,
+                params.text_query,
+                params.searches,
+            ),
+        )
         yield (row[0] for row in cur)

@@ -58,7 +58,7 @@ fn every_request_generates_sound_python_or_fails_cleanly() {
     let endtoend = support::root().join("tests/sqlc/endtoend");
     let profiles: BTreeMap<String, serde_json::Value> = support::read_json(&endtoend.join("profiles.json"));
 
-    // We sweep sequentially as the whole corpus takes about half a second in a debug build.
+    // We sweep sequentially as every endtoend request takes about half a second in a debug build.
     let mut ledger = BTreeMap::new();
     let mut violations = String::new();
 
@@ -210,7 +210,7 @@ fn check_ledger(path: &Path, outcomes: &BTreeMap<Key, String>) {
         .collect();
     assert!(
         transitions.is_empty(),
-        "\nthe corpus ledger changed ({} rows):\n{}\n\nby transition:\n{}\n\n\
+        "\nthe endtoend ledger changed ({} rows):\n{}\n\nby transition:\n{}\n\n\
          Run `cargo xtask bless` if every transition is intended.\n",
         transitions.len(),
         transitions.join("\n"),

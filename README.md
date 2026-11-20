@@ -145,7 +145,7 @@ We take each library's fastest path that keeps an `INSERT`'s guarantees, so not 
 | `models.only` | `false` | Write `models.py` alone, for the entries that set `models.module`. Give it a placeholder query (`SELECT 1`), as sqlc requires one |
 | `models.omit_unused` | `false` | Write only the models and enums this entry's queries use, and report only their problems. Not with `models.only` or `models.module` |
 | `models.exact_table_names` | `false` | Name model classes after their table, without singularising |
-| `models.inflection_exclude` | `[]` | Tables whose names are not singularised |
+| `models.inflection_exclude` | `[]` | Tables whose names are not singularised (`schema.name`, or `name` in the default schema) |
 | `records` | `dataclass` | `pydantic` makes every model, `Row` and `Params` a frozen `pydantic.BaseModel` that forbids unknown fields. A field that would hide a `BaseModel` attribute takes a trailing `_` (`json_`) |
 | `unknown_type` | none | Annotate every type the plugin cannot verify `Any` or `object` instead of failing on it |
 | `omit_sqlc_version` | `false` | Leave sqlc's version out of each file's header |

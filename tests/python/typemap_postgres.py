@@ -81,6 +81,8 @@ EDGES: dict[str, tuple[str, ...]] = {
     "cidr": ("'0.0.0.0/0'", "'::/0'", "'10.0.0.0/8'", "'192.168.1.1/32'", "'2001:db8::/32'"),
     "hstore": ("''", "'a=>1, b=>NULL'", "'\"k y\"=>\"ü\"'"),
     "ltree": ("''", "'a.b.c'", "'Top.Science_1'"),
+    "lquery": ("'*'", "'*.Science.*'", "'Top.*{0,2}.Astronomy|Astro*@'", "'!a.b'"),
+    "ltxtquery": ("'a'", "'Europe & Russia*@ & !Transportation'"),
     "regclass": ("'pg_class'", "'pg_catalog.pg_type'"),
     "int4range": ("'empty'", "'[1,5)'", "'[1,5]'", "'(,5)'", "'[1,)'", "'(,)'",
                   "'[-2147483648,2147483647)'"),

@@ -4429,16 +4429,16 @@ pg_dump/request.json	sqlalchemy_async	ok	e89a16b0
 pg_dump/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 pg_dump/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 pg_dump/request.json	unknown_any	ok	80a38cfc
-pg_ext_ltree/postgresql/pgx/v4/request.json	exact_names	error:3 problems: table "foo": column "name_query" has type "lquery", which has no verified Python mapping query.sql: query "ListFoo": column "name_query" has type "lquery", which has no verified Python mapping name its Python type with an override (db_type "lquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "foo": column "fts_name_query" has type "ltxtquery", which has no verified Python mapping name its Python type with an override (db_type "ltxtquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
-pg_ext_ltree/postgresql/pgx/v4/request.json	psycopg	error:query.sql: query "ListFoo": column "name_query" has type "lquery", which has no verified Python mapping; name its Python type with an override (db_type "lquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
-pg_ext_ltree/postgresql/pgx/v4/request.json	psycopg_async	error:3 problems: table "foo": column "name_query" has type "lquery", which has no verified Python mapping query.sql: query "ListFoo": column "name_query" has type "lquery", which has no verified Python mapping name its Python type with an override (db_type "lquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "foo": column "fts_name_query" has type "ltxtquery", which has no verified Python mapping name its Python type with an override (db_type "ltxtquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
+pg_ext_ltree/postgresql/pgx/v4/request.json	exact_names	ok	f3d98e4e
+pg_ext_ltree/postgresql/pgx/v4/request.json	psycopg	ok	a86263ad
+pg_ext_ltree/postgresql/pgx/v4/request.json	psycopg_async	ok	e1024f7f
 pg_ext_ltree/postgresql/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 pg_ext_ltree/postgresql/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
-pg_ext_ltree/postgresql/pgx/v4/request.json	sqlalchemy	error:3 problems: table "foo": column "name_query" has type "lquery", which has no verified Python mapping query.sql: query "ListFoo": column "name_query" has type "lquery", which has no verified Python mapping name its Python type with an override (db_type "lquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "foo": column "fts_name_query" has type "ltxtquery", which has no verified Python mapping name its Python type with an override (db_type "ltxtquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
-pg_ext_ltree/postgresql/pgx/v4/request.json	sqlalchemy_async	error:3 problems: table "foo": column "name_query" has type "lquery", which has no verified Python mapping query.sql: query "ListFoo": column "name_query" has type "lquery", which has no verified Python mapping name its Python type with an override (db_type "lquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked table "foo": column "fts_name_query" has type "ltxtquery", which has no verified Python mapping name its Python type with an override (db_type "ltxtquery"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked	-
+pg_ext_ltree/postgresql/pgx/v4/request.json	sqlalchemy	ok	f3d98e4e
+pg_ext_ltree/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	15eb3e69
 pg_ext_ltree/postgresql/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 pg_ext_ltree/postgresql/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
-pg_ext_ltree/postgresql/pgx/v4/request.json	unknown_any	ok	3b35790b
+pg_ext_ltree/postgresql/pgx/v4/request.json	unknown_any	ok	eaa17c5b
 pg_extensions/postgresql/pgx/v4/request.json	exact_names	error:3 problems: pg_trgm.sql: query "WordSimilarity": column "word_similarity" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint) pgcrypto.sql: query "EncodeDigest": column "encode" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint) uuid_ossp.sql: query "GenerateUUID": column "uuid_generate_v4" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint) add a cast, as <expr>::<type>, or coalesce(<expr>, <default>)::<type> if it can be NULL, as sqlc reports every cast NOT NULL; or set unknown_type: Any to leave it unchecked	-
 pg_extensions/postgresql/pgx/v4/request.json	psycopg	error:3 problems: pg_trgm.sql: query "WordSimilarity": column "word_similarity" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint) pgcrypto.sql: query "EncodeDigest": column "encode" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint) uuid_ossp.sql: query "GenerateUUID": column "uuid_generate_v4" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint) add a cast, as <expr>::<type>, or coalesce(<expr>, <default>)::<type> if it can be NULL, as sqlc reports every cast NOT NULL; or set unknown_type: Any to leave it unchecked	-
 pg_extensions/postgresql/pgx/v4/request.json	psycopg_async	error:3 problems: pg_trgm.sql: query "WordSimilarity": column "word_similarity" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint) pgcrypto.sql: query "EncodeDigest": column "encode" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint) uuid_ossp.sql: query "GenerateUUID": column "uuid_generate_v4" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint) add a cast, as <expr>::<type>, or coalesce(<expr>, <default>)::<type> if it can be NULL, as sqlc reports every cast NOT NULL; or set unknown_type: Any to leave it unchecked	-
@@ -4735,7 +4735,7 @@ schema_scoped_enum/pgx/v4/request.json	psycopg_async	ok	a7e45ec7
 schema_scoped_enum/pgx/v4/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 schema_scoped_enum/pgx/v4/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
 schema_scoped_enum/pgx/v4/request.json	sqlalchemy	ok	70407321
-schema_scoped_enum/pgx/v4/request.json	sqlalchemy_async	ok	1c0bb24d
+schema_scoped_enum/pgx/v4/request.json	sqlalchemy_async	ok	e0f2376e
 schema_scoped_enum/pgx/v4/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 schema_scoped_enum/pgx/v4/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 schema_scoped_enum/pgx/v4/request.json	unknown_any	ok	388f7d9d
@@ -5315,7 +5315,7 @@ sqlc_embed/mysql/request.json	psycopg_async	error:the psycopg backend does not r
 sqlc_embed/mysql/request.json	pymysql	ok	9dd9e4cc
 sqlc_embed/mysql/request.json	pymysql_async	ok	4bebbd7b
 sqlc_embed/mysql/request.json	sqlalchemy	ok	de59ec74
-sqlc_embed/mysql/request.json	sqlalchemy_async	ok	1dde348d
+sqlc_embed/mysql/request.json	sqlalchemy_async	ok	f6c40dd4
 sqlc_embed/mysql/request.json	sqlite3	error:the sqlite3 backend does not run mysql	-
 sqlc_embed/mysql/request.json	sqlite3_async	error:the sqlite3 backend does not run mysql	-
 sqlc_embed/mysql/request.json	unknown_any	ok	e1e84ee0
@@ -5325,7 +5325,7 @@ sqlc_embed/postgresql/pgx/request.json	psycopg_async	ok	f29ab17c
 sqlc_embed/postgresql/pgx/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 sqlc_embed/postgresql/pgx/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
 sqlc_embed/postgresql/pgx/request.json	sqlalchemy	ok	de59ec74
-sqlc_embed/postgresql/pgx/request.json	sqlalchemy_async	ok	1dde348d
+sqlc_embed/postgresql/pgx/request.json	sqlalchemy_async	ok	f6c40dd4
 sqlc_embed/postgresql/pgx/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 sqlc_embed/postgresql/pgx/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 sqlc_embed/postgresql/pgx/request.json	unknown_any	ok	e1e84ee0
@@ -5335,7 +5335,7 @@ sqlc_embed/postgresql/stdlib/request.json	psycopg_async	ok	97a1715c
 sqlc_embed/postgresql/stdlib/request.json	pymysql	error:the pymysql backend does not run postgresql	-
 sqlc_embed/postgresql/stdlib/request.json	pymysql_async	error:the pymysql backend does not run postgresql	-
 sqlc_embed/postgresql/stdlib/request.json	sqlalchemy	ok	8fc0460d
-sqlc_embed/postgresql/stdlib/request.json	sqlalchemy_async	ok	2cec47eb
+sqlc_embed/postgresql/stdlib/request.json	sqlalchemy_async	ok	37a6980f
 sqlc_embed/postgresql/stdlib/request.json	sqlite3	error:the sqlite3 backend does not run postgresql	-
 sqlc_embed/postgresql/stdlib/request.json	sqlite3_async	error:the sqlite3 backend does not run postgresql	-
 sqlc_embed/postgresql/stdlib/request.json	unknown_any	ok	00b83804
@@ -5345,7 +5345,7 @@ sqlc_embed/sqlite/request.json	psycopg_async	error:the psycopg backend does not 
 sqlc_embed/sqlite/request.json	pymysql	error:the pymysql backend does not run sqlite	-
 sqlc_embed/sqlite/request.json	pymysql_async	error:the pymysql backend does not run sqlite	-
 sqlc_embed/sqlite/request.json	sqlalchemy	ok	97a98098
-sqlc_embed/sqlite/request.json	sqlalchemy_async	ok	e198d2e1
+sqlc_embed/sqlite/request.json	sqlalchemy_async	ok	e8ee4b95
 sqlc_embed/sqlite/request.json	sqlite3	ok	80c7b6ef
 sqlc_embed/sqlite/request.json	sqlite3_async	ok	35f97e09
 sqlc_embed/sqlite/request.json	unknown_any	ok	d4ed1f4a

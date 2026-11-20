@@ -45,7 +45,9 @@ Observed on PostgreSQL 18, session TimeZone Europe/Amsterdam, with psycopg 3.3, 
 | `json[]` | `list[object]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | ok |
 | `jsonb` | `object` | `dict` `int` `list` `str` | `dict` `int` `list` `str` | `dict` `int` `list` `str` | ok |
 | `jsonb[]` | `list[object]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | ok |
+| `lquery` | `str` | `str` | `str` | `str` | ok |
 | `ltree` | `str` | `str` | `str` | `str` | ok |
+| `ltxtquery` | `str` | `str` | `str` | `str` | ok |
 | `macaddr` | `str` | `str` | `str` | `str` | ok |
 | `macaddr[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `macaddr8` | `str` | `str` | `str` | `str` | ok |

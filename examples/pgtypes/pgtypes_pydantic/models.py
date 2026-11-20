@@ -200,6 +200,8 @@ class Scalar(pydantic.BaseModel):
     network: IPv4Network | IPv6Network
     pairs: str
     tree: str
+    pattern: str
+    text_query: str
     relation: str
     span: Range[int]
     big_span: Range[int]
@@ -245,11 +247,13 @@ class Scalar(pydantic.BaseModel):
             network=row[31],
             pairs=row[32],
             tree=row[33],
-            relation=row[34],
-            span=row[35],
-            big_span=row[36],
-            amounts=row[37],
-            days=row[38],
-            times=row[39],
-            moments=row[40],
+            pattern=row[34],
+            text_query=row[35],
+            relation=row[36],
+            span=row[37],
+            big_span=row[38],
+            amounts=row[39],
+            days=row[40],
+            times=row[41],
+            moments=row[42],
         )

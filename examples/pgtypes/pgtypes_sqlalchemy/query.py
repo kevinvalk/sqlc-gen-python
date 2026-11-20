@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 from . import models
 
 _GET_SCALARS: Final = sqlalchemy.text(
-    "SELECT id, small, regular, big, approximate, exact, price, flag, label, fixed, varying, raw, identifier, document, day, clock, moment, duration, address, feeling, object, single, title, email, mac, mac8, markup, search, wall, naive, plain_json, network, pairs, tree, relation, span, big_span, amounts, days, times, moments FROM scalars WHERE id = :id"
+    "SELECT id, small, regular, big, approximate, exact, price, flag, label, fixed, varying, raw, identifier, document, day, clock, moment, duration, address, feeling, object, single, title, email, mac, mac8, markup, search, wall, naive, plain_json, network, pairs, tree, pattern, text_query, relation, span, big_span, amounts, days, times, moments FROM scalars WHERE id = :id"
 ).columns(
     sqlalchemy.column("id"),
     sqlalchemy.column("small"),
@@ -47,6 +47,8 @@ _GET_SCALARS: Final = sqlalchemy.text(
     sqlalchemy.column("network"),
     sqlalchemy.column("pairs", postgresql.HSTORE),
     sqlalchemy.column("tree"),
+    sqlalchemy.column("pattern"),
+    sqlalchemy.column("text_query"),
     sqlalchemy.column("relation"),
     sqlalchemy.column("span", postgresql.INT4RANGE),
     sqlalchemy.column("big_span", postgresql.INT8RANGE),
@@ -108,6 +110,8 @@ def stream_list_oddities(
 _FIND_SCALARS: Final = sqlalchemy.text("""SELECT id FROM scalars
 WHERE email = ANY(:emails\\:\\:citext[])
   OR tree = ANY(:trees\\:\\:ltree[])
+  OR tree ? :patterns\\:\\:lquery[]
+  OR ltxtq_exec(tree, :text_query\\:\\:ltxtquery)
   OR search = ANY(:searches\\:\\:tsvector[])""")
 
 
@@ -116,11 +120,20 @@ def find_scalars(
     *,
     emails: list[str],
     trees: list[str],
+    patterns: list[str],
+    text_query: str,
     searches: list[str],
 ) -> list[int]:
     return list(
         connection.execute(
-            _FIND_SCALARS, {"emails": emails, "trees": trees, "searches": searches}
+            _FIND_SCALARS,
+            {
+                "emails": emails,
+                "trees": trees,
+                "patterns": patterns,
+                "text_query": text_query,
+                "searches": searches,
+            },
         ).scalars()
     )
 
@@ -131,11 +144,19 @@ def stream_find_scalars(
     *,
     emails: list[str],
     trees: list[str],
+    patterns: list[str],
+    text_query: str,
     searches: list[str],
 ) -> Generator[Iterator[int], None, None]:
     with connection.execute(
         _FIND_SCALARS,
-        {"emails": emails, "trees": trees, "searches": searches},
+        {
+            "emails": emails,
+            "trees": trees,
+            "patterns": patterns,
+            "text_query": text_query,
+            "searches": searches,
+        },
         execution_options={"stream_results": True},
     ) as result:
         yield (row[0] for row in result)

@@ -27,8 +27,7 @@ import os
 import re
 import sys
 from collections import Counter
-from concurrent.futures import ProcessPoolExecutor
-from functools import partial
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -141,15 +140,17 @@ def sweep(server: sqlalchemy.URL, found: list[Target], roots: list[Path]) -> lis
     context = multiprocessing.get_context("forkserver")
     context.set_forkserver_preload(["autoprop_package"])
     workers = min(os.cpu_count() or 1, 8)
-    with ProcessPoolExecutor(workers, context, initializer=_worker, initargs=(roots,), max_tasks_per_child=1) as pool:
-        swept = {report.target: report for report in pool.map(partial(run, server), fresh)}
-
-    # We keep only what passed, so that a failure runs again, as a server that went away would fail a package too.
+    swept: dict[Target, Report] = {}
     CACHE.mkdir(parents=True, exist_ok=True)
-    for target, report in swept.items():
-        if report.failure == "":
-            stored = {"calls": report.calls, "returning": sorted(report.returning), "known": report.known}
-            (CACHE / f"{keys[target]}.json").write_text(json.dumps(stored | {"same": report.same}))
+    with ProcessPoolExecutor(workers, context, initializer=_worker, initargs=(roots,), max_tasks_per_child=1) as pool:
+        # We store each report as it comes, so that a sweep cut short keeps what it did. And only what passed, so that
+        # a failure runs again, as a server that went away would fail a package too.
+        for future in as_completed([pool.submit(run, server, target) for target in fresh]):
+            report = future.result()
+            swept[report.target] = report
+            if report.failure == "":
+                stored = {"calls": report.calls, "returning": sorted(report.returning), "known": report.known}
+                (CACHE / f"{keys[report.target]}.json").write_text(json.dumps(stored | {"same": report.same}))
     return [cached[target] or swept[target] for target in found]
 
 

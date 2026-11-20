@@ -903,6 +903,58 @@
                 "array_dims": 0
               },
               {
+                "name": "pattern",
+                "not_null": true,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "lquery"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "text_query",
+                "not_null": true,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "scalars"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "ltxtquery"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
                 "name": "relation",
                 "not_null": true,
                 "is_array": false,
@@ -2139,7 +2191,7 @@
   },
   "queries": [
     {
-      "text": "SELECT id, small, regular, big, approximate, exact, price, flag, label, fixed, varying, raw, identifier, document, day, clock, moment, duration, address, feeling, object, single, title, email, mac, mac8, markup, search, wall, naive, plain_json, network, pairs, tree, relation, span, big_span, amounts, days, times, moments FROM scalars WHERE id = $1",
+      "text": "SELECT id, small, regular, big, approximate, exact, price, flag, label, fixed, varying, raw, identifier, document, day, clock, moment, duration, address, feeling, object, single, title, email, mac, mac8, markup, search, wall, naive, plain_json, network, pairs, tree, pattern, text_query, relation, span, big_span, amounts, days, times, moments FROM scalars WHERE id = $1",
       "name": "GetScalars",
       "cmd": ":one",
       "columns": [
@@ -3028,6 +3080,58 @@
           "array_dims": 0
         },
         {
+          "name": "pattern",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "lquery"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "pattern",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "text_query",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "scalars"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "ltxtquery"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "text_query",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
           "name": "relation",
           "not_null": true,
           "is_array": false,
@@ -3402,7 +3506,7 @@
       "insert_into_table": null
     },
     {
-      "text": "SELECT id FROM scalars\nWHERE email = ANY($1::citext[])\n  OR tree = ANY($2::ltree[])\n  OR search = ANY($3::tsvector[])",
+      "text": "SELECT id FROM scalars\nWHERE email = ANY($1::citext[])\n  OR tree = ANY($2::ltree[])\n  OR tree ? $3::lquery[]\n  OR ltxtq_exec(tree, $4::ltxtquery)\n  OR search = ANY($5::tsvector[])",
       "name": "FindScalars",
       "cmd": ":many",
       "columns": [
@@ -3486,6 +3590,56 @@
         },
         {
           "number": 3,
+          "column": {
+            "name": "patterns",
+            "not_null": true,
+            "is_array": true,
+            "comment": "",
+            "length": -1,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": null,
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "lquery"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "",
+            "unsigned": false,
+            "array_dims": 1
+          }
+        },
+        {
+          "number": 4,
+          "column": {
+            "name": "text_query",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": null,
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "ltxtquery"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 5,
           "column": {
             "name": "searches",
             "not_null": true,

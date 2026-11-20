@@ -359,6 +359,8 @@ SCALARS: dict[str, SearchStrategy[object]] = {
     "tsvector": st.lists(st.from_regex(r"[a-z]{1,6}", fullmatch=True), max_size=4).map(" ".join),
     "hstore": st.dictionaries(text(), st.none() | text(), max_size=3),
     "ltree": st.from_regex(r"[A-Za-z0-9_]{1,5}(\.[A-Za-z0-9_]{1,5}){0,3}", fullmatch=True),
+    "lquery": st.from_regex(r"(\*|!?[A-Za-z0-9_]{1,5})(\.(\*|!?[A-Za-z0-9_]{1,5})){0,3}", fullmatch=True),
+    "ltxtquery": st.from_regex(r"!?[A-Za-z0-9_]{1,5}( [&|] !?[A-Za-z0-9_]{1,5}){0,2}", fullmatch=True),
     "regclass": st.sampled_from(["pg_class", "pg_type", "pg_namespace"]),
     "int4range": ranges(ints(31)),
     "int8range": ranges(ints(63)),

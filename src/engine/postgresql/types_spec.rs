@@ -137,12 +137,14 @@ fn an_array_a_driver_does_not_load_as_a_list_says_what_it_does() {
 
 #[test]
 fn an_array_a_driver_does_not_read_as_a_list_still_binds_as_a_parameter() {
-    for name in ["citext", "public.citext", "ltree", "tsvector"] {
+    for name in ["citext", "public.citext", "lquery", "ltree", "tsvector"] {
         assert_eq!(array_problem(name, true), None, "{name}");
     }
     // A list of dicts, and names of relations a value must name, which nobody has probed
     assert!(array_problem("hstore", true).is_some());
     assert!(array_problem("regclass", true).is_some());
+    // `ltree` has no operator that takes a list of them, so nobody has probed one
+    assert!(array_problem("ltxtquery", true).is_some());
 }
 
 /// The runtime proof (`tests/python/typemap.py`) reads this fixture back through every driver.

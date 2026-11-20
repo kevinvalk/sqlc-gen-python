@@ -33,9 +33,11 @@ const TYPES: &[(&str, Type)] = &[
     ("macaddr8", Type::STR),
     ("xml", Type::STR),
     ("tsvector", Type::STR),
-    // Both drivers return an extension's `ltree` as its text, and a `regclass` as its name. We leave `hstore` to the
-    // backend, as SQLAlchemy registers psycopg's codec for it.
+    // Both drivers return the `ltree` extension's types as their text, and a `regclass` as its name. We leave `hstore`
+    // to the backend, as SQLAlchemy registers psycopg's codec for it.
     ("ltree", Type::STR),
+    ("lquery", Type::STR),
+    ("ltxtquery", Type::STR),
     ("regclass", Type::STR),
     ("bytea", Type::BYTES),
     ("date", Type::DATE),
@@ -59,6 +61,11 @@ const NO_ARRAYS: &[(&str, &str)] = &[
     ("citext", "psycopg, and SQLAlchemy on it, returns as text, not a list"),
     ("hstore", "psycopg, and SQLAlchemy on it, returns as text, not a list"),
     ("ltree", "psycopg, and SQLAlchemy on it, returns as text, not a list"),
+    ("lquery", "psycopg, and SQLAlchemy on it, returns as text, not a list"),
+    (
+        "ltxtquery",
+        "psycopg, and SQLAlchemy on it, returns as text, not a list",
+    ),
     ("regclass", "nobody has probed"),
     ("tsvector", "asyncpg decodes with a corrupt item when one is empty"),
 ];
@@ -78,9 +85,9 @@ pub fn scalar_type(data_type: &str) -> Option<Type> {
 }
 
 /// Of [`NO_ARRAYS`], those every driver binds a list of `str` to, as a parameter, which no driver then reads back. An
-/// extension's array is a filter's (`= ANY(@emails::citext[])`) more often than a column's. `examples/pgtypes` has a
-/// query of each, which the runtime sweep calls.
-const BOUND_AS_LISTS: &[&str] = &["citext", "ltree", "tsvector"];
+/// extension's array is a filter's (`= ANY(@emails::citext[])`, `tree ? @patterns::lquery[]`) more often than a
+/// column's. `examples/pgtypes` has a query of each, which the runtime sweep calls.
+const BOUND_AS_LISTS: &[&str] = &["citext", "lquery", "ltree", "tsvector"];
 
 /// What a driver does with an array of `data_type`, if that is not a list.
 pub fn array_problem(data_type: &str, is_parameter: bool) -> Option<&'static str> {
@@ -126,7 +133,7 @@ pub fn is_guess(data_type: &str) -> bool {
 }
 
 /// The types of [`TYPES`] and the backends' maps that an extension creates, in whichever schema it was created in.
-const EXTENSIONS: &[&str] = &["citext", "hstore", "ltree"];
+const EXTENSIONS: &[&str] = &["citext", "hstore", "lquery", "ltree", "ltxtquery"];
 
 /// PostgreSQL's own name for a type sqlc read ([`is_guess`] is false). sqlc reports one bare or `pg_catalog`-qualified,
 /// and by more than one name (a serial pseudo-type, a `LIMIT`'s `integer`), depending on how the column was declared

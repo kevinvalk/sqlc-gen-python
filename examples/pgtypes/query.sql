@@ -11,4 +11,6 @@ SELECT * FROM oddities WHERE mood = $1;
 SELECT id FROM scalars
 WHERE email = ANY(@emails::citext[])
   OR tree = ANY(@trees::ltree[])
+  OR tree ? @patterns::lquery[]
+  OR ltxtq_exec(tree, @text_query::ltxtquery)
   OR search = ANY(@searches::tsvector[]);

@@ -186,7 +186,7 @@ impl<'a> Resolver<'a> {
             return renamed.into();
         }
 
-        match config.is_inflection_excluded(table) {
+        match config.is_inflection_excluded(&schema.name, table, schema.name == self.catalog.default_schema) {
             true => self.spelt(schema, table),
             false => self.spelt(schema, &singular(table)),
         }

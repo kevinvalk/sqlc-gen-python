@@ -166,12 +166,11 @@ impl Config {
 }
 
 impl ModelConfig {
-    pub fn is_inflection_excluded(&self, table: &str) -> bool {
-        self.exact_table_names
-            || self
-                .inflection_exclude
-                .iter()
-                .any(|excluded| excluded.eq_ignore_ascii_case(table))
+    /// Whether `inflection_exclude` names the table: as `schema.name`, or as `name` in the default schema, as `rename`
+    /// names one.
+    pub fn is_inflection_excluded(&self, schema: &str, table: &str, is_default_schema: bool) -> bool {
+        let names = |name: &str| (self.inflection_exclude.iter()).any(|excluded| excluded.eq_ignore_ascii_case(name));
+        self.exact_table_names || names(&format!("{schema}.{table}")) || (is_default_schema && names(table))
     }
 }
 

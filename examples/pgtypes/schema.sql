@@ -44,6 +44,8 @@ CREATE TABLE scalars (
     network       cidr NOT NULL,
     pairs         hstore NOT NULL,
     tree          ltree NOT NULL,
+    pattern       lquery NOT NULL,
+    text_query    ltxtquery NOT NULL,
     relation      regclass NOT NULL,
     span          int4range NOT NULL,
     big_span      int8range NOT NULL,
