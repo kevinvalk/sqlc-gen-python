@@ -3,7 +3,7 @@
 usage: verify.py [-h] [--mutants] [--check] GENERATED
 
 GENERATED is what ``cargo test`` exported (``cargo xtask verify`` fills it). Each layer, a row of the summary at the
-end, is described in ``docs/development.md`` under Proof. Every layer runs on copies in a temporary directory, against one
+end, is described in ``docs/testing.md``. Every layer runs on copies in a temporary directory, against one
 PostgreSQL (Docker, or ``SQLC_TEST_DATABASE_URL``) and one MySQL (Docker, or ``SQLC_TEST_MYSQL_URL``).
 """
 
@@ -12,11 +12,13 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import textwrap
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -231,10 +233,9 @@ MUTANTS = {
         "",
     ),
     # Two swapped values of one type type-check and run, so at runtime only sqlc's SQL run directly tells.
-    # Read back by position as the sweep seeds it, before a query reads it.
     "columns swapped": Mutant(
         SWEEP,
-        "is not the row read by position",
+        "but sqlc's SQL run directly returned",
         "models.py",
         "id=row[0],\n            customer_id=row[1],",
         "id=row[1],\n            customer_id=row[0],",
@@ -427,6 +428,8 @@ def main() -> int:
     args = parser.parse_args()
     generated = args.generated.resolve()
     write = partial(document, check=args.check)
+    started = time.monotonic()
+    signal.signal(signal.SIGTERM, signal.default_int_handler)  # So a termination still removes the servers
 
     with (
         postgres.server() as server,
@@ -440,23 +443,31 @@ def main() -> int:
         directory = Path(temporary)
         cases = golden(generated, directory / "golden")
         control = workspace(directory / "control", cases)
-        summary = [
-            static_and_pytest(control),
-            types(control, server, mysql_server, write),
-            sweep(control, generated, server),
-            newer(control),
+        layers: list[Callable[[], Row]] = [
+            partial(static_and_pytest, control),
+            partial(types, control, server, mysql_server, write),
+            partial(sweep, control, generated, server, write),
+            partial(newer, control),
+            *([partial(mutants, directory, cases, generated, server)] if args.mutants else []),
         ]
-        if args.mutants:
-            summary.append(mutants(directory, cases, generated, server))
+        setup = time.monotonic() - started
+        summary = [timed(layer) for layer in layers]
 
-    print(f"\n{'layer':<12} {'verdict':<8} detail")
-    for layer, failed, detail in summary:
-        lines = detail.replace("\n", "\n" + " " * 22)
-        print(f"{layer:<12} {'FAILED' if failed else 'ok':<8} {lines}")
-    return int(any(failed for _, failed, _ in summary))
+    print(f"\n{'layer':<12} {'verdict':<8} {'time':>6}  detail")
+    print(f"{'setup':<12} {'':<8} {setup:>5.0f}s  servers and workspaces")
+    for (layer, failed, detail), seconds in summary:
+        lines = detail.replace("\n", "\n" + " " * 30)
+        print(f"{layer:<12} {'FAILED' if failed else 'ok':<8} {seconds:>5.0f}s  {lines}")
+    print(f"{'total':<12} {'':<8} {time.monotonic() - started:>5.0f}s")
+    return int(any(failed for (_, failed, _), _ in summary))
 
 
 Row = tuple[str, bool, str]
+
+
+def timed(layer: Callable[[], Row]) -> tuple[Row, float]:
+    started = time.monotonic()
+    return layer(), time.monotonic() - started
 
 
 def static_and_pytest(control: Path) -> Row:
@@ -493,11 +504,15 @@ def types(control: Path, server: sqlalchemy.URL, mysql_server: sqlalchemy.URL, w
     return TYPEMAP, len(mismatches) > 0 or stale, detail
 
 
-def sweep(control: Path, generated: Path, server: sqlalchemy.URL) -> Row:
+def sweep(control: Path, generated: Path, server: sqlalchemy.URL, write: Write) -> Row:
     print("\nruntime sweep:", flush=True)
     reports = autoprop.sweep(server, autoprop.targets(control, generated), [control, generated])
-    failed, totals = autoprop.summarize(reports)
-    return SWEEP, failed, "\n".join(totals)
+    failed, totals, record = autoprop.summarize(reports)
+
+    # A failed sweep leaves the record as it is, as each function it lists is one the sweep must go on exercising.
+    written, stale = ("not written", False) if failed else write(autoprop.EXERCISED, record)
+    totals[1] += f", in {autoprop.EXERCISED.name} ({written})"
+    return SWEEP, failed or stale, "\n".join(totals)
 
 
 def newer_versions() -> str:
@@ -509,7 +524,7 @@ def newer_versions() -> str:
 
 def newer(control: Path) -> Row:
     # We run pytest and the type-truth probe again on each newer Python, which installs SQLAlchemy 2.1, but only for
-    # their verdicts: the document records the oldest Python. The drivers are the same on every Python, so the corpus
+    # their verdicts: the document records the oldest Python. The drivers are the same on every Python, so the endtoend
     # sweep runs once.
     failed = []
     for version in PYTHONS[1:]:
@@ -538,15 +553,17 @@ def mutants(directory: Path, cases: Path, generated: Path, server: sqlalchemy.UR
     print("\nmutants:", flush=True)
     wrong: list[str] = []
     for i, (name, mutant) in enumerate(MUTANTS.items()):
+        started = time.monotonic()
         root = workspace(directory / f"mutant{i}", cases, mutant)
         said = caught(mutant, root, generated, server)
+        seconds = time.monotonic() - started
         if said is not None and mutant.says in said:
-            print(f"  caught by {mutant.caught_by}: {name}", flush=True)
+            print(f"  {seconds:>4.0f}s caught by {mutant.caught_by}: {name}", flush=True)
             continue
 
         wrong.append(name)
         why = "ESCAPED" if said is None else f"caught, not saying {mutant.says!r}"
-        print(f"  {why}, by {mutant.caught_by}: {name}", flush=True)
+        print(f"  {seconds:>4.0f}s {why}, by {mutant.caught_by}: {name}", flush=True)
         print(textwrap.indent((said or "").strip()[-2000:], "    | "), flush=True)
     detail = f"{len(MUTANTS) - len(wrong)}/{len(MUTANTS)} planted bugs caught as meant"
     return "mutants", len(wrong) > 0, detail
@@ -556,7 +573,8 @@ def caught(mutant: Mutant, root: Path, generated: Path, server: sqlalchemy.URL) 
     """What the layer named for ``mutant`` said when it failed on the cases at ``root``, or ``None`` when it passed."""
     if mutant.caught_by == SWEEP:
         targets = autoprop.targets(root, generated)
-        reports = autoprop.sweep(server, [t for t in targets if t.package == mutant.case], [root])
+        swept = [replace(target, shrinks=False) for target in targets if target.package == mutant.case]
+        reports = autoprop.sweep(server, swept, [root])
         failures = [report.failure for report in reports if report.failure != ""]
         return "\n".join(failures) if len(failures) > 0 else None
 

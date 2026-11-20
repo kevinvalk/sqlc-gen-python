@@ -19,7 +19,7 @@ use models::models_follow_catalog;
 use module::{module_problems, prelude};
 use queries::{queries_follow_sqlc, stem};
 
-/// Every invariant that what `request` generated breaks, as `corpus.rs` lists them.
+/// Every invariant that what `request` generated breaks, as `endtoend.rs` lists them.
 pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -> Vec<String> {
     let config = Config::from_request(request).ok();
     let request = &renamed(request, config.as_ref());

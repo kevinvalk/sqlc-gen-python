@@ -15,18 +15,19 @@ usage: cargo xtask <command>
 
 commands:
   check   rustfmt --check, clippy with warnings denied, cargo test, the static
-          Python gate over every golden case and corpus output, the scanner
+          Python gate over every golden case and endtoend output, the scanner
           proof of the SQL rewriting, and ruff and mypy over the scripts of
           tests/python
-  bless [CASE...] [--allow-regressions]
+  bless [CASE...] [--allow-regressions] [--mutants]
           rewrite the golden cases whose output changed (each the codegen `out`
-          directory of an examples/*/sqlc.yaml) and the corpus ledger, or with
+          directory of an examples/*/sqlc.yaml) and the endtoend ledger, or with
           CASE names only those cases. Refuses when the unit specs, the sweep
-          or the static gate fail, when anything else would change, when a
-          corpus request stops generating (unless --allow-regressions), or when
-          verify fails on what would change, which also rewrites docs/typemap.md
-          to match (needs docker, or SQLC_TEST_DATABASE_URL and
-          SQLC_TEST_MYSQL_URL)
+          or the static gate fail, when anything else would change, when an
+          endtoend request stops generating (unless --allow-regressions), or
+          when verify fails on what would change (with --mutants also its
+          planted bugs), which also rewrites docs/typemap.md and
+          tests/python/exercised.tsv to match (needs docker, or
+          SQLC_TEST_DATABASE_URL and SQLC_TEST_MYSQL_URL)
   capture [--sqlc-bin PATH] [--check]
           re-capture tests/sqlc/endtoend and tests/sqlc/examples/*.json with the
           sqlc .prototools pins (downloaded, or the binary at PATH; takes
@@ -39,9 +40,10 @@ commands:
           prove what the generator emits against PostgreSQL and MySQL (docker,
           or SQLC_TEST_DATABASE_URL and SQLC_TEST_MYSQL_URL) and SQLite, on the
           oldest and the newest supported Python, and rewrite docs/typemap.md
-          (docs/development.md, \"Proof\"). With --mutants also plant bugs that
-          must each be caught; with --check fail instead of writing a document
-          that would change
+          and tests/python/exercised.tsv (docs/testing.md). Sweeps again only
+          what changed since target/sweep/. With --mutants also plant bugs
+          that must each be caught; with --check fail instead of writing a
+          document that would change
   generate REQUEST OPTIONS [OUT]
           run the plugin on a request as JSON (tests/sqlc/...) with OPTIONS as
           JSON, printing each file or writing them into OUT
@@ -61,13 +63,11 @@ fn main() -> ExitCode {
         }
         ["check"] => GenDir::with(check),
         ["bless", rest @ ..] => {
-            let allow_regressions = rest.contains(&"--allow-regressions");
-            let names: Vec<&str> = (rest.iter().copied())
-                .filter(|arg| *arg != "--allow-regressions")
-                .collect();
-            match names.iter().any(|name| name.starts_with('-')) {
-                true => usage(),
-                false => GenDir::with(|generated| bless(generated, &names, allow_regressions)),
+            let (flags, names): (Vec<&str>, Vec<&str>) = rest.iter().partition(|arg| arg.starts_with('-'));
+            let known = |flag: &&str| matches!(*flag, "--allow-regressions" | "--mutants");
+            match flags.iter().all(known) {
+                true => GenDir::with(|generated| bless(generated, &names, &flags)),
+                false => usage(),
             }
         }
         // Their scripts parse their own options.
@@ -119,12 +119,12 @@ fn check(generated: &GenDir) -> Result<(), String> {
 }
 
 /// IMPORTANT: Only bless output you have read and verified to be more correct than what it replaces. To keep that
-/// honest we write nothing unless the unit specs pass, every corpus output still holds the sweep's invariants,
-/// everything generated passes the static gate, nothing outside `names` would change and no corpus request stops
-/// generating (unless `allow_regressions` says that is intended). The static gate cannot see a wrong type that is still
-/// well typed, so what changes must also pass the runtime proof, every layer of which reads a golden case or a corpus
+/// honest we write nothing unless the unit specs pass, every endtoend output still holds the sweep's invariants,
+/// everything generated passes the static gate, nothing outside `names` would change and no endtoend request stops
+/// generating (unless `--allow-regressions` says that is intended). The static gate cannot see a wrong type that is still
+/// well typed, so what changes must also pass the runtime proof, every layer of which reads a golden case or an endtoend
 /// output.
-fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<(), String> {
+fn bless(generated: &GenDir, names: &[&str], flags: &[&str]) -> Result<(), String> {
     if let Some(name) = names.iter().find(|name| case_directory(name).is_none()) {
         return Err(format!("{name} is not a golden case: no examples/*/{name}/"));
     }
@@ -138,31 +138,32 @@ fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<
     };
     let changed = read("changed", "the golden test failed")?;
     let changed: Vec<&str> = changed.lines().collect();
-    let ledger = read("ledger.tsv", "the corpus sweep failed")?;
-    let regressions = read("regressions", "the corpus sweep failed")?;
+    let ledger = read("ledger.tsv", "the endtoend sweep failed")?;
+    let regressions = read("regressions", "the endtoend sweep failed")?;
 
     let ledger_path = root().join("tests/sqlc/endtoend/ledger.tsv");
     let ledger_changed = fs::read_to_string(&ledger_path).unwrap_or_default() != ledger;
     if !names.is_empty() {
         let mut outside: Vec<&str> = (changed.iter().copied()).filter(|name| !names.contains(name)).collect();
         if ledger_changed {
-            outside.push("the corpus ledger (bless it with no CASE names)");
+            outside.push("the endtoend ledger (bless it with no CASE names)");
         }
         if !outside.is_empty() {
             return Err(format!("{} would change too", outside.join(", ")));
         }
     }
 
-    if !regressions.is_empty() && !allow_regressions {
+    if !regressions.is_empty() && !flags.contains(&"--allow-regressions") {
         return Err(format!(
-            "these corpus requests would stop generating:\n{regressions}\
+            "these endtoend requests would stop generating:\n{regressions}\
              bless with --allow-regressions if that is intended"
         ));
     }
 
     generated.gate()?;
     if !changed.is_empty() || ledger_changed {
-        run(uv_python("tests/python/verify.py").arg(&generated.0))?;
+        let mutants = flags.iter().filter(|flag| **flag == "--mutants");
+        run(uv_python("tests/python/verify.py").arg(&generated.0).args(mutants))?;
     }
 
     println!("\nblessed:");
@@ -187,7 +188,7 @@ fn bless(generated: &GenDir, names: &[&str], allow_regressions: bool) -> Result<
     Ok(())
 }
 
-/// The runtime proof over what the generator emits: `cargo test` exports every golden and corpus output, which
+/// The runtime proof over what the generator emits: `cargo test` exports every golden and endtoend output, which
 /// `tests/python/verify.py` then proves.
 fn verify(generated: &GenDir, options: &[&str]) -> Result<(), String> {
     // We ignore whether the output matches what is committed, as that is `check`'s question and a case awaiting bless

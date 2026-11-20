@@ -1,6 +1,6 @@
 # Project rules for agents
 
-A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates Python 3.11+ for PostgreSQL, MySQL and SQLite. It builds a ruff Python AST and renders it with ruff's formatter. Read `docs/development.md` for the architecture.
+A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates Python 3.11+ for PostgreSQL, MySQL and SQLite. It builds a ruff Python AST and renders it with ruff's formatter. Read `docs/development.md` for the architecture, and `docs/testing.md` for how it is proven.
 
 ## Non-negotiables
 
@@ -15,7 +15,7 @@ A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates Pytho
 1. The sqlc plugin contract: `protos/sqlc.proto` (pinned to a sqlc release tag) and sqlc's runner behaviour (empty `plugin_options` bytes are valid; stderr is only shown on failure, so unsupported input must be an error, never a warning; file names must stay inside `out`; sqlc never deletes stale files).
 2. What sqlc puts in the request: column order, nullability, param numbering, `embed_table`, `is_sqlc_slice`, `cmd`, `query.text`. Never re-infer these.
 3. What a real PostgreSQL + driver returns at runtime. This beats any type map, including ours and the old plugins' (e.g. `money` comes back as `str`).
-4. sqlc's Go codegen in its endtoend corpus and its `internal/inflection` rules: cross-language conventions (model names, array depth, embed/slice shapes).
+4. sqlc's Go codegen in its endtoend tests and its `internal/inflection` rules: cross-language conventions (model names, array depth, embed/slice shapes).
 5. Strict Python tooling: pyright strict, `mypy --strict`, `ruff check` with the project's rule set, all targeting Python 3.11.
 
 ## Decided
@@ -30,7 +30,7 @@ A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates Pytho
 - Types follow driver reality; enums are coerced into the enum class.
 - Records are frozen, keyword-only dataclasses, or with `records: pydantic` frozen `pydantic.BaseModel`s that forbid extra fields: one kind per entry, for models, `Row` and `Params` alike.
 - `cargo test` stays hermetic: no Python, Docker or network. Python tooling lives in a uv project under `tests/python`; Docker is needed for `capture`, `verify`, CI, and a `bless` that changes anything, and they fail loudly without it.
-- The sqlc endtoend corpus (pinned sqlc version) is committed as test input.
+- What sqlc sends a plugin for its own endtoend tests (pinned sqlc version) is committed as test input, with their MIT notice.
 
 ## Workarounds
 

@@ -1,5 +1,6 @@
-The requests in this directory are the output of sqlc v1.31.1 run over
-its own end-to-end test cases (internal/endtoend/testdata at commit
+The requests in this directory are what sqlc v1.31.1 sends a plugin for
+its own end-to-end test cases, and the schemas are copied from those
+cases (internal/endtoend/testdata at commit
 a95e91d70ad9e1181253c333a1cfdd75ae4b95a5), which are distributed under this license:
 
 MIT License

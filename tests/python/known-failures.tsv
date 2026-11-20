@@ -1,4 +1,4 @@
-# Failures the runtime sweep must keep finding in what the generator emits for corpus cases, because sqlc reports
+# Failures the runtime sweep must keep finding in what the generator emits for endtoend cases, because sqlc reports
 # something PostgreSQL does not do and the generator is right to follow sqlc (AGENTS.md: never re-infer what sqlc
 # reports). Each is a documented limitation ("Known limitations" in the README) or a sqlc catalog bug.
 #
@@ -7,7 +7,7 @@
 # from deep.check). `verify` counts each one where it happens and goes on, but one that no longer happens fails it, so
 # we remove it once sqlc or the generator changes.
 #
-# corpus case	text of the failure	why
+# endtoend case	text of the failure	why
 create_table_as/postgresql	Foo.from_row on public.second_table.val: NoneType None is not <class 'str'>	sqlc copies NOT NULL into CREATE TABLE AS; PostgreSQL does not
 create_table_as/postgresql	.get_first() ->[]: NoneType None is not <class 'str'>	the same column, read by a query
 create_table_as/postgresql	.stream_get_first() ->[]: NoneType None is not <class 'str'>	the same column, read by its stream

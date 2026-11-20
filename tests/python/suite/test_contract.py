@@ -1,6 +1,6 @@
 """What `cargo test` cannot check without Python.
 
-`cargo test` round-trips the SQL of every golden case and corpus output byte for byte through copies of SQLAlchemy's
+`cargo test` round-trips the SQL of every golden case and endtoend output byte for byte through copies of SQLAlchemy's
 own expressions (`tests/rust/support/`), and here we pin those copies to the SQLAlchemy we run.
 """
 

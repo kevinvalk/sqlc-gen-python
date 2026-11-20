@@ -1,4 +1,4 @@
-//! The corpus sweep: every request sqlc's own test suite produces (`tests/sqlc/endtoend/`, from `cargo xtask capture`),
+//! The endtoend sweep: every request sqlc's own test suite produces (`tests/sqlc/endtoend/`, from `cargo xtask capture`),
 //! under every profile of its `profiles.json`, must either generate sound Python or fail cleanly. Nothing here knows
 //! what the output should be, the golden tests pin that for a few curated cases. Instead every output must hold what
 //! any correct output holds:
@@ -55,8 +55,8 @@ type Key = (String, String);
 
 #[test]
 fn every_request_generates_sound_python_or_fails_cleanly() {
-    let corpus = support::root().join("tests/sqlc/endtoend");
-    let profiles: BTreeMap<String, serde_json::Value> = support::read_json(&corpus.join("profiles.json"));
+    let endtoend = support::root().join("tests/sqlc/endtoend");
+    let profiles: BTreeMap<String, serde_json::Value> = support::read_json(&endtoend.join("profiles.json"));
 
     // We sweep sequentially as the whole corpus takes about half a second in a debug build.
     let mut ledger = BTreeMap::new();
@@ -66,8 +66,8 @@ fn every_request_generates_sound_python_or_fails_cleanly() {
     // has it, and `packages` maps every row to that package.
     let mut exported = BTreeMap::new();
     let mut packages = String::from("request\tprofile\tpackage\n");
-    for path in requests(&corpus) {
-        let request: plugin::GenerateRequest = support::read_json(&corpus.join(&path));
+    for path in requests(&endtoend) {
+        let request: plugin::GenerateRequest = support::read_json(&endtoend.join(&path));
         for (profile, options) in &profiles {
             match sweep(&request, options) {
                 Ok(Outcome::Generated { sha8, files }) => {
@@ -97,7 +97,7 @@ fn every_request_generates_sound_python_or_fails_cleanly() {
         fs::create_dir_all(&directory).unwrap();
         fs::write(directory.join("packages.tsv"), packages).unwrap();
     }
-    check_ledger(&corpus.join("ledger.tsv"), &ledger);
+    check_ledger(&endtoend.join("ledger.tsv"), &ledger);
 }
 
 /// What generating one request under one profile did, breaking no invariant.
@@ -226,22 +226,22 @@ fn kind(outcome: Option<&String>) -> &'static str {
     }
 }
 
-fn requests(corpus: &Path) -> Vec<String> {
-    let manifest = fs::read_to_string(corpus.join("MANIFEST.tsv")).expect("reading MANIFEST.tsv");
+fn requests(endtoend: &Path) -> Vec<String> {
+    let manifest = fs::read_to_string(endtoend.join("MANIFEST.tsv")).expect("reading MANIFEST.tsv");
     let requests: BTreeSet<String> = (manifest.lines().skip(1))
         .filter_map(|line| line.split('\t').nth(2))
         .filter(|request| request.ends_with(".json"))
         .map(Into::into)
         .collect();
-    assert!(!requests.is_empty(), "no requests in {corpus:?}");
+    assert!(!requests.is_empty(), "no requests in {endtoend:?}");
     requests.into_iter().collect()
 }
 
 /// The package an output is checked as: its request and profile spelled as a Python identifier, so
-/// `a/b/request.managed-db.json` under `async` becomes `corpus__a__b__request_managed_db__async`.
+/// `a/b/request.managed-db.json` under `async` becomes `endtoend__a__b__request_managed_db__async`.
 fn package(request: &str, profile: &str) -> String {
     let request = request.trim_end_matches(".json").replace('/', "__");
-    format!("corpus__{request}__{profile}").replace(['.', '-'], "_")
+    format!("endtoend__{request}__{profile}").replace(['.', '-'], "_")
 }
 
 fn one_line(message: &str) -> String {

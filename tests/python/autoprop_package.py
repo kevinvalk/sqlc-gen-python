@@ -42,6 +42,9 @@ class Target:
     known: tuple[str, ...] = ()  # What the failures listed for it in `autoprop.KNOWN` say
     asynchronous: bool = False
     raw: bool = False  # Whether its functions take a psycopg connection (the psycopg backend)
+    # Whether Hypothesis shrinks a failure to its smallest example, which a planted bug only needs found, not shrunk:
+    # shrinking one takes minutes.
+    shrinks: bool = True
 
 
 @dataclass
@@ -102,7 +105,7 @@ class Sweep:
         target: Target,
     ) -> None:
         self.report = report
-        self.asynchronous, self.raw = target.asynchronous, target.raw
+        self.asynchronous, self.raw, self.shrinks = target.asynchronous, target.raw, target.shrinks
         self.conninfo = conninfo(url)
         # A generated package is a namespace package, whose `__path__` is no list
         stems = {path.stem for directory in package.__path__ for path in Path(directory).glob("*.py")}
@@ -165,7 +168,7 @@ class Sweep:
             database=None,
             derandomize=True,
             suppress_health_check=list(HealthCheck),
-            phases=[Phase.generate, Phase.shrink],
+            phases=[Phase.generate, Phase.shrink] if self.shrinks else [Phase.generate],
         )
         @given(st.data())
         def examples(data: st.DataObject) -> None:

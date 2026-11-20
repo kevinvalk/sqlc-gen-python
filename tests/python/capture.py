@@ -61,16 +61,16 @@ from examples import EXAMPLES, ROOT, golden_cases
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-CORPUS = "tests/sqlc/endtoend"
+ENDTOEND = "tests/sqlc/endtoend"
 REQUESTS = "tests/sqlc/examples"
 # Everything a capture writes, relative to where it writes
 CAPTURED = (
-    f"{CORPUS}/**/request*.json",
-    f"{CORPUS}/**/schema*.sql",
-    f"{CORPUS}/MANIFEST.tsv",
-    f"{CORPUS}/SOURCE.toml",
-    f"{CORPUS}/NOTICE",
-    f"{CORPUS}/inflection.tsv",
+    f"{ENDTOEND}/**/request*.json",
+    f"{ENDTOEND}/**/schema*.sql",
+    f"{ENDTOEND}/MANIFEST.tsv",
+    f"{ENDTOEND}/SOURCE.toml",
+    f"{ENDTOEND}/NOTICE",
+    f"{ENDTOEND}/inflection.tsv",
     f"{REQUESTS}/*.json",
     "protos/sqlc.proto",
 )
@@ -82,8 +82,8 @@ REPOSITORY = "sqlc-dev/sqlc"
 TESTDATA = "internal/endtoend/testdata"
 PROTO = "protos/plugin/codegen.proto"
 INFLECTION = "internal/inflection"
-# Words beyond the corpus's table names that exercise each rule of sqlc's singularisation, and each correction sqlc
-# makes to it.
+# Words beyond the table names of sqlc's endtoend tests that exercise each rule of sqlc's singularisation, and each
+# correction sqlc makes to it.
 WORDS = (
     "addresses",
     "alias",
@@ -227,27 +227,27 @@ def main() -> None:
     for outcome in (o for o in outcomes if o.run.directory.is_relative_to(local)):
         (request,) = outcome.requests
         write_json(out / REQUESTS / f"{outcome.run.case}.json", request)
-    corpus = [o for o in outcomes if o.run.directory.is_relative_to(upstream)]
-    write_corpus(corpus, out / CORPUS)
-    (out / CORPUS / "inflection.tsv").write_text(inflection)
-    (out / CORPUS / "SOURCE.toml").write_text(
+    endtoend = [o for o in outcomes if o.run.directory.is_relative_to(upstream)]
+    write_endtoend(endtoend, out / ENDTOEND)
+    (out / ENDTOEND / "inflection.tsv").write_text(inflection)
+    (out / ENDTOEND / "SOURCE.toml").write_text(
         "# Written by `cargo xtask capture`. Do not edit.\n"
         f'sqlc = "{version}"\n'
         f'commit = "{commit}"\n'
         f'testdata = "https://github.com/{REPOSITORY}/tree/{commit}/{TESTDATA}"\n'
         f'managed_db = "PostgreSQL {POSTGRES}"\n'
     )
-    (out / CORPUS / "NOTICE").write_text(
-        f"The requests in this directory are the output of sqlc {version} run over\n"
-        f"its own end-to-end test cases ({TESTDATA} at commit\n"
+    (out / ENDTOEND / "NOTICE").write_text(
+        f"The requests in this directory are what sqlc {version} sends a plugin for\n"
+        "its own end-to-end test cases, and the schemas are copied from those\n"
+        f"cases ({TESTDATA} at commit\n"
         f"{commit}), which are distributed under this license:\n\n" + (source / "LICENSE").read_text()
     )
-    summarize(corpus, out / CORPUS, time.monotonic() - started)
-    if args.check:
-        if len(differences := compare(out, ROOT)) > 0:
-            print("\n".join(differences))
-            sys.exit(f"the capture differs from what is committed; see {out}")
-        wire_contract(sqlc)
+    summarize(endtoend, out / ENDTOEND, time.monotonic() - started)
+    if args.check and len(differences := compare(out, ROOT)) > 0:
+        print("\n".join(differences))
+        sys.exit(f"the capture differs from what is committed; see {out}")
+    wire_contract(sqlc)
 
 
 def wire_contract(sqlc: Path) -> None:
@@ -527,7 +527,7 @@ def copy_tree(source: Path, destination: Path) -> Path:
 
 def postgres_servers(stack: ExitStack) -> Queue[str]:
     """Start the PostgreSQL servers the managed-db context needs. We fail without Docker or ``POSTGRESQL_SERVER_URI``,
-    or when a server is not the pinned version, rather than capture half the corpus.
+    or when a server is not the pinned version, rather than capture half of sqlc's endtoend tests.
     """
     servers: Queue[str] = Queue()
 
@@ -656,10 +656,10 @@ def plugin_view(request: Json) -> Json:
     }
 
 
-def write_corpus(outcomes: Iterable[Outcome], corpus: Path) -> None:
-    for stale in [*corpus.glob("**/request*.json"), *corpus.glob("**/schema*.sql")]:
+def write_endtoend(outcomes: Iterable[Outcome], endtoend: Path) -> None:
+    for stale in [*endtoend.glob("**/request*.json"), *endtoend.glob("**/schema*.sql")]:
         stale.unlink()
-    for directory in sorted(corpus.glob("**/"), reverse=True):
+    for directory in sorted(endtoend.glob("**/"), reverse=True):
         if not any(directory.iterdir()):
             directory.rmdir()
 
@@ -676,12 +676,12 @@ def write_corpus(outcomes: Iterable[Outcome], corpus: Path) -> None:
             package = f".{index}" if len(requests) > 1 else ""
             if (key := json.dumps(request)) not in stored:
                 stored[key] = f"{run.case}/request{context}{package}.json"
-                write_json(corpus / stored[key], request)
-                schema = corpus / run.case / f"schema{package}.sql"
+                write_json(endtoend / stored[key], request)
+                schema = endtoend / run.case / f"schema{package}.sql"
                 schema.write_text(schema_script(run, index))
             rows.append(f"{run.case}\t{run.context}\t{stored[key]}\t{note}")
-    corpus.mkdir(parents=True, exist_ok=True)
-    (corpus / "MANIFEST.tsv").write_text("\n".join(rows) + "\n")
+    endtoend.mkdir(parents=True, exist_ok=True)
+    (endtoend / "MANIFEST.tsv").write_text("\n".join(rows) + "\n")
 
 
 def schema_script(run: Run, package: int) -> str:
@@ -734,9 +734,9 @@ def write_json(path: Path, value: Json) -> None:
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n")
 
 
-def summarize(outcomes: list[Outcome], corpus: Path, seconds: float) -> None:
+def summarize(outcomes: list[Outcome], endtoend: Path, seconds: float) -> None:
     """Print what a reviewer of the capture diff wants to know first."""
-    requests = list(corpus.glob("**/request*.json"))
+    requests = list(endtoend.glob("**/request*.json"))
     size = sum(path.stat().st_size for path in requests)
     engines = Counter(json.loads(path.read_text())["settings"]["engine"] for path in requests)
     runs = Counter(f"{o.run.context} {o.status}" for o in outcomes)

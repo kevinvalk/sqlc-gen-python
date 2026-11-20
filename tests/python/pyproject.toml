@@ -16,7 +16,7 @@ dev = [
     # bind `bytes` on PyMySQL 1.2.
     "asyncmy==0.2.18",
     "asyncpg==0.32.0",
-    # Draws the arguments of the corpus runtime sweep (autoprop.py).
+    # Draws the arguments of the runtime sweep (autoprop.py).
     "hypothesis==6.168.5",
     "mypy==2.4.1",
     # PostgreSQL's own scanner, libpg_query, which sqlc parses with (through pg_query_go) and scanner.py holds the SQL
@@ -29,7 +29,7 @@ dev = [
     "pyright[nodejs]==1.1.414",
     "pymysql==1.2.4",
     "pytest==9.2.0",
-    # Reads sqlc configurations, which may be YAML, when capturing the corpus
+    # Reads sqlc configurations, which may be YAML, when capturing sqlc.s endtoend tests
     "pyyaml==6.0.3",
     # IMPORTANT: Must match the ruff crates in Cargo.toml, which the plugin formats with (tests/rust/golden.rs holds
     # the two together).
