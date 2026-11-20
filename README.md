@@ -82,12 +82,12 @@ The plugin needs sqlc's static analysis: with a `database` block in `sqlc.yaml`,
 | `:many` | a `list` of rows |
 | `:exec` | `None` |
 | `:execrows` | the number of rows, an `int` |
-| `:execlastid` | the id MySQL generated, an `int` (MySQL only) |
+| `:execlastid` | the id MySQL generated, an `int`, or `0` when it inserted no row (MySQL only) |
 | `:execresult` | the library's own result or cursor |
 | `:copyfrom` | how many rows it wrote, an `int`, for `rows` of `<Query>Params` |
 | `:batchexec`, `:batchone`, `:batchmany` | a `list` of one result per row (PostgreSQL only) |
 
-A row of one column is its value, a row of exactly a table's columns is that table's model, and any other is a `<Query>Row` beside the function. Every one is a frozen, keyword-only dataclass (or a pydantic model, with `records: pydantic`), and every enum an `enum.StrEnum`. `sqlc.embed(t)` is a field of `t`'s model, and `sqlc.slice` a `list`.
+A row of one column is its value, so a `:one` of a nullable column returns `None` for a NULL and for no row alike (`raise_on_none` tells them apart). A row of exactly a table's columns is that table's model, and any other is a `<Query>Row` beside the function. Every one is a frozen, keyword-only dataclass (or a pydantic model, with `records: pydantic`), and every enum an `enum.StrEnum`. `sqlc.embed(t)` is a field of `t`'s model, and `sqlc.slice` a `list`.
 
 A `:many` that only reads also has a `stream_<query>`, which reads each row as you iterate instead of all of them first, and closes its cursor when you leave it:
 
@@ -165,8 +165,8 @@ What sqlc reports is never second-guessed, but where the statement proves sqlc w
 - **Time**: an `interval` loses its months (`'1 mon'` is 30 days). psycopg and asyncpg disagree on a naive `datetime` and return a `timestamptz` in different zones: pass aware datetimes, and convert before `.date()`. Keep `'infinity'` out of a `timestamptz`.
 - **A `:one` that writes** has written before it raises on a second row, and a batch is not atomic: run them in a transaction you can roll back.
 - **psycopg** returns what the connection's adapters make: a loader registered on it (`register_hstore`, pgvector's) changes what the generated code gets. Its `COPY` fires no rule and copies into no view.
-- **MySQL** returns a `FLOAT` to six digits, a `TIMESTAMP` naive in the session's zone, and a zero date as text; `:execrows` counts the rows changed, not matched, unless the connection sets `CLIENT.FOUND_ROWS` (SQLAlchemy does). A boolean that is NULL reads as `False`, and an asyncmy coroutine cancelled mid-statement leaves its connection unusable.
-- **SQLite** types are affinities, not constraints: another program may store a `str` in an `INTEGER` column. Use `STRICT` tables, and declare a `TEXT` primary key `NOT NULL`, as SQLite lets it be NULL. A boolean that is NULL reads as `False`, as on MySQL. A query file must be ASCII, comments included, as sqlc cuts every statement after a non-ASCII character short ([sqlc#4235](https://github.com/sqlc-dev/sqlc/issues/4235)); we refuse it.
+- **MySQL** returns a `FLOAT` to six digits, a `TIMESTAMP` naive in the session's zone, and a zero date as text; `:execrows` counts the rows changed, not matched, unless the connection sets `CLIENT.FOUND_ROWS` (SQLAlchemy does). A boolean sqlc calls NOT NULL, such as a computed one, reads a NULL as `False`, and an asyncmy coroutine cancelled mid-statement leaves its connection unusable.
+- **SQLite** types are affinities, not constraints: another program may store a `str` in an `INTEGER` column. Use `STRICT` tables, and declare a `TEXT` primary key `NOT NULL`, as SQLite lets it be NULL. A boolean sqlc calls NOT NULL reads a NULL as `False`, as on MySQL. A query file must be ASCII, comments included, as sqlc cuts every statement after a non-ASCII character short ([sqlc#4235](https://github.com/sqlc-dev/sqlc/issues/4235)); we refuse it.
 - **SQLAlchemy on asyncpg** raises asyncpg's own error, not a `DBAPIError`, for what fails while a stream reads.
 - **An override's module** is sorted with the third-party imports: list it under ruff's `known-third-party`.
 
