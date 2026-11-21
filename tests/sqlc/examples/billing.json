@@ -2062,6 +2062,208 @@
       "insert_into_table": null
     },
     {
+      "text": "SELECT id FROM customers\nWHERE (? IS NULL OR name = ?)\n  AND (vip = ? OR ? IS NULL)\n  AND (? IS NULL OR preferred_method = ?)\nORDER BY id",
+      "name": "FilterCustomers",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "id",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "customers"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "id",
+          "unsigned": true,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "name",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": null,
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "any"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 2,
+          "column": {
+            "name": "name",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 100,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "customers"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "varchar"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "name",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 3,
+          "column": {
+            "name": "vip",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 1,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "customers"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "tinyint"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "vip",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 4,
+          "column": {
+            "name": "vip",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": null,
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "any"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 5,
+          "column": {
+            "name": "preferred_method",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": null,
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "any"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 6,
+          "column": {
+            "name": "preferred_method",
+            "not_null": false,
+            "is_array": false,
+            "comment": "",
+            "length": 13,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "customers"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "customers_preferred_method"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "preferred_method",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [
+        " The customers every filter given matches, so all of them for none. Either use of a filter may come first."
+      ],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
       "text": "INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)\nVALUES (?, ?, ?, ?, ?, ?)",
       "name": "CreateInvoice",
       "cmd": ":execlastid",

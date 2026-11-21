@@ -96,9 +96,9 @@ Where sqlc's report is not enough (`engine/select.rs`), we read the SQL's tokens
 
 We never write generated Python as text. Every expression and statement is a ruff AST node (`python/syntax.rs`), so a construct that is not Python does not compile, and schema data can only ever end up as a name or a string. A name the generated code reads or binds itself (`cur`, `Sequence`, `from_row`) is a constant in `python/vocabulary.rs`, so it reads as the name it is: `CUR.attr("execute").call([statement])`. Only a library's own member (`"execute"`) is spelled where it is used, in the backend that calls it.
 
-What a tree cannot hold is the one part that is text: the comments that open a file (the header, and `# ruff: noqa: S105` where a statement's name would trip it), the blank line between import sections, and how a docstring or a multi-line SQL string is spelled. We parse Python in two places only: an override's `python_type`, which is the user's, and each module we unparsed, to find those strings and for ruff to format.
+What a tree cannot hold is the one part that is text: the comments that open a file (the header, and `# ruff: noqa: S105` where a statement's name would trip it), the blank line between import sections and after a top-level `if`, and how a docstring or a multi-line SQL string is spelled. We parse Python in two places only: an override's `python_type`, which is the user's, and each module we unparsed, to find those strings and for ruff to format.
 
-`Engine` and `Backend` answer each question with a `match` that names every variant, so adding one makes the compiler list everything it has to answer. The rules of each module are specified in a `_spec.rs` beside it.
+Where engines or backends differ, `Engine` and `Backend` answer with a `match` that names every variant (a driver's backend through its `dbapi::Driver`), so adding one makes the compiler list everything it has to answer. The rules of each module are specified in a `_spec.rs` beside it.
 
 ## Releasing
 

@@ -55,7 +55,7 @@ def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: C901
         assert type(value) is hint, f"{path}: {type(value).__name__} {value!r} is not {hint}"
 
 
-def refused(error: pydantic.ValidationError, hint: Any, path: str) -> typing.NoReturn:
+def raise_mismatch(error: pydantic.ValidationError, hint: Any, path: str) -> typing.NoReturn:
     """Raise what `check` raises for a value a pydantic record of `hint` (or a list of them) refused to hold, so the value
     reads as the mismatch it would be in a dataclass; and `error` itself when `check` accepts the value.
     """
@@ -113,7 +113,9 @@ def failure(value: object, hint: Any, path: str = "value") -> str | None:
 
 
 def checked(function: Callable[..., Any], called: set[str]) -> Callable[..., Any]:
-    """Wrap a generated function so each call checks its arguments and result, and records the function in `called`."""
+    """Wrap a generated function, sync or async, as a coroutine that checks each call's arguments and result, and records
+    the function in `called`.
+    """
     hints = typing.get_type_hints(function)  # This also proves the hints resolve at runtime
     signature = inspect.signature(function)
     name = f"{function.__module__}.{function.__qualname__}"
@@ -124,27 +126,15 @@ def checked(function: Callable[..., Any], called: set[str]) -> Callable[..., Any
             check(value, hints[parameter], f"{name}({parameter}=)")
         called.add(name)
 
-    if inspect.iscoroutinefunction(function):
-
-        @functools.wraps(function)
-        async def async_wrapper(*args: object, **kwargs: object) -> object:
-            check_arguments(*args, **kwargs)
-            try:
-                result = await function(*args, **kwargs)
-            except pydantic.ValidationError as error:
-                refused(error, hints["return"], f"{name}() ->")
-            check(result, hints["return"], f"{name}() ->")
-            return result
-
-        return async_wrapper
-
     @functools.wraps(function)
-    def wrapper(*args: object, **kwargs: object) -> object:
+    async def wrapper(*args: object, **kwargs: object) -> object:
         check_arguments(*args, **kwargs)
         try:
             result = function(*args, **kwargs)
+            if inspect.iscoroutinefunction(function):
+                result = await result
         except pydantic.ValidationError as error:
-            refused(error, hints["return"], f"{name}() ->")
+            raise_mismatch(error, hints["return"], f"{name}() ->")
         check(result, hints["return"], f"{name}() ->")
         return result
 
@@ -177,7 +167,7 @@ def streamed(stream: Callable[..., Any], called: set[str]) -> Callable[..., Any]
                 async with stream(*args, **kwargs) as items:
                     read = [item async for item in items]
             except pydantic.ValidationError as error:
-                refused(error, rows, f"{name}() ->")
+                raise_mismatch(error, rows, f"{name}() ->")
             check(read, rows, f"{name}() ->")
             return read
 
@@ -190,7 +180,7 @@ def streamed(stream: Callable[..., Any], called: set[str]) -> Callable[..., Any]
             with stream(*args, **kwargs) as items:
                 read = list(items)
         except pydantic.ValidationError as error:
-            refused(error, rows, f"{name}() ->")
+            raise_mismatch(error, rows, f"{name}() ->")
         check(read, rows, f"{name}() ->")
         return read
 

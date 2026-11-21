@@ -3,7 +3,7 @@
 #   sqlc v1.31.1
 import contextlib
 import dataclasses
-from collections.abc import AsyncGenerator, AsyncIterator, Iterable
+from collections.abc import AsyncGenerator, AsyncIterator, Iterable, Sequence
 from decimal import Decimal
 from typing import Any, Final
 from uuid import UUID
@@ -64,3 +64,46 @@ async def stream_list_line_items(
     ) as cur:
         await cur.execute(_LIST_LINE_ITEMS, (invoice_id,))
         yield (models.LineItem.from_row(row) async for row in cur)
+
+
+_SUM_LINES_BELOW_VAT_RATE: Final = """SELECT invoice_id, sum(round(quantity * unit_price, 2)) FILTER (WHERE vat_rate < $1)::numeric(12, 2) AS subtotal
+FROM line_items
+GROUP BY invoice_id
+ORDER BY invoice_id"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class SumLinesBelowVatRateRow:
+    invoice_id: UUID
+    subtotal: Decimal | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "SumLinesBelowVatRateRow":
+        return cls(invoice_id=row[0], subtotal=row[1])
+
+
+async def sum_lines_below_vat_rate(
+    connection: psycopg.AsyncConnection[Any], *, vat_rate: Decimal
+) -> list[SumLinesBelowVatRateRow]:
+    """The subtotal of each invoice's lines below a VAT rate: an aggregate is
+    NULL of a group whose rows its FILTER keeps none of, though sqlc reports
+    its cast NOT NULL.
+    """
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
+        await cur.execute(_SUM_LINES_BELOW_VAT_RATE, (vat_rate,))
+        return [SumLinesBelowVatRateRow.from_row(row) for row in await cur.fetchall()]
+
+
+@contextlib.asynccontextmanager
+async def stream_sum_lines_below_vat_rate(
+    connection: psycopg.AsyncConnection[Any], *, vat_rate: Decimal
+) -> AsyncGenerator[AsyncIterator[SumLinesBelowVatRateRow], None]:
+    """The subtotal of each invoice's lines below a VAT rate: an aggregate is
+    NULL of a group whose rows its FILTER keeps none of, though sqlc reports
+    its cast NOT NULL.
+    """
+    async with psycopg.AsyncRawServerCursor(
+        connection, "stream_sum_lines_below_vat_rate", row_factory=tuple_row
+    ) as cur:
+        await cur.execute(_SUM_LINES_BELOW_VAT_RATE, (vat_rate,))
+        yield (SumLinesBelowVatRateRow.from_row(row) async for row in cur)

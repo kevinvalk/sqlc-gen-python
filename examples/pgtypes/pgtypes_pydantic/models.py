@@ -46,7 +46,10 @@ class WeirdMood(enum.StrEnum):
 
 class AnalyticsEvent(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(
-        frozen=True, extra="forbid", arbitrary_types_allowed=True
+        frozen=True,
+        extra="forbid",
+        arbitrary_types_allowed=True,
+        protected_namespaces=(),
     )
     id: int
     kind: AnalyticsEventKind
@@ -58,7 +61,10 @@ class AnalyticsEvent(pydantic.BaseModel):
 
 class Array(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(
-        frozen=True, extra="forbid", arbitrary_types_allowed=True
+        frozen=True,
+        extra="forbid",
+        arbitrary_types_allowed=True,
+        protected_namespaces=(),
     )
     int2s: list[int]
     int4s: list[int]
@@ -125,7 +131,10 @@ class Array(pydantic.BaseModel):
 
 class Nullable(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(
-        frozen=True, extra="forbid", arbitrary_types_allowed=True
+        frozen=True,
+        extra="forbid",
+        arbitrary_types_allowed=True,
+        protected_namespaces=(),
     )
     required: str
     optional: str | None
@@ -146,21 +155,31 @@ class Nullable(pydantic.BaseModel):
 
 class Oddity(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(
-        frozen=True, extra="forbid", arbitrary_types_allowed=True
+        frozen=True,
+        extra="forbid",
+        arbitrary_types_allowed=True,
+        protected_namespaces=(),
     )
     id: int
     mood: WeirdMood
+    result: str
+    model_dump_at: dt.datetime | None
 
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "Oddity":
-        return cls(id=row[0], mood=WeirdMood(row[1]))
+        return cls(
+            id=row[0], mood=WeirdMood(row[1]), result=row[2], model_dump_at=row[3]
+        )
 
 
 class Scalar(pydantic.BaseModel):
     """One column per PostgreSQL type worth mapping."""
 
     model_config = pydantic.ConfigDict(
-        frozen=True, extra="forbid", arbitrary_types_allowed=True
+        frozen=True,
+        extra="forbid",
+        arbitrary_types_allowed=True,
+        protected_namespaces=(),
     )
     id: int
     small: int

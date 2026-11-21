@@ -28,17 +28,15 @@ pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
             }
             [':' | '@' | '$', c, ..] if continues_identifier(c) => {
                 let name: String = chars[start..end].iter().collect();
-                bail!("sqlc did not rewrite {name} into a placeholder; write it as sqlc.arg(name)");
+                bail!(
+                    "sqlc did not rewrite {name} into a placeholder{}",
+                    Engine::Sqlite.unrewritten()
+                );
             }
             _ => {}
         }
     }
     cut(&chars, placeholders.into_iter(), params, Engine::Sqlite)
-}
-
-pub fn is_identifier(name: &str) -> bool {
-    let mut chars = name.chars();
-    chars.next().is_some_and(starts_identifier) && chars.all(continues_identifier)
 }
 
 fn starts_identifier(c: char) -> bool {
@@ -47,6 +45,12 @@ fn starts_identifier(c: char) -> bool {
 
 fn continues_identifier(c: char) -> bool {
     starts_identifier(c) || c.is_ascii_digit() || c == '$'
+}
+
+/// A name SQLite's tokenizer (`tokenize.c`) reads as one word.
+pub fn is_identifier(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(starts_identifier) && chars.all(continues_identifier)
 }
 
 pub fn words(sql: &[char]) -> Vec<String> {

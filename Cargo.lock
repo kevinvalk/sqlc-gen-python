@@ -2109,7 +2109,6 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "serde_json",
- "serde_yaml_ng",
  "sqlc-gen-python",
  "toml",
 ]

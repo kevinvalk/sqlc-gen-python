@@ -70,16 +70,17 @@ pub fn scalar_type(pg_type: &str) -> Option<Type> {
     TEXT.contains(&pg_type).then_some(Type::STR)
 }
 
-/// We wrap a JSON parameter in psycopg's JSON type, as psycopg cannot tell it from any other `dict` or `list`. `None`
-/// stays SQL `NULL` and never becomes the JSON `null`. Only a nullable parameter or an override's type admits it, as a
-/// JSON document never does.
+/// We wrap a JSON parameter in psycopg's JSON type, as psycopg cannot tell it from any other `dict` or `list`. The
+/// `None` of a nullable parameter stays SQL `NULL` and never becomes the JSON `null`. Any other parameter has no
+/// `None` to keep: its type is the document's, an override's too, where `None` is the JSON `null`, and pyright strict
+/// rejects comparing a type without `None` to it (`reportUnnecessaryComparison`).
 fn bind(parameter: &Field, value: ast::Expr) -> ast::Expr {
     let json = match parameter.ty.element.json() {
         Some(Json::Json) => JSON,
         Some(Json::Jsonb) => JSONB,
         None => return value,
     };
-    match parameter.ty.optional || !matches!(parameter.ty.element, Type::Json(_)) {
+    match parameter.ty.optional {
         true => unless_none(value.clone(), json.call([value])),
         false => json.call([value]),
     }

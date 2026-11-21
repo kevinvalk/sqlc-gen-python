@@ -37,9 +37,6 @@ if TYPE_CHECKING:
 
     import sqlalchemy
 
-    # Writes a generated document, and returns what that did and whether it fails the run.
-    Write = Callable[[Path, str], tuple[str, bool]]
-
 HERE = Path(__file__).resolve().parent
 SUITE = HERE / "suite"
 CASE = "invoicing_sqlalchemy"  # The case we plant a mutant in, unless it names another
@@ -57,15 +54,10 @@ SWEEP = "autoprop"
 PYTHON_FLAGS = ("-B", "-E", "-s")
 
 
-def golden(generated: Path, root: Path) -> Path:
-    """Lay the generated golden cases out as ``root/<case>/``, with the options of their examples' ``sqlc.yaml``."""
+def workspace(root: Path, generated: Path, mutant: Mutant | None = None) -> Path:
+    """Lay the generated golden cases out as ``root/<case>/``, with ``mutant`` planted in its case."""
     for case in golden_cases():
         shutil.copytree(generated / case.name, root / case.name)
-    return root
-
-
-def workspace(root: Path, cases: Path, mutant: Mutant | None = None) -> Path:
-    shutil.copytree(cases, root)
     if mutant is not None:
         path = root / mutant.case / mutant.file
         source = ruff_format(mutant.plant(path.read_text()))
@@ -181,13 +173,12 @@ MUTANTS = {
         """WHERE id = :id"
 ).columns(
     sqlalchemy.column(
-        "accepted_methods",
-        postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
+        "column_1", postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod))
     )
 )""",
         """WHERE id = :id"
 ).columns(
-    accepted_methods=postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod))
+    column_1=postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod))
 )""",
     ),
     # `.first()` is `Row | None`, which `from_row` refuses.
@@ -205,6 +196,16 @@ MUTANTS = {
         "customers.py",
         '{"email": email}\n    ).scalar_one()',
         '{"email": email}\n    ).scalar()',
+    ),
+    # An un-awaited coroutine has none of a result's methods, so the gate catches any `await` the generator leaves out
+    # and the sweep need not look for one.
+    "await left out": Mutant(
+        GATE,
+        '"CoroutineType[Any, Any, CursorResult[Any]]" is not iterable',
+        "customers.py",
+        "for row in await connection.execute(",
+        "for row in connection.execute(",
+        case="invoicing_sqlalchemy_async",
     ),
     # Without `raise_on_none`, `.first()` type-checks as `one_or_none()` does but takes the first of several rows.
     ":one or none takes the first row": Mutant(
@@ -232,10 +233,20 @@ MUTANTS = {
 """,
         "",
     ),
-    # Two swapped values of one type type-check and run, so at runtime only sqlc's SQL run directly tells.
+    # Two swapped values of one type type-check and run, so at runtime only a known value tells: the scenario's, where it
+    # asserts one, or sqlc's SQL run directly, which the sweep holds every function to. We swap them in a query's row,
+    # as a model's the sweep catches earlier.
     "columns swapped": Mutant(
         SWEEP,
         "but sqlc's SQL run directly returned",
+        "customers.py",
+        "triple_quotes=row[0], backslash=row[1]",
+        "triple_quotes=row[1], backslash=row[0]",
+    ),
+    # The sweep holds a model to the row it seeded, read by position.
+    "columns of a model swapped": Mutant(
+        SWEEP,
+        "is not the row read by position",
         "models.py",
         "id=row[0],\n            customer_id=row[1],",
         "id=row[1],\n            customer_id=row[0],",
@@ -427,7 +438,6 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="fail if a document would change")
     args = parser.parse_args()
     generated = args.generated.resolve()
-    write = partial(document, check=args.check)
     started = time.monotonic()
     signal.signal(signal.SIGTERM, signal.default_int_handler)  # So a termination still removes the servers
 
@@ -441,14 +451,13 @@ def main() -> int:
         os.environ[mysql.ENV] = mysql_server.render_as_string(hide_password=False)
 
         directory = Path(temporary)
-        cases = golden(generated, directory / "golden")
-        control = workspace(directory / "control", cases)
+        control = workspace(directory / "control", generated)
         layers: list[Callable[[], Row]] = [
             partial(static_and_pytest, control),
-            partial(types, control, server, mysql_server, write),
-            partial(sweep, control, generated, server, write),
+            partial(types, control, server, mysql_server, check=args.check),
+            partial(sweep, control, generated, server, check=args.check),
             partial(newer, control),
-            *([partial(mutants, directory, cases, generated, server)] if args.mutants else []),
+            *([partial(mutants, directory, generated, server)] if args.mutants else []),
         ]
         setup = time.monotonic() - started
         summary = [timed(layer) for layer in layers]
@@ -482,7 +491,7 @@ def static_and_pytest(control: Path) -> Row:
     return "gate+pytest", len(failed) > 0, detail
 
 
-def types(control: Path, server: sqlalchemy.URL, mysql_server: sqlalchemy.URL, write: Write) -> Row:
+def types(control: Path, server: sqlalchemy.URL, mysql_server: sqlalchemy.URL, *, check: bool) -> Row:
     print("\ntype-truth probe:", flush=True)
     sys.path.insert(0, str(control))
     sections = typemap.probe(server, mysql_server)
@@ -494,7 +503,7 @@ def types(control: Path, server: sqlalchemy.URL, mysql_server: sqlalchemy.URL, w
     written, stale = (
         ("not written", False)
         if len(mismatches) > 0
-        else write(ROOT / "docs/typemap.md", typemap.render(sections, newer_versions()))
+        else document(ROOT / "docs/typemap.md", typemap.render(sections, newer_versions()), check=check)
     )
     probed = ", ".join(f"{len(s.probes)} {s.engine} types on {len(s.drivers)} drivers" for s in sections)
     edges = sum(len(by_driver) for section in sections for p in section.probes for by_driver in p.notes.values())
@@ -504,13 +513,13 @@ def types(control: Path, server: sqlalchemy.URL, mysql_server: sqlalchemy.URL, w
     return TYPEMAP, len(mismatches) > 0 or stale, detail
 
 
-def sweep(control: Path, generated: Path, server: sqlalchemy.URL, write: Write) -> Row:
+def sweep(control: Path, generated: Path, server: sqlalchemy.URL, *, check: bool) -> Row:
     print("\nruntime sweep:", flush=True)
     reports = autoprop.sweep(server, autoprop.targets(control, generated), [control, generated])
     failed, totals, record = autoprop.summarize(reports)
 
     # A failed sweep leaves the record as it is, as each function it lists is one the sweep must go on exercising.
-    written, stale = ("not written", False) if failed else write(autoprop.EXERCISED, record)
+    written, stale = ("not written", False) if failed else document(autoprop.EXERCISED, record, check=check)
     totals[1] += f", in {autoprop.EXERCISED.name} ({written})"
     return SWEEP, failed or stale, "\n".join(totals)
 
@@ -549,12 +558,12 @@ def document(path: Path, text: str, *, check: bool) -> tuple[str, bool]:
     return "updated", False
 
 
-def mutants(directory: Path, cases: Path, generated: Path, server: sqlalchemy.URL) -> Row:
+def mutants(directory: Path, generated: Path, server: sqlalchemy.URL) -> Row:
     print("\nmutants:", flush=True)
     wrong: list[str] = []
     for i, (name, mutant) in enumerate(MUTANTS.items()):
         started = time.monotonic()
-        root = workspace(directory / f"mutant{i}", cases, mutant)
+        root = workspace(directory / f"mutant{i}", generated, mutant)
         said = caught(mutant, root, generated, server)
         seconds = time.monotonic() - started
         if said is not None and mutant.says in said:

@@ -15,7 +15,7 @@ fn the_vocabulary_is_written_in_isorts_sections_and_order() {
     // As ruff's isort sections them, for the oldest supported Python.
     let section = |module: &str| match module.split('.').next().unwrap_or_default() {
         "" => 2,
-        top if is_known_standard_library(10, top) => 0,
+        top if is_known_standard_library(crate::python::OLDEST_MINOR, top) => 0,
         _ => 1,
     };
     for (index, imports) in VOCABULARY.iter().enumerate() {

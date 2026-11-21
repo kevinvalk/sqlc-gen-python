@@ -18,12 +18,11 @@ commands:
           Python gate over every golden case and endtoend output, the scanner
           proof of the SQL rewriting, and ruff and mypy over the scripts of
           tests/python
-  bless [CASE...] [--allow-regressions] [--mutants]
+  bless [--allow-regressions] [--mutants]
           rewrite the golden cases whose output changed (each the codegen `out`
-          directory of an examples/*/sqlc.yaml) and the endtoend ledger, or with
-          CASE names only those cases. Refuses when the unit specs, the sweep
-          or the static gate fail, when anything else would change, when an
-          endtoend request stops generating (unless --allow-regressions), or
+          directory of an examples/*/sqlc.yaml) and the endtoend ledger.
+          Refuses when the unit specs, the sweep or the static gate fail, when
+          an endtoend request stops generating (unless --allow-regressions), or
           when verify fails on what would change (with --mutants also its
           planted bugs), which also rewrites docs/typemap.md and
           tests/python/exercised.tsv to match (needs docker, or
@@ -62,11 +61,10 @@ fn main() -> ExitCode {
             return ExitCode::SUCCESS;
         }
         ["check"] => GenDir::with(check),
-        ["bless", rest @ ..] => {
-            let (flags, names): (Vec<&str>, Vec<&str>) = rest.iter().partition(|arg| arg.starts_with('-'));
+        ["bless", flags @ ..] => {
             let known = |flag: &&str| matches!(*flag, "--allow-regressions" | "--mutants");
             match flags.iter().all(known) {
-                true => GenDir::with(|generated| bless(generated, &names, &flags)),
+                true => GenDir::with(|generated| bless(generated, flags)),
                 false => usage(),
             }
         }
@@ -120,15 +118,10 @@ fn check(generated: &GenDir) -> Result<(), String> {
 
 /// IMPORTANT: Only bless output you have read and verified to be more correct than what it replaces. To keep that
 /// honest we write nothing unless the unit specs pass, every endtoend output still holds the sweep's invariants,
-/// everything generated passes the static gate, nothing outside `names` would change and no endtoend request stops
-/// generating (unless `--allow-regressions` says that is intended). The static gate cannot see a wrong type that is still
-/// well typed, so what changes must also pass the runtime proof, every layer of which reads a golden case or an endtoend
-/// output.
-fn bless(generated: &GenDir, names: &[&str], flags: &[&str]) -> Result<(), String> {
-    if let Some(name) = names.iter().find(|name| case_directory(name).is_none()) {
-        return Err(format!("{name} is not a golden case: no examples/*/{name}/"));
-    }
-
+/// everything generated passes the static gate and no endtoend request stops generating (unless `--allow-regressions`
+/// says that is intended). The static gate cannot see a wrong type that is still well typed, so what changes must also
+/// pass the runtime proof, every layer of which reads a golden case or an endtoend output.
+fn bless(generated: &GenDir, flags: &[&str]) -> Result<(), String> {
     run(&mut generated.test("--quiet --lib"))?;
 
     // These tests fail on exactly the differences we are blessing, so we ignore their verdict and read what they wrote.
@@ -143,15 +136,6 @@ fn bless(generated: &GenDir, names: &[&str], flags: &[&str]) -> Result<(), Strin
 
     let ledger_path = root().join("tests/sqlc/endtoend/ledger.tsv");
     let ledger_changed = fs::read_to_string(&ledger_path).unwrap_or_default() != ledger;
-    if !names.is_empty() {
-        let mut outside: Vec<&str> = (changed.iter().copied()).filter(|name| !names.contains(name)).collect();
-        if ledger_changed {
-            outside.push("the endtoend ledger (bless it with no CASE names)");
-        }
-        if !outside.is_empty() {
-            return Err(format!("{} would change too", outside.join(", ")));
-        }
-    }
 
     if !regressions.is_empty() && !flags.contains(&"--allow-regressions") {
         return Err(format!(
@@ -167,15 +151,11 @@ fn bless(generated: &GenDir, names: &[&str], flags: &[&str]) -> Result<(), Strin
     }
 
     println!("\nblessed:");
-    for name in &changed {
-        let directory = case_directory(name).ok_or(format!("{name} is not a golden case"))?;
-        let shown = directory
-            .strip_prefix(root())
-            .unwrap_or(&directory)
-            .display()
-            .to_string();
-
-        mirror_generated(&generated.0.join(name), &directory).map_err(|error| format!("writing {shown}: {error}"))?;
+    for case in &changed {
+        let shown = format!("examples/{case}");
+        let (_, name) = case.split_once('/').expect("golden.rs writes <example>/<case>");
+        mirror_generated(&generated.0.join(name), &root().join(&shown))
+            .map_err(|error| format!("writing {shown}: {error}"))?;
         println!("  {shown}");
     }
     if ledger_changed {
@@ -201,22 +181,6 @@ fn verify(generated: &GenDir, options: &[&str]) -> Result<(), String> {
         return Err("cargo test stopped before exporting every output (see above)".into());
     }
     run(uv_python("tests/python/verify.py").arg(&generated.0).args(options))
-}
-
-/// `examples/<example>/<name>/` for the example whose `sqlc.yaml` has a codegen entry with `out: <name>`, whether it
-/// was generated yet or not.
-fn case_directory(name: &str) -> Option<PathBuf> {
-    let examples = fs::read_dir(root().join("examples")).ok()?;
-    (examples.filter_map(Result::ok))
-        .map(|example| example.path())
-        .find(|example| {
-            let config = fs::read_to_string(example.join("sqlc.yaml")).unwrap_or_default();
-            let config: serde_yaml_ng::Value = serde_yaml_ng::from_str(&config).unwrap_or_default();
-            (config["sql"].as_sequence().into_iter().flatten())
-                .flat_map(|package| package["codegen"].as_sequence().into_iter().flatten())
-                .any(|codegen| codegen["out"].as_str() == Some(name))
-        })
-        .map(|example| example.join(name))
 }
 
 /// Makes the generated files of `to` exactly those of `from`.

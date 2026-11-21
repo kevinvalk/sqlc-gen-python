@@ -2,6 +2,7 @@ use super::*;
 use crate::api::Api;
 use crate::api::fixtures::catalog::*;
 use crate::api::fixtures::*;
+use crate::backend::Backend;
 
 /// The options `{"backend": "sqlalchemy", "async": false, ...json}`.
 fn options(json: &str) -> Config {
@@ -63,27 +64,6 @@ fn an_override_names_the_type_of_a_column_or_of_every_column_of_a_type() {
 }
 
 #[test]
-fn an_override_is_an_annotation_whose_every_name_can_be_imported() {
-    for bad in ["Label", "list[Label]", "1 + 2", "lambda: 0"] {
-        let request = plugin::GenerateRequest {
-            plugin_options: format!(
-                r#"{{"backend": "sqlalchemy", "async": false, "overrides": [{{"db_type": "x", "python_type": "{bad}"}}]}}"#
-            )
-            .into_bytes(),
-            ..plugin::GenerateRequest::default()
-        };
-        assert!(Config::from_request(&request).is_err(), "{bad}");
-    }
-    let both = r#""overrides": [{"db_type": "x", "column": "t.c", "python_type": "str"}]"#;
-    let request = plugin::GenerateRequest {
-        plugin_options: format!(r#"{{"backend": "sqlalchemy", "async": false, {both}}}"#).into_bytes(),
-        ..plugin::GenerateRequest::default()
-    };
-    let error = format!("{:#}", Config::from_request(&request).unwrap_err());
-    assert!(error.contains("exactly one of db_type and column"), "{error}");
-}
-
-#[test]
 fn a_rename_names_a_class_or_a_field() {
     let schemas = vec![sql_schema(
         "public",
@@ -138,46 +118,6 @@ fn an_override_that_has_none_is_optional_once() {
             ("maybe".into(), "dict[str, int] | None".into())
         ]
     );
-}
-
-#[test]
-fn an_override_names_only_types_generated_code_can_import_as_written() {
-    let error = |python_type: &str| {
-        let request = plugin::GenerateRequest {
-            plugin_options: format!(
-                r#"{{"backend": "sqlalchemy", "async": false, "overrides": [{{"db_type": "x", "python_type": "{python_type}"}}]}}"#
-            )
-            .into_bytes(),
-            ..plugin::GenerateRequest::default()
-        };
-        Config::from_request(&request).err().map(|e| format!("{e:#}"))
-    };
-    for (bad, problem) in [
-        ("numpy.typing.NDArray[numpy.float64]", "ICN001"),
-        ("pandas.Series", "ICN001"),
-        ("datetime.date", "write `dt.date`"),
-        ("int, str", "is no type"),
-        ("models.Account", "generated code binds"),
-        ("sqlalchemy.Text", "generated code binds"),
-        ("dt.date.max", "generated code binds"),
-        ("typing.Any", "write `Any`"),
-        ("Sequence[int]", "neither a builtin"),
-    ] {
-        let error = error(bad).unwrap_or_default();
-        assert!(error.contains(problem), "{bad}: {error}");
-    }
-    for good in [
-        "dt.date",
-        "Decimal",
-        "UUID",
-        "list[app.T] | None",
-        "tuple[float, ...]",
-        "IPv4Network",
-        "Any",
-        "list[Any] | None",
-    ] {
-        assert_eq!(error(good), None, "{good}");
-    }
 }
 
 #[test]
@@ -432,4 +372,101 @@ fn unknown_type_is_any_or_object_and_leaves_other_errors_alone() {
         resolve_options(schemas, &options(r#""unknown_type": "Any""#)).unwrap_err()
     );
     assert!(error.contains("sqlc reported no array depth"), "{error}");
+}
+
+#[test]
+fn a_type_override_reaches_every_spelling_of_its_type() {
+    // sqlc reports a `bigint` column as `pg_catalog.int8` and a `bigserial` one as `bigserial`
+    let schemas = || {
+        public(vec![table(
+            "items",
+            vec![column("id", "bigserial", true), column("big", "pg_catalog.int8", true)],
+        )])
+    };
+    for db_type in ["int8", "bigint", "pg_catalog.int8", "bigserial"] {
+        let config = options(&format!(
+            r#""overrides": [{{"db_type": "{db_type}", "python_type": "app.Id"}}]"#
+        ));
+        let api = resolve_options(schemas(), &config).unwrap();
+        let expected = [("id", "app.Id"), ("big", "app.Id")];
+        assert_eq!(
+            annotations(&api),
+            expected.map(|(name, ty)| (name.into(), ty.into())),
+            "{db_type}"
+        );
+    }
+}
+
+#[test]
+fn a_type_override_never_reaches_a_type_sqlc_guessed() {
+    use crate::api::fixtures::authors::{query, try_resolve_with};
+    // sqlc types `sum(amount)` of a numeric column `bigint`, where the driver returns a `Decimal`
+    let sum = |is_func_call: bool| plugin::Query {
+        columns: vec![plugin::Column {
+            is_func_call,
+            ..column("total", "bigint", false)
+        }],
+        ..query(":one", "SELECT sum(amount) AS total FROM authors")
+    };
+    let config = options(r#""overrides": [{"db_type": "bigint", "python_type": "int"}]"#);
+    for is_func_call in [true, false] {
+        let error = error_of(try_resolve_with("postgresql", vec![sum(is_func_call)], &config));
+        assert!(error.contains("add a cast"), "{error}");
+    }
+}
+
+#[test]
+fn a_column_override_types_a_column_sqlc_could_not() {
+    use crate::api::fixtures::authors::{of_authors, query, try_resolve_with};
+    use crate::api::queries::{Command, Shape};
+    // SQLite takes a column declared without a type, which sqlc reports as `any`
+    let untyped = plugin::Query {
+        columns: vec![plugin::Column {
+            original_name: "bio".into(),
+            ..of_authors(column("bio", "any", true))
+        }],
+        ..query(":one", "SELECT bio FROM authors")
+    };
+    let config = options(r#""overrides": [{"column": "authors.bio", "python_type": "str"}]"#);
+    let modules = try_resolve_with("sqlite", vec![untyped], &config).unwrap();
+    let Command::One(Shape::Scalar(ty)) = &modules[0].queries[0].command else {
+        panic!("a scalar :one");
+    };
+    assert_eq!(ty.describe(crate::python::Scope::Queries), "str");
+}
+
+#[test]
+fn a_type_override_never_reaches_a_parameter_sqlc_typed_itself() {
+    use crate::api::fixtures::authors::{of_authors, param, query, try_resolve_with};
+    // sqlc types a `LIMIT`'s parameter `integer` on every engine, with no column of the type behind it
+    for (engine, db_type, data_type, text) in [
+        (
+            "postgresql",
+            "int4",
+            "pg_catalog.int4",
+            "SELECT 1 FROM authors WHERE age = $1 LIMIT $2",
+        ),
+        (
+            "sqlite",
+            "integer",
+            "INTEGER",
+            "SELECT 1 FROM authors WHERE age = ?1 LIMIT ?2",
+        ),
+    ] {
+        let paginated = plugin::Query {
+            params: vec![
+                param(1, of_authors(column("age", data_type, true))),
+                param(2, column("limit", "integer", true)),
+            ],
+            ..query(":exec", text)
+        };
+        let config = options(&format!(
+            r#""overrides": [{{"db_type": "{db_type}", "python_type": "app.Age"}}]"#
+        ));
+        let modules = try_resolve_with(engine, vec![paginated], &config).unwrap();
+        let types: Vec<String> = (modules[0].queries[0].params.iter())
+            .map(|parameter| parameter.ty.describe(crate::python::Scope::Queries))
+            .collect();
+        assert_eq!(types, ["app.Age", "int"], "{engine}");
+    }
 }

@@ -28,5 +28,5 @@ def stream_countdown(
     """
     with connection.execute(
         _COUNTDOWN, execution_options={"stream_results": True}
-    ) as result:
-        yield (row[0] for row in result)
+    ) as cur:
+        yield (row[0] for row in cur)

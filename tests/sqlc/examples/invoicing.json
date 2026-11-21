@@ -2292,12 +2292,12 @@
       "insert_into_table": null
     },
     {
-      "text": "SELECT coalesce(accepted_methods, '{}') FROM customers WHERE id = $1",
+      "text": "SELECT coalesce(accepted_methods, '{}')::billing.payment_method[] FROM customers WHERE id = $1",
       "name": "GetAcceptedMethods",
       "cmd": ":one",
       "columns": [
         {
-          "name": "accepted_methods",
+          "name": "",
           "not_null": true,
           "is_array": true,
           "comment": "",
@@ -2305,11 +2305,7 @@
           "is_named_param": false,
           "is_func_call": false,
           "scope": "",
-          "table": {
-            "catalog": "",
-            "schema": "",
-            "name": "customers"
-          },
+          "table": null,
           "table_alias": "",
           "type": {
             "catalog": "",
@@ -2318,7 +2314,7 @@
           },
           "is_sqlc_slice": false,
           "embed_table": null,
-          "original_name": "accepted_methods",
+          "original_name": "",
           "unsigned": false,
           "array_dims": 1
         }
@@ -2355,7 +2351,8 @@
         }
       ],
       "comments": [
-        " PostgreSQL names this column `coalesce`, and sqlc `accepted_methods`."
+        " PostgreSQL names this column `coalesce`, and sqlc nothing. It is cast, as",
+        " sqlc types a coalesce as its first argument whatever the others are."
       ],
       "filename": "customers.sql",
       "insert_into_table": null
@@ -5798,6 +5795,185 @@
       "insert_into_table": null
     },
     {
+      "text": "SELECT\n    invoices.number,\n    nullif(invoices.notes, '')::text AS notes,\n    max(line_items.unit_price)::numeric(12, 2) AS dearest\nFROM invoices LEFT JOIN line_items ON line_items.invoice_id = invoices.id\nWHERE invoices.customer_id = $1\nGROUP BY invoices.id\nORDER BY invoices.number",
+      "name": "ListDearestLines",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "number",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "invoices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "number",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "notes",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "dearest",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "pg_catalog",
+            "name": "numeric"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "customer_id",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "invoices"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "uuid"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "customer_id",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [
+        " Each of the customer's invoices with its notes and the price of its",
+        " dearest line: a NULLIF is NULL where its arguments are equal, and an",
+        " aggregate of a group where the LEFT JOIN left the invoice without a line,",
+        " though sqlc reports their casts NOT NULL."
+      ],
+      "filename": "invoices.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT status, count(*) AS count FROM invoices GROUP BY ROLLUP (status) ORDER BY status",
+      "name": "CountInvoicesByStatusAndInAll",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "status",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "invoices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "invoice_status"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "status",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "count",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [
+        " How many invoices have each status and, in the last row, how many there",
+        " are: ROLLUP leaves its key NULL in the row of them all, though sqlc",
+        " reports the column NOT NULL."
+      ],
+      "filename": "invoices.sql",
+      "insert_into_table": null
+    },
+    {
       "text": "SELECT number, count(*) OVER () AS total FROM invoices\nWHERE customer_id = $1 ORDER BY number LIMIT $2",
       "name": "ListInvoiceNumbersPage",
       "cmd": ":many",
@@ -7344,6 +7520,99 @@
       "insert_into_table": null
     },
     {
+      "text": "SELECT invoice_id, sum(round(quantity * unit_price, 2)) FILTER (WHERE vat_rate < $1)::numeric(12, 2) AS subtotal\nFROM line_items\nGROUP BY invoice_id\nORDER BY invoice_id",
+      "name": "SumLinesBelowVatRate",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "invoice_id",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "line_items"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "uuid"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "invoice_id",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "subtotal",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "pg_catalog",
+            "name": "numeric"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "vat_rate",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "line_items"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "pg_catalog.numeric"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "vat_rate",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [
+        " The subtotal of each invoice's lines below a VAT rate: an aggregate is",
+        " NULL of a group whose rows its FILTER keeps none of, though sqlc reports",
+        " its cast NOT NULL."
+      ],
+      "filename": "line_items.sql",
+      "insert_into_table": null
+    },
+    {
       "text": "INSERT INTO billing.payments (invoice_id, method, amount, \"from\", received_at)\nVALUES ($1, $2, $3, $4, $5)\nRETURNING id, invoice_id, method, amount, \"from\", received_at",
       "name": "RecordPayment",
       "cmd": ":one",
@@ -8152,6 +8421,99 @@
         " Every customer, with each payment of an invoice of theirs, or none: what",
         " stands left of the RIGHT JOIN may be without a row, though sqlc reports",
         " the columns of a join there NOT NULL."
+      ],
+      "filename": "payments.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT customers.name, invoices.number, payments.amount\nFROM customers\nLEFT JOIN (invoices JOIN billing.payments ON payments.invoice_id = invoices.id)\n    ON invoices.customer_id = customers.id\nORDER BY customers.name, invoices.number, payments.amount",
+      "name": "ListCustomerPaidInvoices",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "name",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "customers"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "name",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "number",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "invoices"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "number",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "amount",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "billing",
+            "name": "payments"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "pg_catalog",
+            "name": "numeric"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "amount",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [
+        " Every customer, with each payment of an invoice of theirs, or none. The",
+        " plugin does not read a join in parentheses, so each column may be None,",
+        " the customer's name too."
       ],
       "filename": "payments.sql",
       "insert_into_table": null

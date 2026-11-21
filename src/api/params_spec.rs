@@ -4,6 +4,7 @@ use crate::api::fixtures::*;
 use crate::backend::Backend;
 use crate::config::Config;
 use crate::engine::Piece;
+use crate::python::Type;
 
 #[test]
 fn placeholders_become_the_parameters_python_names() {
@@ -129,7 +130,21 @@ fn an_unprobed_parameter_is_an_error_naming_its_number_and_name() {
         unknown(column("p", "point", true))
             .contains(r#"parameter $2 ("p") has type "point", which has no verified Python mapping"#)
     );
-    assert!(unknown(array).contains(r#"parameter $2 ("docs") is an array of "jsonb""#));
+    assert!(unknown(array.clone()).contains(r#"parameter $2 ("docs") is an array of "jsonb""#));
+    // An override only names the element's type, so an array of them is still not one JSON document we could bind
+    let config = Config {
+        overrides: serde_json::from_str(r#"[{"db_type": "jsonb", "python_type": "dict[str, int]"}]"#).unwrap(),
+        ..Config::of(Backend::Psycopg)
+    };
+    let overridden = plugin::Query {
+        params: vec![param(2, array)],
+        ..query(":exec", "SELECT $2")
+    };
+    let error = error_of(try_resolve_with("postgresql", vec![overridden], &config));
+    assert!(
+        error.contains(r#"parameter $2 ("docs") is an array of "jsonb""#),
+        "{error}"
+    );
     // A parameter's cast is written on the placeholder, not coalesced.
     let uninferred = unknown(column("x", "", false));
     assert!(
@@ -143,8 +158,7 @@ fn an_unprobed_parameter_is_an_error_naming_its_number_and_name() {
 #[test]
 fn a_parameter_typed_by_a_guessed_overload_asks_for_a_cast() {
     // sqlc types `abs(@x)` by the first overload of `abs` it lists, `bigint`, and `date_trunc('month', @d)` by
-    // `interval`, so `x: int` would push a caller to drop an amount's cents. LIMIT and OFFSET are sqlc's own `integer`,
-    // which is right.
+    // `interval`, so `x: int` would push a caller to drop an amount's cents.
     for (name, data_type) in [("x", "bigint"), ("d", "interval")] {
         let error = error(plugin::Query {
             params: vec![param(1, column(name, data_type, true))],
@@ -157,8 +171,6 @@ fn a_parameter_typed_by_a_guessed_overload_asks_for_a_cast() {
             "{error}"
         );
     }
-    let limit = params(vec![param(1, column("lim", "integer", true))], "SELECT 1 LIMIT $1");
-    assert_eq!(limit.params[0].ty.element, Type::INT);
 }
 
 #[test]
@@ -171,6 +183,29 @@ fn sqlc_slice_is_an_error_that_says_what_postgresql_uses_instead() {
     });
     assert!(
         error.contains("sqlc.slice is MySQL/SQLite only; on PostgreSQL use = ANY(@ids::type[])"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_mysql_name_may_start_with_a_dollar_sign() {
+    // `sqlc.arg($x)` names a parameter as a column `$x` would be named, but PostgreSQL reads `$x` as no identifier.
+    let resolved = on(
+        "mysql",
+        plugin::Query {
+            params: vec![named(1, "$x", "int", true)],
+            ..query(":exec", "SELECT 1 WHERE a = ?")
+        },
+    )
+    .unwrap();
+    assert_eq!(resolved.params[0].name, "x");
+
+    let error = error(plugin::Query {
+        params: vec![named(1, "$x", "int4", true)],
+        ..query(":exec", "SELECT $1")
+    });
+    assert!(
+        error.contains(r#"sqlc named a parameter "$x", which is no name"#),
         "{error}"
     );
 }
@@ -286,4 +321,73 @@ fn a_slice_of_a_nullable_column_is_a_list_never_none() {
     .unwrap();
     let ty = &resolved.params[0].ty;
     assert_eq!(ty.describe(crate::python::Scope::Queries), "list[int]");
+}
+
+#[test]
+fn a_use_sqlc_could_not_type_takes_the_type_of_the_use_it_typed() {
+    // `sqlc.narg(q) IS NULL OR b = sqlc.narg(q)`: MySQL reports the use that only meets NULL as a nullable `any`, in
+    // either order, and the other as nullable for a `sqlc.narg`.
+    for uses in [
+        vec![named(1, "q", "any", false), named(2, "q", "text", false)],
+        vec![named(1, "q", "text", false), named(2, "q", "any", false)],
+    ] {
+        let resolved = on(
+            "mysql",
+            plugin::Query {
+                params: uses,
+                ..query(":exec", "SELECT 1 WHERE (? IS NULL OR b = ?)")
+            },
+        )
+        .unwrap();
+        assert_eq!(resolved.params.len(), 1);
+        assert_eq!(
+            resolved.params[0].ty.describe(crate::python::Scope::Queries),
+            "str | None"
+        );
+    }
+    // sqlc reports a use it could not type as admitting NULL, even of a `sqlc.arg` (`sqlc.arg(id) = id OR
+    // sqlc.arg(id) = 0`), and we never second-guess what it reports.
+    let resolved = on(
+        "mysql",
+        plugin::Query {
+            params: vec![named(1, "id", "int", true), named(2, "id", "any", false)],
+            ..query(":exec", "SELECT 1 WHERE (? = id OR ? = 0)")
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        resolved.params[0].ty.describe(crate::python::Scope::Queries),
+        "int | None"
+    );
+    // With no use sqlc typed there is nothing to take.
+    let error = on(
+        "mysql",
+        plugin::Query {
+            params: vec![named(1, "q", "any", false), named(2, "q", "any", false)],
+            ..query(":exec", "SELECT 1 WHERE (? IS NULL OR ? IS NULL)")
+        },
+    )
+    .unwrap_err();
+    assert!(format!("{error:#}").contains("could not infer"), "{error:#}");
+}
+
+#[test]
+fn uses_of_one_type_are_one_parameter_whether_an_override_or_the_type_map_names_it() {
+    // We keep the first use's type, which binds a `str` as the other would.
+    let config = Config {
+        overrides: serde_json::from_str(r#"[{"db_type": "var_string", "python_type": "str"}]"#).unwrap(),
+        ..Config::of(Backend::Pymysql)
+    };
+    let modules = try_resolve_with(
+        "mysql",
+        vec![plugin::Query {
+            params: vec![named(1, "q", "var_string", false), named(2, "q", "text", false)],
+            ..query(":exec", "SELECT 1 WHERE (CAST(? AS CHAR) IS NULL OR b = ?)")
+        }],
+        &config,
+    )
+    .unwrap();
+    let params = &modules[0].queries[0].params;
+    assert_eq!(params.len(), 1);
+    assert_eq!(params[0].ty.describe(crate::python::Scope::Queries), "str | None");
 }

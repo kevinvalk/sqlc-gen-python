@@ -59,14 +59,24 @@ fn a_driver_is_given_sqlcs_statement_as_written() {
 fn a_driver_binds_each_parameter_by_position_json_wrapped_on_psycopg() {
     let mut nullable = field("note", Type::JSONB);
     nullable.ty.optional = true;
-    let parameters = vec![field("id", Type::INT), field("data", Type::JSONB), nullable];
+    let overridden = Type::Custom {
+        annotation: python::name("Meta"),
+        json: Some(python::Json::Jsonb),
+    };
+    let parameters = vec![
+        field("id", Type::INT),
+        field("data", Type::JSONB),
+        nullable,
+        field("meta", overridden),
+    ];
     let body = Backend::Psycopg.body(&query(Command::Exec, parameters.clone()), false);
     let body = python::unparse_stmts(&body);
-    // A nullable one stays SQL NULL, never the JSON `null`
+    // Only a nullable one is guarded, which stays SQL NULL and never the JSON `null`. Pyright strict rejects the
+    // comparison of any other (`reportUnnecessaryComparison`), whatever an override made its type.
     assert_eq!(
         body,
         "with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:\n    \
-         cur.execute(_GET, (id, Jsonb(data), None if note is None else Jsonb(note)))"
+         cur.execute(_GET, (id, Jsonb(data), None if note is None else Jsonb(note), Jsonb(meta)))"
     );
     let body = Backend::Sqlite3.body(&query(Command::Exec, parameters[..1].to_vec()), true);
     let body = python::unparse_stmts(&body);

@@ -83,3 +83,19 @@ fn an_overrides_module_is_imported_only_where_a_name_is_read_from_it() {
     let rendered = render(&[assign("x", annotation)], &modules, None);
     assert_eq!(rendered, "import app.types\n\nx = app.types.Title\n");
 }
+
+#[test]
+fn an_overrides_module_is_sectioned_by_the_standard_library_of_the_oldest_supported_python() {
+    // `tomllib` is new in Python 3.11, our minimum.
+    let modules = ["tomllib".to_string()];
+    let annotation = name("tomllib").attr("TOMLDecodeError");
+    let rendered = render(
+        &[assign("x", tuple(vec![annotation, name("dataclasses")]))],
+        &modules,
+        None,
+    );
+    assert_eq!(
+        rendered,
+        "import dataclasses\nimport tomllib\n\nx = tomllib.TOMLDecodeError, dataclasses\n"
+    );
+}

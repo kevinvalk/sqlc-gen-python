@@ -1,7 +1,7 @@
 """Overrides and renames, run against PostgreSQL.
 
-`custom_psycopg` names an extension's type, a domain and one column through overrides, and renames a table and a
-column. Every call is checked against its annotations, and every function must be called.
+`custom_psycopg` names a domain and two columns through overrides, and renames a table and a column. Every call is
+checked against its annotations, and every function must be called.
 """
 
 import asyncio
@@ -40,3 +40,6 @@ async def _custom(api: Any) -> None:
     # NOTE: Ruff takes these names of an enum member and a query for secrets.
     assert machine.sign_in is api.models.SignIn.TOKEN
     assert await api.query.list_devices_by_token() == [machine, other]
+    # A NOT NULL JSON column of an override's type takes the document as it is
+    quiet = await api.query.add_preset(settings={"volume": 0, "muted": True})
+    assert quiet.settings == {"volume": 0, "muted": True}

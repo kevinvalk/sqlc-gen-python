@@ -7,8 +7,8 @@ use crate::api::models::{Field, FieldType};
 use crate::api::queries::{Command, Query, Shape};
 use crate::engine::Engine;
 use crate::python::vocabulary::{
-    ANY, ASYNC_CONNECTION, CONNECTION, DICT, LEN, LIST, MODELS, PARAMS, POSTGRESQL, R, RESULT, ROW, ROWS, SQLALCHEMY,
-    STR, VALUE, VALUES,
+    ANY, ASYNC_CONNECTION, CONNECTION, CUR, DICT, LEN, LIST, MODELS, PARAMS, POSTGRESQL, R, ROW, ROWS, SQLALCHEMY, STR,
+    VALUE, VALUES,
 };
 use crate::python::{
     Expression, Json, Scope, Type, ann_assign, assign, dict, each, expression, for_, generator_of, if_, int, keyword,
@@ -217,8 +217,8 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
 /// with the result:
 ///
 /// ```python
-/// with connection.execute(_LIST_AUTHORS, {...}, execution_options={"stream_results": True}) as result:
-///     yield (models.Author.from_row(row) for row in result)
+/// with connection.execute(_LIST_AUTHORS, {...}, execution_options={"stream_results": True}) as cur:
+///     yield (models.Author.from_row(row) for row in cur)
 /// ```
 pub fn stream(query: &Query, shape: &Shape, asynchronous: bool) -> Vec<ast::Stmt> {
     let values = (!query.params.is_empty()).then(|| named(query));
@@ -233,8 +233,10 @@ pub fn stream(query: &Query, shape: &Shape, asynchronous: bool) -> Vec<ast::Stmt
             )],
         ),
     };
-    let rows = generator_of(shape.read(ROW), each(ROW, RESULT).asynchronous(asynchronous));
-    vec![with(asynchronous, vec![result.entered_as(RESULT)], vec![yield_(rows)])]
+    // We bind the result as `cur`, which no parameter is named (`FUNCTION_BODY` in `api/names.rs`), where `result`
+    // would be hidden by a parameter of a column of that name.
+    let rows = generator_of(shape.read(ROW), each(ROW, CUR).asynchronous(asynchronous));
+    vec![with(asynchronous, vec![result.entered_as(CUR)], vec![yield_(rows)])]
 }
 
 /// `{"id": id}`

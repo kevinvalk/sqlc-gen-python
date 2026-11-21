@@ -113,7 +113,11 @@ CREATE TABLE analytics.events (
 -- sqlc spells it.
 CREATE TYPE "weird mood" AS ENUM ('meh', 'fine');
 
+-- And names generated code has a use for itself: `result` is a local of a
+-- function, and pydantic protects every name starting with `model_dump`.
 CREATE TABLE oddities (
-    id    bigserial PRIMARY KEY,
-    mood  "weird mood" NOT NULL
+    id             bigserial PRIMARY KEY,
+    mood           "weird mood" NOT NULL,
+    result         text NOT NULL,
+    model_dump_at  timestamptz
 );

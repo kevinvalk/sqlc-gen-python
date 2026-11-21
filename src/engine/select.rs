@@ -1,9 +1,10 @@
 //! We read a statement's tokens where sqlc's report of its result is not enough. sqlc types a call by the function's
-//! first overload without saying which function it called. It reports a scalar subquery and every cast NOT NULL,
-//! though a subquery without a row, an aggregate of no rows and a `CASE` where no branch holds are NULL. It reports
-//! every `sqlc.embed` nullable, joined or not. And it reports NOT NULL the columns of a table an outer join may leave
-//! without a row: left of a `RIGHT` or `FULL` join of several tables, and on SQLite and MySQL what a `LEFT` join
-//! brings once a `JOIN` follows it.
+//! first overload without saying which function it called, and a `coalesce`, a `nullif` and a `CASE` by one operand.
+//! It reports a scalar subquery and every cast NOT NULL, though a subquery without a row, an aggregate of no rows, a
+//! `nullif` of equal arguments and a `CASE` where no branch holds are NULL. It reports every `sqlc.embed` nullable,
+//! joined or not. And it reports NOT NULL the key a grouping set leaves out and the columns of a table an outer join
+//! may leave without a row: left of a `RIGHT` or `FULL` join of several tables, and on SQLite and MySQL what a `LEFT`
+//! join brings once a `JOIN` follows it.
 //!
 //! IMPORTANT: Each reader answers only what it can prove, and what it cannot read gives the answer that widens a type
 //! (a column that may be NULL, a statement that may return no row, a table that may be missing). A wrong `X | None` is
@@ -38,30 +39,45 @@ pub struct Item {
     /// Whether it is a bare `count(...)` (filtered or over a window as it may be), or a scalar subquery of one alone.
     pub count: bool,
     /// Whether it may be NULL where sqlc reports NOT NULL: a scalar subquery that may find no row, an aggregate of what
-    /// may be no rows, a `CASE` that may take no branch or a `NULL` one, the literal `NULL` itself, or a column of a
-    /// source an outer join may leave without a row.
+    /// may be no rows, a `CASE` that may take no branch or a `NULL` one, a `nullif`, the literal `NULL` itself, a key
+    /// its grouping set leaves out, or a column of a source an outer join may leave without a row.
     pub nullable: bool,
+    /// Whether it is a `coalesce`, a `nullif` or a `CASE` alone, in parentheses as it may be. sqlc types those by one
+    /// operand whatever the others are: `coalesce(quantity, 0.5)` as `quantity`, `nullif(label, '')` as `bool`, and
+    /// `CASE WHEN paid THEN paid_on ELSE '2020-01-01' END` as its `ELSE`, a `text`.
+    pub operand_typed: bool,
 }
 
-/// What each item of the statement's result list is, by position, where `tables` holds the table sqlc reports for
-/// each item's column, `schema.table` where it reports a schema (empty for none). The list is the top-level `SELECT`'s (after any `WITH`) or the `RETURNING`
-/// one. In a set operation an item is a count only if it is one in every branch, and nullable if it is in any. `None`
-/// when the list does not read as one item per column, as we then know nothing of any of them.
+/// What each item of the statement's result list is, by position, where `tables` holds the table sqlc reports for each
+/// item's column, `schema.table` where it reports a schema (empty for none). The list is the top-level `SELECT`'s
+/// (after any `WITH`) or the `RETURNING` one. In a set operation an item is a count only if it is one in every branch,
+/// and nullable if it is in any. `None` when the list does not read as one item per column, as we then know nothing of
+/// any of them.
 pub fn items(tokens: &[String], tables: &[&str], aggregates: &Aggregates) -> Option<Vec<Item>> {
     let mut read: Option<Vec<Item>> = None;
     for branch in branches(&leveled(tokens)) {
         let list = &branch[list(&branch)?];
         let split: Vec<&[Leveled]> = list.split(|&(d, t)| d == 0 && t == ",").collect();
-        if list.is_empty() || split.len() != tables.len() {
+        // An empty item is a list cut short, as SQLite and MySQL allow a column named as a clause (`offset`)
+        if split.iter().any(|item| item.is_empty()) || split.len() != tables.len() {
             return None;
         }
+        let sources = sources_of(&branch, aggregates);
         let grouped = grouped(&branch);
-        let bare = aggregates.bare_columns && aggregates_rows(&branch, list, aggregates);
-        let sources = sources_of(&branch, aggregates).map_or(Vec::new(), |(_, sources)| sources);
+        // A group's one row may be the one an outer join left without the table the aggregate reads
+        let whole =
+            grouped && (sources.as_ref()).is_some_and(|(_, sources)| !sources.iter().any(|source| source.outer));
+        let bare =
+            !grouped && (rolled(&branch) || (aggregates.bare_columns && aggregates_rows(&branch, list, aggregates)));
         let items = (split.iter().zip(tables)).map(|(tokens, table)| {
-            let item = item(tokens, grouped, bare, aggregates);
+            let item = item(tokens, whole, bare, aggregates);
+            let outer = match &sources {
+                Some((_, sources)) => outer(tokens, table, sources),
+                // A `FROM` we could not read may leave any of its tables without a row
+                None => column(tokens).is_some(),
+            };
             Item {
-                nullable: item.nullable || outer(tokens, table, &sources),
+                nullable: item.nullable || outer,
                 ..item
             }
         });
@@ -71,6 +87,7 @@ pub fn items(tokens: &[String], tables: &[&str], aggregates: &Aggregates) -> Opt
                 .map(|(a, b)| Item {
                     count: a.count && b.count,
                     nullable: a.nullable || b.nullable,
+                    operand_typed: a.operand_typed || b.operand_typed,
                 })
                 .collect(),
         });
@@ -124,9 +141,9 @@ pub fn present(tokens: &[String], aggregates: &Aggregates) -> Vec<String> {
     // A name proves nothing when a CTE or an alias spells it (`WITH a AS (...)`, `LEFT JOIN c AS b`), or when an outer
     // join brings a table of that name too
     let missing = |name: &String| {
-        let named = |other: &Option<String>| (other.as_ref()).is_some_and(|other| other.eq_ignore_ascii_case(name));
+        let spells = |other: &Option<String>| (other.as_ref()).is_some_and(|other| other.eq_ignore_ascii_case(name));
         ctes.iter().any(|cte| cte.eq_ignore_ascii_case(name))
-            || (sources.iter()).any(|source| named(&source.alias) || (source.outer && named(&source.table)))
+            || (sources.iter()).any(|source| spells(&source.alias) || (source.outer && spells(&source.table)))
     };
     (sources.iter())
         .filter(|source| !source.outer)
@@ -145,29 +162,15 @@ pub fn present(tokens: &[String], aggregates: &Aggregates) -> Vec<String> {
 /// Anything but a bare column stays as sqlc reports it: to sqlc a `coalesce` of the column is the column, and rightly
 /// NOT NULL.
 fn outer(item: &[Leveled], table: &str, sources: &[Source]) -> bool {
-    let named = |name: &Option<String>, by: &str| (name.as_ref()).is_some_and(|name| name.eq_ignore_ascii_case(by));
+    let spells = |name: &Option<String>, by: &str| (name.as_ref()).is_some_and(|name| name.eq_ignore_ascii_case(by));
 
-    // The dotted name the item opens with, and what follows it
-    let (mut words, mut rest) = (Vec::new(), item);
-    while let [(_, word), after @ ..] = rest
-        && is_word(word)
-    {
-        words.push(*word);
-        rest = after;
-        match after {
-            [(_, "."), more @ ..] => rest = more,
-            _ => break,
-        }
-    }
-
-    let item_sources: Vec<&Source> = match words.as_slice() {
-        _ if !alias(rest) => return false,
+    let item_sources: Vec<&Source> = match column(item).unwrap_or_default().as_slice() {
         // `schema.table.column` is its table's, as `table.column` is
         [.., source, _] => {
             let source = unquoted(source);
             let exposed = |s: &&Source| match &s.alias {
-                Some(_) => named(&s.alias, &source),
-                None => named(&s.table, &source),
+                Some(_) => spells(&s.alias, &source),
+                None => spells(&s.table, &source),
             };
             sources.iter().filter(exposed).collect()
         }
@@ -181,7 +184,7 @@ fn outer(item: &[Leveled], table: &str, sources: &[Source]) -> bool {
                 _ => true,
             };
             let own: Vec<&Source> = (sources.iter())
-                .filter(|source| named(&source.table, table) && of_schema(source))
+                .filter(|source| spells(&source.table, table) && of_schema(source))
                 .collect();
             match own.is_empty() {
                 true => (sources.iter()).filter(|source| source.table.is_none()).collect(),
@@ -193,10 +196,27 @@ fn outer(item: &[Leveled], table: &str, sources: &[Source]) -> bool {
     !item_sources.is_empty() && item_sources.iter().all(|source| source.outer)
 }
 
+/// The words of the dotted name that `item` is, where it is a bare column with at most an alias.
+fn column<'t>(item: &[Leveled<'t>]) -> Option<Vec<&'t str>> {
+    let (mut words, mut rest) = (Vec::new(), item);
+    while let [(_, word), after @ ..] = rest
+        && is_word(word)
+    {
+        words.push(*word);
+        rest = after;
+        match after {
+            [(_, "."), more @ ..] => rest = more,
+            _ => break,
+        }
+    }
+    (!words.is_empty() && is_alias(rest)).then_some(words)
+}
+
 /// The names of the statement's CTEs, and the sources its result's rows are made of: those of a `SELECT`'s `FROM`, or
 /// for an `INSERT`, `UPDATE` or `DELETE` that returns its rows the table it writes, plus those an `UPDATE`'s `FROM` or
-/// a `DELETE`'s `USING` names. `None` where we do not read them ([`sources`]), or where a column may stand beside an
-/// ungrouped aggregate and the statement aggregates no rows into a row of NULLs.
+/// a `DELETE`'s `USING` names. No sources where it reads none, as a `SELECT` without a `FROM`. `None` where we do not
+/// read them ([`sources`]), or where a column may stand beside an ungrouped aggregate and the statement aggregates no
+/// rows into a row of NULLs.
 fn sources_of(branch: &[Leveled], aggregates: &Aggregates) -> Option<(Vec<String>, Vec<Source>)> {
     const TARGET_ENDS: &[&str] = &[
         "(",
@@ -227,13 +247,17 @@ fn sources_of(branch: &[Leveled], aggregates: &Aggregates) -> Option<(Vec<String
             let nulls = aggregates.bare_columns
                 && !grouped(statement)
                 && aggregates_rows(statement, &statement[list.clone()], aggregates);
-            let [(_, from), rest @ ..] = &statement[list.end..] else {
-                return None;
+            let after = &statement[list.end..];
+            let read = match after {
+                [(_, from), read @ ..] if is(from, &["from"]) => read,
+                // Without a `FROM` there is nothing to read, but one after an `INTO` is one we do not
+                _ if top(after, &["from"]).is_none() => &[],
+                _ => return None,
             };
-            let (read, after) = rest.split_at(top(rest, ENDS).unwrap_or(rest.len()));
+            let (read, after) = read.split_at(top(read, ENDS).unwrap_or(read.len()));
             // A join after what we took as the end of the clause means it was none, as MySQL and SQLite allow a column
             // named as a clause (`offset`)
-            if !is(from, &["from"]) || nulls || top(after, &["join"]).is_some() {
+            if nulls || top(after, &["join"]).is_some() {
                 return None;
             }
             (&[], read)
@@ -289,7 +313,7 @@ fn is(token: &str, words: &[&str]) -> bool {
 
 /// Whether the token at `at` is a name whatever it spells (`k.group`, `AS order`), though not after a number's dot
 /// (`1. GROUP BY`).
-fn named(tokens: &[Leveled], at: usize) -> bool {
+fn is_name_at(tokens: &[Leveled], at: usize) -> bool {
     match &tokens[..at] {
         [.., (_, number), (_, ".")] => !number.starts_with(|c: char| c.is_ascii_digit()),
         [.., (_, before)] => is(before, &[".", "as"]),
@@ -306,7 +330,7 @@ fn top(tokens: &[Leveled], words: &[&str]) -> Option<usize> {
         if depth != 0 {
             return false;
         }
-        let name = named(tokens, at);
+        let name = is_name_at(tokens, at);
         let operator = is(before, &["distinct", "within"]) && is(token, &["from", "group"]);
         before = match name {
             true => "",
@@ -432,27 +456,34 @@ fn grouped(tokens: &[Leveled]) -> bool {
             [_, _, sets @ ..] => sets,
             _ => grouping,
         };
-        !matches!(sets, [(_, "("), (_, ")"), ..])
-            && !(grouping.iter()).any(|&(_, t)| is(t, &["rollup", "cube", "sets"]))
+        !matches!(sets, [(_, "("), (_, ")"), ..]) && !rolled(tokens)
     })
+}
+
+/// Whether the statement groups its rows by several sets of its keys (`ROLLUP`, `CUBE`, `GROUPING SETS`, MySQL's
+/// `WITH ROLLUP`), where a key is NULL in the rows of each set that leaves it out.
+fn rolled(tokens: &[Leveled]) -> bool {
+    top(tokens, &["group"]).is_some_and(|at| (tokens[at..].iter()).any(|&(_, t)| is(t, &["rollup", "cube", "sets"])))
 }
 
 /// What may be NULL in an item though sqlc reports NOT NULL ([`found`]).
 struct Found {
     aggregate: bool,
-    /// An aggregate other than `count` of no rows, a subquery without a row unless it counts all of them, or a `CASE`
-    /// that may take no branch or a `NULL` one.
+    /// Whether the aggregate has a `FILTER`, which may keep none of a group's rows.
+    filtered: bool,
+    /// An aggregate other than `count` of no rows, a subquery without a row unless it counts all of them, a `CASE`
+    /// that may take no branch or a `NULL` one, or a `nullif` of equal arguments.
     nullable: bool,
     /// Whether it is inside what is never NULL, whatever it holds: a `coalesce` that ends in a default, or a `count`.
     guarded: bool,
 }
 
-/// Each aggregate that `tokens` call, each scalar subquery they hold, and each `CASE` that may be NULL by its form,
-/// outside every subquery.
+/// Each aggregate that `tokens` call, each scalar subquery they hold, and each `CASE` or `nullif` that may be NULL by
+/// its form, outside every subquery.
 ///
 /// A call with `OVER` is a window function, of each row, and one qualified by any schema but `pg_catalog` is that
 /// schema's own function. A subquery that is no value does not count: one read by `EXISTS`, `IN`, `ANY` and the like,
-/// the elements of an `ARRAY(...)`, or one compared with `IS`.
+/// the elements of an `ARRAY(...)`, or one compared with `IS`, as a `nullif` may be too.
 fn found(tokens: &[Leveled], aggregates: &Aggregates) -> Vec<Found> {
     let mut found = Vec::new();
     // Whether each parenthesis open here is a `coalesce` with a default, or a `count`
@@ -472,6 +503,7 @@ fn found(tokens: &[Leveled], aggregates: &Aggregates) -> Vec<Found> {
                 if value {
                     found.push(Found {
                         aggregate: false,
+                        filtered: false,
                         nullable: !counts,
                         guarded: guards.contains(&true),
                     });
@@ -488,10 +520,24 @@ fn found(tokens: &[Leveled], aggregates: &Aggregates) -> Vec<Found> {
             (")", _) => {
                 guards.pop();
             }
-            (case, _) if is(case, &["case"]) && !named(tokens, at) => {
+            (case, _) if is(case, &["case"]) && !is_name_at(tokens, at) => {
                 if case_may_be_null(&tokens[at..]) {
                     found.push(Found {
                         aggregate: false,
+                        filtered: false,
+                        nullable: true,
+                        guarded: guards.contains(&true),
+                    });
+                }
+            }
+            (nullif, _) if is(nullif, &["nullif"]) && !is_name_at(tokens, at) => {
+                // One compared with `IS` is no value of the item, as a subquery is not
+                let tested = parenthesised(&tokens[at + 1..])
+                    .is_some_and(|(_, after)| matches!(after, [(_, is_), ..] if is(is_, &["is"])));
+                if !tested {
+                    found.push(Found {
+                        aggregate: false,
+                        filtered: false,
                         nullable: true,
                         guarded: guards.contains(&true),
                     });
@@ -509,8 +555,16 @@ fn found(tokens: &[Leveled], aggregates: &Aggregates) -> Vec<Found> {
                     && !over(after).0
                     && !(is(&name, aggregates.scalar_of_several) && several(arguments))
                 {
+                    // An ordered-set aggregate names its order before its filter
+                    let after = match after {
+                        [(_, within), (_, group), order @ ..] if is(within, &["within"]) && is(group, &["group"]) => {
+                            parenthesised(order).map_or(after, |(_, after)| after)
+                        }
+                        after => after,
+                    };
                     found.push(Found {
                         aggregate: true,
+                        filtered: matches!(after, [(_, filter), ..] if is(filter, &["filter"])),
                         nullable,
                         guarded: guards.contains(&true),
                     });
@@ -534,7 +588,7 @@ fn case_may_be_null(tokens: &[Leveled]) -> bool {
         if level < depth {
             break;
         }
-        if level > depth || named(tokens, at) {
+        if level > depth || is_name_at(tokens, at) {
             continue;
         }
         if is(token, &["case"]) {
@@ -561,9 +615,9 @@ fn case_may_be_null(tokens: &[Leveled]) -> bool {
 /// the cast.
 fn is_null(tokens: &[Leveled]) -> bool {
     match tokens {
-        [(_, null), rest @ ..] if is(null, &["null"]) => alias(uncast(rest)),
+        [(_, null), rest @ ..] if is(null, &["null"]) => is_alias(uncast(rest)),
         [(_, cast), rest @ ..] if is(cast, &["cast"]) => parenthesised(rest).is_some_and(|(inner, after)| {
-            matches!(inner, [(_, null), (_, to), ..] if is(null, &["null"]) && is(to, &["as"])) && alias(after)
+            matches!(inner, [(_, null), (_, to), ..] if is(null, &["null"]) && is(to, &["as"])) && is_alias(after)
         }),
         _ => false,
     }
@@ -640,20 +694,103 @@ fn defaults(arguments: &[Leveled]) -> bool {
     uncast(cast).is_empty()
 }
 
-/// What `tokens`, one item of a result list, are. `grouped` when each group of the statement has a row, and `bare` when
-/// a column beside an ungrouped aggregate is NULL of no rows.
-fn item(tokens: &[Leveled], grouped: bool, bare: bool, aggregates: &Aggregates) -> Item {
+/// What `tokens`, one item of a result list, are. `whole` when each group of the statement has a row of every table
+/// it reads, and `bare` when an item that calls no aggregate may be NULL all the same: a column beside an ungrouped
+/// aggregate of no rows, or a key its grouping set leaves out. A `coalesce` that ends in a default is that default
+/// then.
+fn item(tokens: &[Leveled], whole: bool, bare: bool, aggregates: &Aggregates) -> Item {
     let found = found(tokens, aggregates);
     let count = match parenthesised(tokens) {
-        Some((inner, after)) if alias(after) => selects(inner).is_some_and(|(call, _)| call == "count"),
+        Some((inner, after)) if is_alias(after) => selects(inner).is_some_and(|(call, _)| call == "count"),
         _ => call(tokens).is_some_and(|(call, _)| call == "count"),
     };
-    let null = |found: &Found| found.nullable && !found.guarded && !(found.aggregate && grouped);
-    let column = bare && !grouped && !found.iter().any(|found| found.aggregate);
+    let null = |found: &Found| found.nullable && !found.guarded && !(found.aggregate && whole && !found.filtered);
+    let column = bare && !found.iter().any(|found| found.aggregate) && !is_defaulted(tokens);
+
+    let mut alone = tokens;
+    while let Some((inner, after)) = parenthesised(alone)
+        && is_alias(after)
+    {
+        alone = inner;
+    }
+    let operand_typed = match alone {
+        [(_, case), ..] if is(case, &["case"]) => after_case(alone).is_some_and(is_alias) && !is_literal_case(alone),
+        alone => call(alone).is_some_and(|(call, _)| ["coalesce", "nullif"].contains(&call.as_str())),
+    };
     Item {
         count,
         nullable: column || is_null(tokens) || found.iter().any(null),
+        operand_typed,
     }
+}
+
+/// Whether `tokens` are a `coalesce` that ends in a default ([`defaults`]), with at most an alias, cast and in
+/// parentheses as it may be.
+fn is_defaulted(mut tokens: &[Leveled]) -> bool {
+    loop {
+        tokens = match (tokens, parenthesised(tokens)) {
+            (_, Some((inner, after))) if is_alias(uncast(after)) => inner,
+            ([(depth, cast), rest @ ..], _) if is(cast, &["cast"]) => match parenthesised(rest) {
+                Some((inner, after)) if is_alias(after) => {
+                    let to = inner.iter().rposition(|&(d, t)| d == depth + 1 && is(t, &["as"]));
+                    &inner[..to.unwrap_or(inner.len())]
+                }
+                _ => return false,
+            },
+            ([(_, coalesce), rest @ ..], _) => {
+                return is(coalesce, &["coalesce", "ifnull"])
+                    && parenthesised(rest)
+                        .is_some_and(|(arguments, after)| defaults(arguments) && is_alias(uncast(after)));
+            }
+            _ => return false,
+        };
+    }
+}
+
+/// What follows the `END` of the `CASE` that `tokens` open with.
+fn after_case<'b, 't>(tokens: &'b [Leveled<'t>]) -> Option<&'b [Leveled<'t>]> {
+    let depth = tokens.first().map_or(0, |&(d, _)| d);
+    let mut open = 0usize;
+    (0..tokens.len())
+        .filter(|&at| tokens[at].0 == depth && !is_name_at(tokens, at))
+        .find(|&at| {
+            open += usize::from(is(tokens[at].1, &["case"]));
+            open -= usize::from(is(tokens[at].1, &["end"]) && open > 0);
+            open == 0
+        })
+        .map(|end| &tokens[end + 1..])
+}
+
+/// Whether the `CASE` that `tokens` open with gives a literal of one kind in each branch, an `ELSE` among them: a string
+/// in each, or `TRUE` or `FALSE` in each. sqlc's type of its `ELSE` is then the `CASE`'s, as PostgreSQL resolves
+/// literals of no type to `text`, and `TRUE` and `FALSE` are `bool` (on SQLite and MySQL sqlc's type of those is a
+/// guess we refuse anyway).
+fn is_literal_case(tokens: &[Leveled]) -> bool {
+    let depth = tokens.first().map_or(0, |&(d, _)| d);
+    let keywords: Vec<usize> = (1..tokens.len())
+        .filter(|&at| tokens[at].0 == depth && !is_name_at(tokens, at))
+        .filter(|&at| is(tokens[at].1, &["case", "when", "then", "else", "end"]))
+        .collect();
+    let Some(end) = keywords.iter().position(|&at| is(tokens[at].1, &["end"])) else {
+        return false;
+    };
+    let keywords = &keywords[..=end];
+
+    // A `CASE` within, in a condition or a branch, is no literal of ours to read
+    if keywords.iter().any(|&at| is(tokens[at].1, &["case"])) {
+        return false;
+    }
+    let results: Vec<&str> = (keywords.windows(2))
+        .filter(|pair| is(tokens[pair[0]].1, &["then", "else"]))
+        .map(|pair| match &tokens[pair[0] + 1..pair[1]] {
+            [(_, literal)] => *literal,
+            _ => "",
+        })
+        .collect();
+    let otherwise = keywords.iter().any(|&at| is(tokens[at].1, &["else"]));
+    otherwise
+        && (results.iter().all(|result| result.starts_with('\''))
+            || results.iter().all(|result| is(result, &["true", "false"])))
 }
 
 /// The function, lowercase, that `tokens` are a bare call of (a name and its arguments, with at most a `FILTER`, an
@@ -664,7 +801,7 @@ fn call(tokens: &[Leveled]) -> Option<(String, bool)> {
     };
     let (windowed, after) = over(parenthesised(rest)?.1);
     let bare = is_word(name) && !name.starts_with(['"', '`', '[']);
-    (bare && alias(after)).then(|| (name.to_lowercase(), windowed))
+    (bare && is_alias(after)).then(|| (name.to_lowercase(), windowed))
 }
 
 /// The function the subquery `inner` selects a bare call of as its only item, and whether it aggregates every row:
@@ -748,14 +885,14 @@ fn sources(from: &[Leveled]) -> Option<Vec<Source>> {
             };
             let own = |alias: &String| (table.as_ref()).is_some_and(|table| table.eq_ignore_ascii_case(alias));
             sources.push(Source {
-                alias: aliased(rest).filter(|alias| !own(alias)),
+                alias: leading_alias(rest).filter(|alias| !own(alias)),
                 table,
                 schema,
                 outer,
             });
             continue;
         }
-        if depth != 0 || named(from, at) {
+        if depth != 0 || is_name_at(from, at) {
             continue;
         }
         if token == "," {
@@ -797,7 +934,7 @@ fn name<'b, 't>(tokens: &'b [Leveled<'t>]) -> Option<(String, Option<String>, &'
 }
 
 /// The alias `tokens` open with, if they do: `AS alias`, or a bare word that is no keyword of a `FROM`.
-fn aliased(tokens: &[Leveled]) -> Option<String> {
+fn leading_alias(tokens: &[Leveled]) -> Option<String> {
     const KEYWORDS: &[&str] = &[
         "on",
         "using",
@@ -824,7 +961,7 @@ fn unquoted(name: &str) -> String {
 }
 
 /// Whether `tokens` are at most an alias: nothing, `alias`, or `AS alias`.
-fn alias(tokens: &[Leveled]) -> bool {
+fn is_alias(tokens: &[Leveled]) -> bool {
     match tokens {
         [] => true,
         [(_, alias)] => is_word(alias),

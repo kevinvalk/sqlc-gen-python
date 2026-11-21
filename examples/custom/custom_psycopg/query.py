@@ -10,6 +10,7 @@ from typing import Any, Final
 
 import psycopg
 from psycopg.rows import tuple_row
+from psycopg.types.json import Jsonb
 
 from . import models
 
@@ -74,3 +75,20 @@ def stream_list_devices_by_token(
     ) as cur:
         cur.execute(_LIST_DEVICES_BY_TOKEN)
         yield (models.Machine.from_row(row) for row in cur)
+
+
+_ADD_PRESET: Final = "INSERT INTO presets (settings) VALUES ($1) RETURNING id, settings"
+
+
+def add_preset(
+    connection: psycopg.Connection[Any], *, settings: dict[str, object]
+) -> models.Preset:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
+        cur.execute(_ADD_PRESET, (Jsonb(settings),))
+        match cur.fetchmany(2):
+            case [row]:
+                return models.Preset.from_row(row)
+            case []:
+                raise models.NoRowError
+            case _:
+                raise models.MultipleRowsError

@@ -80,6 +80,26 @@ FROM invoices WHERE customer_id = $1;
 SELECT id, (CASE WHEN issued_on IS NOT NULL THEN number END)::text AS issued_number
 FROM invoices WHERE customer_id = $1 ORDER BY number;
 
+-- name: ListDearestLines :many
+-- Each of the customer's invoices with its notes and the price of its
+-- dearest line: a NULLIF is NULL where its arguments are equal, and an
+-- aggregate of a group where the LEFT JOIN left the invoice without a line,
+-- though sqlc reports their casts NOT NULL.
+SELECT
+    invoices.number,
+    nullif(invoices.notes, '')::text AS notes,
+    max(line_items.unit_price)::numeric(12, 2) AS dearest
+FROM invoices LEFT JOIN line_items ON line_items.invoice_id = invoices.id
+WHERE invoices.customer_id = $1
+GROUP BY invoices.id
+ORDER BY invoices.number;
+
+-- name: CountInvoicesByStatusAndInAll :many
+-- How many invoices have each status and, in the last row, how many there
+-- are: ROLLUP leaves its key NULL in the row of them all, though sqlc
+-- reports the column NOT NULL.
+SELECT status, count(*) AS count FROM invoices GROUP BY ROLLUP (status) ORDER BY status;
+
 -- name: ListInvoiceNumbersPage :many
 -- A page of the customer's invoice numbers, each beside how many there are
 -- in all: a count over a window.

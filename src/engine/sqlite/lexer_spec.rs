@@ -56,9 +56,21 @@ fn a_named_parameter_sqlc_left_as_written_is_an_error() {
     for (sql, param) in [("SELECT :a", ":a"), ("SELECT @b", "@b"), ("SELECT $c", "$c")] {
         let error = format!("{:#}", cut(sql, &[]).unwrap_err());
         assert!(
-            error.contains(&format!("sqlc did not rewrite {param} into")),
+            error.contains(&format!(
+                "sqlc did not rewrite {param} into a placeholder, as on SQLite"
+            )),
             "{sql}: {error}"
         );
     }
     assert_eq!(bound("SELECT ':a', 'x:y', a$b", &[]), [""; 0]);
+}
+
+#[test]
+fn an_identifier_is_one_word_to_sqlite() {
+    for name in ["day", "_x", "größe", "a$1"] {
+        assert!(is_identifier(name), "{name}");
+    }
+    for name in ["", "1st", "$x", "+x", "a b"] {
+        assert!(!is_identifier(name), "{name}");
+    }
 }

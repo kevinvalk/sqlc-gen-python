@@ -398,3 +398,34 @@ fn an_embed_that_may_be_missing_needs_a_not_null_column_to_tell_by() {
     let error = format!("{error:#}");
     assert!(error.contains("none is NOT NULL to tell a missing row by"), "{error}");
 }
+
+#[test]
+fn a_model_without_the_fields_of_its_problems_stands_for_no_row() {
+    // With `omit_unused` a table no query uses may have a problem, so its model lacks a field: a row of the rest is
+    // not the table's, and is no reason to write the model and report its problem.
+    let places = |c: plugin::Column| plugin::Column {
+        table: Some(plugin::Identifier {
+            name: "places".into(),
+            ..Default::default()
+        }),
+        ..c
+    };
+    let schemas = public(vec![table(
+        "places",
+        vec![
+            column("a", "int8", true),
+            column("b", "int8", true),
+            column("c", "amount", true),
+        ],
+    )]);
+    let list_places = plugin::Query {
+        name: "ListPlaces".into(),
+        columns: vec![places(column("a", "int8", true)), places(column("b", "int8", true))],
+        ..query(":many", "SELECT a, b FROM places")
+    };
+    let mut config = Config::of(Backend::SqlAlchemy);
+    config.models.omit_unused = true;
+    let api = crate::api::resolve(&request("postgresql", schemas, vec![list_places]), &config).unwrap();
+    assert_eq!(model_names(&api), Vec::<&str>::new());
+    assert!(api.modules[0].queries[0].row().is_some());
+}

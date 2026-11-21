@@ -149,6 +149,51 @@ def stream_list_customer_payments(
         yield (ListCustomerPaymentsRow.from_row(row) for row in cur)
 
 
+_LIST_CUSTOMER_PAID_INVOICES: Final = """SELECT customers.name, invoices.number, payments.amount
+FROM customers
+LEFT JOIN (invoices JOIN billing.payments ON payments.invoice_id = invoices.id)
+    ON invoices.customer_id = customers.id
+ORDER BY customers.name, invoices.number, payments.amount"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListCustomerPaidInvoicesRow:
+    name: str | None
+    number: str | None
+    amount: Decimal | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListCustomerPaidInvoicesRow":
+        return cls(name=row[0], number=row[1], amount=row[2])
+
+
+def list_customer_paid_invoices(
+    connection: psycopg.Connection[Any],
+) -> list[ListCustomerPaidInvoicesRow]:
+    """Every customer, with each payment of an invoice of theirs, or none. The
+    plugin does not read a join in parentheses, so each column may be None,
+    the customer's name too.
+    """
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
+        cur.execute(_LIST_CUSTOMER_PAID_INVOICES)
+        return [ListCustomerPaidInvoicesRow.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_customer_paid_invoices(
+    connection: psycopg.Connection[Any],
+) -> Generator[Iterator[ListCustomerPaidInvoicesRow], None, None]:
+    """Every customer, with each payment of an invoice of theirs, or none. The
+    plugin does not read a join in parentheses, so each column may be None,
+    the customer's name too.
+    """
+    with psycopg.RawServerCursor(
+        connection, "stream_list_customer_paid_invoices", row_factory=tuple_row
+    ) as cur:
+        cur.execute(_LIST_CUSTOMER_PAID_INVOICES)
+        yield (ListCustomerPaidInvoicesRow.from_row(row) for row in cur)
+
+
 _LIST_CUSTOMERS_ISSUED: Final = """SELECT customers.name, issued.number
 FROM customers
 LEFT JOIN (SELECT customer_id, number FROM invoices WHERE status = 'issued') AS issued

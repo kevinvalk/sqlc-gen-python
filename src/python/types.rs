@@ -7,6 +7,10 @@ use serde::Deserialize;
 use super::vocabulary::{self as names, Symbol, is_imported};
 use super::{Expression, ellipsis, name, unparse};
 
+#[cfg(test)]
+#[path = "types_spec.rs"]
+mod spec;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     /// A name of the [vocabulary](super::vocabulary), or a union of several (`IPv4Network | IPv6Network`).
@@ -171,9 +175,7 @@ fn imported(annotation: &ast::Expr, modules: &mut Vec<String>) -> anyhow::Result
                     "generated code imports `datetime` as `dt`: write `dt.{}`",
                     attribute.attr
                 ),
-                _ if (CONVENTIONS.iter())
-                    .any(|aliased| module == *aliased || module.starts_with(&format!("{aliased}."))) =>
-                {
+                _ if CONVENTIONS.contains(&module.as_str()) => {
                     anyhow::bail!(
                         "ruff's import conventions (ICN001) alias `{module}`, which generated \
                          code imports bare; name the type through a module of your own"
@@ -220,13 +222,16 @@ const TYPES: &[Symbol] = &[
     names::IPV6_NETWORK,
 ];
 
-/// The modules ruff's import conventions (ICN001) alias by default.
+/// The modules ruff's import conventions (ICN001) alias by default (`CONVENTIONAL_ALIASES` in ruff's
+/// `flake8_import_conventions/settings.rs`), which flags an import of exactly one of them, not of a submodule.
 const CONVENTIONS: &[&str] = &[
     "altair",
     "holoviews",
     "matplotlib",
+    "matplotlib.pyplot",
     "networkx",
     "numpy",
+    "numpy.typing",
     "pandas",
     "panel",
     "plotly.express",

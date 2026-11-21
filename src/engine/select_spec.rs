@@ -3,7 +3,7 @@ use crate::engine::Engine;
 
 /// PostgreSQL's: an aggregate whatever its arguments, and no column beside an ungrouped one.
 const AGGREGATES: Aggregates = Aggregates {
-    nullable: &["sum", "avg", "min", "max", "string_agg"],
+    nullable: &["sum", "avg", "min", "max", "string_agg", "percentile_disc"],
     never_null: &["count", "total"],
     scalar_of_several: &[],
     bare_columns: false,
@@ -113,6 +113,100 @@ fn a_list_that_is_not_an_item_per_column_is_not_read() {
     assert_eq!(
         read("SELECT ( SELECT a FROM t LIMIT 1 ) UNION ALL VALUES ( 'x' )", 1),
         None
+    );
+}
+
+#[test]
+fn a_list_with_an_empty_item_is_not_read() {
+    // SQLite and MySQL allow a column named as a clause, which cuts the list before it
+    for sql in [
+        "SELECT a.id, offset FROM a LEFT JOIN b ON x JOIN c ON y",
+        "SELECT a.id, fetch FROM a LEFT JOIN b ON x JOIN c ON y",
+    ] {
+        assert_eq!(read(sql, 2), None, "{sql}");
+    }
+}
+
+#[test]
+fn an_item_is_typed_by_an_operand_where_it_is_a_coalesce_a_nullif_or_a_case_alone() {
+    let operand_typed = |sql: &str| -> Vec<bool> {
+        let columns = sql.matches(" , ").count() + 1;
+        let items = read(sql, columns).expect(sql);
+        items.into_iter().map(|item| item.operand_typed).collect()
+    };
+    assert_eq!(
+        operand_typed(
+            "SELECT coalesce(n, num) , NULLIF(label, '') AS v , CASE WHEN a THEN d ELSE '2020-01-01' END v , \
+             (coalesce(n, num)) , ((nullif(m, 0))) AS v , (CASE k WHEN 1 THEN CASE WHEN a THEN b END END) FROM t"
+        ),
+        [true; 6]
+    );
+    assert_eq!(
+        operand_typed("INSERT INTO t (m) VALUES (1) RETURNING id , coalesce(m, 0.5) AS v"),
+        [false, true]
+    );
+    // In any branch of a set operation, as sqlc reports the first branch's.
+    assert_eq!(
+        operand_typed("SELECT m FROM t UNION ALL SELECT coalesce(n, num) FROM t"),
+        [true]
+    );
+    // A cast names the type, anything else sqlc types as the expression it is, and a quoted name is a function's.
+    assert_eq!(
+        operand_typed(
+            "SELECT coalesce(n, 0)::int , CAST(nullif(label, '') AS text) , (CASE WHEN a THEN b END)::text , \
+             CASE WHEN a THEN 'a' ELSE 'b' END || 'x' , nullif(label, '') = 'x' , \"coalesce\"(n) , \
+             t.case , ifnull , (SELECT coalesce(n, num) FROM t) FROM t"
+        ),
+        [false; 9]
+    );
+}
+
+#[test]
+fn a_case_of_one_kind_of_literal_in_every_branch_is_typed_by_it() {
+    let operand_typed = |sql: &str| -> Vec<bool> {
+        let columns = sql.matches(" , ").count() + 1;
+        let items = read(sql, columns).expect(sql);
+        items.into_iter().map(|item| item.operand_typed).collect()
+    };
+    assert_eq!(
+        operand_typed(
+            "SELECT CASE WHEN n > 0 THEN 'a' ELSE 'b' END AS label , \
+             CASE k WHEN 1 THEN 'one' WHEN 2 THEN 'two' ELSE 'many' END , \
+             (CASE WHEN id = $1 THEN true ELSE FALSE END) FROM t"
+        ),
+        [false; 3]
+    );
+    // Without an `ELSE`, with another kind or another expression in a branch, or with a `CASE` within
+    assert_eq!(
+        operand_typed(
+            "SELECT CASE WHEN a THEN 'a' END , CASE WHEN a THEN 'a' ELSE true END , \
+             CASE WHEN a THEN 'a' ELSE label END , CASE WHEN a THEN 'a' ELSE 'b'::varchar END , \
+             CASE WHEN a THEN 1 ELSE 2 END , \
+             CASE WHEN a THEN CASE WHEN b THEN 'a' ELSE 'b' END ELSE 'c' END FROM t"
+        ),
+        [true; 6]
+    );
+}
+
+#[test]
+fn a_nullif_is_null_where_its_arguments_are_equal() {
+    assert_eq!(
+        nullable(
+            "SELECT nullif(label, '')::text , CAST(NULLIF(m, 0) AS int) , sum(nullif(m, 0))::int , \
+             coalesce(nullif(label, ''), 'none')::text , count(nullif(m, 0)) , t.nullif , \
+             coalesce(nullif(label, ''), opt)::text FROM t GROUP BY k",
+            7
+        ),
+        [true, true, true, false, false, false, true]
+    );
+    // One that is only tested for NULL is no value of the item
+    assert_eq!(
+        nullable(
+            "SELECT (nullif(m, 0) IS NULL)::bool , (CASE WHEN nullif(label, '') IS NOT NULL THEN 1 ELSE 2 END)::int \
+             FROM t",
+            2
+        ),
+        [false; 2]
     );
 }
 
@@ -270,6 +364,7 @@ fn an_ungrouped_aggregate_but_a_count_is_null_of_no_rows() {
     // A group has a row, and a window function is of each row, so sqlc's report stands
     for sql in [
         "SELECT sum ( x ) :: int FROM t GROUP BY a",
+        "SELECT sum(b.x)::int FROM a JOIN b ON y GROUP BY a.id",
         "SELECT sum ( x ) OVER ( ) FROM t",
         "SELECT sum ( x ) FILTER ( WHERE a ) OVER ( ) FROM t",
     ] {
@@ -290,6 +385,76 @@ fn an_ungrouped_aggregate_but_a_count_is_null_of_no_rows() {
     ] {
         assert_eq!(nullable(sql, 1), [true], "{sql}");
     }
+}
+
+#[test]
+fn an_aggregate_of_a_group_is_null_where_the_group_may_hold_no_value_for_it() {
+    for sql in [
+        // A filter may keep none of the group's rows.
+        "SELECT sum(points) FILTER (WHERE won)::bigint FROM scores GROUP BY team_id",
+        // An outer join makes a group of the one row it leaves without the other table's.
+        "SELECT max(p.joined_at)::timestamptz FROM teams t LEFT JOIN players p ON p.team_id = t.id GROUP BY t.id",
+        "SELECT max(t.created_at)::timestamptz FROM teams t RIGHT JOIN players p ON y GROUP BY p.id",
+        // As may a join we could not read.
+        "SELECT max(b.x)::int FROM a LEFT JOIN (b JOIN c ON x) ON y GROUP BY a.id",
+        // An ordered-set aggregate names its order before its filter.
+        "SELECT (percentile_disc(0.5) WITHIN GROUP (ORDER BY points) FILTER (WHERE won))::int FROM scores \
+         GROUP BY team_id",
+    ] {
+        assert_eq!(nullable(sql, 1), [true], "{sql}");
+    }
+    // A count is of the rows there are, whatever leaves them out
+    assert_eq!(
+        nullable(
+            "SELECT count(*) FILTER (WHERE won) FROM teams t LEFT JOIN players p ON y GROUP BY t.id",
+            1
+        ),
+        [false]
+    );
+}
+
+#[test]
+fn a_key_a_grouping_set_leaves_out_is_null() {
+    for sql in [
+        "SELECT label FROM t GROUP BY ROLLUP (label)",
+        "SELECT label FROM t GROUP BY CUBE (label, kind)",
+        "SELECT label FROM t GROUP BY GROUPING SETS ((label), ())",
+        // MySQL's spelling, which needs no aggregate in the list either.
+        "SELECT label FROM t GROUP BY label WITH ROLLUP",
+    ] {
+        assert_eq!(nullable(sql, 1), [true], "{sql}");
+    }
+    assert_eq!(
+        nullable("SELECT label, count(*), sum(x)::int FROM t GROUP BY ROLLUP (label)", 3),
+        [true, false, true]
+    );
+    assert_eq!(
+        nullable("SELECT label, sum(x)::int FROM t GROUP BY label", 2),
+        [false; 2]
+    );
+    // A default names the rows of the set that leaves the key out, cast as it may be
+    for sql in [
+        "SELECT coalesce(label, 'all')::text AS label FROM t GROUP BY ROLLUP (label)",
+        "SELECT (coalesce(label, 'all'))::text FROM t GROUP BY ROLLUP (label)",
+        "SELECT CAST(ifnull(k, 0) AS signed) AS k FROM t GROUP BY k WITH ROLLUP",
+    ] {
+        assert_eq!(nullable(sql, 1), [false], "{sql}");
+    }
+    assert_eq!(
+        nullable(
+            "SELECT coalesce(label, kind)::text, coalesce(label, 'all') || kind FROM t GROUP BY ROLLUP (label, kind)",
+            2
+        ),
+        [true; 2]
+    );
+    // NOTE: We do not tell what names no key, so a literal, a `grouping(...)` and a window's count are widened too.
+    assert_eq!(
+        nullable(
+            "SELECT 1::int, grouping(label)::int, (count(*) OVER ())::int FROM t GROUP BY ROLLUP (label)",
+            3
+        ),
+        [true; 3]
+    );
 }
 
 #[test]
@@ -660,14 +825,31 @@ fn only_a_bare_column_is_null_by_an_outer_join() {
 }
 
 #[test]
-fn a_from_that_is_not_read_leaves_each_column_as_sqlc_reports_it() {
+fn a_from_that_is_not_read_may_leave_any_bare_column_null() {
     for sql in [
         "SELECT a.x, b.y, c.z FROM a LEFT JOIN (b JOIN c ON x) ON y",
         "SELECT a.x, b.y, c.z FROM a LEFT JOIN b JOIN c ON c.b = b.id ON b.a = a.id",
-        "SELECT 1, 2, 3",
+        "UPDATE t SET x = 1 FROM a LEFT JOIN (b JOIN c ON x) ON y RETURNING a.x, b.y, c.z",
     ] {
-        assert_eq!(outer_of(sql, &["a", "b", "c"]), [false; 3], "{sql}");
+        assert_eq!(outer_of(sql, &["a", "b", "c"]), [true; 3], "{sql}");
     }
+    // Anything but a bare column stays as sqlc reports it, as it does where we read the join.
+    assert_eq!(
+        outer_of(
+            "SELECT coalesce(b.y, 0), b.y + 1, 1 FROM a LEFT JOIN (b JOIN c ON x) ON y",
+            &["b", "b", ""]
+        ),
+        [false; 3]
+    );
+    // No `FROM` at all leaves nothing without a row, while one after an `INTO` is one we do not read
+    assert_eq!(outer_of("SELECT x, y, 3", &["", "", ""]), [false; 3]);
+    assert_eq!(
+        outer_of(
+            "SELECT a.x, b.y INTO OUTFILE '/tmp/rows' FROM a LEFT JOIN b ON x JOIN c ON y",
+            &["a", "b"]
+        ),
+        [true; 2]
+    );
     // Each branch of a set operation is read by its own.
     assert_eq!(
         outer_of(

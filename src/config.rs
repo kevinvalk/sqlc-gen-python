@@ -104,8 +104,6 @@ pub struct ModelConfig {
     pub omit_unused: bool,
 
     pub exact_table_names: bool,
-
-    pub inflection_exclude: Vec<String>,
 }
 
 impl Config {
@@ -114,7 +112,9 @@ impl Config {
             [] => b"{}", // sqlc sends empty bytes for a codegen entry without `options:`
             options => options,
         };
-        let config: Self = serde_json::from_slice(options).context("reading plugin options")?;
+        // sqlc sends the options as JSON of its own making, so a position in it would point at nothing the user wrote
+        let options: serde_json::Value = serde_json::from_slice(options).context("reading plugin options")?;
+        let config: Self = serde_json::from_value(options).context("reading plugin options")?;
 
         // Query modules import the package's own models relatively, so it is imported by the name of its directory,
         // which then has to be a package name
@@ -162,15 +162,6 @@ impl Config {
         (self.overrides.iter())
             .flat_map(|rule| rule.python_type.modules.iter().cloned())
             .collect()
-    }
-}
-
-impl ModelConfig {
-    /// Whether `inflection_exclude` names the table: as `schema.name`, or as `name` in the default schema, as `rename`
-    /// names one.
-    pub fn is_inflection_excluded(&self, schema: &str, table: &str, is_default_schema: bool) -> bool {
-        let names = |name: &str| (self.inflection_exclude.iter()).any(|excluded| excluded.eq_ignore_ascii_case(name));
-        self.exact_table_names || names(&format!("{schema}.{table}")) || (is_default_schema && names(table))
     }
 }
 

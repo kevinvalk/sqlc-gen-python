@@ -27,6 +27,16 @@ JOIN invoices ON invoices.id = payments.invoice_id
 RIGHT JOIN customers ON customers.id = invoices.customer_id
 ORDER BY customers.name, invoices.number, payments.amount;
 
+-- name: ListCustomerPaidInvoices :many
+-- Every customer, with each payment of an invoice of theirs, or none. The
+-- plugin does not read a join in parentheses, so each column may be None,
+-- the customer's name too.
+SELECT customers.name, invoices.number, payments.amount
+FROM customers
+LEFT JOIN (invoices JOIN billing.payments ON payments.invoice_id = invoices.id)
+    ON invoices.customer_id = customers.id
+ORDER BY customers.name, invoices.number, payments.amount;
+
 -- name: ListCustomersIssued :many
 -- Every customer, with the number of each issued invoice of theirs, or none:
 -- sqlc reports the column of a subquery NOT NULL, as its table's.

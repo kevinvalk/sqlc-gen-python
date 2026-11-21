@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 
 use super::models::{Field, Model};
 use super::names::{self, Binding, Repeats};
@@ -26,17 +26,18 @@ pub(super) fn columns(
                 .with_context(|| format!("sqlc.embed({}) names no table", table.name))
         })
         .collect::<Result<_>>()?;
-    let (columns, present) = reported(query, resolver, &embeds);
+    let (columns, present) = reported(query, resolver, &embeds)?;
     let spellings: Vec<&str> = (columns.iter().zip(&embeds))
-        .map(|(column, embed)| embed.map_or(resolver.spelling(&column.name), |model| model.name.as_str()))
+        .map(|((column, _), embed)| embed.map_or(resolver.spelling(&column.name), |model| model.name.as_str()))
         .collect();
 
     let mut fields = Vec::new();
     let mut flat = Vec::new();
-    for ((name, column), embed) in names::names(&spellings, Repeats::Numbered, Binding::Field, resolver.records)?
-        .into_iter()
-        .zip(&columns)
-        .zip(embeds)
+    for ((name, (column, is_operand_typed)), embed) in
+        names::names(&spellings, Repeats::Numbered, Binding::Field, resolver.config.records)?
+            .into_iter()
+            .zip(&columns)
+            .zip(embeds)
     {
         match embed {
             Some(model) => {
@@ -68,7 +69,7 @@ pub(super) fn columns(
                 });
             }
             None => {
-                let field = resolver.field(name, column)?;
+                let field = resolver.field(name, column, *is_operand_typed)?;
                 flat.push(field.clone());
                 fields.push(RowField::Column(field));
             }
@@ -77,17 +78,22 @@ pub(super) fn columns(
     Ok((fields, flat))
 }
 
+/// A column as sqlc reports it, and whether sqlc typed it by one operand of what it is.
+type Reported = (plugin::Column, bool);
+
 /// sqlc's columns of a result, corrected where its report is not enough ([`crate::engine::select`]), and the tables
 /// every row has a row of. sqlc reports the type of a `count(...)` as a guess like any call's, while it is the engine's
 /// whatever it counts. And it reports NOT NULL for a scalar subquery that finds no row, an aggregate of no rows and a
-/// column of a table an outer join left without a row, which are all NULL.
+/// column of a table an outer join left without a row, which are all NULL. Each column comes with whether sqlc typed
+/// it by one operand of what it is ([`crate::engine::select::Item::operand_typed`]).
 ///
-/// A statement whose list we cannot read proves nothing, so then every column may be NULL and every table missing.
+/// A statement whose list we cannot read proves nothing, so then every column may be NULL and every table missing. And
+/// it is an error where it holds what sqlc types by one operand, as that may then be any column.
 fn reported(
     query: &plugin::Query,
     resolver: &Resolver,
     embeds: &[Option<&Model>],
-) -> (Vec<plugin::Column>, Vec<String>) {
+) -> Result<(Vec<Reported>, Vec<String>)> {
     // sqlc reports an embed as one column, where the statement lists each column of its table. We give those no table,
     // as it is the embed's to tell a missing row of its table.
     let tables: Vec<String> = (query.columns.iter().zip(embeds))
@@ -99,11 +105,24 @@ fn reported(
         .collect();
     let tables: Vec<&str> = tables.iter().map(String::as_str).collect();
     let Some(items) = resolver.engine.items(&query.text, &tables) else {
-        let nullable = |column: &plugin::Column| plugin::Column {
-            not_null: false,
-            ..column.clone()
+        // IMPORTANT: Nothing tells which column sqlc typed by one operand then, and sqlc reports a cast one no
+        // differently, so we cannot take its type for any of them.
+        if resolver.engine.holds_operand_typed(&query.text) {
+            bail!(
+                "has a result list we could not read, so its coalesce, nullif or CASE, which sqlc types by one \
+                 operand whatever the others are, may be any of its columns; if a column is named as a keyword, as \
+                 \"offset\", quote it"
+            );
+        }
+
+        let nullable = |column: &plugin::Column| {
+            let column = plugin::Column {
+                not_null: false,
+                ..column.clone()
+            };
+            (column, false)
         };
-        return (query.columns.iter().map(nullable).collect(), Vec::new());
+        return Ok((query.columns.iter().map(nullable).collect(), Vec::new()));
     };
 
     let mut at = 0;
@@ -112,10 +131,10 @@ fn reported(
             let item = items.get(at).filter(|_| embed.is_none());
             at += embed.map_or(1, |model| model.fields.len());
             let Some(item) = item else {
-                return column.clone();
+                return (column.clone(), false);
             };
             let is_count = item.count && column.is_func_call;
-            plugin::Column {
+            let column = plugin::Column {
                 is_func_call: column.is_func_call && !is_count,
                 r#type: match is_count {
                     true => Some(plugin::Identifier {
@@ -126,10 +145,11 @@ fn reported(
                 },
                 not_null: column.not_null && !item.nullable,
                 ..column.clone()
-            }
+            };
+            (column, item.operand_typed)
         })
         .collect();
-    (columns, resolver.engine.present(&query.text))
+    Ok((columns, resolver.engine.present(&query.text)))
 }
 
 /// The shape of a row of several columns: the model of a table when they are exactly its columns (all of that table,
@@ -141,10 +161,18 @@ pub(super) fn row_shape(
     catalog: &plugin::Catalog,
     class: String,
 ) -> Shape {
+    // A model lacks the fields of a table's columns that have a problem, so we count the table's own columns: a row of
+    // the others is not the table's.
+    let columns_of = |model: &Model| {
+        (catalog.schema(&model.table.schema)?.tables.iter())
+            .find(|table| table.rel.as_ref().is_some_and(|rel| rel.name == model.table.name))
+            .map(|table| table.columns.len())
+    };
     // Fewer than two columns never get here, as one column is a scalar and a lone embed is no column of the table
     let is_model = |model: &&Model| {
         (columns.iter()).all(|c| (c.table.as_ref()).is_some_and(|t| t.is(&model.table, catalog)))
             && model.fields.len() == fields.len()
+            && columns_of(model) == Some(fields.len())
             && (model.fields.iter().zip(&fields)).all(|(field, row_field)| match row_field {
                 RowField::Column(column) => field.name == column.name && field.ty == column.ty,
                 RowField::Embed { .. } => false,

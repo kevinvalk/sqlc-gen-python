@@ -20,19 +20,16 @@ use signature::function_follows_sqlc;
 
 /// The module of query file `stem` implements sqlc's queries in it. After the prelude its library's stubs need, if any,
 /// it holds one statement constant and one function per query in sqlc's order, each `:many` that only reads followed
-/// by its stream, so we pair them up without repeating any naming rule. Each pair must run exactly the SQL sqlc wrote and say what sqlc
-/// says of NULL and arrays, as no type checker or runtime probe can see a non-null value annotated `X | None`.
+/// by its stream, so we pair them up without repeating any naming rule. Each pair must run exactly the SQL sqlc wrote
+/// and say what sqlc says of NULL and arrays, as no type checker or runtime probe can see a non-null value annotated
+/// `X | None`.
 pub(super) fn queries_follow_sqlc(
-    (request, config): (&plugin::GenerateRequest, Option<&Config>),
+    (request, config): (&plugin::GenerateRequest, &Config),
     stem: &str,
     (body, prelude): (&[Stmt], Option<(usize, &[&str])>),
     models: &[Stmt],
     problems: &mut Vec<String>,
 ) {
-    let Some(config) = config else {
-        return problems.push("generated from options that do not parse".into());
-    };
-
     let (backend, asynchronous) = (config.backend, config.asynchronous);
     let expected_prelude = match (backend, asynchronous) {
         (Backend::Pymysql, false) => Some(PYMYSQL),
@@ -44,9 +41,7 @@ pub(super) fn queries_follow_sqlc(
     }
     let body = &body[prelude.map_or(0, |(start, held)| start + held.len())..];
 
-    let Ok(engine) = Engine::of(request) else {
-        return problems.push("generated for an engine it does not support".into());
-    };
+    let engine = Engine::of(request).expect("an engine generate accepted");
     let queries: Vec<&plugin::Query> = (request.queries.iter())
         .filter(|query| self::stem(&query.filename) == stem)
         .collect();
@@ -73,15 +68,7 @@ pub(super) fn queries_follow_sqlc(
         let takes = Takes::of(query, config);
         let signature = (connection_annotation.as_str(), asynchronous, takes, config.records);
         if function_follows_sqlc(query, function, &parameters, signature, problems) {
-            runs_its_statement(
-                query,
-                function,
-                constant,
-                &parameters,
-                engine,
-                (asynchronous, takes),
-                problems,
-            );
+            runs_its_statement(query, function, constant, &parameters, engine, takes, problems);
             result_follows_sqlc(request, query, function, (body, models), (config, engine), problems);
             sql_round_trips(query, &sql, &parameters, backend, engine, problems);
         }
@@ -91,15 +78,7 @@ pub(super) fn queries_follow_sqlc(
         match stream {
             Some(stream) if streams => {
                 stream_follows_function(query, function, stream, asynchronous, problems);
-                runs_its_statement(
-                    query,
-                    stream,
-                    constant,
-                    &parameters,
-                    engine,
-                    (asynchronous, takes),
-                    problems,
-                );
+                runs_its_statement(query, stream, constant, &parameters, engine, takes, problems);
             }
             None if !streams => {}
             _ => problems.push(format!(
@@ -174,7 +153,7 @@ fn stream_follows_function(
     yields.visit_body(&stream.body);
     let reads_row_by_row = match yields.0[..] {
         [Some(Expr::Generator(rows))] => match &rows.generators[..] {
-            [each] => ["cur", "_typed(cur)", "result"].contains(&unparse(&each.iter).as_str()),
+            [each] => ["cur", "_typed(cur)"].contains(&unparse(&each.iter).as_str()),
             _ => false,
         },
         _ => false,

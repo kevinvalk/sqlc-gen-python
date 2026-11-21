@@ -79,12 +79,12 @@ def stream_list_events(
 ) -> Generator[Iterator[models.AnalyticsEvent], None, None]:
     with connection.execute(
         _LIST_EVENTS, execution_options={"stream_results": True}
-    ) as result:
-        yield (models.AnalyticsEvent.from_row(row) for row in result)
+    ) as cur:
+        yield (models.AnalyticsEvent.from_row(row) for row in cur)
 
 
 _LIST_ODDITIES: Final = sqlalchemy.text(
-    "SELECT id, mood FROM oddities WHERE mood = :mood"
+    "SELECT id, mood, result, model_dump_at FROM oddities WHERE mood = :mood"
 )
 
 
@@ -103,8 +103,34 @@ def stream_list_oddities(
 ) -> Generator[Iterator[models.Oddity], None, None]:
     with connection.execute(
         _LIST_ODDITIES, {"mood": mood}, execution_options={"stream_results": True}
-    ) as result:
-        yield (models.Oddity.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Oddity.from_row(row) for row in cur)
+
+
+_LIST_ODDITIES_BY_RESULT: Final = sqlalchemy.text(
+    "SELECT id, mood, result, model_dump_at FROM oddities WHERE result = :result"
+)
+
+
+def list_oddities_by_result(
+    connection: sqlalchemy.Connection, *, result: str
+) -> list[models.Oddity]:
+    return [
+        models.Oddity.from_row(row)
+        for row in connection.execute(_LIST_ODDITIES_BY_RESULT, {"result": result})
+    ]
+
+
+@contextlib.contextmanager
+def stream_list_oddities_by_result(
+    connection: sqlalchemy.Connection, *, result: str
+) -> Generator[Iterator[models.Oddity], None, None]:
+    with connection.execute(
+        _LIST_ODDITIES_BY_RESULT,
+        {"result": result},
+        execution_options={"stream_results": True},
+    ) as cur:
+        yield (models.Oddity.from_row(row) for row in cur)
 
 
 _FIND_SCALARS: Final = sqlalchemy.text("""SELECT id FROM scalars
@@ -158,5 +184,5 @@ def stream_find_scalars(
             "searches": searches,
         },
         execution_options={"stream_results": True},
-    ) as result:
-        yield (row[0] for row in result)
+    ) as cur:
+        yield (row[0] for row in cur)

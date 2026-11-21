@@ -125,8 +125,8 @@ async def stream_search_customers(
     connection: AsyncConnection, *, pattern: str | None = None
 ) -> AsyncGenerator[AsyncIterator[SearchCustomersRow], None]:
     """A name or email matching the pattern, but no test account: `%` and `:` stay literal."""
-    async with connection.stream(_SEARCH_CUSTOMERS, {"pattern": pattern}) as result:
-        yield (SearchCustomersRow.from_row(row) async for row in result)
+    async with connection.stream(_SEARCH_CUSTOMERS, {"pattern": pattern}) as cur:
+        yield (SearchCustomersRow.from_row(row) async for row in cur)
 
 
 _LIST_CUSTOMERS_BY_IDS: Final = sqlalchemy.text(
@@ -147,8 +147,8 @@ async def list_customers_by_ids(
 async def stream_list_customers_by_ids(
     connection: AsyncConnection, *, ids: list[int]
 ) -> AsyncGenerator[AsyncIterator[models.Customer], None]:
-    async with connection.stream(_LIST_CUSTOMERS_BY_IDS, {"ids": ids}) as result:
-        yield (models.Customer.from_row(row) async for row in result)
+    async with connection.stream(_LIST_CUSTOMERS_BY_IDS, {"ids": ids}) as cur:
+        yield (models.Customer.from_row(row) async for row in cur)
 
 
 _LIST_CUSTOMERS_EXCEPT: Final = sqlalchemy.text(
@@ -171,8 +171,8 @@ async def stream_list_customers_except(
     connection: AsyncConnection, *, ids: list[int]
 ) -> AsyncGenerator[AsyncIterator[models.Customer], None]:
     """Every customer but those among the ids, so every customer for none."""
-    async with connection.stream(_LIST_CUSTOMERS_EXCEPT, {"ids": ids}) as result:
-        yield (models.Customer.from_row(row) async for row in result)
+    async with connection.stream(_LIST_CUSTOMERS_EXCEPT, {"ids": ids}) as cur:
+        yield (models.Customer.from_row(row) async for row in cur)
 
 
 _LIST_CUSTOMERS_KNOWN_AS: Final = sqlalchemy.text("""SELECT id FROM customers
@@ -200,8 +200,49 @@ async def stream_list_customers_known_as(
     """The customers known by one of the names, as their name or their email: one slice, used twice after a parameter."""
     async with connection.stream(
         _LIST_CUSTOMERS_KNOWN_AS, {"vip": vip, "names": names}
-    ) as result:
-        yield (row[0] async for row in result)
+    ) as cur:
+        yield (row[0] async for row in cur)
+
+
+_FILTER_CUSTOMERS: Final = sqlalchemy.text("""SELECT id FROM customers
+WHERE (:name IS NULL OR name = :name)
+  AND (vip = :vip OR :vip IS NULL)
+  AND (:preferred_method IS NULL OR preferred_method = :preferred_method)
+ORDER BY id""")
+
+
+async def filter_customers(
+    connection: AsyncConnection,
+    *,
+    name: str | None = None,
+    vip: bool | None = None,
+    preferred_method: models.CustomersPreferredMethod | None = None,
+) -> list[int]:
+    """The customers every filter given matches, so all of them for none. Either use of a filter may come first."""
+    return list(
+        (
+            await connection.execute(
+                _FILTER_CUSTOMERS,
+                {"name": name, "vip": vip, "preferred_method": preferred_method},
+            )
+        ).scalars()
+    )
+
+
+@contextlib.asynccontextmanager
+async def stream_filter_customers(
+    connection: AsyncConnection,
+    *,
+    name: str | None = None,
+    vip: bool | None = None,
+    preferred_method: models.CustomersPreferredMethod | None = None,
+) -> AsyncGenerator[AsyncIterator[int], None]:
+    """The customers every filter given matches, so all of them for none. Either use of a filter may come first."""
+    async with connection.stream(
+        _FILTER_CUSTOMERS,
+        {"name": name, "vip": vip, "preferred_method": preferred_method},
+    ) as cur:
+        yield (row[0] async for row in cur)
 
 
 _CREATE_INVOICE: Final = sqlalchemy.text("""INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
@@ -312,8 +353,8 @@ async def stream_list_invoices_by_status(
 ) -> AsyncGenerator[AsyncIterator[models.Invoice], None]:
     async with connection.stream(
         _LIST_INVOICES_BY_STATUS, {"statuses": statuses, "customer_id": customer_id}
-    ) as result:
-        yield (models.Invoice.from_row(row) async for row in result)
+    ) as cur:
+        yield (models.Invoice.from_row(row) async for row in cur)
 
 
 _COUNT_INVOICES: Final = sqlalchemy.text(
@@ -394,10 +435,8 @@ async def list_line_items(
 async def stream_list_line_items(
     connection: AsyncConnection, *, invoice_id: int
 ) -> AsyncGenerator[AsyncIterator[models.LineItem], None]:
-    async with connection.stream(
-        _LIST_LINE_ITEMS, {"invoice_id": invoice_id}
-    ) as result:
-        yield (models.LineItem.from_row(row) async for row in result)
+    async with connection.stream(_LIST_LINE_ITEMS, {"invoice_id": invoice_id}) as cur:
+        yield (models.LineItem.from_row(row) async for row in cur)
 
 
 _LIST_CUSTOMER_LINES: Final = sqlalchemy.text("""SELECT customers.id, invoices.number, line_items.description
@@ -439,8 +478,8 @@ async def stream_list_customer_lines(
     stands left of the RIGHT JOIN may be without a row, though sqlc reports
     the columns of a join there NOT NULL.
     """
-    async with connection.stream(_LIST_CUSTOMER_LINES) as result:
-        yield (ListCustomerLinesRow.from_row(row) async for row in result)
+    async with connection.stream(_LIST_CUSTOMER_LINES) as cur:
+        yield (ListCustomerLinesRow.from_row(row) async for row in cur)
 
 
 _RECALCULATE_TOTAL: Final = sqlalchemy.text("""UPDATE invoices
@@ -483,5 +522,5 @@ async def stream_countdown(
     """Reads malformed JSON at its 800th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
-    async with connection.stream(_COUNTDOWN) as result:
-        yield (row[0] async for row in result)
+    async with connection.stream(_COUNTDOWN) as cur:
+        yield (row[0] async for row in cur)

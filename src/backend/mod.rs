@@ -1,8 +1,6 @@
 //! A backend only decides how a statement is written and executed and what a connection is, as what a query takes and
 //! returns is sqlc's and the engine's to say. SQLAlchemy rewrites sqlc's SQL for its `text()`, while every other
 //! backend is a [`Driver`] that takes it as written ([`dbapi`]).
-//!
-//! Every method is an exhaustive `match`, so for a new backend the compiler lists everything it has to answer.
 
 mod dbapi;
 mod psycopg;
@@ -79,12 +77,23 @@ impl Backend {
     pub fn check(self, engine: Engine, query: &Query) -> Result<()> {
         // A MySQL driver's `executemany` rewrites an `INSERT` into one statement of many rows, and only some versions
         // format what follows its `VALUES` list (PyMySQL from 1.2.4, not mysqlclient). So a `%` there, doubled for the
-        // driver, could reach MySQL doubled, in a string too!
-        if engine == Engine::MySql && query.takes.rows() && query.sql.text().contains('%') {
-            bail!(
-                ":copyfrom has a % in its statement, which a MySQL driver's executemany doubles \
-                 or not by its version; write it without one, as MOD(a, b) for a % b"
-            )
+        // driver, could reach MySQL doubled, in a string too! And none binds a parameter there: each raises a TypeError
+        // for the values the list does not take.
+        if engine == Engine::MySql && query.takes.rows() {
+            let text = query.sql.text();
+            if text.contains('%') {
+                bail!(
+                    ":copyfrom has a % in its statement, which a MySQL driver's executemany doubles \
+                     or not by its version; write it without one, as MOD(a, b) for a % b"
+                )
+            }
+            if engine.binds_on_duplicate(&text) {
+                bail!(
+                    ":copyfrom binds a parameter after ON DUPLICATE KEY UPDATE, where a MySQL driver's \
+                     executemany formats none and raises; write the row's own value as VALUES(column), \
+                     or use :exec, once per row"
+                )
+            }
         }
         match self.driver() {
             None => sqlalchemy::check(engine, query),

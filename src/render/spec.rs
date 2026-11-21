@@ -174,10 +174,15 @@ fn query_modules_read_their_models_from_the_module_named_and_write_none() {
 fn a_pydantic_record_is_a_frozen_model_that_forbids_extra_fields() {
     use crate::api::fixtures::authors::{named, query};
     use crate::api::fixtures::{column, public, table};
-    // pydantic warns of a field that shadows a `BaseModel` attribute, such as `json`
+    // pydantic warns of a field that shadows a `BaseModel` attribute, such as `json`, and of one in a namespace it
+    // protects, such as `model_dump_at`, unless the model protects none
     let documents = table(
         "documents",
-        vec![column("id", "int4", true), column("json", "jsonb", false)],
+        vec![
+            column("id", "int4", true),
+            column("json", "jsonb", false),
+            column("model_dump_at", "timestamptz", false),
+        ],
     );
     let update = plugin::Query {
         params: vec![named(1, "json", "jsonb", false), named(2, "id", "int4", true)],
@@ -198,11 +203,16 @@ fn a_pydantic_record_is_a_frozen_model_that_forbids_extra_fields() {
     assert!(
         models.contains(
             "class Document(pydantic.BaseModel):\n    model_config = pydantic.ConfigDict(\n        \
-             frozen=True, extra=\"forbid\", arbitrary_types_allowed=True\n    )\n    id: int\n    json_: object | None\n"
+             frozen=True,\n        extra=\"forbid\",\n        arbitrary_types_allowed=True,\n        \
+             protected_namespaces=(),\n    )\n    id: int\n    json_: object | None\n    \
+             model_dump_at: dt.datetime | None\n"
         ),
         "{models}"
     );
-    assert!(models.contains("return cls(id=row[0], json_=row[1])"), "{models}");
+    assert!(
+        models.contains("return cls(id=row[0], json_=row[1], model_dump_at=row[2])"),
+        "{models}"
+    );
     assert!(!models.contains("dataclass"), "{models}");
 
     let queries = file("authors.py");

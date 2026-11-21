@@ -138,15 +138,15 @@ def get_customer_id_by_email(
                 raise models.MultipleRowsError
 
 
-_GET_ACCEPTED_METHODS: Final = (
-    "SELECT coalesce(accepted_methods, '{}') FROM customers WHERE id = $1"
-)
+_GET_ACCEPTED_METHODS: Final = "SELECT coalesce(accepted_methods, '{}')::billing.payment_method[] FROM customers WHERE id = $1"
 
 
 def get_accepted_methods(
     connection: psycopg.Connection[Any], *, id: UUID
 ) -> list[models.BillingPaymentMethod]:
-    """PostgreSQL names this column `coalesce`, and sqlc `accepted_methods`."""
+    """PostgreSQL names this column `coalesce`, and sqlc nothing. It is cast, as
+    sqlc types a coalesce as its first argument whatever the others are.
+    """
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_ACCEPTED_METHODS, (id,))
         match cur.fetchmany(2):

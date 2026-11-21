@@ -27,5 +27,5 @@ async def stream_countdown(
     """Divides by zero at its 5000th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
-    async with connection.stream(_COUNTDOWN) as result:
-        yield (row[0] async for row in result)
+    async with connection.stream(_COUNTDOWN) as cur:
+        yield (row[0] async for row in cur)

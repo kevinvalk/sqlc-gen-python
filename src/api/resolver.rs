@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
 use anyhow::{Result, bail};
@@ -9,9 +9,8 @@ use super::Problems;
 use super::inflection::singular;
 use super::models::{Field, FieldType};
 use super::names::{Binding, Repeats, names};
-use crate::backend::Backend;
-use crate::config::{Config, ModelConfig, Override, Records, UnknownType};
-use crate::engine::Engine;
+use crate::config::{Config, Override};
+use crate::engine::{Engine, is_typed_by_sqlc};
 use crate::plugin;
 use crate::python::Type;
 
@@ -24,12 +23,7 @@ mod spec;
 pub struct Resolver<'a> {
     pub engine: Engine,
     pub catalog: &'a plugin::Catalog,
-    overrides: &'a [Override],
-    rename: &'a BTreeMap<String, String>,
-    backend: Backend,
-    unknown_type: Option<UnknownType>,
-    /// The class of the records the names of fields are for
-    pub records: Records,
+    pub config: &'a Config,
     /// The rename keys and overrides (by index) that matched something, as any other is a typo that would silently do
     /// nothing.
     used: RefCell<(BTreeSet<&'a str>, BTreeSet<usize>)>,
@@ -41,11 +35,7 @@ impl<'a> Resolver<'a> {
         Ok(Self {
             engine: Engine::of(request)?,
             catalog: request.catalog.as_ref().unwrap_or(&EMPTY),
-            overrides: &config.overrides,
-            rename: &config.rename,
-            backend: config.backend,
-            unknown_type: config.unknown_type,
-            records: config.records,
+            config,
             used: RefCell::default(),
         })
     }
@@ -53,14 +43,13 @@ impl<'a> Resolver<'a> {
     /// Fails for a rename key or an override that matched nothing.
     pub fn check_used(&self) -> Result<()> {
         let (keys, overrides) = &*self.used.borrow();
-        if let Some(key) = self.rename.keys().find(|key| !keys.contains(key.as_str())) {
+        if let Some(key) = self.config.rename.keys().find(|key| !keys.contains(key.as_str())) {
             bail!("rename: \"{key}\" names no table, type, column or parameter of the queries");
         }
         // Entries often share one list of overrides (a YAML anchor), so one of them may well not use an override,
         // which is then no typo as long as it names a type or a column of the schema
-        if let Some(i) =
-            (0..self.overrides.len()).find(|i| !overrides.contains(i) && !self.in_schema(&self.overrides[*i]))
-        {
+        let rules = &self.config.overrides;
+        if let Some(i) = (0..rules.len()).find(|i| !overrides.contains(i) && !self.in_schema(&rules[*i])) {
             bail!(
                 "overrides[{i}]: matches no column or parameter that an override before it does \
                  not, nor a type or column of the schema"
@@ -86,27 +75,27 @@ impl<'a> Resolver<'a> {
         let names_column = |named: &str| {
             tables().any(|(schema, table)| {
                 let name = table.rel.as_ref().map_or("", |rel| rel.name.as_str());
-                table.columns.iter().any(|column| {
-                    let qualified = format!("{}.{name}.{}", schema.name, column.name);
-                    named == qualified
-                        || (schema.name == self.catalog.default_schema && named == format!("{name}.{}", column.name))
-                })
+                (table.columns.iter()).any(|column| self.names_column(named, &schema.name, name, &column.name))
             })
         };
         rule.db_type.as_deref().is_some_and(names_type) || rule.column.as_deref().is_some_and(names_column)
     }
 
-    /// Whether an override's `ty` names `data_type`: as written, or bare for PostgreSQL's own, the default schema's, or
-    /// an extension's, which no schema declares and may be in any (`vector` is `extensions.vector`). A bare name of
-    /// PostgreSQL's own is never another schema's type, which is a domain of the user's (`archive.money`).
+    /// Whether an override's `ty` names `data_type`: by any spelling of the engine's ([`Engine::type_name`]), or bare
+    /// for PostgreSQL's own, the default schema's, or an extension's, which no schema declares and may be in any
+    /// (`vector` is `extensions.vector`). A bare name of PostgreSQL's own is never another schema's type, which is a
+    /// domain of the user's (`archive.money`).
     fn names_type(&self, ty: &str, data_type: &str) -> bool {
-        let is_extensions = !ty.contains('.') && !self.declares(data_type) && !self.engine.is_own_type(ty);
+        // sqlc reports one type by several names (a `bigint` column as `pg_catalog.int8`, a `bigserial` one as
+        // `bigserial`), and an override that reached only one of them would give one database type two Python types.
+        let own = |name: &str| self.engine.type_name(&self.plain(name));
+        let is_extensions = !ty.contains('.') && !self.declares(data_type) && !self.engine.is_own_type(&own(ty));
         let bare = |name: &str| {
             name.rsplit_once('.')
                 .map_or(name, |(_, name)| name)
                 .to_ascii_lowercase()
         };
-        self.plain(ty) == self.plain(data_type) || (is_extensions && bare(data_type) == ty.to_ascii_lowercase())
+        own(ty) == own(data_type) || (is_extensions && bare(data_type) == ty.to_ascii_lowercase())
     }
 
     /// A type's name as an override may write it: bare when it is PostgreSQL's own or the default schema's.
@@ -120,7 +109,7 @@ impl<'a> Resolver<'a> {
 
     /// The rename of `key`, if any, which we then note as used.
     fn rename(&self, key: &str) -> Option<&'a str> {
-        let (key, renamed) = self.rename.get_key_value(key)?;
+        let (key, renamed) = self.config.rename.get_key_value(key)?;
         self.used.borrow_mut().0.insert(key);
         Some(renamed)
     }
@@ -152,41 +141,43 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    /// The override of `column`, of type `data_type`, where one naming the column itself wins over one naming its type.
-    fn overridden(&self, column: &plugin::Column, data_type: &str) -> Option<&'a Override> {
-        let names_column = |rule: &&Override| {
-            let table = column.table.as_ref()?;
-            let name = match column.original_name.as_str() {
-                "" => &column.name,
-                original => original,
-            };
-            let schema = match table.schema.as_str() {
-                "" => &self.catalog.default_schema,
-                schema => schema,
-            };
-            let named = rule.column.as_deref()?;
-            // A bare `table.column` is the default schema's.
-            ((named == format!("{}.{name}", table.name) && *schema == self.catalog.default_schema)
-                || named == format!("{schema}.{}.{name}", table.name))
-            .then_some(())
+    /// The override that names `column` itself.
+    fn column_override(&self, column: &plugin::Column) -> Option<&'a Override> {
+        let table = column.table.as_ref()?;
+        let name = match column.original_name.as_str() {
+            "" => &column.name,
+            original => original,
         };
+        let schema = match table.schema.as_str() {
+            "" => &self.catalog.default_schema,
+            schema => schema,
+        };
+        self.first_override(|rule| {
+            (rule.column.as_deref()).is_some_and(|named| self.names_column(named, schema, &table.name, name))
+        })
+    }
 
-        let i = (self.overrides.iter().position(|rule| names_column(&rule).is_some())).or_else(|| {
-            (self.overrides.iter())
-                .position(|rule| rule.db_type.as_deref().is_some_and(|ty| self.names_type(ty, data_type)))
-        })?;
+    /// Whether an override's `named` is `schema.table.column`, or a bare `table.column` of the default schema.
+    fn names_column(&self, named: &str, schema: &str, table: &str, column: &str) -> bool {
+        named == format!("{schema}.{table}.{column}")
+            || (schema == self.catalog.default_schema && named == format!("{table}.{column}"))
+    }
+
+    /// The first override that `matches`, which we then note as used.
+    fn first_override(&self, matches: impl Fn(&Override) -> bool) -> Option<&'a Override> {
+        let i = self.config.overrides.iter().position(matches)?;
         self.used.borrow_mut().1.insert(i);
-        Some(&self.overrides[i])
+        Some(&self.config.overrides[i])
     }
 
     /// The class name of a table, singular unless the user opted out.
-    pub fn model_name(&self, schema: &plugin::Schema, table: &str, config: &ModelConfig) -> String {
+    pub fn model_name(&self, schema: &plugin::Schema, table: &str) -> String {
         // We rename by the table's name alone and never by its singular, as that may well be a column's name
         if let Some(renamed) = self.renamed_class(schema, table) {
             return renamed.into();
         }
 
-        match config.is_inflection_excluded(&schema.name, table, schema.name == self.catalog.default_schema) {
+        match self.config.models.exact_table_names {
             true => self.spelt(schema, table),
             false => self.spelt(schema, &singular(table)),
         }
@@ -197,15 +188,16 @@ impl<'a> Resolver<'a> {
         let spellings: Vec<&str> = columns.iter().map(|c| self.spelling(&c.name)).collect();
         let names = problems.take(
             what,
-            names(&spellings, Repeats::Forbidden, Binding::Field, self.records),
+            names(&spellings, Repeats::Forbidden, Binding::Field, self.config.records),
         );
         (names.unwrap_or_default().into_iter().zip(columns))
-            .filter_map(|(name, column)| problems.take(what, self.field(name, column)))
+            .filter_map(|(name, column)| problems.take(what, self.field(name, column, false)))
             .collect()
     }
 
-    /// A column sqlc left unnamed is described by `name` in errors.
-    pub fn field(&self, name: String, column: &plugin::Column) -> Result<Field> {
+    /// A column sqlc left unnamed is described by `name` in errors. `is_operand_typed` for a result's column that the
+    /// statement shows sqlc typed by one operand of it ([`crate::engine::select::Item::operand_typed`]).
+    pub fn field(&self, name: String, column: &plugin::Column, is_operand_typed: bool) -> Result<Field> {
         let described = match column.name.as_str() {
             "" => &name,
             spelling => spelling,
@@ -218,9 +210,19 @@ impl<'a> Resolver<'a> {
             self.engine.cast("coalesce(<expr>, <default>)")
         );
 
-        // sqlc reports `coalesce(x, ...)` as the column `x` but NOT NULL, and with the type of that first argument
-        // whatever PostgreSQL resolves (`coalesce(qty, 1.5)` is numeric), so we cannot trust its type either.
-        let ty = if column.not_null && self.source(column).is_some_and(|source| !source.not_null) {
+        // sqlc types a `coalesce` as its first argument, a `nullif` as `bool` and a `CASE` as its `ELSE`, whatever the
+        // database resolves (`coalesce(qty, 1.5)` is numeric), so only a cast names the type of one. A subquery's
+        // `coalesce` the statement does not show us as one, but sqlc still reports it as the column `x` made NOT NULL.
+        let ty = if is_operand_typed {
+            self.unknown(
+                column,
+                format!(
+                    "column \"{described}\" is a coalesce, a nullif or a CASE, which sqlc types by one operand \
+                     whatever the others are; add a cast, as {cast}{}",
+                    self.engine.analysis()
+                ),
+            )?
+        } else if column.not_null && self.source(column).is_some_and(|source| !source.not_null) {
             self.unknown(
                 column,
                 format!(
@@ -257,9 +259,9 @@ impl<'a> Resolver<'a> {
             .find(|c| c.name == column.original_name)
     }
 
-    /// The type of `column`, which `what` describes in errors. A type without a verified Python type is [`Self::unknown`],
-    /// as annotating it `Any` unasked would hide exactly the mistakes the type checkers are there to catch; for a type
-    /// sqlc could not infer, the error suggests `cast`.
+    /// The type of `column`, which `what` describes in errors. A type without a verified Python type is
+    /// [`Self::unknown`], as annotating it `Any` unasked would hide exactly the mistakes the type checkers are there to
+    /// catch; for a type sqlc could not infer, the error suggests `cast`.
     ///
     /// sqlc types a column it marks `is_func_call` by an overload it guessed (`abs(numeric)` as `bigint`), and the
     /// other guesses are [`Engine::is_guess`]'s to tell.
@@ -277,17 +279,11 @@ impl<'a> Resolver<'a> {
             ),
         };
 
-        // An override replaces the element's type, while the array around it is still the one the driver returns
-        let element = match self.overridden(column, &data_type) {
-            Some(_) if sql_enum.is_some() && array_dims > 0 => {
-                bail!(
-                    "{what} is an array of enum \"{data_type}\", whose elements a driver may return as the array's text; an override cannot replace them"
-                )
-            }
-            Some(rule) => Type::Custom {
-                annotation: rule.python_type.expr.clone(),
-                json: (self.engine.scalar_type(column)).and_then(|ty| ty.json()),
-            },
+        // An override naming the column wins over all sqlc reports of it, as on SQLite it is how a column declared
+        // without a type gets one. One naming a type only reaches a type sqlc read: its guess is spelled as a type too
+        // (`bigint` for the `sum` of a numeric column), and is no column of that type.
+        let rule = match self.column_override(column) {
+            Some(rule) => Some(rule),
             None => {
                 if column.is_func_call {
                     return self.unknown(
@@ -308,6 +304,32 @@ impl<'a> Resolver<'a> {
                         ),
                     );
                 }
+                // A parameter sqlc typed itself has no column of the type an override names behind it, so an `int4` one
+                // leaves a `LIMIT` an `int`.
+                match is_typed_by_sqlc(column, is_parameter) {
+                    true => None,
+                    false => self.first_override(|rule| {
+                        rule.db_type
+                            .as_deref()
+                            .is_some_and(|ty| self.names_type(ty, &data_type))
+                    }),
+                }
+            }
+        };
+
+        // An override replaces the element's type, while the array around it is still the one the driver returns
+        let element = match rule {
+            Some(_) if sql_enum.is_some() && array_dims > 0 => {
+                bail!(
+                    "{what} is an array of enum \"{data_type}\", whose elements a driver may return as the \
+                     array's text; an override cannot replace them"
+                )
+            }
+            Some(rule) => Type::Custom {
+                annotation: rule.python_type.expr.clone(),
+                json: (self.engine.scalar_type(column)).and_then(|ty| ty.json()),
+            },
+            None => {
                 // A type the schema declares is the user's, even where its name is also one of PostgreSQL's or an
                 // extension's, and a composite has no class yet
                 let declared = self.declares(&data_type);
@@ -316,7 +338,7 @@ impl<'a> Resolver<'a> {
                 .or_else(|| (!declared).then(|| self.engine.scalar_type(column))?)
                 .or_else(|| {
                     let name = self.engine.type_name(&data_type);
-                    (!declared).then(|| self.backend.scalar_type(self.engine, &name))?
+                    (!declared).then(|| self.config.backend.scalar_type(self.engine, &name))?
                 }) else {
                     let hint = self.engine.unmapped(&data_type);
                     let default = format!("{}.", self.catalog.default_schema);
@@ -361,7 +383,7 @@ impl<'a> Resolver<'a> {
         }
 
         Ok(FieldType {
-            as_text: array_dims > 0 && matches!(element, Type::Enum(_)) && self.backend.text_arrays(),
+            as_text: array_dims > 0 && matches!(element, Type::Enum(_)) && self.config.backend.text_arrays(),
             element,
             array_dims,
             optional: !column.not_null,
@@ -372,7 +394,7 @@ impl<'a> Resolver<'a> {
     /// user accepts for every such type (`unknown_type`). That stands for the whole column, as a driver may not even
     /// return a list for an array of it.
     pub fn unknown(&self, column: &plugin::Column, problem: String) -> Result<FieldType> {
-        let Some(unknown) = self.unknown_type else {
+        let Some(unknown) = self.config.unknown_type else {
             bail!("{problem}; or set unknown_type: Any to leave it unchecked");
         };
         Ok(FieldType {
@@ -396,8 +418,8 @@ impl<'a> Resolver<'a> {
         Some((schema, schema.enums.iter().find(|e| e.name == name)?))
     }
 
-    /// Whether a schema of the catalog declares `data_type`, `schema.name` or bare for the default schema, as an enum or
-    /// a composite.
+    /// Whether a schema of the catalog declares `data_type`, `schema.name` or bare for the default schema, as an enum
+    /// or a composite.
     fn declares(&self, data_type: &str) -> bool {
         let (schema, name) = data_type.rsplit_once('.').unwrap_or(("", data_type));
         (self.catalog.schema(schema)).is_some_and(|schema| {

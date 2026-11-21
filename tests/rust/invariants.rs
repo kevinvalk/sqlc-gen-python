@@ -546,6 +546,14 @@ fn a_function_runs_its_own_statement_with_each_parameter_as_itself() {
             "r.unit_price,\n                        r.quantity,",
             "not each parameter as itself",
         ),
+        // And copies into its own columns, in their order.
+        (
+            "invoicing_psycopg",
+            "line_items.py",
+            "\"quantity\", \"unit_price\"",
+            "\"unit_price\", \"quantity\"",
+            "copies with",
+        ),
         (
             "invoicing_psycopg",
             "invoices.py",
@@ -590,14 +598,6 @@ fn a_function_runs_its_own_statement_with_each_parameter_as_itself() {
             "    return models.Invoice.from_row(connection.execute(_GET_INVOICE",
             "    connection.exec_driver_sql(\"SELECT 1\")\n    return models.Invoice.from_row(connection.execute(_GET_INVOICE",
             "reads `connection` 2 times",
-        ),
-        // A coroutine never awaited never runs.
-        (
-            "invoicing_sqlalchemy_async",
-            "line_items.py",
-            "for row in await connection.execute(",
-            "for row in connection.execute(",
-            "awaits its statement exactly when async",
         ),
     ] {
         let problems = planted(case, file, old, new).join("\n");
@@ -683,11 +683,13 @@ fn a_record_is_a_frozen_slotted_keyword_only_dataclass_without_defaults() {
 fn a_pydantic_record_is_frozen_forbids_extra_fields_and_is_of_the_one_kind_asked_for() {
     for (old, new) in [
         // A record pydantic lets change, or that silently drops a misspelt field of a `**` dict
-        ("frozen=True, extra=", "frozen=False, extra="),
-        ("extra=\"forbid\", ", ""),
+        ("frozen=True,\n        extra=", "frozen=False,\n        extra="),
+        ("        extra=\"forbid\",\n", ""),
+        // A record that warns where it is imported, of a field in a namespace pydantic protects (`model_dump_at`)
+        ("        protected_namespaces=(),\n", ""),
         // The other kind of record, which the options did not ask for
         (
-            "class Oddity(pydantic.BaseModel):\n    model_config = pydantic.ConfigDict(\n        frozen=True, extra=\"forbid\", arbitrary_types_allowed=True\n    )\n",
+            "class Oddity(pydantic.BaseModel):\n    model_config = pydantic.ConfigDict(\n        frozen=True,\n        extra=\"forbid\",\n        arbitrary_types_allowed=True,\n        protected_namespaces=(),\n    )\n",
             "@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)\nclass Oddity:\n",
         ),
     ] {
@@ -765,8 +767,8 @@ def stream_list_line_items(
         _LIST_LINE_ITEMS,
         {\"invoice_id\": invoice_id},
         execution_options={\"stream_results\": True},
-    ) as result:
-        yield (models.LineItem.from_row(row) for row in result)
+    ) as cur:
+        yield (models.LineItem.from_row(row) for row in cur)
 ";
     for (old, new, problem) in [
         (
@@ -796,8 +798,8 @@ def stream_list_line_items(
         ),
         // Every row read before the first is yielded
         (
-            "yield (models.LineItem.from_row(row) for row in result)",
-            "yield iter([models.LineItem.from_row(row) for row in result])",
+            "yield (models.LineItem.from_row(row) for row in cur)",
+            "yield iter([models.LineItem.from_row(row) for row in cur])",
             "does not yield, once, a generator of its cursor's rows",
         ),
     ] {

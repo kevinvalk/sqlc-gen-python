@@ -11,7 +11,7 @@ from hypothesis import strategies as st
 import pgvalues
 from autoprop_pool import PICK
 from pgvalues import enum_array_type, json_type, sqlalchemy_type
-from suite.deep import build, check, refused, same
+from suite.deep import build, check, raise_mismatch, same
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -28,7 +28,7 @@ def read(table: Table, row: Sequence[object]) -> object:
     try:
         record = table.model.from_row(row)
     except pydantic.ValidationError as error:
-        refused(error, table.model, where)
+        raise_mismatch(error, table.model, where)
     check(record, table.model, where)
     if not same(record, build(table.model, row)):
         message = f"{where}: {record!r} is not the row read by position"

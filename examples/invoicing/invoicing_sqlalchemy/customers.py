@@ -153,11 +153,10 @@ def get_customer_id_by_email(
 
 
 _GET_ACCEPTED_METHODS: Final = sqlalchemy.text(
-    "SELECT coalesce(accepted_methods, '{}') FROM customers WHERE id = :id"
+    "SELECT coalesce(accepted_methods, '{}')\\:\\:billing.payment_method[] FROM customers WHERE id = :id"
 ).columns(
     sqlalchemy.column(
-        "accepted_methods",
-        postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
+        "column_1", postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod))
     )
 )
 
@@ -165,7 +164,9 @@ _GET_ACCEPTED_METHODS: Final = sqlalchemy.text(
 def get_accepted_methods(
     connection: sqlalchemy.Connection, *, id: UUID
 ) -> list[models.BillingPaymentMethod]:
-    """PostgreSQL names this column `coalesce`, and sqlc `accepted_methods`."""
+    """PostgreSQL names this column `coalesce`, and sqlc nothing. It is cast, as
+    sqlc types a coalesce as its first argument whatever the others are.
+    """
     value = connection.execute(_GET_ACCEPTED_METHODS, {"id": id}).scalar_one()
     return [models.BillingPaymentMethod(v) for v in value]
 
@@ -255,8 +256,8 @@ def stream_search_customers(
     """Case-insensitive search on name or email."""
     with connection.execute(
         _SEARCH_CUSTOMERS, {"query": query}, execution_options={"stream_results": True}
-    ) as result:
-        yield (models.Customer.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Customer.from_row(row) for row in cur)
 
 
 _LIST_CUSTOMER_NAMES_BY_TAG: Final = sqlalchemy.text(
@@ -278,8 +279,8 @@ def stream_list_customer_names_by_tag(
         _LIST_CUSTOMER_NAMES_BY_TAG,
         {"tag": tag},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (row[0] for row in result)
+    ) as cur:
+        yield (row[0] for row in cur)
 
 
 _LIST_VIP_CUSTOMERS: Final = sqlalchemy.text(
@@ -311,8 +312,8 @@ def stream_list_vip_customers(
 ) -> Generator[Iterator[ListVipCustomersRow], None, None]:
     with connection.execute(
         _LIST_VIP_CUSTOMERS, execution_options={"stream_results": True}
-    ) as result:
-        yield (ListVipCustomersRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListVipCustomersRow.from_row(row) for row in cur)
 
 
 _LIST_PREFERRED_METHODS: Final = sqlalchemy.text(
@@ -335,8 +336,8 @@ def stream_list_preferred_methods(
 ) -> Generator[Iterator[models.BillingPaymentMethod | None], None, None]:
     with connection.execute(
         _LIST_PREFERRED_METHODS, execution_options={"stream_results": True}
-    ) as result:
+    ) as cur:
         yield (
             None if row[0] is None else models.BillingPaymentMethod(row[0])
-            for row in result
+            for row in cur
         )

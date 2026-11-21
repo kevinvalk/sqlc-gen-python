@@ -147,8 +147,8 @@ def stream_list_invoices_by_ids(
 ) -> Generator[Iterator[models.Invoice], None, None]:
     with connection.execute(
         _LIST_INVOICES_BY_IDS, {"ids": ids}, execution_options={"stream_results": True}
-    ) as result:
-        yield (models.Invoice.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Invoice.from_row(row) for row in cur)
 
 
 _LIST_INVOICES_BY_STATUS: Final = sqlalchemy.text(
@@ -173,8 +173,8 @@ def stream_list_invoices_by_status(
         _LIST_INVOICES_BY_STATUS,
         {"statuses": statuses},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (models.Invoice.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Invoice.from_row(row) for row in cur)
 
 
 _LIST_INVOICES_ISSUED_BETWEEN: Final = sqlalchemy.text(
@@ -208,8 +208,8 @@ def stream_list_invoices_issued_between(
         _LIST_INVOICES_ISSUED_BETWEEN,
         {"issued_on": issued_on, "issued_on_2": issued_on_2},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (models.Invoice.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Invoice.from_row(row) for row in cur)
 
 
 _LIST_INVOICE_NUMBERS: Final = sqlalchemy.text(
@@ -245,8 +245,8 @@ def stream_list_invoice_numbers(
         _LIST_INVOICE_NUMBERS,
         {"customer_id": customer_id},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (row[0] for row in result)
+    ) as cur:
+        yield (row[0] for row in cur)
 
 
 _SEARCH_INVOICES: Final = sqlalchemy.text("""SELECT id, number, status, due_on FROM invoices
@@ -300,8 +300,8 @@ def stream_search_invoices(
         _SEARCH_INVOICES,
         {"customer_id": customer_id, "status": status, "due_before": due_before},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (SearchInvoicesRow.from_row(row) for row in result)
+    ) as cur:
+        yield (SearchInvoicesRow.from_row(row) for row in cur)
 
 
 _GET_INVOICE_TOTALS: Final = sqlalchemy.text("""SELECT
@@ -380,8 +380,8 @@ def stream_list_overdue_invoices(
         _LIST_OVERDUE_INVOICES,
         {"as_of": as_of},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (ListOverdueInvoicesRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListOverdueInvoicesRow.from_row(row) for row in cur)
 
 
 _COUNT_INVOICES_BY_STATUS: Final = sqlalchemy.text(
@@ -414,8 +414,8 @@ def stream_count_invoices_by_status(
 ) -> Generator[Iterator[CountInvoicesByStatusRow], None, None]:
     with connection.execute(
         _COUNT_INVOICES_BY_STATUS, execution_options={"stream_results": True}
-    ) as result:
-        yield (CountInvoicesByStatusRow.from_row(row) for row in result)
+    ) as cur:
+        yield (CountInvoicesByStatusRow.from_row(row) for row in cur)
 
 
 _COUNT_INVOICES: Final = sqlalchemy.text(
@@ -496,8 +496,105 @@ def stream_list_issued_numbers(
         _LIST_ISSUED_NUMBERS,
         {"customer_id": customer_id},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (ListIssuedNumbersRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListIssuedNumbersRow.from_row(row) for row in cur)
+
+
+_LIST_DEAREST_LINES: Final = sqlalchemy.text("""SELECT
+    invoices.number,
+    nullif(invoices.notes, '')\\:\\:text AS notes,
+    max(line_items.unit_price)\\:\\:numeric(12, 2) AS dearest
+FROM invoices LEFT JOIN line_items ON line_items.invoice_id = invoices.id
+WHERE invoices.customer_id = :customer_id
+GROUP BY invoices.id
+ORDER BY invoices.number""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListDearestLinesRow:
+    number: str
+    notes: str | None
+    dearest: Decimal | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListDearestLinesRow":
+        return cls(number=row[0], notes=row[1], dearest=row[2])
+
+
+def list_dearest_lines(
+    connection: sqlalchemy.Connection, *, customer_id: UUID
+) -> list[ListDearestLinesRow]:
+    """Each of the customer's invoices with its notes and the price of its
+    dearest line: a NULLIF is NULL where its arguments are equal, and an
+    aggregate of a group where the LEFT JOIN left the invoice without a line,
+    though sqlc reports their casts NOT NULL.
+    """
+    return [
+        ListDearestLinesRow.from_row(row)
+        for row in connection.execute(_LIST_DEAREST_LINES, {"customer_id": customer_id})
+    ]
+
+
+@contextlib.contextmanager
+def stream_list_dearest_lines(
+    connection: sqlalchemy.Connection, *, customer_id: UUID
+) -> Generator[Iterator[ListDearestLinesRow], None, None]:
+    """Each of the customer's invoices with its notes and the price of its
+    dearest line: a NULLIF is NULL where its arguments are equal, and an
+    aggregate of a group where the LEFT JOIN left the invoice without a line,
+    though sqlc reports their casts NOT NULL.
+    """
+    with connection.execute(
+        _LIST_DEAREST_LINES,
+        {"customer_id": customer_id},
+        execution_options={"stream_results": True},
+    ) as cur:
+        yield (ListDearestLinesRow.from_row(row) for row in cur)
+
+
+_COUNT_INVOICES_BY_STATUS_AND_IN_ALL: Final = sqlalchemy.text(
+    "SELECT status, count(*) AS count FROM invoices GROUP BY ROLLUP (status) ORDER BY status"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CountInvoicesByStatusAndInAllRow:
+    status: models.InvoiceStatus | None
+    count: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CountInvoicesByStatusAndInAllRow":
+        return cls(
+            status=None if row[0] is None else models.InvoiceStatus(row[0]),
+            count=row[1],
+        )
+
+
+def count_invoices_by_status_and_in_all(
+    connection: sqlalchemy.Connection,
+) -> list[CountInvoicesByStatusAndInAllRow]:
+    """How many invoices have each status and, in the last row, how many there
+    are: ROLLUP leaves its key NULL in the row of them all, though sqlc
+    reports the column NOT NULL.
+    """
+    return [
+        CountInvoicesByStatusAndInAllRow.from_row(row)
+        for row in connection.execute(_COUNT_INVOICES_BY_STATUS_AND_IN_ALL)
+    ]
+
+
+@contextlib.contextmanager
+def stream_count_invoices_by_status_and_in_all(
+    connection: sqlalchemy.Connection,
+) -> Generator[Iterator[CountInvoicesByStatusAndInAllRow], None, None]:
+    """How many invoices have each status and, in the last row, how many there
+    are: ROLLUP leaves its key NULL in the row of them all, though sqlc
+    reports the column NOT NULL.
+    """
+    with connection.execute(
+        _COUNT_INVOICES_BY_STATUS_AND_IN_ALL, execution_options={"stream_results": True}
+    ) as cur:
+        yield (CountInvoicesByStatusAndInAllRow.from_row(row) for row in cur)
 
 
 _LIST_INVOICE_NUMBERS_PAGE: Final = sqlalchemy.text("""SELECT number, count(*) OVER () AS total FROM invoices
@@ -539,8 +636,8 @@ def stream_list_invoice_numbers_page(
         _LIST_INVOICE_NUMBERS_PAGE,
         {"customer_id": customer_id, "limit": limit},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (ListInvoiceNumbersPageRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListInvoiceNumbersPageRow.from_row(row) for row in cur)
 
 
 _ISSUE_INVOICE: Final = sqlalchemy.text(
@@ -644,8 +741,8 @@ def stream_list_media(
         _LIST_MEDIA,
         {"invoice_id": invoice_id},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (ListMediaRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListMediaRow.from_row(row) for row in cur)
 
 
 _LIST_INVOICE_STATUSES: Final = sqlalchemy.text(
@@ -668,8 +765,8 @@ def stream_list_invoice_statuses(
 ) -> Generator[Iterator[models.InvoiceStatus], None, None]:
     with connection.execute(
         _LIST_INVOICE_STATUSES, execution_options={"stream_results": True}
-    ) as result:
-        yield (models.InvoiceStatus(row[0]) for row in result)
+    ) as cur:
+        yield (models.InvoiceStatus(row[0]) for row in cur)
 
 
 _GET_INVOICES_BATCH: Final = sqlalchemy.text(

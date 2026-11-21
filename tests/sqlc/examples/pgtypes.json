@@ -2075,6 +2075,58 @@
                 "original_name": "",
                 "unsigned": false,
                 "array_dims": 0
+              },
+              {
+                "name": "result",
+                "not_null": true,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "oddities"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "text"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "model_dump_at",
+                "not_null": false,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "oddities"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "timestamptz"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
               }
             ],
             "comment": ""
@@ -3413,7 +3465,7 @@
       "insert_into_table": null
     },
     {
-      "text": "SELECT id, mood FROM oddities WHERE mood = $1",
+      "text": "SELECT id, mood, result, model_dump_at FROM oddities WHERE mood = $1",
       "name": "ListOddities",
       "cmd": ":many",
       "columns": [
@@ -3468,6 +3520,58 @@
           "original_name": "mood",
           "unsigned": false,
           "array_dims": 0
+        },
+        {
+          "name": "result",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "oddities"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "result",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "model_dump_at",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "oddities"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "timestamptz"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "model_dump_at",
+          "unsigned": false,
+          "array_dims": 0
         }
       ],
       "params": [
@@ -3496,6 +3600,151 @@
             "is_sqlc_slice": false,
             "embed_table": null,
             "original_name": "mood",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT id, mood, result, model_dump_at FROM oddities WHERE result = $1",
+      "name": "ListOdditiesByResult",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "id",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "oddities"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigserial"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "id",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "mood",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "oddities"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "weird mood"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "mood",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "result",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "oddities"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "result",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "model_dump_at",
+          "not_null": false,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "oddities"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "timestamptz"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "model_dump_at",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "result",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "oddities"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "text"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "result",
             "unsigned": false,
             "array_dims": 0
           }

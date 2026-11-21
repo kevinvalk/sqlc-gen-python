@@ -28,7 +28,7 @@ ASYNCPG = sqlalchemy.URL.create("postgresql+asyncpg").get_dialect()()
 NAME = "zq{}"
 BIND = re.compile(r":zq(\d+)")
 # The tokens of a call to one of sqlc's functions, which sqlc rewrites wherever it analyses a statement.
-SQLC_FUNCTIONS = {f"sqlc . {name}" for name in ("arg", "narg", "slice", "embed")}
+SQLC_FUNCTIONS = {f"sqlc . {name} (" for name in ("arg", "narg", "slice", "embed")}
 
 
 # A letter of Unicode 15 (Python 3.12+) and a code point not yet assigned, so `\w` on some supported Python but not on
@@ -177,13 +177,13 @@ def refusal(sql: str, found: list[Placeholder]) -> str | None:
     texts = [sql[token.start : token.end + 1] for token in code]
 
     # sqlc leaves a named parameter as written in a statement it does not analyse: a lone `@` operator directly before
-    # what starts an identifier, or `sqlc.arg` and its kin.
+    # what starts an identifier, or a call of `sqlc.arg` and its kin.
     for i, token in enumerate(code):
         follows = sql[token.end + 1 : token.end + 2]
         is_at = (texts[i], token.name) == ("@", "Op")
         if is_at and (follows == '"' or identifier(follows)):
             return "sqlc did not rewrite"
-        if " ".join(texts[i : i + 3]).lower() in SQLC_FUNCTIONS:
+        if " ".join(texts[i : i + 4]).lower() in SQLC_FUNCTIONS:
             return "sqlc did not rewrite"
 
     # `text()` would read a placeholder as part of its bind when it directly follows `:`, `\\` or a word character (a

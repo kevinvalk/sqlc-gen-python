@@ -5,12 +5,12 @@ use std::path::Path;
 use anyhow::{Result, bail};
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use ruff_python_ast as ast;
+use ruff_python_stdlib::keyword::is_keyword;
 
 use super::models::{Field, FieldType, Model};
-use super::names::{self, Binding, Repeats};
 use super::resolver::Resolver;
 use super::{Problems, params, results};
-use crate::config::{Config, Records};
+use crate::config::Config;
 use crate::engine::{Bind, Engine, Piece, Sql};
 use crate::plugin;
 use crate::python::vocabulary::{FROM_ROW, MODELS};
@@ -43,7 +43,7 @@ pub struct Query {
     pub params: Vec<Field>,
     /// The table (`schema` empty for the search path's) and its columns, one per parameter, that a `:copyfrom` writes
     /// into. None when the statement binds a parameter twice, as `COPY` would then write one column for the two it
-    /// inserts.
+    /// inserts, or discards the values of identity columns, which `COPY` stores.
     pub copy_into: Option<CopyInto>,
     /// Every column of the result as the database returns it, embeds expanded.
     pub columns: Vec<Field>,
@@ -341,19 +341,19 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
         }
     }
 
-    // A module-level function also takes the trailing `_` for a builtin it would hide (`Any` is `any_`, ruff A001), but
-    // is no record's field.
-    let function = names::names(
-        &[query.name.as_str()],
-        Repeats::Forbidden,
-        Binding::Parameter,
-        Records::Dataclass,
-    )?
-    .remove(0);
-    let function = match python::hides_builtin(&function) {
+    // A module-level function takes PEP 8's trailing `_` for a keyword, and for an import or a builtin it would hide
+    // (`Any` is `any_`, ruff A001). It keeps the name of a local of a body (`row`), as no body calls it.
+    let function = query.name.to_snake_case();
+    let function = match is_keyword(&function) || python::is_imported(&function) || python::hides_builtin(&function) {
         true => function + "_",
         false => function,
     };
+    if !python::is_public_name(&function) {
+        bail!(
+            "\"{}\" does not become a usable Python name; name the query otherwise",
+            query.name
+        );
+    }
 
     let takes = match batch {
         true => Takes::Rows(params_class),
@@ -373,7 +373,8 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
             .join("\n"),
         sql,
         params,
-        copy_into: copy_into(query).filter(|into| placeholders == into.columns.len()),
+        copy_into: copy_into(query)
+            .filter(|into| placeholders == into.columns.len() && !resolver.engine.overrides_user_value(&query.text)),
         columns,
         raises: config.raise_on_none || resolver.engine.single_row(&query.text),
         takes,

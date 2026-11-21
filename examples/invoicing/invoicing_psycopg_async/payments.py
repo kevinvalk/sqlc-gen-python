@@ -165,6 +165,53 @@ async def stream_list_customer_payments(
         yield (ListCustomerPaymentsRow.from_row(row) async for row in cur)
 
 
+_LIST_CUSTOMER_PAID_INVOICES: Final = """SELECT customers.name, invoices.number, payments.amount
+FROM customers
+LEFT JOIN (invoices JOIN billing.payments ON payments.invoice_id = invoices.id)
+    ON invoices.customer_id = customers.id
+ORDER BY customers.name, invoices.number, payments.amount"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListCustomerPaidInvoicesRow:
+    name: str | None
+    number: str | None
+    amount: Decimal | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListCustomerPaidInvoicesRow":
+        return cls(name=row[0], number=row[1], amount=row[2])
+
+
+async def list_customer_paid_invoices(
+    connection: psycopg.AsyncConnection[Any],
+) -> list[ListCustomerPaidInvoicesRow]:
+    """Every customer, with each payment of an invoice of theirs, or none. The
+    plugin does not read a join in parentheses, so each column may be None,
+    the customer's name too.
+    """
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
+        await cur.execute(_LIST_CUSTOMER_PAID_INVOICES)
+        return [
+            ListCustomerPaidInvoicesRow.from_row(row) for row in await cur.fetchall()
+        ]
+
+
+@contextlib.asynccontextmanager
+async def stream_list_customer_paid_invoices(
+    connection: psycopg.AsyncConnection[Any],
+) -> AsyncGenerator[AsyncIterator[ListCustomerPaidInvoicesRow], None]:
+    """Every customer, with each payment of an invoice of theirs, or none. The
+    plugin does not read a join in parentheses, so each column may be None,
+    the customer's name too.
+    """
+    async with psycopg.AsyncRawServerCursor(
+        connection, "stream_list_customer_paid_invoices", row_factory=tuple_row
+    ) as cur:
+        await cur.execute(_LIST_CUSTOMER_PAID_INVOICES)
+        yield (ListCustomerPaidInvoicesRow.from_row(row) async for row in cur)
+
+
 _LIST_CUSTOMERS_ISSUED: Final = """SELECT customers.name, issued.number
 FROM customers
 LEFT JOIN (SELECT customer_id, number FROM invoices WHERE status = 'issued') AS issued

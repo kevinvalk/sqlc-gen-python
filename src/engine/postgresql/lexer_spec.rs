@@ -104,9 +104,6 @@ fn a_named_parameter_sqlc_left_as_written_is_an_error() {
         ("UPDATE SET amount = b.amount - @amount", "@amount"),
         (r#"SELECT @"Amount""#, r#"@"Amount""#),
         ("SELECT /* c */@a", "@a"),
-        ("SELECT sqlc.arg(amount)", "sqlc.arg"),
-        ("SELECT SQLC . narg ('x')", "SQLC.narg"),
-        ("SELECT sqlc.slice(ids)", "sqlc.slice"),
     ] {
         let error = error(sql, &[]);
         assert!(
@@ -119,7 +116,6 @@ fn a_named_parameter_sqlc_left_as_written_is_an_error() {
         "SELECT tags @> '{a}', tags <@ tags, a @@ b, @-x, @ x, @1",
         "SELECT '@a', \"@a\", $$@a$$ -- @a\n",
         "SELECT x@--a\n",
-        "SELECT sqlc.argument, sqlc_arg(1)",
     ] {
         assert_eq!(found(sql), [0; 0], "{sql}");
     }

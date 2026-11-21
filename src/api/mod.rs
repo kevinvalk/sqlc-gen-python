@@ -1,6 +1,7 @@
 //! We decide the whole generated API here, once: the models and enums of the catalog ([`models`]) and the functions of
 //! the queries ([`queries`]), with every name and type, asking the engine and the backend only what they alone know.
-//! Nothing in here builds Python syntax, that is for [`crate::render`] and the backends.
+//! Its types spell their own annotations and conversions, but statements and modules are for [`crate::render`] and the
+//! backends.
 
 pub mod inflection;
 pub mod models;
@@ -48,12 +49,12 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
         true => &mut unwritten,
         false => &mut problems,
     };
-    let (enums, models) = models::resolve(&resolver, &config.models, None, catalog_problems);
+    let (enums, models) = models::resolve(&resolver, None, catalog_problems);
     // The queries of an entry that writes only the models are a placeholder, as sqlc requires one
     let queries: &[plugin::Query] = if config.models.only { &[] } else { &request.queries };
     let modules = queries::modules(queries, &resolver, &models, config, &mut problems);
     let (enums, models) = match config.models.omit_unused {
-        true => models::resolve(&resolver, &config.models, Some(&used(&modules)), &mut problems),
+        true => models::resolve(&resolver, Some(&used(&modules)), &mut problems),
         false => (enums, models),
     };
     problems.check()?;

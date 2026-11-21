@@ -1,7 +1,5 @@
-# An exact release and not `stable`, as CI rebuilds the plugin from clean on a second runner of the same image and
-# requires the same bytes, and clippy and rustfmt must not change under a commit. The bytes only match on that image,
-# as the plugin embeds the host triple and the source paths of dependencies, ~/.cargo included. The cost is one bump
-# per Rust release, which Renovate makes.
+# An exact release and not `stable`, as clippy and rustfmt must not change under a commit. The cost is one bump per
+# Rust release, which Renovate makes.
 [toolchain]
 channel = "1.99.1"
 # NOTE: `minimal` leaves out rust-src, as wherever it is installed (rust-analyzer adds it) its path ends up in the

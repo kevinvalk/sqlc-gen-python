@@ -67,8 +67,8 @@ async def stream_list_payments_by_methods(
 ) -> AsyncGenerator[AsyncIterator[models.BillingPayment], None]:
     async with connection.stream(
         _LIST_PAYMENTS_BY_METHODS, {"methods": methods}
-    ) as result:
-        yield (models.BillingPayment.from_row(row) async for row in result)
+    ) as cur:
+        yield (models.BillingPayment.from_row(row) async for row in cur)
 
 
 _LIST_INVOICE_PAYMENT_METHODS: Final = sqlalchemy.text("""SELECT ARRAY(
@@ -114,8 +114,8 @@ async def stream_list_invoice_balances(
 ) -> AsyncGenerator[AsyncIterator[models.InvoiceBalance], None]:
     async with connection.stream(
         _LIST_INVOICE_BALANCES, {"customer_id": customer_id}
-    ) as result:
-        yield (models.InvoiceBalance.from_row(row) async for row in result)
+    ) as cur:
+        yield (models.InvoiceBalance.from_row(row) async for row in cur)
 
 
 _LIST_CUSTOMER_PAYMENTS: Final = sqlalchemy.text("""SELECT customers.name, invoices.number, payments.amount
@@ -157,8 +157,51 @@ async def stream_list_customer_payments(
     stands left of the RIGHT JOIN may be without a row, though sqlc reports
     the columns of a join there NOT NULL.
     """
-    async with connection.stream(_LIST_CUSTOMER_PAYMENTS) as result:
-        yield (ListCustomerPaymentsRow.from_row(row) async for row in result)
+    async with connection.stream(_LIST_CUSTOMER_PAYMENTS) as cur:
+        yield (ListCustomerPaymentsRow.from_row(row) async for row in cur)
+
+
+_LIST_CUSTOMER_PAID_INVOICES: Final = sqlalchemy.text("""SELECT customers.name, invoices.number, payments.amount
+FROM customers
+LEFT JOIN (invoices JOIN billing.payments ON payments.invoice_id = invoices.id)
+    ON invoices.customer_id = customers.id
+ORDER BY customers.name, invoices.number, payments.amount""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListCustomerPaidInvoicesRow:
+    name: str | None
+    number: str | None
+    amount: Decimal | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListCustomerPaidInvoicesRow":
+        return cls(name=row[0], number=row[1], amount=row[2])
+
+
+async def list_customer_paid_invoices(
+    connection: AsyncConnection,
+) -> list[ListCustomerPaidInvoicesRow]:
+    """Every customer, with each payment of an invoice of theirs, or none. The
+    plugin does not read a join in parentheses, so each column may be None,
+    the customer's name too.
+    """
+    return [
+        ListCustomerPaidInvoicesRow.from_row(row)
+        for row in await connection.execute(_LIST_CUSTOMER_PAID_INVOICES)
+    ]
+
+
+@contextlib.asynccontextmanager
+async def stream_list_customer_paid_invoices(
+    connection: AsyncConnection,
+) -> AsyncGenerator[AsyncIterator[ListCustomerPaidInvoicesRow], None]:
+    """Every customer, with each payment of an invoice of theirs, or none. The
+    plugin does not read a join in parentheses, so each column may be None,
+    the customer's name too.
+    """
+    async with connection.stream(_LIST_CUSTOMER_PAID_INVOICES) as cur:
+        yield (ListCustomerPaidInvoicesRow.from_row(row) async for row in cur)
 
 
 _LIST_CUSTOMERS_ISSUED: Final = sqlalchemy.text("""SELECT customers.name, issued.number
@@ -197,5 +240,5 @@ async def stream_list_customers_issued(
     """Every customer, with the number of each issued invoice of theirs, or none:
     sqlc reports the column of a subquery NOT NULL, as its table's.
     """
-    async with connection.stream(_LIST_CUSTOMERS_ISSUED) as result:
-        yield (ListCustomersIssuedRow.from_row(row) async for row in result)
+    async with connection.stream(_LIST_CUSTOMERS_ISSUED) as cur:
+        yield (ListCustomersIssuedRow.from_row(row) async for row in cur)

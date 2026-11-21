@@ -3,12 +3,11 @@ use std::collections::HashMap;
 use anyhow::{Result, bail};
 use heck::ToSnakeCase;
 
-use super::models::Field;
+use super::models::{Field, FieldType};
 use super::names::{self, Binding, Repeats};
 use super::resolver::Resolver;
 use crate::engine::Engine;
 use crate::plugin;
-use crate::python::Type;
 
 #[cfg(test)]
 #[path = "params_spec.rs"]
@@ -35,6 +34,27 @@ pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> R
             column.name
         );
     }
+
+    // On MySQL sqlc reports each use of a name, and cannot type one that meets no column (`sqlc.narg(x) IS NULL OR
+    // col = sqlc.narg(x)`). The one value binds every use, so a use sqlc typed types it, while its own nullability is
+    // still what sqlc reports of it.
+    let is_guess = |column: &plugin::Column| resolver.engine.is_guess(column, true);
+    let columns: Vec<plugin::Column> = (columns.iter())
+        .map(|column| {
+            let typed = (column.is_named_param && is_guess(column))
+                .then(|| {
+                    (columns.iter()).find(|other| other.is_named_param && other.name == column.name && !is_guess(other))
+                })
+                .flatten();
+            match typed {
+                Some(typed) => plugin::Column {
+                    not_null: column.not_null,
+                    ..typed.clone()
+                },
+                None => column.clone(),
+            }
+        })
+        .collect();
 
     // sqlc's Go codegen numbers parameters that spell one name, but a name the user chose (`sqlc.arg`, `@name`) must
     // bind the placeholder it was written at, so it never takes or gives a suffix. Every later use of such a name holds
@@ -75,7 +95,7 @@ pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> R
         &spellings,
         Repeats::Numbered,
         Binding::Parameter,
-        resolver.records,
+        resolver.config.records,
     )?) {
         names[*i] = name;
     }
@@ -113,18 +133,23 @@ pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> R
         }
 
         // Every use must take one type, and one use that admits NULL makes the parameter optional, as sqlc reports each
-        // use's own column.
+        // use's own column. We compare the annotations, as an override naming `str` is the `str` of the type map.
         if let Some(first) = repeat.map(|first| &mut fields[first]) {
-            if (&first.ty.element, first.ty.array_dims) != (&ty.element, ty.array_dims) {
-                bail!(
-                    "{what} is used as {} and as {}; cast each use to one type",
-                    first.ty.describe(crate::python::Scope::Queries),
-                    ty.describe(crate::python::Scope::Queries)
-                );
+            let annotation = |ty: &FieldType| {
+                (FieldType {
+                    optional: false,
+                    ..ty.clone()
+                })
+                .describe(crate::python::Scope::Queries)
+            };
+            let (before, now) = (annotation(&first.ty), annotation(&ty));
+            if before != now {
+                bail!("{what} is used as {before} and as {now}; cast each use to one type");
             }
             first.ty.optional |= ty.optional;
         }
-        if matches!(ty.element, Type::Json(_)) && ty.array_dims > 0 {
+        // An override only names the element's type, so an array of them is still not one JSON document we could bind
+        if ty.element.json().is_some() && ty.array_dims > 0 {
             let problem = format!(
                 "{what} is an array of \"{}\", which has no verified Python mapping",
                 column.data_type()

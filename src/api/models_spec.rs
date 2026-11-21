@@ -3,6 +3,7 @@ use anyhow::Result;
 use super::*;
 use crate::api::fixtures::catalog::{resolve, *};
 use crate::api::fixtures::*;
+use crate::config::ModelConfig;
 
 fn field(element: Type, array_dims: usize, optional: bool) -> FieldType {
     FieldType {
@@ -58,12 +59,13 @@ fn a_table_becomes_a_singular_class_name() {
     let resolved = resolve(
         public(vec![
             table("authors", vec![column("id", "int8", true)]),
+            table("media", vec![]),
             table("test_scores", vec![column("score", "int4", true)]),
         ]),
         &ModelConfig::default(),
     );
 
-    assert_eq!(model_names(&resolved), ["Author", "TestScore"]);
+    assert_eq!(model_names(&resolved), ["Author", "Medium", "TestScore"]);
 }
 
 #[test]
@@ -75,43 +77,6 @@ fn exact_table_names_keeps_the_table_name_verbatim() {
     let resolved = resolve(public(vec![table("authors", vec![])]), &config);
 
     assert_eq!(model_names(&resolved), ["Authors"]);
-}
-
-#[test]
-fn inflection_exclude_keeps_the_tables_it_names_verbatim_in_any_case() {
-    let config = ModelConfig {
-        inflection_exclude: vec!["Media".into()],
-        ..ModelConfig::default()
-    };
-    let tables = || public(vec![table("authors", vec![]), table("media", vec![])]);
-
-    assert_eq!(model_names(&resolve(tables(), &config)), ["Author", "Media"]);
-    assert_eq!(
-        model_names(&resolve(tables(), &ModelConfig::default())),
-        ["Author", "Medium"]
-    );
-}
-
-#[test]
-fn inflection_exclude_names_a_table_outside_the_default_schema_by_its_schema() {
-    let config = ModelConfig {
-        inflection_exclude: vec!["analytics.events".into(), "media".into()],
-        ..ModelConfig::default()
-    };
-    let resolved = resolve(
-        vec![
-            sql_schema("public", vec![table("events", vec![])], vec![]),
-            sql_schema(
-                "analytics",
-                vec![table("events", vec![]), table("media", vec![])],
-                vec![],
-            ),
-        ],
-        &config,
-    );
-
-    // A bare name is the default schema's, as in `rename`
-    assert_eq!(model_names(&resolved), ["AnalyticsEvents", "AnalyticsMedium", "Event"]);
 }
 
 #[test]
@@ -396,6 +361,31 @@ fn a_class_with_the_name_of_an_import_is_an_error() {
     };
     let error = try_resolve(vec![sql_schema("public", vec![], vec![decimal])]).unwrap_err();
     assert!(error.to_string().starts_with("`Decimal` is a name"), "{error}");
+}
+
+#[test]
+fn a_class_with_the_name_of_an_error_the_models_define_is_an_error() {
+    use crate::backend::Backend;
+    use crate::config::Config;
+    // `raise models.NoRowError` would raise a `TypeError`, as the table's class is no exception
+    let schemas = || {
+        public(vec![
+            table("no_row_errors", vec![]),
+            table("multiple_rows_errors", vec![]),
+        ])
+    };
+    let error = error_of(resolve_options(schemas(), &Config::of(Backend::Psycopg)));
+    for name in ["NoRowError", "MultipleRowsError"] {
+        assert!(
+            error.contains(&format!("`{name}` is a class the models define")),
+            "{error}"
+        );
+    }
+    // SQLAlchemy raises its own, so there the models define neither
+    assert_eq!(
+        model_names(&resolve_options(schemas(), &Config::of(Backend::SqlAlchemy)).unwrap()).len(),
+        2
+    );
 }
 
 #[test]

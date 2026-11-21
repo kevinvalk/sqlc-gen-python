@@ -16,6 +16,7 @@ pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
     cut(&chars, placeholders, params, Engine::MySql)
 }
 
+/// Unlike PostgreSQL, MySQL lets an identifier start with a `$`.
 pub fn is_identifier(name: &str) -> bool {
     let mut chars = name.chars();
     let first = chars.next();

@@ -64,8 +64,8 @@ def stream_list_payments_by_methods(
         _LIST_PAYMENTS_BY_METHODS,
         {"methods": methods},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (models.BillingPayment.from_row(row) for row in result)
+    ) as cur:
+        yield (models.BillingPayment.from_row(row) for row in cur)
 
 
 _LIST_INVOICE_PAYMENT_METHODS: Final = sqlalchemy.text("""SELECT ARRAY(
@@ -111,8 +111,8 @@ def stream_list_invoice_balances(
         _LIST_INVOICE_BALANCES,
         {"customer_id": customer_id},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (models.InvoiceBalance.from_row(row) for row in result)
+    ) as cur:
+        yield (models.InvoiceBalance.from_row(row) for row in cur)
 
 
 _LIST_CUSTOMER_PAYMENTS: Final = sqlalchemy.text("""SELECT customers.name, invoices.number, payments.amount
@@ -156,8 +156,53 @@ def stream_list_customer_payments(
     """
     with connection.execute(
         _LIST_CUSTOMER_PAYMENTS, execution_options={"stream_results": True}
-    ) as result:
-        yield (ListCustomerPaymentsRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListCustomerPaymentsRow.from_row(row) for row in cur)
+
+
+_LIST_CUSTOMER_PAID_INVOICES: Final = sqlalchemy.text("""SELECT customers.name, invoices.number, payments.amount
+FROM customers
+LEFT JOIN (invoices JOIN billing.payments ON payments.invoice_id = invoices.id)
+    ON invoices.customer_id = customers.id
+ORDER BY customers.name, invoices.number, payments.amount""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListCustomerPaidInvoicesRow:
+    name: str | None
+    number: str | None
+    amount: Decimal | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListCustomerPaidInvoicesRow":
+        return cls(name=row[0], number=row[1], amount=row[2])
+
+
+def list_customer_paid_invoices(
+    connection: sqlalchemy.Connection,
+) -> list[ListCustomerPaidInvoicesRow]:
+    """Every customer, with each payment of an invoice of theirs, or none. The
+    plugin does not read a join in parentheses, so each column may be None,
+    the customer's name too.
+    """
+    return [
+        ListCustomerPaidInvoicesRow.from_row(row)
+        for row in connection.execute(_LIST_CUSTOMER_PAID_INVOICES)
+    ]
+
+
+@contextlib.contextmanager
+def stream_list_customer_paid_invoices(
+    connection: sqlalchemy.Connection,
+) -> Generator[Iterator[ListCustomerPaidInvoicesRow], None, None]:
+    """Every customer, with each payment of an invoice of theirs, or none. The
+    plugin does not read a join in parentheses, so each column may be None,
+    the customer's name too.
+    """
+    with connection.execute(
+        _LIST_CUSTOMER_PAID_INVOICES, execution_options={"stream_results": True}
+    ) as cur:
+        yield (ListCustomerPaidInvoicesRow.from_row(row) for row in cur)
 
 
 _LIST_CUSTOMERS_ISSUED: Final = sqlalchemy.text("""SELECT customers.name, issued.number
@@ -198,5 +243,5 @@ def stream_list_customers_issued(
     """
     with connection.execute(
         _LIST_CUSTOMERS_ISSUED, execution_options={"stream_results": True}
-    ) as result:
-        yield (ListCustomersIssuedRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListCustomersIssuedRow.from_row(row) for row in cur)

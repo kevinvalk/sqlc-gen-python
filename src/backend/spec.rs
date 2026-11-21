@@ -81,13 +81,15 @@ fn a_type_the_drivers_disagree_on_is_the_backends_to_decide() {
 
 #[test]
 fn sqlalchemy_streams_on_a_server_side_cursor_sync_and_async() {
-    use crate::api::fixtures::authors::{query, resolve};
+    use crate::api::fixtures::authors::{named, query, resolve};
     use crate::api::fixtures::column;
     use crate::api::queries::Command;
 
+    // We bind the stream to a name no parameter has, where `result` is a column's as often as not
     let many = resolve(crate::plugin::Query {
         columns: vec![column("bio", "text", false)],
-        ..query(":many", "SELECT bio FROM authors")
+        params: vec![named(1, "result", "text", true)],
+        ..query(":many", "SELECT bio FROM authors WHERE name = $1")
     });
     let Command::Many(shape) = &many.command else {
         panic!("not a :many")
@@ -98,12 +100,12 @@ fn sqlalchemy_streams_on_a_server_side_cursor_sync_and_async() {
     };
     assert_eq!(
         stream(false),
-        "with connection.execute(_GET_AUTHOR, execution_options={\"stream_results\": True}) as result:\n    \
-         yield (row[0] for row in result)"
+        "with connection.execute(_GET_AUTHOR, {\"result\": result}, execution_options={\"stream_results\": True}) as cur:\n    \
+         yield (row[0] for row in cur)"
     );
     assert_eq!(
         stream(true),
-        "async with connection.stream(_GET_AUTHOR) as result:\n    \
-         yield (row[0] async for row in result)"
+        "async with connection.stream(_GET_AUTHOR, {\"result\": result}) as cur:\n    \
+         yield (row[0] async for row in cur)"
     );
 }

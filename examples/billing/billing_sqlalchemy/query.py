@@ -121,8 +121,8 @@ def stream_search_customers(
         _SEARCH_CUSTOMERS,
         {"pattern": pattern},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (SearchCustomersRow.from_row(row) for row in result)
+    ) as cur:
+        yield (SearchCustomersRow.from_row(row) for row in cur)
 
 
 _LIST_CUSTOMERS_BY_IDS: Final = sqlalchemy.text(
@@ -145,8 +145,8 @@ def stream_list_customers_by_ids(
 ) -> Generator[Iterator[models.Customer], None, None]:
     with connection.execute(
         _LIST_CUSTOMERS_BY_IDS, {"ids": ids}, execution_options={"stream_results": True}
-    ) as result:
-        yield (models.Customer.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Customer.from_row(row) for row in cur)
 
 
 _LIST_CUSTOMERS_EXCEPT: Final = sqlalchemy.text(
@@ -171,8 +171,8 @@ def stream_list_customers_except(
     """Every customer but those among the ids, so every customer for none."""
     with connection.execute(
         _LIST_CUSTOMERS_EXCEPT, {"ids": ids}, execution_options={"stream_results": True}
-    ) as result:
-        yield (models.Customer.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Customer.from_row(row) for row in cur)
 
 
 _LIST_CUSTOMERS_KNOWN_AS: Final = sqlalchemy.text("""SELECT id FROM customers
@@ -200,8 +200,48 @@ def stream_list_customers_known_as(
         _LIST_CUSTOMERS_KNOWN_AS,
         {"vip": vip, "names": names},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (row[0] for row in result)
+    ) as cur:
+        yield (row[0] for row in cur)
+
+
+_FILTER_CUSTOMERS: Final = sqlalchemy.text("""SELECT id FROM customers
+WHERE (:name IS NULL OR name = :name)
+  AND (vip = :vip OR :vip IS NULL)
+  AND (:preferred_method IS NULL OR preferred_method = :preferred_method)
+ORDER BY id""")
+
+
+def filter_customers(
+    connection: sqlalchemy.Connection,
+    *,
+    name: str | None = None,
+    vip: bool | None = None,
+    preferred_method: models.CustomersPreferredMethod | None = None,
+) -> list[int]:
+    """The customers every filter given matches, so all of them for none. Either use of a filter may come first."""
+    return list(
+        connection.execute(
+            _FILTER_CUSTOMERS,
+            {"name": name, "vip": vip, "preferred_method": preferred_method},
+        ).scalars()
+    )
+
+
+@contextlib.contextmanager
+def stream_filter_customers(
+    connection: sqlalchemy.Connection,
+    *,
+    name: str | None = None,
+    vip: bool | None = None,
+    preferred_method: models.CustomersPreferredMethod | None = None,
+) -> Generator[Iterator[int], None, None]:
+    """The customers every filter given matches, so all of them for none. Either use of a filter may come first."""
+    with connection.execute(
+        _FILTER_CUSTOMERS,
+        {"name": name, "vip": vip, "preferred_method": preferred_method},
+        execution_options={"stream_results": True},
+    ) as cur:
+        yield (row[0] for row in cur)
 
 
 _CREATE_INVOICE: Final = sqlalchemy.text("""INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
@@ -308,8 +348,8 @@ def stream_list_invoices_by_status(
         _LIST_INVOICES_BY_STATUS,
         {"statuses": statuses, "customer_id": customer_id},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (models.Invoice.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Invoice.from_row(row) for row in cur)
 
 
 _COUNT_INVOICES: Final = sqlalchemy.text(
@@ -392,8 +432,8 @@ def stream_list_line_items(
         _LIST_LINE_ITEMS,
         {"invoice_id": invoice_id},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (models.LineItem.from_row(row) for row in result)
+    ) as cur:
+        yield (models.LineItem.from_row(row) for row in cur)
 
 
 _LIST_CUSTOMER_LINES: Final = sqlalchemy.text("""SELECT customers.id, invoices.number, line_items.description
@@ -437,8 +477,8 @@ def stream_list_customer_lines(
     """
     with connection.execute(
         _LIST_CUSTOMER_LINES, execution_options={"stream_results": True}
-    ) as result:
-        yield (ListCustomerLinesRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListCustomerLinesRow.from_row(row) for row in cur)
 
 
 _RECALCULATE_TOTAL: Final = sqlalchemy.text("""UPDATE invoices
@@ -481,5 +521,5 @@ def stream_countdown(
     """
     with connection.execute(
         _COUNTDOWN, execution_options={"stream_results": True}
-    ) as result:
-        yield (row[0] for row in result)
+    ) as cur:
+        yield (row[0] for row in cur)

@@ -21,7 +21,7 @@ def container(server: str, variable: str, port: int, arguments: list[str]) -> It
     if docker is None or subprocess.run([docker, "info"], capture_output=True, check=False).returncode != 0:
         sys.exit(f"a {server} server is needed: start docker, or set {variable}")
 
-    name = f"sqlcdx-{secrets.token_hex(4)}"
+    name = f"sqlc-gen-python-{secrets.token_hex(4)}"
     run = ["run", "--detach", "--rm", f"--publish=127.0.0.1::{port}", f"--name={name}"]
     subprocess.run([docker, *run, *arguments], check=True, capture_output=True)
     try:

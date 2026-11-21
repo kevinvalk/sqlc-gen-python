@@ -1,6 +1,6 @@
 use ruff_python_ast::{Stmt, StmtClassDef};
 use sqlc_gen_python::api::names::{self, Binding, Repeats};
-use sqlc_gen_python::config::{Config, Records};
+use sqlc_gen_python::config::Config;
 use sqlc_gen_python::plugin;
 
 use super::python::{Shape, fields, is_enum, is_error};
@@ -11,16 +11,16 @@ use super::records::{documented, reads_in_order};
 /// column admits NULL and a list exactly as deep as its array. Only sqlc's request can tell us that, as no type checker
 /// or runtime probe can see a non-null column annotated `X | None`: every value of `X` fits.
 pub(super) fn models_follow_catalog(
-    (request, config): (&plugin::GenerateRequest, Option<&Config>),
+    (request, config): (&plugin::GenerateRequest, &Config),
     models: &[Stmt],
     problems: &mut Vec<String>,
 ) {
     let schemas = || request.catalog.iter().flat_map(|catalog| catalog.user_schemas());
     let mut enums: Vec<&plugin::Enum> = schemas().flat_map(|schema| &schema.enums).collect();
     // The options' `rename` applies to enum labels too.
-    let rename = config.map(|config| config.rename.clone()).unwrap_or_default();
-    let records = config.map_or(Records::Dataclass, |config| config.records);
-    let omits_unused = config.is_some_and(|config| config.models.omit_unused);
+    let rename = &config.rename;
+    let records = config.records;
+    let omits_unused = config.models.omit_unused;
     let mut tables: Vec<(&plugin::Table, Vec<(String, Shape)>)> = (schemas())
         .flat_map(|schema| &schema.tables)
         .map(|table| {

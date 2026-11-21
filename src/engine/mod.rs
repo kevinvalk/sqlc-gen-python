@@ -1,6 +1,6 @@
 //! An engine knows what its catalog's types are in Python and how its SQL reads, but nothing of the library that runs
-//! the SQL (that is the backend's). Every method is an exhaustive `match`, so a new engine makes the compiler list
-//! everything it has to answer.
+//! the SQL (that is the backend's). Where engines differ a method is an exhaustive `match`, so a new engine makes the
+//! compiler list everything it has to answer.
 
 mod mysql;
 mod postgresql;
@@ -86,6 +86,12 @@ impl Sql {
     }
 }
 
+/// Whether `column` is a parameter without a column behind it (of a `LIMIT`, an `OFFSET` or a function), which sqlc
+/// types as `integer` itself on every engine.
+pub fn is_typed_by_sqlc(column: &plugin::Column, parameter: bool) -> bool {
+    parameter && column.table.is_none() && column.data_type() == "integer"
+}
+
 impl Engine {
     pub fn of(request: &plugin::GenerateRequest) -> Result<Self> {
         match request.settings.as_ref().map_or("", |s| s.engine.as_str()) {
@@ -155,14 +161,12 @@ impl Engine {
     ///
     /// On PostgreSQL every standard name is a guess ([`postgresql::is_guess`]), and so is a bare `integer`: sqlc spells
     /// a column's own type `pg_catalog.int4`, so `integer` is a function's first overload (`age(ts)`, an interval,
-    /// read through a CTE is the `integer` of `age(xid)`). Except for a parameter without a column behind it (of a
-    /// `LIMIT`, an `OFFSET` or a function), which sqlc types as `integer` itself.
+    /// read through a CTE is the `integer` of `age(xid)`). Except for a parameter [`is_typed_by_sqlc`].
     pub fn is_guess(self, column: &plugin::Column, parameter: bool) -> bool {
         let data_type = column.data_type();
         match self {
             Self::PostgreSql => {
-                let is_typed_by_sqlc = parameter && column.table.is_none();
-                postgresql::is_guess(&data_type) || (data_type == "integer" && !is_typed_by_sqlc)
+                postgresql::is_guess(&data_type) || (data_type == "integer" && !is_typed_by_sqlc(column, parameter))
             }
             Self::Sqlite | Self::MySql => ["", "any"].contains(&data_type.as_str()),
         }
@@ -220,7 +224,22 @@ impl Engine {
     }
 
     /// sqlc's `text` cut at its placeholders, which must be exactly the parameters sqlc reported in `params`.
+    ///
+    /// sqlc rewrites every `sqlc.arg`, `sqlc.narg`, `sqlc.slice` and `sqlc.embed` it reads, so one still in the
+    /// statement is an error: the function would lack the parameter, and the database be sent the call as written!
+    /// Without its `(` it is a column of a table named `sqlc`, which sqlc sends as written.
     pub fn sql(self, text: &str, params: &[Bind]) -> Result<Sql> {
+        let words = self.code(text);
+        let is_call = |call: &&[String]| {
+            call[0].eq_ignore_ascii_case("sqlc")
+                && call[1] == "."
+                && (["arg", "narg", "slice", "embed"].iter()).any(|name| call[2].eq_ignore_ascii_case(name))
+                && call[3] == "("
+        };
+        if let Some(call) = words.windows(4).find(is_call) {
+            bail!("sqlc did not rewrite {}{}", call[..3].concat(), self.unrewritten());
+        }
+
         match self {
             Self::PostgreSql => postgresql::sql(text, params),
             Self::Sqlite => sqlite::sql(text, params),
@@ -231,11 +250,34 @@ impl Engine {
     /// Whether `sql` is a `MERGE`, as not every driver reports the row count of one.
     pub fn merges(self, sql: &str) -> bool {
         match self {
-            Self::PostgreSql => (self.words(sql).windows(2))
-                .any(|pair| pair[0].eq_ignore_ascii_case("merge") && pair[1].eq_ignore_ascii_case("into")),
+            Self::PostgreSql => Self::after(self.words(sql), &["merge", "into"]).is_some(),
             // Neither has `MERGE`.
             Self::Sqlite | Self::MySql => false,
         }
+    }
+
+    /// Whether an `INSERT` takes the sequence's value for an identity column and discards the one it is given. A
+    /// `COPY` is no such statement: it "will always write the column values provided in the input data, like the
+    /// INSERT option OVERRIDING SYSTEM VALUE" (https://www.postgresql.org/docs/current/sql-copy.html).
+    pub fn overrides_user_value(self, sql: &str) -> bool {
+        match self {
+            Self::PostgreSql => Self::after(self.words(sql), &["overriding", "user", "value"]).is_some(),
+            // Neither has the clause.
+            Self::Sqlite | Self::MySql => false,
+        }
+    }
+
+    /// Whether `sql`, a MySQL statement, binds a parameter after its `ON DUPLICATE KEY UPDATE`.
+    pub fn binds_on_duplicate(self, sql: &str) -> bool {
+        Self::after(self.code(sql), &["on", "duplicate"]).is_some_and(|words| words.iter().any(|word| word == "?"))
+    }
+
+    /// What follows the first `phrase` among `words`, ignoring case.
+    fn after(mut words: Vec<String>, phrase: &[&str]) -> Option<Vec<String>> {
+        let is_phrase =
+            |found: &[String]| std::iter::zip(found, phrase).all(|(word, part)| word.eq_ignore_ascii_case(part));
+        let start = words.windows(phrase.len()).position(is_phrase)?;
+        Some(words.split_off(start + phrase.len()))
     }
 
     /// Whether `text` only reads: a `SELECT`, `VALUES` or `TABLE`, or a `WITH` of no statement that writes. A
@@ -258,6 +300,22 @@ impl Engine {
 
     pub fn items(self, text: &str, tables: &[&str]) -> Option<Vec<select::Item>> {
         select::items(&self.words(text), tables, &self.aggregates())
+    }
+
+    /// Whether the statement holds a `coalesce`, a `nullif` or a `CASE` anywhere, which is all we know of them where
+    /// [`Self::items`] reads no list.
+    pub fn holds_operand_typed(self, text: &str) -> bool {
+        let is_typed = |word: &str| {
+            ["coalesce", "nullif", "case"]
+                .iter()
+                .any(|typed| word.eq_ignore_ascii_case(typed))
+        };
+        let words = self.words(text);
+        match words.is_empty() {
+            // MySQL's executable comments leave us without tokens, and what they hold runs, so we look in the text
+            true => (text.split(|c: char| !c.is_alphanumeric() && c != '_')).any(is_typed),
+            false => words.iter().any(|word| is_typed(word)),
+        }
     }
 
     pub fn single_row(self, text: &str) -> bool {
@@ -369,14 +427,24 @@ impl Engine {
         }
     }
 
+    /// The words of `text` whose meaning we may rely on.
     fn words(self, text: &str) -> Vec<String> {
+        match self {
+            // MySQL runs an executable comment (`/*! LEFT */ JOIN`) that our lexer leaves out, so we rather read no
+            // tokens at all, which reads as nothing known of the statement. MariaDB, which sqlc's mysql engine and
+            // the drivers serve too, runs `/*M! ... */` as well.
+            Self::MySql if text.contains("/*!") || text.contains("/*M!") => Vec::new(),
+            Self::PostgreSql | Self::Sqlite | Self::MySql => self.code(text),
+        }
+    }
+
+    /// Every word of `text` outside its comments, executable ones too: what we look in for something to refuse, as
+    /// what stands outside a comment is code whatever an executable comment adds to it.
+    fn code(self, text: &str) -> Vec<String> {
         let chars: Vec<char> = text.chars().collect();
         match self {
             Self::PostgreSql => postgresql::words(&chars),
             Self::Sqlite => sqlite::words(&chars),
-            // MySQL runs an executable comment (`/*! LEFT */ JOIN`) that our lexer leaves out, so we rather read no
-            // tokens at all, which reads as nothing known of the statement.
-            Self::MySql if text.contains("/*!") || text.contains("/*M!") => Vec::new(),
             Self::MySql => mysql::words(&chars),
         }
     }
@@ -384,11 +452,37 @@ impl Engine {
     /// A hint for the error when a statement's placeholders are not the parameters sqlc reported.
     fn misnumbered(self) -> &'static str {
         match self {
-            Self::PostgreSql | Self::MySql => "",
+            Self::PostgreSql => "",
             // sqlc numbers a `sqlc.arg` among `?`s, and a `sqlc.slice` used twice, differently than SQLite does
             Self::Sqlite => {
-                "; on SQLite, name every parameter of the statement with sqlc.arg rather than \
-                 mix them with ?, and use a sqlc.slice once"
+                "; on SQLite, name every parameter of the statement with sqlc.arg rather than mix them with ?, \
+                 and use a sqlc.slice once; in some clauses, such as HAVING, ORDER BY and \
+                 ON CONFLICT ... DO UPDATE, sqlc reads no parameter at all"
+            }
+            // sqlc reports no parameter for the first two, and an executable comment is no code to our lexer
+            Self::MySql => {
+                "; on MySQL, sqlc reads no parameter in some subqueries, such as > ANY (SELECT ...), nor \
+                 a sqlc.slice without a plain column on its left, and we read no placeholder inside /*! ... */"
+            }
+        }
+    }
+
+    /// A hint for the error about a named parameter sqlc left as written: where sqlc 1.31.1 reads none.
+    fn unrewritten(self) -> &'static str {
+        match self {
+            Self::PostgreSql => {
+                ", as it rewrites none in a statement it does not analyse, such as MERGE; \
+                 write it as INSERT ... ON CONFLICT, or UPDATE ... FROM"
+            }
+            Self::Sqlite => {
+                ", as on SQLite it reads no parameter in some clauses, such as HAVING, ORDER BY and \
+                 ON CONFLICT ... DO UPDATE; write the row's own value as excluded.<column> in a DO UPDATE, \
+                 and filter groups in a WHERE around a subquery rather than in a HAVING"
+            }
+            Self::MySql => {
+                ", as on MySQL it reads no parameter in some subqueries, such as > ANY (SELECT ...) and \
+                 > ALL (SELECT ...); write = ANY as IN (SELECT ...), or compare with (SELECT min(...)) or \
+                 (SELECT max(...))"
             }
         }
     }
@@ -495,13 +589,16 @@ fn cut(
     }
 
     // Generated code expands a slice by replacing its marker anywhere in the statement, so a string or a comment that
-    // spells it would expand too.
+    // spells it would expand too. And so would the marker of a placeholder sqlc reported as another parameter.
     let spelt = |marker: &str| (pieces.iter()).any(|piece| matches!(piece, Piece::Text(text) if text.contains(marker)));
     if let Some(marker) = (pieces.iter()).find_map(|piece| match piece {
         Piece::Slice { marker, .. } if spelt(marker) => Some(marker),
         _ => None,
     }) {
-        bail!("the SQL spells {marker} where no sqlc.slice is, in a string or a comment");
+        bail!(
+            "the SQL spells {marker} where sqlc reported no sqlc.slice, as in a string or a comment{}",
+            engine.misnumbered()
+        );
     }
     Ok(Sql(pieces))
 }

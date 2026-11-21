@@ -48,7 +48,7 @@ pub(super) fn imports(body: &[ast::Stmt], modules: &[String], models: Option<&st
     };
     let stdlib = |module: &str| {
         let root = module.split('.').next().unwrap_or(module);
-        ruff_python_stdlib::sys::is_known_standard_library(10, root)
+        ruff_python_stdlib::sys::is_known_standard_library(super::OLDEST_MINOR, root)
     };
 
     (VOCABULARY.iter().enumerate())
@@ -79,7 +79,7 @@ pub(super) fn imports(body: &[ast::Stmt], modules: &[String], models: Option<&st
                     plain.push((module, import(module, None)));
                 }
             }
-            // `import app.db_models as models`, but `from app import models`, which ruff (PLR0402) asks for over an alias
+            // `import app.db_models as models`, but `from app import models`, as ruff prefers it to an alias (PLR0402)
             if let Some(module) = models
                 && index == 1
                 && reads.0.contains(MODELS.as_ref())

@@ -29,8 +29,8 @@ async def list_scalars(
 async def stream_list_scalars(
     connection: AsyncConnection, *, limit: int
 ) -> AsyncGenerator[AsyncIterator[models.Scalar], None]:
-    async with connection.stream(_LIST_SCALARS, {"limit": limit}) as result:
-        yield (models.Scalar.from_row(row) async for row in result)
+    async with connection.stream(_LIST_SCALARS, {"limit": limit}) as cur:
+        yield (models.Scalar.from_row(row) async for row in cur)
 
 
 _ADD_SCALARS: Final = sqlalchemy.text("""INSERT INTO scalars (
@@ -118,5 +118,5 @@ async def stream_list_derived(
     """What sqlc types otherwise than a column: a comparison is its `bool`, a
     cast its type in lowercase.
     """
-    async with connection.stream(_LIST_DERIVED) as result:
-        yield (ListDerivedRow.from_row(row) async for row in result)
+    async with connection.stream(_LIST_DERIVED) as cur:
+        yield (ListDerivedRow.from_row(row) async for row in cur)

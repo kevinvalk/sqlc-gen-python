@@ -1,21 +1,6 @@
 use ruff_python_ast::{Expr, Operator, Stmt, StmtClassDef};
 use sqlc_gen_python::plugin;
-
-pub(super) fn unparse(expr: &Expr) -> String {
-    ruff_python_codegen::Generator::new(
-        &ruff_python_codegen::Indentation::default(),
-        ruff_source_file::LineEnding::Lf,
-    )
-    .expr(expr)
-}
-
-pub(super) fn unparse_stmt(stmt: &Stmt) -> String {
-    ruff_python_codegen::Generator::new(
-        &ruff_python_codegen::Indentation::default(),
-        ruff_source_file::LineEnding::Lf,
-    )
-    .stmt(stmt)
-}
+pub(super) use sqlc_gen_python::python::{unparse, unparse_stmt};
 
 /// The record `annotation` names and its fields, if it names one: a class of the query module, or `models.X`.
 pub(super) fn record<'a>(

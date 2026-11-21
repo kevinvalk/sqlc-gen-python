@@ -48,7 +48,9 @@ def stream_list_events(
         yield (models.AnalyticsEvent.from_row(row) for row in cur)
 
 
-_LIST_ODDITIES: Final = "SELECT id, mood FROM oddities WHERE mood = $1"
+_LIST_ODDITIES: Final = (
+    "SELECT id, mood, result, model_dump_at FROM oddities WHERE mood = $1"
+)
 
 
 def list_oddities(
@@ -70,6 +72,30 @@ def stream_list_oddities(
         yield (models.Oddity.from_row(row) for row in cur)
 
 
+_LIST_ODDITIES_BY_RESULT: Final = (
+    "SELECT id, mood, result, model_dump_at FROM oddities WHERE result = $1"
+)
+
+
+def list_oddities_by_result(
+    connection: psycopg.Connection[Any], *, result: str
+) -> list[models.Oddity]:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
+        cur.execute(_LIST_ODDITIES_BY_RESULT, (result,))
+        return [models.Oddity.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_oddities_by_result(
+    connection: psycopg.Connection[Any], *, result: str
+) -> Generator[Iterator[models.Oddity], None, None]:
+    with psycopg.RawServerCursor(
+        connection, "stream_list_oddities_by_result", row_factory=tuple_row
+    ) as cur:
+        cur.execute(_LIST_ODDITIES_BY_RESULT, (result,))
+        yield (models.Oddity.from_row(row) for row in cur)
+
+
 _FIND_SCALARS: Final = """SELECT id FROM scalars
 WHERE email = ANY($1::citext[])
   OR tree = ANY($2::ltree[])
@@ -80,7 +106,10 @@ WHERE email = ANY($1::citext[])
 
 class FindScalarsParams(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(
-        frozen=True, extra="forbid", arbitrary_types_allowed=True
+        frozen=True,
+        extra="forbid",
+        arbitrary_types_allowed=True,
+        protected_namespaces=(),
     )
     emails: list[str]
     trees: list[str]

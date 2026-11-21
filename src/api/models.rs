@@ -6,9 +6,8 @@ use ruff_python_ast as ast;
 use super::Problems;
 use super::names::members;
 use super::resolver::Resolver;
-use crate::config::ModelConfig;
 use crate::plugin;
-use crate::python::vocabulary::{FROM_ARRAY, LIST, V};
+use crate::python::vocabulary::{FROM_ARRAY, LIST, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, V};
 use crate::python::{self, Expression, Scope, Type, each, list_of, unless_none};
 
 #[cfg(test)]
@@ -57,11 +56,10 @@ pub struct FieldType {
     pub as_text: bool,
 }
 
-/// The classes of the models module, or those of them `used` names. A table with a problem still becomes a model, without
-/// the fields that have one, so we still check the queries against it.
+/// The classes of the models module, or those of them `used` names. A table with a problem still becomes a model,
+/// without the fields that have one, so we still check the queries against it.
 pub fn resolve(
     resolver: &Resolver,
-    config: &ModelConfig,
     used: Option<&BTreeSet<String>>,
     problems: &mut Problems,
 ) -> (Vec<Enum>, Vec<Model>) {
@@ -87,7 +85,7 @@ pub fn resolve(
         for table in &schema.tables {
             let relation = table.rel.clone().unwrap_or_default();
             let what = format!("table \"{}\"", relation.name);
-            let name = resolver.model_name(schema, &relation.name, config);
+            let name = resolver.model_name(schema, &relation.name);
             if !is_used(&name) {
                 continue;
             }
@@ -123,6 +121,20 @@ pub fn resolve(
         problems.note(anyhow!(
             "`{name}` is a name generated code imports; name the table or type otherwise with \
              the rename option"
+        ));
+    }
+    // A driver has no errors for a `:one`, so there the module defines them, and a class of either name would replace
+    // the error: `raise models.NoRowError` then raises a `TypeError`.
+    let errors = match resolver.config.backend.defines_errors() {
+        true => [NO_ROW_ERROR, MULTIPLE_ROWS_ERROR].as_slice(),
+        false => &[],
+    };
+    for name in classes
+        .iter()
+        .filter(|name| errors.iter().any(|error| error.as_ref() == **name))
+    {
+        problems.note(anyhow!(
+            "`{name}` is a class the models define; name the table or type otherwise with the rename option"
         ));
     }
     for pair in classes.windows(2).filter(|pair| pair[0] == pair[1]) {

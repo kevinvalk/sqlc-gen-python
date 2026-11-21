@@ -314,6 +314,17 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         "0.00",
     )
     await no_row(api, api.invoices.get_invoice_totals(id=uuid4()))
+    # A NULLIF of equal arguments, and an aggregate of a group an outer join left without a row or whose rows its
+    # FILTER keeps none of, are None, though sqlc says NOT NULL.
+    dearest = await api.invoices.list_dearest_lines(customer_id=ada.id)
+    assert [(row.number, row.notes, row.dearest) for row in dearest] == [
+        ("2026-0001", AWKWARD, Decimal("100.00")),
+        ("2026-0002", None, None),
+    ]
+    reduced = await api.line_items.sum_lines_below_vat_rate(vat_rate=Decimal("0.2100"))
+    assert [(row.invoice_id, row.subtotal) for row in reduced] == [(first.id, Decimal("100.00"))]
+    exempt = await api.line_items.sum_lines_below_vat_rate(vat_rate=Decimal("0.0000"))
+    assert [(row.invoice_id, row.subtotal) for row in exempt] == [(first.id, None)]
 
     # Lifecycle: :execrows counts, optional filters, :execresult.
     assert await api.invoices.issue_invoice(issued_on=dt.date(2026, 10, 1), id=first.id) == 1
@@ -347,6 +358,13 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     assert [(row.status, row.count) for row in counts] == [
         (models.InvoiceStatus.DRAFT, 2),
         (models.InvoiceStatus.ISSUED, 1),
+    ]
+    # The key of a ROLLUP is None in the row of them all, though sqlc says NOT NULL.
+    rolled = await api.invoices.count_invoices_by_status_and_in_all()
+    assert [(row.status, row.count) for row in rolled] == [
+        (models.InvoiceStatus.DRAFT, 2),
+        (models.InvoiceStatus.ISSUED, 1),
+        (None, 3),
     ]
     assert await api.invoices.count_invoices(customer_id=ada.id) == 2
     assert await api.invoices.count_invoices(customer_id=uuid4()) == 0
@@ -394,6 +412,12 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     # What stands left of a RIGHT JOIN is None for a customer without payments, though sqlc says NOT NULL.
     paid_by = await api.payments.list_customer_payments()
     assert [(row.name, row.number, row.amount) for row in paid_by] == [
+        ("Ada", "2026-0001", Decimal("169.47")),
+        ("Bob", None, None),
+    ]
+    # As is what a join in parentheses brings, which we do not read.
+    paid_invoices = await api.payments.list_customer_paid_invoices()
+    assert [(row.name, row.number, row.amount) for row in paid_invoices] == [
         ("Ada", "2026-0001", Decimal("169.47")),
         ("Bob", None, None),
     ]

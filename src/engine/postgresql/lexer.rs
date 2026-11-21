@@ -12,8 +12,8 @@ pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
     let tokens = tokens(&chars);
     if let Some(param) = unrewritten(&chars, &tokens) {
         bail!(
-            "sqlc did not rewrite {param} into a placeholder, as it does not in a statement it \
-             does not analyse, such as MERGE; write it as INSERT ... ON CONFLICT, or UPDATE ... FROM"
+            "sqlc did not rewrite {param} into a placeholder{}",
+            Engine::PostgreSql.unrewritten()
         );
     }
     let placeholders = (tokens.iter()).filter_map(|token| match token.kind {
@@ -44,30 +44,17 @@ pub fn is_identifier(name: &str) -> bool {
     chars.next().is_some_and(starts_identifier) && chars.all(continues_identifier)
 }
 
-/// The first named parameter sqlc left as written in `sql` instead of rewriting it into a placeholder: `@name` (a lone
-/// `@` operator right before what starts an identifier), or `sqlc.arg`, `sqlc.narg`, `sqlc.slice` or `sqlc.embed`.
-/// sqlc rewrites them in every statement it analyses, and PostgreSQL would read a leftover as something else:
-/// `@amount` is the absolute value of a column `amount`!
+/// The first `@name` sqlc left as written in `sql` instead of rewriting it into a placeholder: a lone `@` operator
+/// right before what starts an identifier. sqlc rewrites them in every statement it analyses, and PostgreSQL would
+/// read a leftover as something else: `@amount` is the absolute value of a column `amount`!
 fn unrewritten(sql: &[char], tokens: &[Token]) -> Option<String> {
     let text = |token: &Token| token.text(sql);
-    (0..tokens.len()).find_map(|i| match &tokens[i..] {
-        [at, next, ..]
-            if at.kind == Kind::Operator
-                && text(at) == "@"
-                && (sql.get(at.end)).is_some_and(|&c| c == '"' || starts_identifier(c)) =>
-        {
-            Some(format!("@{}", text(next)))
-        }
-        [sqlc, dot, function, ..]
-            if sqlc.is_word(sql, "sqlc")
-                && text(dot) == "."
-                && ["arg", "narg", "slice", "embed"]
-                    .iter()
-                    .any(|name| function.is_word(sql, name)) =>
-        {
-            Some(format!("{}.{}", text(sqlc), text(function)))
-        }
-        _ => None,
+    tokens.windows(2).find_map(|pair| {
+        let (at, next) = (&pair[0], &pair[1]);
+        let is_name = at.kind == Kind::Operator
+            && text(at) == "@"
+            && (sql.get(at.end)).is_some_and(|&c| c == '"' || starts_identifier(c));
+        is_name.then(|| format!("@{}", text(next)))
     })
 }
 
@@ -85,11 +72,6 @@ struct Token {
 impl Token {
     fn text(&self, sql: &[char]) -> String {
         sql[self.start..self.end].iter().collect()
-    }
-
-    /// Whether this is `word`, unquoted, ignoring case.
-    fn is_word(&self, sql: &[char], word: &str) -> bool {
-        self.kind == Kind::Word && self.text(sql).eq_ignore_ascii_case(word)
     }
 }
 

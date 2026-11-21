@@ -150,6 +150,68 @@
               }
             ],
             "comment": ""
+          },
+          {
+            "rel": {
+              "catalog": "",
+              "schema": "",
+              "name": "presets"
+            },
+            "columns": [
+              {
+                "name": "id",
+                "not_null": true,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "presets"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "bigserial"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              },
+              {
+                "name": "settings",
+                "not_null": true,
+                "is_array": false,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "presets"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "jsonb"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 0
+              }
+            ],
+            "comment": ""
           }
         ],
         "enums": [
@@ -714,6 +776,103 @@
       "comments": [],
       "filename": "query.sql",
       "insert_into_table": null
+    },
+    {
+      "text": "INSERT INTO presets (settings) VALUES ($1) RETURNING id, settings",
+      "name": "AddPreset",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "id",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "presets"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigserial"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "id",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "settings",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "presets"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "jsonb"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "settings",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "settings",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": false,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "public",
+              "name": "presets"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "jsonb"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "settings",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": {
+        "catalog": "",
+        "schema": "",
+        "name": "presets"
+      }
     }
   ],
   "sqlc_version": "v1.31.1"

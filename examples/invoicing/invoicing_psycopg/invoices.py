@@ -483,6 +483,101 @@ def stream_list_issued_numbers(
         yield (ListIssuedNumbersRow.from_row(row) for row in cur)
 
 
+_LIST_DEAREST_LINES: Final = """SELECT
+    invoices.number,
+    nullif(invoices.notes, '')::text AS notes,
+    max(line_items.unit_price)::numeric(12, 2) AS dearest
+FROM invoices LEFT JOIN line_items ON line_items.invoice_id = invoices.id
+WHERE invoices.customer_id = $1
+GROUP BY invoices.id
+ORDER BY invoices.number"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListDearestLinesRow:
+    number: str
+    notes: str | None
+    dearest: Decimal | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListDearestLinesRow":
+        return cls(number=row[0], notes=row[1], dearest=row[2])
+
+
+def list_dearest_lines(
+    connection: psycopg.Connection[Any], *, customer_id: UUID
+) -> list[ListDearestLinesRow]:
+    """Each of the customer's invoices with its notes and the price of its
+    dearest line: a NULLIF is NULL where its arguments are equal, and an
+    aggregate of a group where the LEFT JOIN left the invoice without a line,
+    though sqlc reports their casts NOT NULL.
+    """
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
+        cur.execute(_LIST_DEAREST_LINES, (customer_id,))
+        return [ListDearestLinesRow.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_dearest_lines(
+    connection: psycopg.Connection[Any], *, customer_id: UUID
+) -> Generator[Iterator[ListDearestLinesRow], None, None]:
+    """Each of the customer's invoices with its notes and the price of its
+    dearest line: a NULLIF is NULL where its arguments are equal, and an
+    aggregate of a group where the LEFT JOIN left the invoice without a line,
+    though sqlc reports their casts NOT NULL.
+    """
+    with psycopg.RawServerCursor(
+        connection, "stream_list_dearest_lines", row_factory=tuple_row
+    ) as cur:
+        cur.execute(_LIST_DEAREST_LINES, (customer_id,))
+        yield (ListDearestLinesRow.from_row(row) for row in cur)
+
+
+_COUNT_INVOICES_BY_STATUS_AND_IN_ALL: Final = "SELECT status, count(*) AS count FROM invoices GROUP BY ROLLUP (status) ORDER BY status"
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CountInvoicesByStatusAndInAllRow:
+    status: models.InvoiceStatus | None
+    count: int
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CountInvoicesByStatusAndInAllRow":
+        return cls(
+            status=None if row[0] is None else models.InvoiceStatus(row[0]),
+            count=row[1],
+        )
+
+
+def count_invoices_by_status_and_in_all(
+    connection: psycopg.Connection[Any],
+) -> list[CountInvoicesByStatusAndInAllRow]:
+    """How many invoices have each status and, in the last row, how many there
+    are: ROLLUP leaves its key NULL in the row of them all, though sqlc
+    reports the column NOT NULL.
+    """
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
+        cur.execute(_COUNT_INVOICES_BY_STATUS_AND_IN_ALL)
+        return [
+            CountInvoicesByStatusAndInAllRow.from_row(row) for row in cur.fetchall()
+        ]
+
+
+@contextlib.contextmanager
+def stream_count_invoices_by_status_and_in_all(
+    connection: psycopg.Connection[Any],
+) -> Generator[Iterator[CountInvoicesByStatusAndInAllRow], None, None]:
+    """How many invoices have each status and, in the last row, how many there
+    are: ROLLUP leaves its key NULL in the row of them all, though sqlc
+    reports the column NOT NULL.
+    """
+    with psycopg.RawServerCursor(
+        connection, "stream_count_invoices_by_status_and_in_all", row_factory=tuple_row
+    ) as cur:
+        cur.execute(_COUNT_INVOICES_BY_STATUS_AND_IN_ALL)
+        yield (CountInvoicesByStatusAndInAllRow.from_row(row) for row in cur)
+
+
 _LIST_INVOICE_NUMBERS_PAGE: Final = """SELECT number, count(*) OVER () AS total FROM invoices
 WHERE customer_id = $1 ORDER BY number LIMIT $2"""
 

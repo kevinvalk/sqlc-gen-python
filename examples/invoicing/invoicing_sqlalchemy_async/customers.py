@@ -161,11 +161,10 @@ async def get_customer_id_by_email(
 
 
 _GET_ACCEPTED_METHODS: Final = sqlalchemy.text(
-    "SELECT coalesce(accepted_methods, '{}') FROM customers WHERE id = :id"
+    "SELECT coalesce(accepted_methods, '{}')\\:\\:billing.payment_method[] FROM customers WHERE id = :id"
 ).columns(
     sqlalchemy.column(
-        "accepted_methods",
-        postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
+        "column_1", postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod))
     )
 )
 
@@ -173,7 +172,9 @@ _GET_ACCEPTED_METHODS: Final = sqlalchemy.text(
 async def get_accepted_methods(
     connection: AsyncConnection, *, id: UUID
 ) -> list[models.BillingPaymentMethod] | None:
-    """PostgreSQL names this column `coalesce`, and sqlc `accepted_methods`."""
+    """PostgreSQL names this column `coalesce`, and sqlc nothing. It is cast, as
+    sqlc types a coalesce as its first argument whatever the others are.
+    """
     value = (
         await connection.execute(_GET_ACCEPTED_METHODS, {"id": id})
     ).scalar_one_or_none()
@@ -264,8 +265,8 @@ async def stream_search_customers(
     connection: AsyncConnection, *, query: str
 ) -> AsyncGenerator[AsyncIterator[models.Customer], None]:
     """Case-insensitive search on name or email."""
-    async with connection.stream(_SEARCH_CUSTOMERS, {"query": query}) as result:
-        yield (models.Customer.from_row(row) async for row in result)
+    async with connection.stream(_SEARCH_CUSTOMERS, {"query": query}) as cur:
+        yield (models.Customer.from_row(row) async for row in cur)
 
 
 _LIST_CUSTOMER_NAMES_BY_TAG: Final = sqlalchemy.text(
@@ -285,8 +286,8 @@ async def list_customer_names_by_tag(
 async def stream_list_customer_names_by_tag(
     connection: AsyncConnection, *, tag: str
 ) -> AsyncGenerator[AsyncIterator[str], None]:
-    async with connection.stream(_LIST_CUSTOMER_NAMES_BY_TAG, {"tag": tag}) as result:
-        yield (row[0] async for row in result)
+    async with connection.stream(_LIST_CUSTOMER_NAMES_BY_TAG, {"tag": tag}) as cur:
+        yield (row[0] async for row in cur)
 
 
 _LIST_VIP_CUSTOMERS: Final = sqlalchemy.text(
@@ -316,8 +317,8 @@ async def list_vip_customers(connection: AsyncConnection) -> list[ListVipCustome
 async def stream_list_vip_customers(
     connection: AsyncConnection,
 ) -> AsyncGenerator[AsyncIterator[ListVipCustomersRow], None]:
-    async with connection.stream(_LIST_VIP_CUSTOMERS) as result:
-        yield (ListVipCustomersRow.from_row(row) async for row in result)
+    async with connection.stream(_LIST_VIP_CUSTOMERS) as cur:
+        yield (ListVipCustomersRow.from_row(row) async for row in cur)
 
 
 _LIST_PREFERRED_METHODS: Final = sqlalchemy.text(
@@ -338,8 +339,8 @@ async def list_preferred_methods(
 async def stream_list_preferred_methods(
     connection: AsyncConnection,
 ) -> AsyncGenerator[AsyncIterator[models.BillingPaymentMethod | None], None]:
-    async with connection.stream(_LIST_PREFERRED_METHODS) as result:
+    async with connection.stream(_LIST_PREFERRED_METHODS) as cur:
         yield (
             None if row[0] is None else models.BillingPaymentMethod(row[0])
-            async for row in result
+            async for row in cur
         )

@@ -7,6 +7,9 @@ SELECT * FROM analytics.events;
 -- name: ListOddities :many
 SELECT * FROM oddities WHERE mood = $1;
 
+-- name: ListOdditiesByResult :many
+SELECT * FROM oddities WHERE result = $1;
+
 -- name: FindScalars :many
 SELECT id FROM scalars
 WHERE email = ANY(@emails::citext[])

@@ -16,7 +16,8 @@ fn main() -> ExitCode {
     let Err(error) = run() else {
         return ExitCode::SUCCESS;
     };
-    eprintln!("Error: {}", printable(&format!("{error:?}")));
+    // sqlc prints our stderr after its own "error generating code: ", so we print the error's chain on that line.
+    eprintln!("{}", printable(&format!("{error:#}")));
     ExitCode::FAILURE
 }
 

@@ -147,8 +147,7 @@ fn records_are_values(body: &[Stmt], records: Records, problems: &mut Vec<String
                 (decorators == [decorator] && bases.is_empty(), format!("`@{decorator}`"))
             }
             Records::Pydantic => {
-                let config =
-                    "model_config = pydantic.ConfigDict(frozen=True, extra=\"forbid\", arbitrary_types_allowed=True)";
+                let config = "model_config = pydantic.ConfigDict(frozen=True, extra=\"forbid\", arbitrary_types_allowed=True, protected_namespaces=())";
                 let is_model = decorators.is_empty() && bases == ["pydantic.BaseModel"];
                 (
                     is_model && first.as_deref() == Some(config),

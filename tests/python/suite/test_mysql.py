@@ -5,10 +5,11 @@ function must be called.
 """
 
 import asyncio
+import contextlib
 import datetime as dt
 import functools
 import json
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from decimal import Decimal
 from typing import Any
 
@@ -171,6 +172,15 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
     assert await query.list_customers_known_as(vip=True, names=[AWKWARD]) == [acme]
     assert await query.list_customers_known_as(vip=False, names=[]) == []
 
+    # A filter left out is `None`, which matches every row.
+    assert await query.filter_customers() == [acme, bare, twin]
+    assert await query.filter_customers(name=AWKWARD) == [acme, twin]
+    assert await query.filter_customers(name=AWKWARD, vip=False) == [twin]
+    assert await query.filter_customers(vip=True) == [acme]
+    bank_transfer = models.CustomersPreferredMethod.BANK_TRANSFER
+    assert await query.filter_customers(preferred_method=bank_transfer) == [acme]
+    assert await query.filter_customers(name="x:test", preferred_method=bank_transfer) == []
+
     attachment = bytes(range(256))
     pay_within = -dt.timedelta(hours=1, minutes=2, seconds=3)
     invoice_id = await query.create_invoice(
@@ -253,8 +263,30 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
     total = (await query.get_invoice(id=invoice_id)).total
     assert str(total) == "18.95"
 
+    # IMPORTANT: The README says a statement on the connection ends a MySQL stream early with only a warning. We pin that,
+    # so a driver that starts to raise or to buffer is seen.
+    with pytest.warns(UserWarning, match="Previous unbuffered result was left incomplete"):
+        read = await _read_with_lookup(
+            query.stream_list_line_items(invoice_id=invoice_id),
+            lambda: query.count_invoices(customer_id=acme),
+        )
+    assert [item.position for item in read] == [1]
+
     result = await query.delete_draft_invoices(customer_id=acme)
     assert result.rowcount == 1
     assert await query.count_invoices(customer_id=acme) == 1
 
     await streams_lazily(api, query)
+
+
+async def _read_with_lookup(stream: Any, lookup: Callable[[], Awaitable[object]]) -> list[Any]:
+    """Read a stream's rows, running ``lookup`` on its connection after the first, as a lookup per row would."""
+    if isinstance(stream, contextlib.AbstractAsyncContextManager):
+        async with stream as rows:
+            first = await anext(rows)
+            await lookup()
+            return [first, *[row async for row in rows]]
+    with stream as rows:
+        first = next(rows)
+        await lookup()
+        return [first, *rows]

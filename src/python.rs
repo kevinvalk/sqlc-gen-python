@@ -12,3 +12,6 @@ pub use render::{render, trips_s105};
 pub use syntax::*;
 pub use types::{Annotation, Json, Scope, Type};
 pub use vocabulary::is_imported;
+
+/// The minor version of the oldest Python 3 we generate for, `requires-python` in `tests/python/pyproject.toml`.
+pub const OLDEST_MINOR: u8 = 11;

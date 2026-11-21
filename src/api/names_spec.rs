@@ -146,8 +146,8 @@ fn an_enum_label_is_spelt_as_the_options_rename_it() {
 
 #[test]
 fn an_enum_label_with_no_usable_spelling_is_an_error_naming_it() {
-    // Nothing left, or not an identifier.
-    for label in ["=", "", "1st", "é x"] {
+    // Nothing left, or not an identifier, even where upper-casing makes it ASCII (`STRASSE`, `FILE`)
+    for label in ["=", "", "1st", "é x", "größe", "straße", "ﬁle"] {
         let error = error_of(try_member_names(&["open", label]));
         assert!(
             error.contains(&format!("\"{label}\" does not become")),
@@ -169,11 +169,26 @@ fn enum_labels_that_spell_alike_are_an_error_not_a_numbered_member() {
 
 #[test]
 fn a_field_of_a_pydantic_model_hides_none_of_its_attributes() {
-    let spellings = ["json", "model_config", "model_dump_at", "model_id", "schema"];
+    let spellings = [
+        "json",
+        "model_config",
+        "model_dump",
+        "model_dump_at",
+        "model_id",
+        "schema",
+    ];
     let pydantic = names(&spellings, Repeats::Forbidden, Binding::Field, Records::Pydantic).unwrap();
+    // `model_dump_at` hides nothing, and its prefix is only protected until the model's configuration says otherwise
     assert_eq!(
         pydantic,
-        ["json_", "model_config_", "model_dump_at_", "model_id", "schema_"]
+        [
+            "json_",
+            "model_config_",
+            "model_dump_",
+            "model_dump_at",
+            "model_id",
+            "schema_"
+        ]
     );
     // A dataclass has no attributes of its own to hide
     let dataclass = names(&spellings, Repeats::Forbidden, Binding::Field, Records::Dataclass).unwrap();

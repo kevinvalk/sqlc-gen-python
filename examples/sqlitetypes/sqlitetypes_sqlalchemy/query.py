@@ -30,8 +30,8 @@ def stream_list_scalars(
 ) -> Generator[Iterator[models.Scalar], None, None]:
     with connection.execute(
         _LIST_SCALARS, {"limit": limit}, execution_options={"stream_results": True}
-    ) as result:
-        yield (models.Scalar.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Scalar.from_row(row) for row in cur)
 
 
 _ADD_SCALARS: Final = sqlalchemy.text("""INSERT INTO scalars (
@@ -119,5 +119,5 @@ def stream_list_derived(
     """
     with connection.execute(
         _LIST_DERIVED, execution_options={"stream_results": True}
-    ) as result:
-        yield (ListDerivedRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListDerivedRow.from_row(row) for row in cur)

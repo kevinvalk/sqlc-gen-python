@@ -1,38 +1,9 @@
-//! The endtoend sweep: every request sqlc's own test suite produces (`tests/sqlc/endtoend/`, from `cargo xtask capture`),
-//! under every profile of its `profiles.json`, must either generate sound Python or fail cleanly. Nothing here knows
-//! what the output should be, the golden tests pin that for a few curated cases. Instead every output must hold what
-//! any correct output holds:
-//!
-//! - generating never panics, and generating twice gives the same result;
-//! - the files are exactly `models.py` and one module per query file, so each is inside the output directory;
-//! - its only comments are the header it opens with, which silences no tool;
-//! - importing it only defines it: imports, classes, functions and statement constants, and nothing that registers;
-//! - every name a module binds is unique in its scope and public, except for the prelude a query module holds where
-//!   its library's stubs need one, to the letter and nowhere else: PyMySQL's connection under a private name, and
-//!   asyncmy's untyped methods as a private protocol that annotates with `Any`;
-//! - no annotation mentions `Any`, except a driver row's, a psycopg connection's and `:execresult`'s;
-//! - every class but an enum and an error is a record of the one kind the options ask for: a frozen, slotted,
-//!   keyword-only dataclass, or a frozen pydantic model that forbids extra fields; and only a nullable field of a
-//!   record of parameters has a default, `None`;
-//! - the models are one enum per catalog enum, with its labels as members in order and each named after its label,
-//!   and one record per table (or per table its queries use, with `omit_unused`), with its columns as fields in
-//!   order, each optional exactly when the column admits NULL and a list exactly as deep as its array, and a
-//!   `from_row` that reads each field from its own position;
-//! - each query module holds one statement and one function per query, in sqlc's order, and after each `:many` that
-//!   only reads its stream: of the same parameters, a context manager that yields, once, a generator of the rows of
-//!   its cursor. Each function takes `connection` first, annotated as the backend's connection, then every SQL
-//!   parameter keyword-only, none with a default, and is `async def` exactly when asked. Its parameters and result fields are named after sqlc's, and
-//!   they (or its bare result) are optional exactly when sqlc says and lists exactly as deep. It executes its own
-//!   statement once, binding each parameter as itself (by name, or in its placeholder's place), and does nothing else
-//!   with `connection`. A `Row`'s `from_row` reads each field from its own place, an embed from a contiguous slice.
-//!   It returns a model exactly when the result is that table's columns, and its statement is exactly sqlc's SQL, as
-//!   written for a driver, or after one pass through SQLAlchemy's own bind expressions;
-//! - every docstring is the comment of what it documents, and every comment (a table's, column's, enum's or
-//!   query's) is a docstring.
-//!
-//! That each formats, type-checks and imports is the static gate's, which reads these outputs too (`GEN_DIR`).
-//! [`support::check_output`] checks all but the first, which is checked here, and `invariants.rs` plants a bug for
-//! each of them.
+//! The endtoend sweep: every request sqlc's own test suite produces (`tests/sqlc/endtoend/`, from `cargo xtask
+//! capture`), under every profile of its `profiles.json`, must either generate sound Python or fail cleanly. Nothing
+//! here knows what the output should be, the golden tests pin that for a few curated cases. Instead generating never
+//! panics, generating twice gives the same result, and every output holds what [`support::check_output`] checks, for
+//! each of which `invariants.rs` plants a bug. That each formats, type-checks and imports is the static gate's, which
+//! reads these outputs too (`GEN_DIR`).
 //!
 //! An error is an allowed outcome, as sqlc accepts features we do not support yet, as long as it is an `Err` and not
 //! a panic. `tests/sqlc/endtoend/ledger.tsv` records which requests generate and which do not, with a hash of the
@@ -46,6 +17,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 
 use sha2::{Digest, Sha256};
+use sqlc_gen_python::backend::Backend;
+use sqlc_gen_python::engine::Engine;
 use sqlc_gen_python::{generate, plugin};
 
 use crate::support;
@@ -58,7 +31,6 @@ fn every_request_generates_sound_python_or_fails_cleanly() {
     let endtoend = support::root().join("tests/sqlc/endtoend");
     let profiles: BTreeMap<String, serde_json::Value> = support::read_json(&endtoend.join("profiles.json"));
 
-    // We sweep sequentially as every endtoend request takes about half a second in a debug build.
     let mut ledger = BTreeMap::new();
     let mut violations = String::new();
 
@@ -68,7 +40,14 @@ fn every_request_generates_sound_python_or_fails_cleanly() {
     let mut packages = String::from("request\tprofile\tpackage\n");
     for path in requests(&endtoend) {
         let request: plugin::GenerateRequest = support::read_json(&endtoend.join(&path));
+        let engine = Engine::of(&request).ok();
         for (profile, options) in &profiles {
+            // A backend refuses an engine it does not run before anything else (`src/backend/spec.rs`), so its rows
+            // would only fill the ledger
+            let backend: Backend = serde_json::from_value(options["backend"].clone()).unwrap();
+            if engine.is_some_and(|engine| !backend.runs(engine)) {
+                continue;
+            }
             match sweep(&request, options) {
                 Ok(Outcome::Generated { sha8, files }) => {
                     let package = exported.entry(sha8.clone()).or_insert_with(|| {

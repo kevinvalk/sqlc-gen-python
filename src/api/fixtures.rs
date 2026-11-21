@@ -71,20 +71,16 @@ pub fn request(engine: &str, schemas: Vec<plugin::Schema>, queries: Vec<plugin::
 pub mod catalog {
     use super::*;
 
-    pub fn resolve(schemas: Vec<plugin::Schema>, config: &ModelConfig) -> Api {
-        resolve_with(schemas, config).unwrap()
+    pub fn resolve(schemas: Vec<plugin::Schema>, models: &ModelConfig) -> Api {
+        let config = Config {
+            models: models.clone(),
+            ..Config::of(Backend::SqlAlchemy)
+        };
+        resolve_options(schemas, &config).unwrap()
     }
 
     pub fn try_resolve(schemas: Vec<plugin::Schema>) -> Result<Api> {
-        resolve_with(schemas, &ModelConfig::default())
-    }
-
-    pub fn resolve_with(schemas: Vec<plugin::Schema>, config: &ModelConfig) -> Result<Api> {
-        let config = Config {
-            models: config.clone(),
-            ..Config::of(Backend::SqlAlchemy)
-        };
-        resolve_options(schemas, &config)
+        resolve_options(schemas, &Config::of(Backend::SqlAlchemy))
     }
 
     pub fn resolve_options(schemas: Vec<plugin::Schema>, config: &Config) -> Result<Api> {

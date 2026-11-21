@@ -5,7 +5,6 @@ use fancy_regex::Regex;
 
 use ruff_python_ast::visitor::{Visitor, walk_expr};
 use ruff_python_ast::{Expr, ExprCall, ExprDict, StmtFunctionDef};
-use ruff_text_size::{Ranged, TextRange};
 use sqlc_gen_python::backend::Backend;
 use sqlc_gen_python::engine::{Bind, Engine, Piece, Sql};
 use sqlc_gen_python::plugin;
@@ -13,27 +12,24 @@ use sqlc_gen_python::plugin;
 use super::{Takes, uses};
 use crate::support::python::{is_name, unparse};
 
-/// A query's function executes its own statement exactly once, awaited exactly when async, and binds each parameter
-/// as itself: by its own name (`{"p": p}`) on SQLAlchemy, or in its own place in a tuple (`(p, q)`) on a driver,
-/// wrapped at most in a JSON type; as `r.p` for each row of a `:copyfrom` or batch, and as `params.p` for the one
-/// record. A function run on its neighbour's statement, or with two values of one type swapped, would type-check and
-/// run. It does nothing else with the connection either, as the caller owns the transaction a `connection.commit()`
-/// would end.
+/// A query's function executes its own statement exactly once and binds each parameter as itself: by its own name
+/// (`{"p": p}`) on SQLAlchemy, or in its own place in a tuple (`(p, q)`) on a driver, wrapped at most in a JSON type;
+/// as `r.p` for each row of a `:copyfrom` or batch, and as `params.p` for the one record. A function run on its
+/// neighbour's statement, or with two values of one type swapped, would type-check and run. It does nothing else with
+/// the connection either, as the caller owns the transaction a `connection.commit()` would end.
 pub(super) fn runs_its_statement(
     query: &plugin::Query,
     function: &StmtFunctionDef,
     constant: &str,
     parameters: &[(&str, &Expr)],
     engine: Engine,
-    (asynchronous, takes): (bool, Takes),
+    takes: Takes,
     problems: &mut Vec<String>,
 ) {
     #[derive(Default)]
     struct Executes<'a> {
         calls: Vec<&'a ExprCall>,
         connections: usize,
-        awaited: Vec<TextRange>,
-        writes: Vec<TextRange>,
     }
     impl<'a> Visitor<'a> for Executes<'a> {
         fn visit_expr(&mut self, expr: &'a Expr) {
@@ -48,10 +44,6 @@ pub(super) fn runs_its_statement(
                 // psycopg runs a batch in a pipeline of its own, which is no second use of the connection.
                 Expr::Attribute(_) if unparse(expr) == "connection.pipeline" => return,
                 Expr::Name(name) if name.id.as_str() == "connection" => self.connections += 1,
-                Expr::Call(call) if unparse(&call.func) == "copy.write_row" => {
-                    self.writes.push(call.range());
-                }
-                Expr::Await(awaited) => self.awaited.push(awaited.value.range()),
                 _ => {}
             }
             walk_expr(self, expr);
@@ -68,17 +60,6 @@ pub(super) fn runs_its_statement(
             executes.connections
         ));
     };
-
-    // A `COPY` is entered with `async with`, so it is its row writes that are awaited. A `stream()` is an async
-    // iterator or context manager, which is never awaited.
-    let method = unparse(&call.func);
-    let awaited = match method.ends_with(".copy") {
-        false => executes.awaited.contains(&call.range()),
-        true => (executes.writes.iter()).all(|write| executes.awaited.contains(write)),
-    };
-    if awaited != (asynchronous && !method.ends_with(".stream")) {
-        problems.push(format!("{}: awaits its statement exactly when async", query.name));
-    }
 
     // With a `sqlc.slice` the statement is the constant with its placeholders made one per item: `_X.replace(...)`.
     let arguments = &call.arguments.args;

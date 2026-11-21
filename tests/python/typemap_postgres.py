@@ -29,7 +29,7 @@ from suite.deep import failure, strip_none
 from typemap_probe import Probe, Section, describe, raised, short, versions
 
 SCHEMA = EXAMPLES / "pgtypes/schema.sql"
-PGTYPES = "pgtypes_sqlalchemy"  # The generated models of that schema, which we read every type through
+PGTYPES = "pgtypes_sqlalchemy"  # The generated models of that schema, whose annotations we hold every type to
 # Each driver as the document names it, and as SQLAlchemy does.
 DRIVERS = {"psycopg": "psycopg", "psycopg async": "psycopg_async", "asyncpg": "asyncpg"}
 TIMEZONE = "Europe/Amsterdam"  # Not UTC, as that would hide what a driver does with the session's TimeZone

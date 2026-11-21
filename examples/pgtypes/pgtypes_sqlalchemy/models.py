@@ -134,10 +134,14 @@ class Nullable:
 class Oddity:
     id: int
     mood: WeirdMood
+    result: str
+    model_dump_at: dt.datetime | None
 
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "Oddity":
-        return cls(id=row[0], mood=WeirdMood(row[1]))
+        return cls(
+            id=row[0], mood=WeirdMood(row[1]), result=row[2], model_dump_at=row[3]
+        )
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)

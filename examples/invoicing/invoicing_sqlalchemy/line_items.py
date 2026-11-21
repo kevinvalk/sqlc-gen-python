@@ -3,9 +3,9 @@
 #   sqlc v1.31.1
 import contextlib
 import dataclasses
-from collections.abc import Generator, Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator, Sequence
 from decimal import Decimal
-from typing import Final
+from typing import Any, Final
 from uuid import UUID
 
 import sqlalchemy
@@ -67,5 +67,50 @@ def stream_list_line_items(
         _LIST_LINE_ITEMS,
         {"invoice_id": invoice_id},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (models.LineItem.from_row(row) for row in result)
+    ) as cur:
+        yield (models.LineItem.from_row(row) for row in cur)
+
+
+_SUM_LINES_BELOW_VAT_RATE: Final = sqlalchemy.text("""SELECT invoice_id, sum(round(quantity * unit_price, 2)) FILTER (WHERE vat_rate < :vat_rate)\\:\\:numeric(12, 2) AS subtotal
+FROM line_items
+GROUP BY invoice_id
+ORDER BY invoice_id""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class SumLinesBelowVatRateRow:
+    invoice_id: UUID
+    subtotal: Decimal | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "SumLinesBelowVatRateRow":
+        return cls(invoice_id=row[0], subtotal=row[1])
+
+
+def sum_lines_below_vat_rate(
+    connection: sqlalchemy.Connection, *, vat_rate: Decimal
+) -> list[SumLinesBelowVatRateRow]:
+    """The subtotal of each invoice's lines below a VAT rate: an aggregate is
+    NULL of a group whose rows its FILTER keeps none of, though sqlc reports
+    its cast NOT NULL.
+    """
+    return [
+        SumLinesBelowVatRateRow.from_row(row)
+        for row in connection.execute(_SUM_LINES_BELOW_VAT_RATE, {"vat_rate": vat_rate})
+    ]
+
+
+@contextlib.contextmanager
+def stream_sum_lines_below_vat_rate(
+    connection: sqlalchemy.Connection, *, vat_rate: Decimal
+) -> Generator[Iterator[SumLinesBelowVatRateRow], None, None]:
+    """The subtotal of each invoice's lines below a VAT rate: an aggregate is
+    NULL of a group whose rows its FILTER keeps none of, though sqlc reports
+    its cast NOT NULL.
+    """
+    with connection.execute(
+        _SUM_LINES_BELOW_VAT_RATE,
+        {"vat_rate": vat_rate},
+        execution_options={"stream_results": True},
+    ) as cur:
+        yield (SumLinesBelowVatRateRow.from_row(row) for row in cur)

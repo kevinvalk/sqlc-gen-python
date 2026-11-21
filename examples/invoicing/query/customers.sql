@@ -21,9 +21,10 @@ SELECT * FROM customers WHERE name = $1;
 -- name: GetCustomerIdByEmail :one
 SELECT id FROM customers WHERE email = $1;
 
--- PostgreSQL names this column `coalesce`, and sqlc `accepted_methods`.
+-- PostgreSQL names this column `coalesce`, and sqlc nothing. It is cast, as
+-- sqlc types a coalesce as its first argument whatever the others are.
 -- name: GetAcceptedMethods :one
-SELECT coalesce(accepted_methods, '{}') FROM customers WHERE id = $1;
+SELECT coalesce(accepted_methods, '{}')::billing.payment_method[] FROM customers WHERE id = $1;
 
 -- Two columns of one name, as when merging two customers.
 -- name: CompareAcceptedMethods :one

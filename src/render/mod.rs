@@ -16,7 +16,7 @@ use crate::python::vocabulary::{
 };
 use crate::python::{
     self, Expression, Function, Scope, ann_assign, annotate, assign, class, docstring, forward, int, keyword, name,
-    parameter, receiver, return_, string, true_,
+    parameter, receiver, return_, string, true_, tuple,
 };
 
 pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File> {
@@ -51,8 +51,8 @@ pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File
 }
 
 /// We prepend the header as text, as ruff's AST has nowhere to put a `#` comment. sqlc's version makes a regenerated
-/// file's diff explain itself. The plugin's own is the tag in the user's `sqlc.yaml`, as in sqlc's own plugins, so a new
-/// release does not rewrite every file.
+/// file's diff explain itself. The plugin's own is the tag in the user's `sqlc.yaml`, as in sqlc's own plugins, so a
+/// new release does not rewrite every file.
 ///
 /// IMPORTANT: sqlc's version is the only text of the request we write outside the tree, and anything but one printable
 /// word could end the comment and be code. So we leave anything else out, as we do an unknown version.
@@ -102,8 +102,8 @@ impl Attribute {
 }
 
 /// A record is frozen so rows are values, rejects a misspelt attribute (a dataclass by its slots, a pydantic model by
-/// forbidding extra fields), and is keyword-only so construction cannot depend on column order. A record of results builds itself from a driver's row by position, so duplicate
-/// column names cannot confuse it.
+/// forbidding extra fields), and is keyword-only so construction cannot depend on column order. A record of results
+/// builds itself from a driver's row by position, so duplicate column names cannot confuse it.
 fn record(class_name: &str, comment: &str, attributes: &[Attribute], records: Records) -> ast::Stmt {
     let fields = (attributes.iter()).flat_map(|attribute| {
         let declaration = match &attribute.default {
@@ -125,12 +125,15 @@ fn record(class_name: &str, comment: &str, attributes: &[Attribute], records: Re
         .into()
     });
     // A misspelt field of a `**` dict is an error to pydantic, as it is to a dataclass, and an override's type or a
-    // library's (a psycopg `Range`) is checked as an instance of its class.
+    // library's (a psycopg `Range`) is checked as an instance of its class. We protect no namespace, as pydantic warns
+    // of a field that only starts as one of its methods (`model_dump_at`), and a field is never named as one
+    // (`PYDANTIC_MODEL` in `api/names.rs`).
     let config = (records == Records::Pydantic).then(|| {
         let options = [
             keyword("frozen", true_()),
             keyword("extra", string("forbid")),
             keyword("arbitrary_types_allowed", true_()),
+            keyword("protected_namespaces", tuple(vec![])),
         ];
         assign(MODEL_CONFIG, PYDANTIC.attr("ConfigDict").call_with([], options))
     });

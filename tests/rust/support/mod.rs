@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 
 use ruff_python_ast::Stmt;
 use ruff_python_parser::parse_module;
-use sqlc_gen_python::config::{Config, Records, UnknownType};
+use sqlc_gen_python::config::{Config, UnknownType};
 use sqlc_gen_python::plugin;
 
 pub use fixtures::{Case, case, cases, export, gen_dir, generated_files, read_json, root};
@@ -19,14 +19,13 @@ use models::models_follow_catalog;
 use module::{module_problems, prelude};
 use queries::{queries_follow_sqlc, stem};
 
-/// Every invariant that what `request` generated breaks, as `endtoend.rs` lists them.
+/// Every invariant that what `request` generated breaks, each said where it is checked.
 pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -> Vec<String> {
-    let config = Config::from_request(request).ok();
-    let request = &renamed(request, config.as_ref());
+    let config = &Config::from_request(request).expect("options generate accepted");
+    let request = &renamed(request, config);
     let mut problems = Vec::new();
-    let models_module = config.as_ref().and_then(|config| config.models.module.as_deref());
-    let models_only = config.as_ref().is_some_and(|config| config.models.only);
-    let stems: BTreeSet<String> = match models_only {
+    let models_module = config.models.module.as_deref();
+    let stems: BTreeSet<String> = match config.models.only {
         true => BTreeSet::new(),
         false => (request.queries.iter()).map(|query| stem(&query.filename)).collect(),
     };
@@ -67,12 +66,9 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
     };
     // The annotation the user asked for every type we cannot verify is no imprecision of ours, and wherever such a type
     // is read or returned it stands in it (`list[Any]`, `Any | None`); the other profiles hold the same requests strictly
-    let accepts_any = config
-        .as_ref()
-        .is_some_and(|config| config.unknown_type == Some(UnknownType::Any));
-    let records = config.as_ref().map_or(Records::Dataclass, |config| config.records);
+    let accepts_any = config.unknown_type == Some(UnknownType::Any);
     for (name, source, parsed) in &modules {
-        let found = module_problems(parsed, source, accepts_any, records);
+        let found = module_problems(parsed, source, accepts_any, config.records);
         problems.extend(found.into_iter().map(|p| format!("{name}: {p}")));
     }
 
@@ -81,12 +77,12 @@ pub fn check_output(request: &plugin::GenerateRequest, files: &[plugin::File]) -
         if let Some((module, source)) = body(&file) {
             let mut found = Vec::new();
             let prelude = prelude(module, source);
-            queries_follow_sqlc((request, config.as_ref()), &stem, (module, prelude), models, &mut found);
+            queries_follow_sqlc((request, config), &stem, (module, prelude), models, &mut found);
             problems.extend(found.into_iter().map(|p| format!("{file}: {p}")));
         }
     }
     if models_module.is_none() {
-        models_follow_catalog((request, config.as_ref()), models, &mut problems);
+        models_follow_catalog((request, config), models, &mut problems);
     }
     problems
 }
@@ -108,11 +104,8 @@ fn shared_models(request: &plugin::GenerateRequest) -> String {
 
 /// We hold the naming checks to the names after the options' `rename`, so each renamed column and parameter takes its
 /// new name here and keeps its SQL name as `original_name`.
-fn renamed(request: &plugin::GenerateRequest, config: Option<&Config>) -> plugin::GenerateRequest {
+fn renamed(request: &plugin::GenerateRequest, config: &Config) -> plugin::GenerateRequest {
     let mut request = request.clone();
-    let Some(config) = config else {
-        return request;
-    };
     let rename = |column: &mut plugin::Column| {
         if let Some(name) = config.rename.get(&column.name) {
             if column.original_name.is_empty() {

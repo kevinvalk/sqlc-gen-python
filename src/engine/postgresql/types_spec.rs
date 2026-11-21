@@ -110,6 +110,24 @@ fn sqls_standard_names_are_guesses() {
     ] {
         assert!(is_guess(guess), "{guess:?}");
     }
+    // So only an override writes one for the type it is the standard's name of
+    for (standard, typname) in [
+        ("int", "int4"),
+        ("smallint", "int2"),
+        ("bigint", "int8"),
+        ("real", "float4"),
+        ("double precision", "float8"),
+        ("boolean", "bool"),
+        ("character", "bpchar"),
+        ("character varying", "varchar"),
+        ("time with time zone", "timetz"),
+        ("time without time zone", "time"),
+        ("timestamp with time zone", "timestamptz"),
+        ("timestamp without time zone", "timestamp"),
+    ] {
+        assert!(is_guess(standard), "{standard}");
+        assert_eq!(type_name(standard), typname);
+    }
     for declared in [
         "pg_catalog.int8",
         "pg_catalog.numeric",

@@ -59,7 +59,7 @@ class SchemaRejectedError(Exception):
 @contextmanager
 def database(server: sqlalchemy.URL, schema: str) -> Iterator[sqlalchemy.URL]:
     """Yield the URL of a fresh database holding ``schema``, dropped afterwards."""
-    name = f"sqlcdx_{secrets.token_hex(6)}"
+    name = f"sqlc_gen_python_{secrets.token_hex(6)}"
     with psycopg.connect(conninfo(server), autocommit=True) as admin:
         admin.execute(f"CREATE DATABASE {name}")
 

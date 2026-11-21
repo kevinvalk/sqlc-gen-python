@@ -7,8 +7,8 @@ use crate::python::Type;
 #[path = "types_spec.rs"]
 mod spec;
 
-/// What psycopg (sync and async) and asyncpg were seen to return, as a scalar and (outside [`NO_ARRAYS`]) as an array,
-/// keyed by PostgreSQL's own name (`pg_type.typname`). A type nobody has probed does not belong here.
+/// What psycopg (sync and async) and asyncpg were seen to return, as a scalar and (but for [`array_problem`]) as an
+/// array, keyed by PostgreSQL's own name (`pg_type.typname`). A type nobody has probed does not belong here.
 /// `examples/pgtypes` has a column and an array column of each, so the runtime proof holds every entry to what the
 /// drivers return.
 const TYPES: &[(&str, Type)] = &[
@@ -55,17 +55,9 @@ const TYPES: &[(&str, Type)] = &[
     ("cidr", Type::CIDR),
 ];
 
-/// Types whose arrays the drivers do not all load as a list of the type, and what one of them does instead.
+/// Types beside [`EXTENSIONS`] whose arrays the drivers do not all load as a list of the type, and what one of them
+/// does instead.
 const NO_ARRAYS: &[(&str, &str)] = &[
-    // An extension's type has a different OID in every database, so psycopg has no loader for an array of one
-    ("citext", "psycopg, and SQLAlchemy on it, returns as text, not a list"),
-    ("hstore", "psycopg, and SQLAlchemy on it, returns as text, not a list"),
-    ("ltree", "psycopg, and SQLAlchemy on it, returns as text, not a list"),
-    ("lquery", "psycopg, and SQLAlchemy on it, returns as text, not a list"),
-    (
-        "ltxtquery",
-        "psycopg, and SQLAlchemy on it, returns as text, not a list",
-    ),
     ("regclass", "nobody has probed"),
     ("tsvector", "asyncpg decodes with a corrupt item when one is empty"),
 ];
@@ -84,9 +76,9 @@ pub fn scalar_type(data_type: &str) -> Option<Type> {
         .map(|(_, python)| python.clone())
 }
 
-/// Of [`NO_ARRAYS`], those every driver binds a list of `str` to, as a parameter, which no driver then reads back. An
-/// extension's array is a filter's (`= ANY(@emails::citext[])`, `tree ? @patterns::lquery[]`) more often than a
-/// column's. `examples/pgtypes` has a query of each, which the runtime sweep calls.
+/// Of [`EXTENSIONS`] and [`NO_ARRAYS`], those every driver binds a list of `str` to, as a parameter, which no driver
+/// then reads back. An extension's array is a filter's (`= ANY(@emails::citext[])`, `tree ? @patterns::lquery[]`) more
+/// often than a column's. `examples/pgtypes` has a query of each, which the runtime sweep calls.
 const BOUND_AS_LISTS: &[&str] = &["citext", "lquery", "ltree", "tsvector"];
 
 /// What a driver does with an array of `data_type`, if that is not a list.
@@ -94,6 +86,10 @@ pub fn array_problem(data_type: &str, is_parameter: bool) -> Option<&'static str
     let name = type_name(data_type);
     if is_parameter && BOUND_AS_LISTS.contains(&name.as_str()) {
         return None;
+    }
+    // An extension's type has a different OID in every database, so psycopg has no loader for an array of one
+    if EXTENSIONS.contains(&name.as_str()) {
+        return Some("psycopg, and SQLAlchemy on it, returns as text, not a list");
     }
     (NO_ARRAYS.iter())
         .find(|(known, _)| *known == name)
@@ -137,7 +133,8 @@ const EXTENSIONS: &[&str] = &["citext", "hstore", "lquery", "ltree", "ltxtquery"
 
 /// PostgreSQL's own name for a type sqlc read ([`is_guess`] is false). sqlc reports one bare or `pg_catalog`-qualified,
 /// and by more than one name (a serial pseudo-type, a `LIMIT`'s `integer`), depending on how the column was declared
-/// and how sqlc analysed it.
+/// and how sqlc analysed it. An override names a type by any of those, or by SQL's standard name as the schema spells
+/// it (`bigint`), which from sqlc is a guess and so never read here.
 ///
 /// IMPORTANT: A type qualified by any other schema is never PostgreSQL's own, but a domain or an extension's, and sqlc
 /// reports a domain by its name alone (`archive.money` may be a `numeric`). So we keep that schema, and drop it only
@@ -149,9 +146,18 @@ pub fn type_name(data_type: &str) -> String {
         _ => data_type,
     };
     match name {
-        "smallserial" | "serial2" => "int2",
-        "integer" | "serial" | "serial4" => "int4",
-        "bigserial" | "serial8" => "int8",
+        "smallint" | "smallserial" | "serial2" => "int2",
+        "int" | "integer" | "serial" | "serial4" => "int4",
+        "bigint" | "bigserial" | "serial8" => "int8",
+        "real" => "float4",
+        "double precision" => "float8",
+        "boolean" => "bool",
+        "character" => "bpchar",
+        "character varying" => "varchar",
+        "time without time zone" => "time",
+        "time with time zone" => "timetz",
+        "timestamp without time zone" => "timestamp",
+        "timestamp with time zone" => "timestamptz",
         name => name,
     }
     .to_string()

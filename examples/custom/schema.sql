@@ -18,3 +18,10 @@ CREATE TABLE devices (
   budget positive_amount NOT NULL,
   sign_in sign_in NOT NULL DEFAULT 'token'
 );
+
+-- Settings a device can be given. A JSON column takes any document, a list or
+-- a `null` too, so the CHECK is what makes the type its override names true.
+CREATE TABLE presets (
+  id bigserial PRIMARY KEY,
+  settings jsonb NOT NULL CHECK (jsonb_typeof(settings) = 'object')
+);

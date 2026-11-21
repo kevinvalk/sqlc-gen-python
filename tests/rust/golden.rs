@@ -22,11 +22,12 @@ fn every_case_matches_its_expected_output() {
         if let Some(diff) = diff(&case.directory(), &generate_case(&case)) {
             let example = case.example.file_name().unwrap().to_string_lossy();
             diffs.push(format!("examples/{example}/{}: {diff}", case.name));
-            changed.push(case.name);
+            changed.push(format!("{example}/{}", case.name));
         }
     }
 
-    // `cargo xtask bless` rewrites exactly the cases we list here, once the generated Python passes the static gate.
+    // `cargo xtask bless` rewrites exactly the cases we list here (`<example>/<case>`), once the generated Python
+    // passes the static gate.
     if let Some(directory) = support::gen_dir() {
         fs::create_dir_all(&directory).unwrap();
         fs::write(directory.join("changed"), changed.join("\n")).unwrap();
@@ -95,4 +96,13 @@ fn the_gate_formats_with_the_ruff_the_plugin_renders_with() {
         .find_map(|requirement| requirement.as_str()?.strip_prefix("ruff=="))
         .expect("tests/python/pyproject.toml pins ruff");
     assert_eq!(tags, [pin].into(), "Cargo.toml's ruff crates and the gate's ruff");
+}
+
+/// Every tool of the gate reads the oldest Python from `requires-python`, and the plugin sorts imports for it.
+#[test]
+fn the_plugin_sorts_imports_for_the_python_the_gate_checks() {
+    let pyproject: toml::Table =
+        toml::from_str(&fs::read_to_string(support::root().join("tests/python/pyproject.toml")).unwrap()).unwrap();
+    let requires = pyproject["project"]["requires-python"].as_str().unwrap();
+    assert_eq!(requires, format!(">=3.{}", sqlc_gen_python::python::OLDEST_MINOR));
 }

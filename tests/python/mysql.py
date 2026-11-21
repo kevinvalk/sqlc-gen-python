@@ -80,7 +80,7 @@ def connect_async(url: sqlalchemy.URL, **options: Any) -> Awaitable[asyncmy.Conn
 @contextmanager
 def database(server: sqlalchemy.URL, schema: str) -> Iterator[sqlalchemy.URL]:
     """Yield the URL of a fresh database holding ``schema``, dropped afterwards."""
-    name = f"sqlcdx_{secrets.token_hex(6)}"
+    name = f"sqlc_gen_python_{secrets.token_hex(6)}"
     admin = connect(server)
     try:
         with admin.cursor() as cursor:

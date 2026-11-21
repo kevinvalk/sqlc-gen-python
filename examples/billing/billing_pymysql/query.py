@@ -246,6 +246,46 @@ def stream_list_customers_known_as(
         yield (row[0] for row in cur)
 
 
+_FILTER_CUSTOMERS: Final = """SELECT id FROM customers
+WHERE (%s IS NULL OR name = %s)
+  AND (vip = %s OR %s IS NULL)
+  AND (%s IS NULL OR preferred_method = %s)
+ORDER BY id"""
+
+
+def filter_customers(
+    connection: _Connection,
+    *,
+    name: str | None = None,
+    vip: bool | None = None,
+    preferred_method: models.CustomersPreferredMethod | None = None,
+) -> list[int]:
+    """The customers every filter given matches, so all of them for none. Either use of a filter may come first."""
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
+        cur.execute(
+            _FILTER_CUSTOMERS,
+            (name, name, vip, vip, preferred_method, preferred_method),
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_filter_customers(
+    connection: _Connection,
+    *,
+    name: str | None = None,
+    vip: bool | None = None,
+    preferred_method: models.CustomersPreferredMethod | None = None,
+) -> Generator[Iterator[int], None, None]:
+    """The customers every filter given matches, so all of them for none. Either use of a filter may come first."""
+    with connection.cursor(pymysql.cursors.SSCursor) as cur:
+        cur.execute(
+            _FILTER_CUSTOMERS,
+            (name, name, vip, vip, preferred_method, preferred_method),
+        )
+        yield (row[0] for row in cur)
+
+
 _CREATE_INVOICE: Final = """INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (%s, %s, %s, %s, %s, %s)"""
 

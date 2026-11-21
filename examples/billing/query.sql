@@ -35,6 +35,14 @@ SELECT id FROM customers
 WHERE vip = sqlc.arg(vip) AND (name IN (sqlc.slice(names)) OR email IN (sqlc.slice(names)))
 ORDER BY id;
 
+-- name: FilterCustomers :many
+-- The customers every filter given matches, so all of them for none. Either use of a filter may come first.
+SELECT id FROM customers
+WHERE (sqlc.narg(name) IS NULL OR name = sqlc.narg(name))
+  AND (vip = sqlc.narg(vip) OR sqlc.narg(vip) IS NULL)
+  AND (sqlc.narg(preferred_method) IS NULL OR preferred_method = sqlc.narg(preferred_method))
+ORDER BY id;
+
 -- name: CreateInvoice :execlastid
 INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (?, ?, ?, ?, ?, ?);

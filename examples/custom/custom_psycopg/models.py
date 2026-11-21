@@ -40,3 +40,13 @@ class Machine:
             budget=row[3],
             sign_in=SignIn(row[4]),
         )
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class Preset:
+    id: int
+    settings: dict[str, object]
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "Preset":
+        return cls(id=row[0], settings=row[1])

@@ -113,8 +113,8 @@ async def list_accounts(connection: AsyncConnection) -> list[models.Account]:
 async def stream_list_accounts(
     connection: AsyncConnection,
 ) -> AsyncGenerator[AsyncIterator[models.Account], None]:
-    async with connection.stream(_LIST_ACCOUNTS) as result:
-        yield (models.Account.from_row(row) async for row in result)
+    async with connection.stream(_LIST_ACCOUNTS) as cur:
+        yield (models.Account.from_row(row) async for row in cur)
 
 
 _LIST_ACCOUNTS_BY_IDS: Final = sqlalchemy.text(
@@ -135,8 +135,8 @@ async def list_accounts_by_ids(
 async def stream_list_accounts_by_ids(
     connection: AsyncConnection, *, ids: list[int]
 ) -> AsyncGenerator[AsyncIterator[models.Account], None]:
-    async with connection.stream(_LIST_ACCOUNTS_BY_IDS, {"ids": ids}) as result:
-        yield (models.Account.from_row(row) async for row in result)
+    async with connection.stream(_LIST_ACCOUNTS_BY_IDS, {"ids": ids}) as cur:
+        yield (models.Account.from_row(row) async for row in cur)
 
 
 _LIST_ACCOUNTS_EXCEPT: Final = sqlalchemy.text(
@@ -159,8 +159,8 @@ async def stream_list_accounts_except(
     connection: AsyncConnection, *, ids: list[int]
 ) -> AsyncGenerator[AsyncIterator[models.Account], None]:
     """Every account but those among the ids, so every account for none."""
-    async with connection.stream(_LIST_ACCOUNTS_EXCEPT, {"ids": ids}) as result:
-        yield (models.Account.from_row(row) async for row in result)
+    async with connection.stream(_LIST_ACCOUNTS_EXCEPT, {"ids": ids}) as cur:
+        yield (models.Account.from_row(row) async for row in cur)
 
 
 _BOOK: Final = sqlalchemy.text("""INSERT INTO entries (account_id, amount_cents, rate, memo, receipt)
@@ -299,8 +299,8 @@ async def stream_list_amounts(
     """The account's amounts, each beside how many there are: a count over a
     window.
     """
-    async with connection.stream(_LIST_AMOUNTS, {"account_id": account_id}) as result:
-        yield (ListAmountsRow.from_row(row) async for row in result)
+    async with connection.stream(_LIST_AMOUNTS, {"account_id": account_id}) as cur:
+        yield (ListAmountsRow.from_row(row) async for row in cur)
 
 
 _LIST_SHARES: Final = sqlalchemy.text("""SELECT accounts.name, entries.amount_cents, ledger.total_cents
@@ -341,8 +341,8 @@ async def stream_list_shares(
     entries has no amount, though sqlc reports it NOT NULL once a JOIN follows
     the LEFT JOIN.
     """
-    async with connection.stream(_LIST_SHARES) as result:
-        yield (ListSharesRow.from_row(row) async for row in result)
+    async with connection.stream(_LIST_SHARES) as cur:
+        yield (ListSharesRow.from_row(row) async for row in cur)
 
 
 _LIST_ENTRIES: Final = sqlalchemy.text(
@@ -363,8 +363,8 @@ async def list_entries(
 async def stream_list_entries(
     connection: AsyncConnection, *, account_id: int
 ) -> AsyncGenerator[AsyncIterator[models.Entry], None]:
-    async with connection.stream(_LIST_ENTRIES, {"account_id": account_id}) as result:
-        yield (models.Entry.from_row(row) async for row in result)
+    async with connection.stream(_LIST_ENTRIES, {"account_id": account_id}) as cur:
+        yield (models.Entry.from_row(row) async for row in cur)
 
 
 _LIST_ENTRY_IDS: Final = sqlalchemy.text("""SELECT id FROM entries
@@ -392,8 +392,8 @@ async def stream_list_entry_ids(
     """The entries of the account among the ids: a slice, then a numbered parameter."""
     async with connection.stream(
         _LIST_ENTRY_IDS, {"ids": ids, "account_id": account_id}
-    ) as result:
-        yield (row[0] async for row in result)
+    ) as cur:
+        yield (row[0] async for row in cur)
 
 
 _LIST_MEMOS: Final = sqlalchemy.text("""SELECT memo FROM entries
@@ -421,8 +421,8 @@ async def stream_list_memos(
     """Entries with a memo matching the pattern, in the account or every account."""
     async with connection.stream(
         _LIST_MEMOS, {"pattern": pattern, "account_id": account_id}
-    ) as result:
-        yield (row[0] async for row in result)
+    ) as cur:
+        yield (row[0] async for row in cur)
 
 
 _LIST_ENTRIES_WITH_ACCOUNT: Final = sqlalchemy.text("""SELECT entries.id, entries.account_id, entries.amount_cents, entries.rate, entries.memo, entries.receipt, entries.booked_at, accounts.id, accounts.name, accounts.archived, accounts.opened_on, accounts.settings
@@ -456,8 +456,8 @@ async def list_entries_with_account(
 async def stream_list_entries_with_account(
     connection: AsyncConnection,
 ) -> AsyncGenerator[AsyncIterator[ListEntriesWithAccountRow], None]:
-    async with connection.stream(_LIST_ENTRIES_WITH_ACCOUNT) as result:
-        yield (ListEntriesWithAccountRow.from_row(row) async for row in result)
+    async with connection.stream(_LIST_ENTRIES_WITH_ACCOUNT) as cur:
+        yield (ListEntriesWithAccountRow.from_row(row) async for row in cur)
 
 
 _LIST_ACCOUNTS_WITH_ENTRIES: Final = sqlalchemy.text("""SELECT accounts.id, accounts.name, accounts.archived, accounts.opened_on, accounts.settings, entries.id, entries.account_id, entries.amount_cents, entries.rate, entries.memo, entries.receipt, entries.booked_at
@@ -493,8 +493,8 @@ async def stream_list_accounts_with_entries(
     connection: AsyncConnection,
 ) -> AsyncGenerator[AsyncIterator[ListAccountsWithEntriesRow], None]:
     """Each account with each of its entries: one without any once, its entry None."""
-    async with connection.stream(_LIST_ACCOUNTS_WITH_ENTRIES) as result:
-        yield (ListAccountsWithEntriesRow.from_row(row) async for row in result)
+    async with connection.stream(_LIST_ACCOUNTS_WITH_ENTRIES) as cur:
+        yield (ListAccountsWithEntriesRow.from_row(row) async for row in cur)
 
 
 _GET_LAST_AMOUNT: Final = sqlalchemy.text("""SELECT name, (
@@ -550,5 +550,5 @@ async def stream_countdown(
     """Reads malformed JSON at its 5000th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
-    async with connection.stream(_COUNTDOWN) as result:
-        yield (row[0] async for row in result)
+    async with connection.stream(_COUNTDOWN) as cur:
+        yield (row[0] async for row in cur)

@@ -182,6 +182,30 @@ fn a_copyfrom_copies_only_a_statement_that_binds_each_parameter_once() {
 }
 
 #[test]
+fn a_copyfrom_copies_no_statement_that_discards_the_values_of_identity_columns() {
+    let copy = |overriding: &str| {
+        let text = format!("INSERT INTO authors (id, name) {overriding} VALUES ($1, $2)");
+        resolve(plugin::Query {
+            insert_into_table: Some(plugin::Identifier {
+                name: "authors".into(),
+                ..Default::default()
+            }),
+            params: vec![
+                param(1, column("id", "pg_catalog.int8", true)),
+                param(2, column("name", "text", true)),
+            ],
+            ..query(":copyfrom", &text)
+        })
+    };
+    // `COPY` stores the id it is given, where this statement takes the sequence's
+    assert_eq!(copy("OVERRIDING USER VALUE").copy_into, None);
+    assert_eq!(copy("overriding /* c */ user\nvalue").copy_into, None);
+    // As `COPY` does by itself
+    assert!(copy("OVERRIDING SYSTEM VALUE").copy_into.is_some());
+    assert!(copy("").copy_into.is_some());
+}
+
+#[test]
 fn a_query_is_a_snake_case_function_a_private_constant_and_perhaps_a_class() {
     let query = resolve(query(":exec", "SELECT 1"));
     assert_eq!(
@@ -213,6 +237,29 @@ fn a_function_named_like_a_keyword_reserved_name_or_builtin_takes_a_trailing_und
         });
         assert_eq!(query.function, function);
     }
+}
+
+#[test]
+fn a_function_keeps_the_name_of_a_local_of_its_body() {
+    for name in ["Row", "Value", "Cur", "Connection"] {
+        let query = resolve(plugin::Query {
+            name: name.into(),
+            ..query(":exec", "SELECT 1")
+        });
+        assert_eq!(query.function, name.to_lowercase());
+    }
+}
+
+#[test]
+fn a_query_whose_name_becomes_no_public_python_name_is_an_error() {
+    let error = error(plugin::Query {
+        name: "Größe".into(),
+        ..query(":exec", "SELECT 1")
+    });
+    assert!(
+        error.contains(r#""Größe" does not become a usable Python name; name the query otherwise"#),
+        "{error}"
+    );
 }
 
 #[test]
@@ -283,6 +330,40 @@ fn a_mysql_copyfrom_has_no_percent_sign() {
         "{error}"
     );
     copy("INSERT INTO authors (name) VALUES (?)").unwrap();
+}
+
+#[test]
+fn a_mysql_copyfrom_binds_nothing_after_on_duplicate_key_update() {
+    // The drivers' `executemany` formats the VALUES list alone, and raises a TypeError for a third value.
+    let copy = |text: &str, count: i32| {
+        on(
+            "mysql",
+            plugin::Query {
+                params: (1..=count).map(|n| named(n, "qty", "int", true)).collect(),
+                ..query(":copyfrom", text)
+            },
+        )
+    };
+    for text in [
+        "INSERT INTO items (sku, qty) VALUES (?, ?) ON DUPLICATE KEY UPDATE qty = qty + ?",
+        // An executable comment does not hide the clause from the driver
+        "INSERT /*! IGNORE */ INTO items (sku, qty) VALUES (?, ?) ON DUPLICATE KEY UPDATE qty = qty + ?",
+    ] {
+        let error = error_of(copy(text, 3));
+        assert!(
+            error.ends_with(
+                ":copyfrom binds a parameter after ON DUPLICATE KEY UPDATE, where a MySQL driver's \
+                 executemany formats none and raises; write the row's own value as VALUES(column), \
+                 or use :exec, once per row"
+            ),
+            "{text}: {error}"
+        );
+    }
+    copy(
+        "INSERT INTO items (sku, qty) VALUES (?, ?) ON DUPLICATE KEY UPDATE qty = qty + VALUES(qty)",
+        2,
+    )
+    .unwrap();
 }
 
 #[test]
@@ -397,13 +478,17 @@ fn a_bare_integer_is_a_type_sqlc_read_only_of_a_parameter_without_a_column() {
 fn a_not_null_column_read_from_a_nullable_one_is_a_coalesce_that_needs_a_cast() {
     // sqlc reports `coalesce(bio, 1.5)` as `bio` itself, NOT NULL: its first
     // argument's table, name and type, which PostgreSQL may well not return.
+    // Read from a subquery, that report is all that shows it.
     let coalesced = plugin::Column {
         original_name: "bio".into(),
         ..of_authors(column("v", "text", true))
     };
     let error = error(plugin::Query {
         columns: vec![coalesced.clone()],
-        ..query(":one", "SELECT coalesce(bio, 1.5) AS v FROM authors")
+        ..query(
+            ":one",
+            "SELECT bio AS v FROM (SELECT coalesce(bio, 1.5) AS bio FROM authors) a",
+        )
     });
     assert!(
         error.contains(r#"column "v" has a type sqlc could not infer; add a cast, as coalesce("#),
@@ -425,6 +510,89 @@ fn a_not_null_column_read_from_a_nullable_one_is_a_coalesce_that_needs_a_cast() 
             ..query(":one", "SELECT 1")
         });
     }
+}
+
+#[test]
+fn a_coalesce_a_nullif_or_a_case_alone_needs_a_cast_whatever_sqlc_reports() {
+    // sqlc reports `nullif(name, '')` as a NOT NULL `bool`, `coalesce(bio, name)` as `bio` itself, and a `CASE` as
+    // its `ELSE`: types as sure as a column's own, which the driver does not return.
+    let bio = plugin::Column {
+        original_name: "bio".into(),
+        ..of_authors(column("v", "text", false))
+    };
+    for (sql, column) in [
+        ("SELECT nullif(name, '') AS v FROM authors", column("v", "bool", true)),
+        ("SELECT coalesce(bio, name) AS v FROM authors", bio.clone()),
+        ("SELECT (coalesce(bio, name)) AS v FROM authors", bio),
+        (
+            "SELECT CASE WHEN id > 1 THEN born ELSE '2020-01-01' END AS v FROM authors",
+            column("v", "text", true),
+        ),
+    ] {
+        let error = error(plugin::Query {
+            columns: vec![column.clone()],
+            ..query(":one", sql)
+        });
+        assert!(
+            error.contains(
+                r#"column "v" is a coalesce, a nullif or a CASE, which sqlc types by one operand whatever the others are; add a cast, as <expr>::<type>, or coalesce("#
+            ) && error.contains("also set analyzer: {database: false}"),
+            "{error}"
+        );
+    }
+    // A cast names the type, so sqlc's report of it stands.
+    for sql in [
+        "SELECT nullif(name, '')::text AS v FROM authors",
+        "SELECT CAST(coalesce(bio, name) AS text) AS v FROM authors",
+        "SELECT (CASE WHEN id > 1 THEN 'a' ELSE 'b' END)::text AS v FROM authors",
+    ] {
+        resolve(plugin::Query {
+            columns: vec![column("v", "text", true)],
+            ..query(":one", sql)
+        });
+    }
+}
+
+#[test]
+fn a_list_we_cannot_read_is_an_error_where_the_statement_holds_a_coalesce_a_nullif_or_a_case() {
+    // SQLite and MySQL take `offset` as a column's name, where we take it as the end of the list. sqlc reports the
+    // `coalesce` as `bio` itself and the `nullif` as a NOT NULL `bool`, and nothing tells which column either is.
+    let offset = of_authors(column("offset", "text", true));
+    let bio = plugin::Column {
+        original_name: "bio".into(),
+        ..of_authors(column("v", "text", true))
+    };
+    for (sql, column) in [
+        ("SELECT coalesce(bio, 1.5) AS v, offset FROM authors", bio),
+        (
+            "SELECT nullif(name, '') AS v, offset FROM authors",
+            column("v", "bool", true),
+        ),
+        (
+            "SELECT CASE WHEN id > 1 THEN bio ELSE 'x' END AS v, offset FROM authors",
+            column("v", "text", true),
+        ),
+    ] {
+        let error = error(plugin::Query {
+            columns: vec![column, offset.clone()],
+            ..query(":one", sql)
+        });
+        assert!(
+            error.contains(
+                "has a result list we could not read, so its coalesce, nullif or CASE, which sqlc types by one \
+                 operand whatever the others are, may be any of its columns; if a column is named as a keyword, as \
+                 \"offset\", quote it"
+            ),
+            "{error}"
+        );
+    }
+    // Without one of them every column is as sqlc reports it, and may be NULL.
+    let name = of_authors(column("name", "text", true));
+    let unread = resolve(plugin::Query {
+        columns: vec![name, offset],
+        ..query(":one", "SELECT name, offset FROM authors")
+    });
+    assert!(unread.columns.iter().all(|field| field.ty.optional));
 }
 
 #[test]

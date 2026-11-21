@@ -252,6 +252,46 @@ async def stream_list_customers_known_as(
         yield (row[0] async for row in _typed(cur))
 
 
+_FILTER_CUSTOMERS: Final = """SELECT id FROM customers
+WHERE (%s IS NULL OR name = %s)
+  AND (vip = %s OR %s IS NULL)
+  AND (%s IS NULL OR preferred_method = %s)
+ORDER BY id"""
+
+
+async def filter_customers(
+    connection: asyncmy.Connection,
+    *,
+    name: str | None = None,
+    vip: bool | None = None,
+    preferred_method: models.CustomersPreferredMethod | None = None,
+) -> list[int]:
+    """The customers every filter given matches, so all of them for none. Either use of a filter may come first."""
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
+        await _typed(cur).execute(
+            _FILTER_CUSTOMERS,
+            (name, name, vip, vip, preferred_method, preferred_method),
+        )
+        return [row[0] for row in await cur.fetchall()]
+
+
+@contextlib.asynccontextmanager
+async def stream_filter_customers(
+    connection: asyncmy.Connection,
+    *,
+    name: str | None = None,
+    vip: bool | None = None,
+    preferred_method: models.CustomersPreferredMethod | None = None,
+) -> AsyncGenerator[AsyncIterator[int], None]:
+    """The customers every filter given matches, so all of them for none. Either use of a filter may come first."""
+    async with connection.cursor(asyncmy.cursors.SSCursor) as cur:
+        await _typed(cur).execute(
+            _FILTER_CUSTOMERS,
+            (name, name, vip, vip, preferred_method, preferred_method),
+        )
+        yield (row[0] async for row in _typed(cur))
+
+
 _CREATE_INVOICE: Final = """INSERT INTO invoices (customer_id, number, issued_on, notes, attachment, pay_within)
 VALUES (%s, %s, %s, %s, %s, %s)"""
 

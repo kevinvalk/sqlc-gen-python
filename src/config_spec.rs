@@ -27,6 +27,7 @@ fn the_backend_and_async_must_be_named() {
         ("sqlalchemy", Backend::SqlAlchemy),
         ("psycopg", Backend::Psycopg),
         ("sqlite3", Backend::Sqlite3),
+        ("pymysql", Backend::Pymysql),
     ] {
         for asynchronous in [false, true] {
             let options = format!(r#"{{"backend": "{name}", "async": {asynchronous}}}"#);
@@ -35,6 +36,30 @@ fn the_backend_and_async_must_be_named() {
         }
     }
     assert!(parse(r#"{"backend": "psycopg2", "async": false}"#).is_err());
+}
+
+#[test]
+fn an_option_error_points_at_the_option_not_into_the_json_sqlc_sent() {
+    let error = format!(
+        "{:#}",
+        parse(r#"{"backend": "psycopg", "async": false, "max_params": "3"}"#).unwrap_err()
+    );
+    assert_eq!(
+        error,
+        r#"reading plugin options: invalid type: string "3", expected usize"#
+    );
+}
+
+#[test]
+fn an_override_names_exactly_one_of_a_type_and_a_column() {
+    for rule in [
+        r#"{"python_type": "str"}"#,
+        r#"{"db_type": "x", "column": "t.c", "python_type": "str"}"#,
+    ] {
+        let options = format!(r#"{{"backend": "sqlalchemy", "async": false, "overrides": [{rule}]}}"#);
+        let error = format!("{:#}", parse(&options).unwrap_err());
+        assert!(error.contains("exactly one of db_type and column"), "{rule}: {error}");
+    }
 }
 
 #[test]

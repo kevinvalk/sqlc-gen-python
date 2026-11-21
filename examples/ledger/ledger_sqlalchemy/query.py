@@ -109,8 +109,8 @@ def stream_list_accounts(
 ) -> Generator[Iterator[models.Account], None, None]:
     with connection.execute(
         _LIST_ACCOUNTS, execution_options={"stream_results": True}
-    ) as result:
-        yield (models.Account.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Account.from_row(row) for row in cur)
 
 
 _LIST_ACCOUNTS_BY_IDS: Final = sqlalchemy.text(
@@ -133,8 +133,8 @@ def stream_list_accounts_by_ids(
 ) -> Generator[Iterator[models.Account], None, None]:
     with connection.execute(
         _LIST_ACCOUNTS_BY_IDS, {"ids": ids}, execution_options={"stream_results": True}
-    ) as result:
-        yield (models.Account.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Account.from_row(row) for row in cur)
 
 
 _LIST_ACCOUNTS_EXCEPT: Final = sqlalchemy.text(
@@ -159,8 +159,8 @@ def stream_list_accounts_except(
     """Every account but those among the ids, so every account for none."""
     with connection.execute(
         _LIST_ACCOUNTS_EXCEPT, {"ids": ids}, execution_options={"stream_results": True}
-    ) as result:
-        yield (models.Account.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Account.from_row(row) for row in cur)
 
 
 _BOOK: Final = sqlalchemy.text("""INSERT INTO entries (account_id, amount_cents, rate, memo, receipt)
@@ -299,8 +299,8 @@ def stream_list_amounts(
         _LIST_AMOUNTS,
         {"account_id": account_id},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (ListAmountsRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListAmountsRow.from_row(row) for row in cur)
 
 
 _LIST_SHARES: Final = sqlalchemy.text("""SELECT accounts.name, entries.amount_cents, ledger.total_cents
@@ -341,8 +341,8 @@ def stream_list_shares(
     """
     with connection.execute(
         _LIST_SHARES, execution_options={"stream_results": True}
-    ) as result:
-        yield (ListSharesRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListSharesRow.from_row(row) for row in cur)
 
 
 _LIST_ENTRIES: Final = sqlalchemy.text(
@@ -367,8 +367,8 @@ def stream_list_entries(
         _LIST_ENTRIES,
         {"account_id": account_id},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (models.Entry.from_row(row) for row in result)
+    ) as cur:
+        yield (models.Entry.from_row(row) for row in cur)
 
 
 _LIST_ENTRY_IDS: Final = sqlalchemy.text("""SELECT id FROM entries
@@ -396,8 +396,8 @@ def stream_list_entry_ids(
         _LIST_ENTRY_IDS,
         {"ids": ids, "account_id": account_id},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (row[0] for row in result)
+    ) as cur:
+        yield (row[0] for row in cur)
 
 
 _LIST_MEMOS: Final = sqlalchemy.text("""SELECT memo FROM entries
@@ -425,8 +425,8 @@ def stream_list_memos(
         _LIST_MEMOS,
         {"pattern": pattern, "account_id": account_id},
         execution_options={"stream_results": True},
-    ) as result:
-        yield (row[0] for row in result)
+    ) as cur:
+        yield (row[0] for row in cur)
 
 
 _LIST_ENTRIES_WITH_ACCOUNT: Final = sqlalchemy.text("""SELECT entries.id, entries.account_id, entries.amount_cents, entries.rate, entries.memo, entries.receipt, entries.booked_at, accounts.id, accounts.name, accounts.archived, accounts.opened_on, accounts.settings
@@ -462,8 +462,8 @@ def stream_list_entries_with_account(
 ) -> Generator[Iterator[ListEntriesWithAccountRow], None, None]:
     with connection.execute(
         _LIST_ENTRIES_WITH_ACCOUNT, execution_options={"stream_results": True}
-    ) as result:
-        yield (ListEntriesWithAccountRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListEntriesWithAccountRow.from_row(row) for row in cur)
 
 
 _LIST_ACCOUNTS_WITH_ENTRIES: Final = sqlalchemy.text("""SELECT accounts.id, accounts.name, accounts.archived, accounts.opened_on, accounts.settings, entries.id, entries.account_id, entries.amount_cents, entries.rate, entries.memo, entries.receipt, entries.booked_at
@@ -501,8 +501,8 @@ def stream_list_accounts_with_entries(
     """Each account with each of its entries: one without any once, its entry None."""
     with connection.execute(
         _LIST_ACCOUNTS_WITH_ENTRIES, execution_options={"stream_results": True}
-    ) as result:
-        yield (ListAccountsWithEntriesRow.from_row(row) for row in result)
+    ) as cur:
+        yield (ListAccountsWithEntriesRow.from_row(row) for row in cur)
 
 
 _GET_LAST_AMOUNT: Final = sqlalchemy.text("""SELECT name, (
@@ -560,5 +560,5 @@ def stream_countdown(
     """
     with connection.execute(
         _COUNTDOWN, execution_options={"stream_results": True}
-    ) as result:
-        yield (row[0] for row in result)
+    ) as cur:
+        yield (row[0] for row in cur)

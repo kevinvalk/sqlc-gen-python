@@ -37,9 +37,9 @@ const CLASS_BODY: &[Symbol] = &[
 /// read. A field cannot, as a class body's names are not a method's.
 const FUNCTION_BODY: &[Symbol] = &[CONNECTION, CUR, LEN, ROW, VALUE];
 
-/// What a field of a `pydantic.BaseModel` must not hide: pydantic warns that it shadows the attribute, and a field named
-/// `model_config` would replace the configuration. A name starting with one of pydantic's protected prefixes
-/// ([`PYDANTIC_PREFIXES`]) warns too.
+/// What a field of a `pydantic.BaseModel` must not hide, which is every public attribute of one: pydantic warns that a
+/// field shadows the attribute, and a field named `model_config` would replace the configuration. A name that only
+/// starts as one (`model_dump_at`) hides nothing, so a record protects no namespace (`render::record`).
 const PYDANTIC_MODEL: &[&str] = &[
     "construct",
     "copy",
@@ -50,6 +50,8 @@ const PYDANTIC_MODEL: &[&str] = &[
     "model_config",
     "model_construct",
     "model_copy",
+    "model_dump",
+    "model_dump_json",
     "model_extra",
     "model_fields",
     "model_fields_set",
@@ -57,6 +59,9 @@ const PYDANTIC_MODEL: &[&str] = &[
     "model_parametrized_name",
     "model_post_init",
     "model_rebuild",
+    "model_validate",
+    "model_validate_json",
+    "model_validate_strings",
     "parse_file",
     "parse_obj",
     "parse_raw",
@@ -65,8 +70,6 @@ const PYDANTIC_MODEL: &[&str] = &[
     "update_forward_refs",
     "validate",
 ];
-
-const PYDANTIC_PREFIXES: &[&str] = &["model_dump", "model_validate"];
 
 /// Where a name is bound, which decides what it must not hide.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,8 +107,7 @@ pub fn names(spellings: &[&str], repeats: Repeats, binding: Binding, records: Re
                 _ => name,
             };
             let reads = |body: &[Symbol]| body.iter().any(|reserved| reserved.as_ref() == name);
-            let is_pydantic = records == Records::Pydantic
-                && (PYDANTIC_MODEL.contains(&name.as_str()) || PYDANTIC_PREFIXES.iter().any(|p| name.starts_with(p)));
+            let is_pydantic = records == Records::Pydantic && PYDANTIC_MODEL.contains(&name.as_str());
             let reserved = reads(CLASS_BODY)
                 || (binding == Binding::Parameter && reads(FUNCTION_BODY))
                 || is_pydantic
@@ -121,18 +123,22 @@ pub fn names(spellings: &[&str], repeats: Repeats, binding: Binding, records: Re
 }
 
 /// An enum's members, in order: the words of each label, as `spelling` spells it, in UPPER_SNAKE_CASE and split as
-/// snake_case splits them (`in shock`, `in-shock` and `inShock` are all `IN_SHOCK`), dropping anything that is not an
-/// ASCII letter, digit or `_`.
+/// snake_case splits them (`in shock`, `in-shock` and `inShock` are all `IN_SHOCK`).
 ///
-/// A name that is not public is an error: an empty one or one starting with a digit is no identifier, and one starting
-/// with `_` is reserved (`_sunder_`), mangled (`__x`) or private to pyright and ruff (`_1ST`). Two labels that make one
-/// name are an error too, as Go's `value_<i>` numbering gives a member nobody could guess.
+/// A name that is not public ([`python::is_public_name`]) is an error, as it is for a column: an empty one or one
+/// starting with a digit is no identifier, one that is not ASCII (`größe`) would lose its letters to become one, and
+/// one starting with `_` is reserved (`_sunder_`), mangled (`__x`) or private to pyright and ruff (`_1ST`). Two labels
+/// that make one name are an error too, as Go's `value_<i>` numbering gives a member nobody could guess.
 pub fn members<'l>(labels: &'l [String], spelling: impl Fn(&'l str) -> &'l str) -> Result<Vec<Member>> {
     let names = (labels.iter())
         .map(|label| {
-            let name = (spelling(label).to_shouty_snake_case().chars())
-                .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
-                .collect();
+            // We test the spelling before upper-casing it, which makes some ASCII (`straße` is `STRASSE`), so that a
+            // label follows the rule of a column, whose name keeps its case.
+            let spelling = spelling(label);
+            let name = match spelling.is_ascii() {
+                true => spelling.to_shouty_snake_case(),
+                false => spelling.into(),
+            };
             usable(label, name)
         })
         .collect::<Result<_>>()?;

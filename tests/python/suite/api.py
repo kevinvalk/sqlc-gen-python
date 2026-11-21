@@ -107,7 +107,7 @@ def queries(case: GoldenCase, connection: object, called: set[str]) -> Any:
         api.NoRow = sqlalchemy.exc.NoResultFound
         api.MultipleRows = sqlalchemy.exc.MultipleResultsFound
     else:
-        api.NoRow = getattr(api.models, "NoRowError", None)
+        api.NoRow = api.models.NoRowError
         api.MultipleRows = api.models.MultipleRowsError
     return api
 
