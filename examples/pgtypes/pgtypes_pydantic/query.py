@@ -111,11 +111,11 @@ class FindScalarsParams(pydantic.BaseModel):
         arbitrary_types_allowed=True,
         protected_namespaces=(),
     )
-    emails: list[str]
-    trees: list[str]
-    patterns: list[str]
+    emails: list[str | None] | list[str]
+    trees: list[str | None] | list[str]
+    patterns: list[str | None] | list[str]
     text_query: str
-    searches: list[str]
+    searches: list[str | None] | list[str]
 
 
 def find_scalars(

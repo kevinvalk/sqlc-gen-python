@@ -99,3 +99,6 @@ DELETE FROM invoices WHERE customer_id = ? AND status = 'draft';
 -- stream reads the rows before, as it reads each as it is iterated.
 WITH RECURSIVE numbers (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM numbers WHERE n < 900)
 SELECT CAST(JSON_EXTRACT(IF(n = 800, 'malformed', '1'), '$') AS SIGNED) AS share FROM numbers;
+
+-- name: CompareEmail :one
+SELECT id, email = '' AS empty_email FROM customers WHERE id = ?;

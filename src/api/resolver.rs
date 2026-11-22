@@ -10,9 +10,10 @@ use super::inflection::singular;
 use super::models::{Field, FieldType};
 use super::names::{Binding, Repeats, names};
 use crate::config::{Config, Override};
-use crate::engine::{Engine, is_typed_by_sqlc};
+use crate::engine::Engine;
 use crate::plugin;
 use crate::python::Type;
+use crate::sqlc_typing;
 
 #[cfg(test)]
 #[path = "resolver_spec.rs"]
@@ -191,81 +192,35 @@ impl<'a> Resolver<'a> {
             names(&spellings, Repeats::Forbidden, Binding::Field, self.config.records),
         );
         (names.unwrap_or_default().into_iter().zip(columns))
-            .filter_map(|(name, column)| problems.take(what, self.field(name, column, false)))
+            .filter_map(|(name, column)| problems.take(what, self.field(name, column, &sqlc_typing::Column::default())))
             .collect()
     }
 
-    /// A column sqlc left unnamed is described by `name` in errors. `is_operand_typed` for a result's column that the
-    /// statement shows sqlc typed by one operand of it ([`crate::engine::select::Item::operand_typed`]).
-    pub fn field(&self, name: String, column: &plugin::Column, is_operand_typed: bool) -> Result<Field> {
-        let described = match column.name.as_str() {
-            "" => &name,
-            spelling => spelling,
-        };
-
-        // sqlc reports every cast NOT NULL, so a cast of a nullable value lies
-        let cast = format!(
-            "{}, or {} if it can be NULL, as sqlc reports every cast NOT NULL",
-            self.engine.cast("<expr>"),
-            self.engine.cast("coalesce(<expr>, <default>)")
-        );
-
-        // sqlc types a `coalesce` as its first argument, a `nullif` as `bool` and a `CASE` as its `ELSE`, whatever the
-        // database resolves (`coalesce(qty, 1.5)` is numeric), so only a cast names the type of one. A subquery's
-        // `coalesce` the statement does not show us as one, but sqlc still reports it as the column `x` made NOT NULL.
-        let ty = if is_operand_typed {
-            self.unknown(
-                column,
-                format!(
-                    "column \"{described}\" is a coalesce, a nullif or a CASE, which sqlc types by one operand \
-                     whatever the others are; add a cast, as {cast}{}",
-                    self.engine.analysis()
-                ),
-            )?
-        } else if column.not_null && self.source(column).is_some_and(|source| !source.not_null) {
-            self.unknown(
-                column,
-                format!(
-                    "column \"{described}\" has a type sqlc could not infer; add a cast, as {}",
-                    self.engine.cast("coalesce(<expr>, <default>)")
-                ),
-            )?
-        } else if self.engine.is_untyped_expression(column) {
-            self.unknown(
-                column,
-                format!(
-                    "column \"{described}\" is an expression sqlc typed by its form, not its operands; \
-                     add a cast, as {}",
-                    self.engine.cast("<expr>")
-                ),
-            )?
-        } else {
-            self.field_type(column, false, &format!("column \"{described}\""), &cast)?
+    pub(super) fn field(&self, name: String, reported: &plugin::Column, facts: &sqlc_typing::Column) -> Result<Field> {
+        let column = facts.apply(reported);
+        let described = if column.name.is_empty() { &name } else { &column.name };
+        let what = format!("column \"{described}\"");
+        let ty = match sqlc_typing::expression_problem(self.engine, &column, self.catalog, facts, &name) {
+            Some(problem) => self.unknown(&column, problem)?,
+            None => self.field_type(&column, None, &what, facts)?,
         };
         Ok(Field {
             ty,
-            comment: column.comment.clone(),
+            comment: column.comment,
             name,
         })
     }
 
-    /// The catalog column sqlc reports a result column is read from.
-    fn source(&self, column: &plugin::Column) -> Option<&plugin::Column> {
-        let table = column.table.as_ref()?;
-        (self.catalog.schema(&table.schema)?.tables.iter())
-            .find(|t| t.rel.as_ref().is_some_and(|rel| rel.name == table.name))?
-            .columns
-            .iter()
-            .find(|c| c.name == column.original_name)
-    }
-
     /// The type of `column`, which `what` describes in errors. A type without a verified Python type is
     /// [`Self::unknown`], as annotating it `Any` unasked would hide exactly the mistakes the type checkers are there to
-    /// catch; for a type sqlc could not infer, the error suggests `cast`.
-    ///
-    /// sqlc types a column it marks `is_func_call` by an overload it guessed (`abs(numeric)` as `bigint`), and the
-    /// other guesses are [`Engine::is_guess`]'s to tell.
-    pub fn field_type(&self, column: &plugin::Column, is_parameter: bool, what: &str, cast: &str) -> Result<FieldType> {
+    /// catch.
+    pub(super) fn field_type(
+        &self,
+        column: &plugin::Column,
+        parameter: Option<&str>,
+        what: &str,
+        facts: &sqlc_typing::Column,
+    ) -> Result<FieldType> {
         let data_type = column.data_type();
         let sql_enum = self.declared_enum(&data_type);
 
@@ -284,37 +239,15 @@ impl<'a> Resolver<'a> {
         // (`bigint` for the `sum` of a numeric column), and is no column of that type.
         let rule = match self.column_override(column) {
             Some(rule) => Some(rule),
-            None => {
-                if column.is_func_call {
-                    return self.unknown(
-                        column,
-                        format!(
-                            "{what} is a function's result, which sqlc types by the function's first \
-                             overload whatever its arguments (sum() of a numeric column as bigint); \
-                             add a cast, as {cast}"
-                        ),
-                    );
-                }
-                if self.engine.is_guess(column, is_parameter) {
-                    return self.unknown(
-                        column,
-                        format!(
-                            "{what} has a type sqlc could not infer; add a cast, as {cast}{}",
-                            self.engine.analysis()
-                        ),
-                    );
-                }
-                // A parameter sqlc typed itself has no column of the type an override names behind it, so an `int4` one
-                // leaves a `LIMIT` an `int`.
-                match is_typed_by_sqlc(column, is_parameter) {
-                    true => None,
-                    false => self.first_override(|rule| {
-                        rule.db_type
-                            .as_deref()
-                            .is_some_and(|ty| self.names_type(ty, &data_type))
-                    }),
-                }
-            }
+            None => match sqlc_typing::allows_type_override(self.engine, column, parameter, what) {
+                Ok(true) => self.first_override(|rule| {
+                    rule.db_type
+                        .as_deref()
+                        .is_some_and(|ty| self.names_type(ty, &data_type))
+                }),
+                Ok(false) => None,
+                Err(problem) => return self.unknown(column, problem),
+            },
         };
 
         // An override replaces the element's type, while the array around it is still the one the driver returns
@@ -359,22 +292,17 @@ impl<'a> Resolver<'a> {
                 }
             }
             (None, Some((schema, sql_enum))) => {
-                let source = self
-                    .source(column)
-                    .filter(|c| c.r#type == column.r#type)
-                    .unwrap_or(column);
-                match self
-                    .engine
-                    .enum_type(source, &sql_enum.vals, self.class_name(schema, &sql_enum.name))
-                {
-                    Ok(ty) => ty,
+                let class = self.class_name(schema, &sql_enum.name);
+                match sqlc_typing::is_set_column(self.engine, self.catalog, column, &sql_enum.vals) {
+                    Ok(true) => Type::STR,
+                    Ok(false) => Type::Enum(class),
                     Err(problem) => return self.unknown(column, format!("{what} {problem}")),
                 }
             }
             (None, None) => {
                 // Composites have no verified mapping, even when their name matches a builtin or extension type.
                 let Some(element) = mapped() else {
-                    let hint = self.engine.unmapped(&data_type);
+                    let hint = sqlc_typing::unmapped_hint(self.engine, &data_type);
                     let default = format!("{}.", self.catalog.default_schema);
                     let named = data_type.strip_prefix(&default).unwrap_or(&data_type);
                     return self.unknown(
@@ -393,7 +321,7 @@ impl<'a> Resolver<'a> {
             bail!("{what} is an array, but sqlc reported no array depth for it")
         }
         if array_dims > 0
-            && let Some(problem) = self.engine.array_problem(&data_type, is_parameter)
+            && let Some(problem) = self.engine.array_problem(&data_type, parameter.is_some())
         {
             return self.unknown(
                 column,
@@ -412,7 +340,7 @@ impl<'a> Resolver<'a> {
         }
 
         Ok(FieldType {
-            collects_nulls: false,
+            collects_nulls: facts.nullable_elements(self.engine, array_dims),
             as_text: array_dims > 0 && matches!(element, Type::Enum(_)) && self.config.backend.text_arrays(),
             element,
             array_dims,

@@ -6,6 +6,7 @@ import enum
 import inspect
 import itertools
 import re
+import types
 import typing
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -53,7 +54,8 @@ class Argument:
         hint, nullable = strip_none(self.hint)
         seen = pool.fitting(self.keys, hint)
         if len(seen) <= 0 and typing.get_origin(hint) is list:
-            items = pool.fitting((), typing.get_args(hint)[0])
+            element, _ = strip_none(typing.get_args(hint)[0])
+            items = pool.fitting((), element)
             seen = [items[i : i + 3] for i in range(len(items))]
         values = st.tuples(st.booleans(), PICK, self.fresh).map(
             lambda drawn: seen[drawn[1] % len(seen)] if drawn[0] and len(seen) > 0 else drawn[2]
@@ -358,10 +360,18 @@ def argument(
     equal = re.search(rf"(?<![<>=!])=\s*{placeholder}|{placeholder}\s*=(?!=)", text)
     source = (column.get("original_name") if equal else None) or column["name"]
     keys = tuple(key for key in (f"{table}.{source}", source) if key != "")
-    bare, _ = strip_none(hint)
+    bare, nullable = strip_none(hint)
+    # Both list annotations accept a list whose leaves are present. We draw from the arm that also admits NULL.
+    arms = typing.get_args(bare)
+    if typing.get_origin(bare) in (types.UnionType, typing.Union) and all(
+        typing.get_origin(arm) is list for arm in arms
+    ):
+        bare = arms[0]
+        hint = bare | None if nullable else bare
     dimensions, leaf = 0, bare
     while typing.get_origin(leaf) is list:
-        (leaf,) = typing.get_args(leaf)
+        (element,) = typing.get_args(leaf)
+        leaf, _ = strip_none(element)
         dimensions += 1
 
     column_type = column.get("type") or {}

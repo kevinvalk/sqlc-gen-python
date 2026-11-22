@@ -58,20 +58,3 @@ pub fn scalar_type(column: &plugin::Column) -> Option<Type> {
         .find(|(known, _)| *known == name)
         .map(|(_, python)| python.clone())
 }
-
-/// sqlc reports both SET and ENUM as a list of labels. Its MySQL parser measures a SET by all its labels joined
-/// with commas and an ENUM by its longest label, both in bytes.
-pub fn is_set(column: &plugin::Column, labels: &[String]) -> Result<bool, &'static str> {
-    if labels.len() == 1 {
-        return Err(
-            "has one member, which sqlc reports alike for an ENUM and a SET; use a str override or give it a second member",
-        );
-    }
-    let longest = labels.iter().map(String::len).max().unwrap_or(0);
-    let joined = labels.iter().map(String::len).sum::<usize>() + labels.len().saturating_sub(1);
-    match usize::try_from(column.length) {
-        Ok(length) if length == longest => Ok(false),
-        Ok(length) if length == joined => Ok(true),
-        _ => Err("has no length that distinguishes its ENUM or SET labels; use a str override"),
-    }
-}

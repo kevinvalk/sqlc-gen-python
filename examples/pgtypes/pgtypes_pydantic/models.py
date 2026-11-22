@@ -3,6 +3,7 @@
 #   sqlc v1.31.1
 import datetime as dt
 import enum
+import typing
 from collections.abc import Sequence
 from decimal import Decimal
 from ipaddress import (
@@ -18,6 +19,21 @@ from uuid import UUID
 
 import pydantic
 from psycopg.types.range import Range
+
+
+def _checked_array(
+    value: object, dimensions: int, *, list_leaves: bool = False
+) -> list[Any]:
+    if isinstance(value, list):
+        items = typing.cast("list[object]", value)
+        if dimensions != 1:
+            for child in items:
+                _checked_array(child, dimensions - 1, list_leaves=list_leaves)
+            return items
+        if (list_leaves or not items) or not isinstance(items[0], list):
+            return items
+    message = "PostgreSQL returned an array with a different number of dimensions than declared"
+    raise TypeError(message)
 
 
 class NoRowError(LookupError):
@@ -66,66 +82,66 @@ class Array(pydantic.BaseModel):
         arbitrary_types_allowed=True,
         protected_namespaces=(),
     )
-    int2s: list[int]
-    int4s: list[int]
-    int8s: list[int]
-    oids: list[int]
-    float4s: list[float]
-    float8s: list[float]
-    numerics: list[Decimal]
-    moneys: list[str]
-    bools: list[bool]
-    texts: list[str]
-    varchars: list[str]
-    bpchars: list[str]
-    names: list[str]
-    macaddrs: list[str]
-    macaddr8s: list[str]
-    xmls: list[str]
-    byteas: list[bytes]
-    dates: list[dt.date]
-    times: list[dt.time]
-    timetzs: list[dt.time]
-    timestamps: list[dt.datetime]
-    timestamptzs: list[dt.datetime]
-    intervals: list[dt.timedelta]
-    uuids: list[UUID]
-    jsons: list[object]
-    jsonbs: list[object]
-    inets: list[IPv4Address | IPv6Address | IPv4Interface | IPv6Interface]
-    cidrs: list[IPv4Network | IPv6Network]
+    int2s: list[int | None]
+    int4s: list[int | None]
+    int8s: list[int | None]
+    oids: list[int | None]
+    float4s: list[float | None]
+    float8s: list[float | None]
+    numerics: list[Decimal | None]
+    moneys: list[str | None]
+    bools: list[bool | None]
+    texts: list[str | None]
+    varchars: list[str | None]
+    bpchars: list[str | None]
+    names: list[str | None]
+    macaddrs: list[str | None]
+    macaddr8s: list[str | None]
+    xmls: list[str | None]
+    byteas: list[bytes | None]
+    dates: list[dt.date | None]
+    times: list[dt.time | None]
+    timetzs: list[dt.time | None]
+    timestamps: list[dt.datetime | None]
+    timestamptzs: list[dt.datetime | None]
+    intervals: list[dt.timedelta | None]
+    uuids: list[UUID | None]
+    jsons: list[object | None]
+    jsonbs: list[object | None]
+    inets: list[IPv4Address | IPv6Address | IPv4Interface | IPv6Interface | None]
+    cidrs: list[IPv4Network | IPv6Network | None]
 
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "Array":
         return cls(
-            int2s=row[0],
-            int4s=row[1],
-            int8s=row[2],
-            oids=row[3],
-            float4s=row[4],
-            float8s=row[5],
-            numerics=row[6],
-            moneys=row[7],
-            bools=row[8],
-            texts=row[9],
-            varchars=row[10],
-            bpchars=row[11],
-            names=row[12],
-            macaddrs=row[13],
-            macaddr8s=row[14],
-            xmls=row[15],
-            byteas=row[16],
-            dates=row[17],
-            times=row[18],
-            timetzs=row[19],
-            timestamps=row[20],
-            timestamptzs=row[21],
-            intervals=row[22],
-            uuids=row[23],
-            jsons=row[24],
-            jsonbs=row[25],
-            inets=row[26],
-            cidrs=row[27],
+            int2s=_checked_array(row[0], 1),
+            int4s=_checked_array(row[1], 1),
+            int8s=_checked_array(row[2], 1),
+            oids=_checked_array(row[3], 1),
+            float4s=_checked_array(row[4], 1),
+            float8s=_checked_array(row[5], 1),
+            numerics=_checked_array(row[6], 1),
+            moneys=_checked_array(row[7], 1),
+            bools=_checked_array(row[8], 1),
+            texts=_checked_array(row[9], 1),
+            varchars=_checked_array(row[10], 1),
+            bpchars=_checked_array(row[11], 1),
+            names=_checked_array(row[12], 1),
+            macaddrs=_checked_array(row[13], 1),
+            macaddr8s=_checked_array(row[14], 1),
+            xmls=_checked_array(row[15], 1),
+            byteas=_checked_array(row[16], 1),
+            dates=_checked_array(row[17], 1),
+            times=_checked_array(row[18], 1),
+            timetzs=_checked_array(row[19], 1),
+            timestamps=_checked_array(row[20], 1),
+            timestamptzs=_checked_array(row[21], 1),
+            intervals=_checked_array(row[22], 1),
+            uuids=_checked_array(row[23], 1),
+            jsons=_checked_array(row[24], 1, list_leaves=True),
+            jsonbs=_checked_array(row[25], 1, list_leaves=True),
+            inets=_checked_array(row[26], 1),
+            cidrs=_checked_array(row[27], 1),
         )
 
 
@@ -138,18 +154,18 @@ class Nullable(pydantic.BaseModel):
     )
     required: str
     optional: str | None
-    tags: list[str]
-    maybe_tags: list[str] | None
-    grid: list[list[int]] | None
+    tags: list[str | None]
+    maybe_tags: list[str | None] | None
+    grid: list[list[int | None]] | None
 
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "Nullable":
         return cls(
             required=row[0],
             optional=row[1],
-            tags=row[2],
-            maybe_tags=row[3],
-            grid=row[4],
+            tags=_checked_array(row[2], 1),
+            maybe_tags=None if row[3] is None else _checked_array(row[3], 1),
+            grid=None if row[4] is None else _checked_array(row[4], 2),
         )
 
 

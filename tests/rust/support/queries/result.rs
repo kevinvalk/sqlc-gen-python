@@ -3,8 +3,7 @@ use ruff_python_ast::{Expr, Stmt, StmtFunctionDef};
 use sqlc_gen_python::api::names::{Binding, Repeats};
 use sqlc_gen_python::backend::Backend;
 use sqlc_gen_python::config::Config;
-use sqlc_gen_python::engine::Engine;
-use sqlc_gen_python::plugin;
+use sqlc_gen_python::{plugin, sqlc_typing};
 
 use crate::support::python::{Shape, is_name, record, strip_optional, unparse};
 use crate::support::records::{documented, named_after, reads_in_order};
@@ -18,44 +17,24 @@ pub(super) fn result_follows_sqlc(
     query: &plugin::Query,
     function: &StmtFunctionDef,
     (body, models): (&[Stmt], &[Stmt]),
-    (config, engine): (&Config, Engine),
+    (config, result): (&Config, &sqlc_typing::QueryResult),
     problems: &mut Vec<String>,
 ) {
     // A `:one` that always finds a row raises if it does not, whatever the options say.
     let backend = config.backend;
-    let raises = config.raise_on_none || engine.single_row(&query.text);
     let Some(returns) = function.returns.as_deref() else {
         return problems.push(format!("{}: no return annotation", query.name));
     };
 
-    // A scalar subquery that may find no row, an aggregate of no rows, and a column of a table an outer join left
-    // without a row are NULL though sqlc reports them NOT NULL, and so may every column of a list we cannot read. An
-    // embed is one column here, but each of its table's columns in the statement's list.
-    let width = |column: &plugin::Column| {
-        let embed = column.embed_table.as_ref().filter(|_| is_embed(column));
-        embed.map_or(1, |embed| table(request, embed).map_or(0, |t| t.columns.len()))
-    };
-    let tables: Vec<&str> = (query.columns.iter())
-        .flat_map(|column| match is_embed(column) {
-            true => vec![""; width(column)],
-            false => vec![column.table.as_ref().map_or("", |table| &table.name)],
-        })
-        .collect();
-    let items = request
-        .catalog
-        .as_ref()
-        .and_then(|catalog| engine.items(&query.text, &tables, catalog));
-    let columns: Vec<plugin::Column> = (query.columns.iter().enumerate())
-        .map(|(i, column)| {
-            let at: usize = query.columns[..i].iter().map(width).sum();
-            let nullable = match &items {
-                Some(items) => !is_embed(column) && items[at].nullable,
-                None => true,
-            };
-            plugin::Column {
-                not_null: column.not_null && !nullable,
-                ..column.clone()
-            }
+    let raises = config.raise_on_none || result.single_row;
+    // We check the original columns. Only SQL that can introduce NULL may widen their nullability.
+    let columns: Vec<_> = query
+        .columns
+        .iter()
+        .zip(&result.columns)
+        .map(|(original, facts)| plugin::Column {
+            not_null: original.not_null && !facts.may_be_null,
+            ..original.clone()
         })
         .collect();
     let shape = |i: usize| Shape::from(&columns[i]);

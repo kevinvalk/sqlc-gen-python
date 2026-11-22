@@ -4,6 +4,7 @@
 import contextlib
 import dataclasses
 import datetime as dt
+import typing
 from collections.abc import Generator, Iterator, Sequence
 from decimal import Decimal
 from typing import Any, Final
@@ -13,6 +14,22 @@ import sqlalchemy
 from sqlalchemy.dialects import postgresql
 
 from . import models
+
+
+def _checked_array(
+    value: object, dimensions: int, *, list_leaves: bool = False
+) -> list[Any]:
+    if isinstance(value, list):
+        items = typing.cast("list[object]", value)
+        if dimensions != 1:
+            for child in items:
+                _checked_array(child, dimensions - 1, list_leaves=list_leaves)
+            return items
+        if (list_leaves or not items) or not isinstance(items[0], list):
+            return items
+    message = "PostgreSQL returned an array with a different number of dimensions than declared"
+    raise TypeError(message)
+
 
 _RECORD_PAYMENT: Final = sqlalchemy.text("""INSERT INTO billing.payments (invoice_id, method, amount, "from", received_at)
 VALUES (:invoice_id, :method, :amount, :from_, :received_at)
@@ -48,7 +65,10 @@ ORDER BY received_at""")
 
 
 def list_payments_by_methods(
-    connection: sqlalchemy.Connection, *, methods: list[models.BillingPaymentMethod]
+    connection: sqlalchemy.Connection,
+    *,
+    methods: list[models.BillingPaymentMethod | None]
+    | list[models.BillingPaymentMethod],
 ) -> list[models.BillingPayment]:
     return [
         models.BillingPayment.from_row(row)
@@ -58,7 +78,10 @@ def list_payments_by_methods(
 
 @contextlib.contextmanager
 def stream_list_payments_by_methods(
-    connection: sqlalchemy.Connection, *, methods: list[models.BillingPaymentMethod]
+    connection: sqlalchemy.Connection,
+    *,
+    methods: list[models.BillingPaymentMethod | None]
+    | list[models.BillingPaymentMethod],
 ) -> Generator[Iterator[models.BillingPayment], None, None]:
     with connection.execute(
         _LIST_PAYMENTS_BY_METHODS,
@@ -84,7 +107,7 @@ def list_invoice_payment_methods(
     value = connection.execute(
         _LIST_INVOICE_PAYMENT_METHODS, {"invoice_id": invoice_id}
     ).scalar_one()
-    return [models.BillingPaymentMethod(v) for v in value]
+    return [models.BillingPaymentMethod(_v1) for _v1 in _checked_array(value, 1)]
 
 
 _LIST_INVOICE_BALANCES: Final = sqlalchemy.text(
@@ -169,7 +192,7 @@ ORDER BY customers.name, invoices.number, payments.amount""")
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class ListCustomerPaidInvoicesRow:
-    name: str | None
+    name: str
     number: str | None
     amount: Decimal | None
 

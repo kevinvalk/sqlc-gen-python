@@ -54,7 +54,7 @@ pub struct FieldType {
     pub optional: bool,
     /// The backend returns this array of enums as its text, which the enum's class then parses (`from_array`).
     pub as_text: bool,
-    /// The SELECT item collects nullable values with PostgreSQL's array_agg.
+    /// PostgreSQL allows NULL leaves unless a SELECT expression proves every element present.
     pub collects_nulls: bool,
 }
 
@@ -72,7 +72,7 @@ pub fn resolve(
         for sql_enum in schema
             .enums
             .iter()
-            .filter(|labels| !resolver.engine.is_set(schema, labels))
+            .filter(|labels| !crate::sqlc_typing::is_set(resolver.engine, schema, labels))
         {
             let what = format!("enum \"{}\"", sql_enum.name);
             let name = resolver.class_name(schema, &sql_enum.name);
@@ -167,24 +167,31 @@ fn usable(name: &str) -> Result<()> {
 impl FieldType {
     /// The annotation as written in `scope`. Column nullability belongs to the whole value, even for an array.
     pub fn annotation(&self, scope: Scope) -> ast::Expr {
-        self.shaped(self.element.annotation(scope))
+        self.shaped(self.element.annotation(scope), false)
     }
 
     /// The annotation of a parameter of this type ([`Type::parameter_annotation`]).
     pub fn parameter_annotation(&self) -> ast::Expr {
-        self.shaped(self.element.parameter_annotation())
+        self.shaped(self.element.parameter_annotation(), true)
     }
 
-    fn shaped(&self, element: ast::Expr) -> ast::Expr {
-        let element = if self.nullable_elements() {
-            element.or_none()
+    fn shaped(&self, element: ast::Expr, parameter: bool) -> ast::Expr {
+        let array = |leaf| (0..self.array_dims).fold(leaf, |inner, _| LIST.index(inner));
+        let ty = if self.nullable_elements() {
+            let nullable = array(element.clone().or_none());
+            // A parameter only reads its lists. Python's invariant list type would otherwise refuse a caller's
+            // list[UUID] for a uuid[] that also admits NULL elements.
+            if parameter {
+                nullable.union(array(element))
+            } else {
+                nullable
+            }
         } else {
-            element
+            array(element)
         };
-        let list = (0..self.array_dims).fold(element, |inner, _| LIST.index(inner));
         match self.optional {
-            true => list.or_none(),
-            false => list,
+            true => ty.or_none(),
+            false => ty,
         }
     }
 
@@ -236,7 +243,9 @@ impl FieldType {
 
     /// Whether [`Self::read`] converts a value.
     pub fn converts(&self) -> bool {
-        matches!(self.element, Type::Enum(_) | Type::Converted(_)) || self.element.converters().is_some()
+        self.array_dims > 0
+            || matches!(self.element, Type::Enum(_) | Type::Converted(_))
+            || self.element.converters().is_some()
     }
 
     /// The expression that turns `value`, as a driver returns it, into this type.
@@ -247,31 +256,40 @@ impl FieldType {
         if !self.converts() {
             return value;
         }
-        if let Some(converters) = self.element.converters() {
-            return self.map_elements(value, |element| {
-                // Rows have Any elements. We give the decoder the verified driver type so a mismatched
-                // signature fails the application type check.
+        let raw = if self.array_dims > 0 && !self.as_text {
+            // A JSON decoder or the application's loader for an unmapped type can return a list for one element.
+            let wire = self.element.wire();
+            let options = (matches!(wire, Type::Json(_)) || *wire == Type::OBJECT)
+                .then(|| python::keyword("list_leaves", python::true_()));
+            name("_checked_array").call_with([value.clone(), python::int(self.array_dims)], options)
+        } else {
+            value.clone()
+        };
+        let required = Self {
+            optional: false,
+            ..self.clone()
+        };
+        let read = if let Some(converters) = self.element.converters() {
+            required.map_elements(raw, |element| {
                 let raw = match self.element.wire() {
                     Type::Converted(builtin) => builtin.call([element]),
                     wire => TYPING.attr("cast").call([forward(wire.annotation(scope)), element]),
                 };
                 converters.from_db.clone().call([raw])
-            });
-        }
-        let class = self.element.annotation(scope);
-        if self.collects_nulls && !self.as_text {
-            return self.map_elements(value, |item| class.call([item]));
-        }
-        let read = match (self.array_dims, self.as_text) {
-            (0, _) => class.call([value.clone()]),
-            (_, false) => list_of(class.call([V.into()]), each(V, value.clone())),
-            (_, true) if self.collects_nulls => enum_array(value.clone(), class, true),
-            (_, true) => class.attr(FROM_ARRAY).call([value.clone()]),
+            })
+        } else if self.as_text {
+            let class = self.element.annotation(scope);
+            if self.collects_nulls {
+                class.attr(FROM_ARRAY).call([raw])
+            } else {
+                enum_array(raw, class, false)
+            }
+        } else if matches!(self.element, Type::Enum(_) | Type::Converted(_)) {
+            required.map_elements(raw, |leaf| self.element.annotation(scope).call([leaf]))
+        } else {
+            raw
         };
-        match self.optional {
-            true => unless_none(value, read),
-            false => read,
-        }
+        if self.optional { unless_none(value, read) } else { read }
     }
 }
 

@@ -25,15 +25,22 @@ pub fn module(api: &Api, records: Records) -> Vec<ast::Stmt> {
 fn enum_class(sql_enum: &Enum, from_array: bool) -> ast::Stmt {
     let members = (sql_enum.members.iter()).map(|member| assign(&member.name, string(&member.value)));
     let from_array = from_array.then(|| {
-        let members = enum_array(TEXT.into(), CLS.into(), false);
+        let members = enum_array(TEXT.into(), CLS.into(), true);
         Function {
             decorators: vec![CLASSMETHOD.into()],
             parameters: vec![receiver(CLS), parameter(TEXT, STR)],
             body: vec![
                 docstring("The members of an array of this enum, as PostgreSQL writes one: `{a,b}`."),
+                crate::python::if_(
+                    TEXT.attr("startswith").call([string("[")]),
+                    vec![assign(
+                        TEXT,
+                        TEXT.attr("partition").call([string("=")]).index(crate::python::int(2)),
+                    )],
+                ),
                 return_(members),
             ],
-            ..Function::new(FROM_ARRAY, forward(LIST.index(name(&sql_enum.name))))
+            ..Function::new(FROM_ARRAY, forward(LIST.index(name(&sql_enum.name).or_none())))
         }
         .into()
     });

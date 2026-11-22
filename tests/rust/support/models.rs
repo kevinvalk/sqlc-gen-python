@@ -19,7 +19,12 @@ pub(super) fn models_follow_catalog(
     let schemas = || request.catalog.iter().flat_map(|catalog| catalog.user_schemas());
     let engine = Engine::of(request).unwrap();
     let mut enums: Vec<&plugin::Enum> = schemas()
-        .flat_map(|schema| schema.enums.iter().filter(move |labels| !engine.is_set(schema, labels)))
+        .flat_map(|schema| {
+            schema
+                .enums
+                .iter()
+                .filter(move |labels| !sqlc_gen_python::sqlc_typing::is_set(engine, schema, labels))
+        })
         .collect();
     // The options' `rename` applies to enum labels too.
     let rename = &config.rename;

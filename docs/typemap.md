@@ -12,75 +12,75 @@ Observed on PostgreSQL 18, session TimeZone Europe/Amsterdam, with psycopg 3.3, 
 | PostgreSQL | Annotation | psycopg | psycopg async | asyncpg | Verdict |
 |---|---|---|---|---|---|
 | `bool` | `bool` | `bool` | `bool` | `bool` | ok |
-| `bool[]` | `list[bool]` | `list` `list[bool]` | `list` `list[bool]` | `list` `list[bool]` | ok |
+| `bool[]` | `list[bool \| None]` | `list` `list[bool]` | `list` `list[bool]` | `list` `list[bool]` | ok |
 | `bpchar` | `str` | `str` | `str` | `str` | ok |
-| `bpchar[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
+| `bpchar[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `bytea` | `bytes` | `bytes` | `bytes` | `bytes` | ok |
-| `bytea[]` | `list[bytes]` | `list` `list[bytes]` | `list` `list[bytes]` | `list` `list[bytes]` | ok |
+| `bytea[]` | `list[bytes \| None]` | `list` `list[bytes]` | `list` `list[bytes]` | `list` `list[bytes]` | ok |
 | `cidr` | `IPv4Network \| IPv6Network` | `IPv4Network` `IPv6Network` | `IPv4Network` `IPv6Network` | `IPv4Network` `IPv6Network` | ok |
-| `cidr[]` | `list[IPv4Network \| IPv6Network]` | `list` `list[IPv4Network]` `list[IPv6Network]` | `list` `list[IPv4Network]` `list[IPv6Network]` | `list` `list[IPv4Network]` `list[IPv6Network]` | ok |
+| `cidr[]` | `list[IPv4Network \| IPv6Network \| None]` | `list` `list[IPv4Network]` `list[IPv6Network]` | `list` `list[IPv4Network]` `list[IPv6Network]` | `list` `list[IPv4Network]` `list[IPv6Network]` | ok |
 | `citext` | `str` | `str` | `str` | `str` | ok |
 | `date` | `date` | `date` | `date` | `date` | ok |
-| `date[]` | `list[date]` | `list` `list[date]` | `list` `list[date]` | `list` `list[date]` | ok |
+| `date[]` | `list[date \| None]` | `list` `list[date]` | `list` `list[date]` | `list` `list[date]` | ok |
 | `daterange` | `Range[date]` | `Range` | `Range` | `Range` | ok |
 | `float4` | `float` | `float` | `float` | `float` | ok |
-| `float4[]` | `list[float]` | `list` `list[float]` | `list` `list[float]` | `list` `list[float]` | ok |
+| `float4[]` | `list[float \| None]` | `list` `list[float]` | `list` `list[float]` | `list` `list[float]` | ok |
 | `float8` | `float` | `float` | `float` | `float` | ok |
-| `float8[]` | `list[float]` | `list` `list[float]` | `list` `list[float]` | `list` `list[float]` | ok |
+| `float8[]` | `list[float \| None]` | `list` `list[float]` | `list` `list[float]` | `list` `list[float]` | ok |
 | `hstore` | `dict[str, str \| None]` | `dict` | `dict` | `dict` | ok |
 | `inet` | `IPv4Address \| IPv6Address \| IPv4Interface \| IPv6Interface` | `IPv4Address` `IPv4Interface` `IPv6Address` `IPv6Interface` | `IPv4Address` `IPv4Interface` `IPv6Address` `IPv6Interface` | `IPv4Address` `IPv4Interface` `IPv6Address` `IPv6Interface` | ok |
-| `inet[]` | `list[IPv4Address \| IPv6Address \| IPv4Interface \| IPv6Interface]` | `list` `list[IPv4Address]` `list[IPv4Interface]` `list[IPv6Address]` `list[IPv6Interface]` | `list` `list[IPv4Address]` `list[IPv4Interface]` `list[IPv6Address]` `list[IPv6Interface]` | `list` `list[IPv4Address]` `list[IPv4Interface]` `list[IPv6Address]` `list[IPv6Interface]` | ok |
+| `inet[]` | `list[IPv4Address \| IPv6Address \| IPv4Interface \| IPv6Interface \| None]` | `list` `list[IPv4Address]` `list[IPv4Interface]` `list[IPv6Address]` `list[IPv6Interface]` | `list` `list[IPv4Address]` `list[IPv4Interface]` `list[IPv6Address]` `list[IPv6Interface]` | `list` `list[IPv4Address]` `list[IPv4Interface]` `list[IPv6Address]` `list[IPv6Interface]` | ok |
 | `int2` | `int` | `int` | `int` | `int` | ok |
-| `int2[]` | `list[int]` | `list` `list[int]` | `list` `list[int]` | `list` `list[int]` | ok |
+| `int2[]` | `list[int \| None]` | `list` `list[int]` | `list` `list[int]` | `list` `list[int]` | ok |
 | `int4` | `int` | `int` | `int` | `int` | ok |
-| `int4[]` | `list[int]` | `list` `list[int]` | `list` `list[int]` | `list` `list[int]` | ok |
-| `int4[][]` | `list[list[int]]` | `list` `list[list[int]]` | `list` `list[list[int]]` | `list` `list[list[int]]` | ok |
+| `int4[]` | `list[int \| None]` | `list` `list[int]` | `list` `list[int]` | `list` `list[int]` | ok |
+| `int4[][]` | `list[list[int \| None]]` | `list` `list[list[int]]` | `list` `list[list[int]]` | `list` `list[list[int]]` | ok |
 | `int4range` | `Range[int]` | `Range` | `Range` | `Range` | ok |
 | `int8` | `int` | `int` | `int` | `int` | ok |
-| `int8[]` | `list[int]` | `list` `list[int]` | `list` `list[int]` | `list` `list[int]` | ok |
+| `int8[]` | `list[int \| None]` | `list` `list[int]` | `list` `list[int]` | `list` `list[int]` | ok |
 | `int8range` | `Range[int]` | `Range` | `Range` | `Range` | ok |
 | `interval` | `timedelta` | `timedelta` | `timedelta` | `timedelta` | ok |
-| `interval[]` | `list[timedelta]` | `list` `list[timedelta]` | `list` `list[timedelta]` | `list` `list[timedelta]` | ok |
+| `interval[]` | `list[timedelta \| None]` | `list` `list[timedelta]` | `list` `list[timedelta]` | `list` `list[timedelta]` | ok |
 | `json` | `object` | `dict` `float` `int` `list` `str` | `dict` `float` `int` `list` `str` | `dict` `float` `int` `list` `str` | ok |
-| `json[]` | `list[object]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | ok |
+| `json[]` | `list[object \| None]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[float]` `list[int]` `list[list]` `list[str]` | ok |
 | `jsonb` | `object` | `dict` `int` `list` `str` | `dict` `int` `list` `str` | `dict` `int` `list` `str` | ok |
-| `jsonb[]` | `list[object]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | ok |
+| `jsonb[]` | `list[object \| None]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | ok |
 | `lquery` | `str` | `str` | `str` | `str` | ok |
 | `ltree` | `str` | `str` | `str` | `str` | ok |
 | `ltxtquery` | `str` | `str` | `str` | `str` | ok |
 | `macaddr` | `str` | `str` | `str` | `str` | ok |
-| `macaddr[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
+| `macaddr[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `macaddr8` | `str` | `str` | `str` | `str` | ok |
-| `macaddr8[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
+| `macaddr8[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `money` | `str` | `str` | `str` | `str` | ok |
-| `money[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
+| `money[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `name` | `str` | `str` | `str` | `str` | ok |
-| `name[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
+| `name[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `numeric` | `Decimal` | `Decimal` | `Decimal` | `Decimal` | ok |
-| `numeric[]` | `list[Decimal]` | `list` `list[Decimal]` | `list` `list[Decimal]` | `list` `list[Decimal]` | ok |
+| `numeric[]` | `list[Decimal \| None]` | `list` `list[Decimal]` | `list` `list[Decimal]` | `list` `list[Decimal]` | ok |
 | `numrange` | `Range[Decimal]` | `Range` | `Range` | `Range` | ok |
 | `oid` | `int` | `int` | `int` | `int` | ok |
-| `oid[]` | `list[int]` | `list` `list[int]` | `list` `list[int]` | `list` `list[int]` | ok |
+| `oid[]` | `list[int \| None]` | `list` `list[int]` | `list` `list[int]` | `list` `list[int]` | ok |
 | `regclass` | `str` | `str` | `str` | `str` | ok |
 | `text` | `str` | `str` | `str` | `str` | ok |
-| `text[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
+| `text[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `time` | `time` | `time` | `time` | `time` | ok |
-| `time[]` | `list[time]` | `list` `list[time]` | `list` `list[time]` | `list` `list[time]` | ok |
+| `time[]` | `list[time \| None]` | `list` `list[time]` | `list` `list[time]` | `list` `list[time]` | ok |
 | `timestamp` | `datetime` | `datetime` | `datetime` | `datetime` | ok |
-| `timestamp[]` | `list[datetime]` | `list` `list[datetime]` | `list` `list[datetime]` | `list` `list[datetime]` | ok |
+| `timestamp[]` | `list[datetime \| None]` | `list` `list[datetime]` | `list` `list[datetime]` | `list` `list[datetime]` | ok |
 | `timestamptz` | `datetime` | `datetime(Europe/Amsterdam)` | `datetime(Europe/Amsterdam)` | `datetime` `datetime(UTC)` | ok |
-| `timestamptz[]` | `list[datetime]` | `list` `list[datetime(Europe/Amsterdam)]` | `list` `list[datetime(Europe/Amsterdam)]` | `list` `list[datetime(UTC)]` `list[datetime]` | ok |
+| `timestamptz[]` | `list[datetime \| None]` | `list` `list[datetime(Europe/Amsterdam)]` | `list` `list[datetime(Europe/Amsterdam)]` | `list` `list[datetime(UTC)]` `list[datetime]` | ok |
 | `timetz` | `time` | `time` | `time` | `time` | ok |
-| `timetz[]` | `list[time]` | `list` `list[time]` | `list` `list[time]` | `list` `list[time]` | ok |
+| `timetz[]` | `list[time \| None]` | `list` `list[time]` | `list` `list[time]` | `list` `list[time]` | ok |
 | `tsrange` | `Range[datetime]` | `Range` | `Range` | `Range` | ok |
 | `tstzrange` | `Range[datetime]` | `Range` | `Range` | `Range` | ok |
 | `tsvector` | `str` | `str` | `str` | `str` | ok |
 | `uuid` | `UUID` | `UUID` | `UUID` | `UUID` | ok |
-| `uuid[]` | `list[UUID]` | `list` `list[UUID]` | `list` `list[UUID]` | `list` `list[UUID]` | ok |
+| `uuid[]` | `list[UUID \| None]` | `list` `list[UUID]` | `list` `list[UUID]` | `list` `list[UUID]` | ok |
 | `varchar` | `str` | `str` | `str` | `str` | ok |
-| `varchar[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
+| `varchar[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `xml` | `str` | `str` | `str` | `str` | ok |
-| `xml[]` | `list[str]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
+| `xml[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 
 ### PostgreSQL edges that raise or are lossy
 

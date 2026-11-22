@@ -187,66 +187,6 @@ fn a_sqlc_call_sqlc_left_in_a_mysql_statement_is_an_error() {
 }
 
 #[test]
-fn a_mysql_statement_with_a_comment_that_is_code_is_not_read() {
-    // MySQL runs what `/*! ... */` holds while our lexer leaves it out: this is a `LEFT JOIN`, so `b` may be missing
-    let sql = "SELECT a.id, b.id FROM a /*! LEFT */ JOIN b ON b.a_id = a.id";
-    assert_eq!(Engine::MySql.items(sql, &[""; 2], &Default::default()), None);
-    assert!(Engine::MySql.present(sql).is_empty());
-    assert!(!Engine::MySql.single_row("SELECT count(*) FROM a /*! GROUP BY id */"));
-    // MariaDB, which sqlc's mysql engine and the drivers serve too, runs `/*M! ... */`
-    assert!(!Engine::MySql.single_row("SELECT count(*) FROM a /*M! GROUP BY id */"));
-    // To PostgreSQL it is a comment
-    assert_eq!(Engine::PostgreSql.present(sql), ["a", "b"]);
-}
-
-#[test]
-fn a_statement_reads_unless_it_or_a_statement_it_runs_first_writes() {
-    for engine in [Engine::PostgreSql, Engine::MySql, Engine::Sqlite] {
-        for sql in [
-            "SELECT id FROM authors",
-            "(SELECT 1) UNION (SELECT 2)",
-            "VALUES (1), (2)",
-            "WITH a AS (SELECT 1) SELECT * FROM a",
-            "SELECT id FROM authors FOR UPDATE",
-            "WITH a AS (SELECT id FROM authors FOR NO KEY UPDATE) SELECT * FROM a",
-            "SELECT replace(name, 'a', 'b') FROM authors",
-            // A quoted name is no statement
-            r#"WITH a AS (SELECT "delete" FROM t) SELECT * FROM a"#,
-        ] {
-            assert!(engine.reads(sql), "{engine:?}: {sql}");
-        }
-        for sql in [
-            "DELETE FROM authors RETURNING id",
-            "INSERT INTO authors (name) VALUES ('a') RETURNING id",
-            "UPDATE authors SET name = 'a' RETURNING id",
-            "WITH gone AS (DELETE FROM authors RETURNING id) SELECT * FROM gone",
-            "REPLACE INTO authors (id) VALUES (1)",
-        ] {
-            assert!(!engine.reads(sql), "{engine:?}: {sql}");
-        }
-    }
-}
-
-#[test]
-fn a_coalesce_a_nullif_or_a_case_is_found_as_code() {
-    for (engine, sql) in [
-        (Engine::Sqlite, "SELECT name, Coalesce(n, 0), offset FROM t"),
-        (Engine::Sqlite, "SELECT CASE WHEN n THEN 1 END, offset FROM t"),
-        // What an executable comment holds runs, so there we look in the text whole
-        (Engine::MySql, "SELECT name, /*! nullif(n, 0) */ offset FROM t"),
-    ] {
-        assert!(engine.holds_operand_typed(sql), "{sql}");
-    }
-    for sql in [
-        "SELECT name, offset FROM t WHERE name <> 'case'",
-        "SELECT name, /* just in case */ offset FROM t",
-        r#"SELECT "nullif", offset FROM t -- coalesce"#,
-    ] {
-        assert!(!Engine::Sqlite.holds_operand_typed(sql), "{sql}");
-    }
-}
-
-#[test]
 fn a_merge_is_found_as_code() {
     for sql in [
         "MERGE INTO t USING s ON true WHEN MATCHED THEN DELETE",

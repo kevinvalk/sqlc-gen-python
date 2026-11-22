@@ -35,6 +35,10 @@ def sync_api(conn: sqlalchemy.Connection, some: UUID) -> None:
     assert_type(invoices.get_invoice_due_date(conn, id=some), dt.date | None)
     assert_type(invoices.list_invoice_numbers(conn, customer_id=some), list[str])
     assert_type(invoices.count_invoices(conn, customer_id=some), int)
+    ids: list[UUID] = [some]
+    mixed: list[UUID | None] = [some, None]
+    assert_type(invoices.list_invoices_by_ids(conn, ids=ids), list[models.Invoice])
+    assert_type(invoices.list_invoices_by_ids(conn, ids=mixed), list[models.Invoice])
     assert_type(invoices.issue_invoice(conn, issued_on=None, id=some), int)
     # A nullable parameter may be left out, as `None`: a filter without its constraint.
     assert_type(
@@ -45,7 +49,9 @@ def sync_api(conn: sqlalchemy.Connection, some: UUID) -> None:
     totals = invoices.get_invoice_totals(conn, id=some)
     assert_type(totals.subtotal, Decimal)
     joined = invoices.get_invoice_with_customer(conn, id=some)
-    assert_type(joined.customer.accepted_methods, list[models.BillingPaymentMethod])
+    assert_type(
+        joined.customer.accepted_methods, list[models.BillingPaymentMethod | None]
+    )
     assert_type(joined.customer.metadata, object | None)
     assert_type(
         customers.list_vip_customers(conn),
@@ -91,7 +97,7 @@ async def psycopg_async_api(conn: psycopg.AsyncConnection[Any], some: UUID) -> N
 
 def mistakes(conn: sqlalchemy.Connection, some: UUID, now: dt.datetime) -> None:
     card = models.BillingPaymentMethod.CARD
-    invoices.list_invoices_by_status(conn, statuses=["draft"])  # type: ignore[list-item]
+    invoices.list_invoices_by_status(conn, statuses=["draft"])  # type: ignore[arg-type]
     payments.record_payment(
         conn,
         invoice_id=some,

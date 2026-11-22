@@ -12,7 +12,7 @@ _COUNTDOWN: Final = sqlalchemy.text(
 )
 
 
-def countdown(connection: sqlalchemy.Connection) -> list[int]:
+def countdown(connection: sqlalchemy.Connection) -> list[int | None]:
     """Divides by zero at its 5000th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
@@ -22,7 +22,7 @@ def countdown(connection: sqlalchemy.Connection) -> list[int]:
 @contextlib.contextmanager
 def stream_countdown(
     connection: sqlalchemy.Connection,
-) -> Generator[Iterator[int], None, None]:
+) -> Generator[Iterator[int | None], None, None]:
     """Divides by zero at its 5000th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """

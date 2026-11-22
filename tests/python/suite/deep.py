@@ -247,7 +247,7 @@ def coerce(value: object, hint: Any) -> object:
         if isinstance(value, str):
             # NOTE: psycopg returns an array of a type it does not know (an enum's) as its text `{a,b}`, whose labels
             # need no quoting.
-            value = [label for label in value[1:-1].split(",") if label != ""]
+            value = [None if label == "NULL" else label for label in value[1:-1].split(",") if label != ""]
         return [coerce(element, item) for element in typing.cast("list[object]", value)]
     if origin in (typing.Union, types.UnionType):
         rest = [argument for argument in typing.get_args(hint) if argument is not type(None)]

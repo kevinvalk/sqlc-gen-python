@@ -12,9 +12,9 @@ use super::resolver::Resolver;
 use super::{Problems, params, results};
 use crate::config::Config;
 use crate::engine::{Bind, Engine, Piece, Sql};
-use crate::plugin;
 use crate::python::vocabulary::{FROM_ROW, MODELS};
 use crate::python::{self, Expression, Scope, int, name};
+use crate::{plugin, sqlc_typing};
 
 #[cfg(test)]
 #[path = "queries_spec.rs"]
@@ -206,25 +206,15 @@ pub fn modules(
     let mut defined = HashMap::new(); // Each module's functions and classes, with the query each is for
     let mut misnamed = HashSet::new();
     let mut files: HashMap<String, &String> = HashMap::new();
-    let mut shifted = HashSet::new();
-    for query in queries {
-        let file = &query.filename;
-
-        // sqlc's SQLite parser places a statement by characters but cuts the file by bytes, so from the first non-ASCII
-        // character on, each statement of the file comes out shifted into the next and cut short.
-        // NOTE: A workaround for https://github.com/sqlc-dev/sqlc/issues/4235, see "Workarounds" in AGENTS.md.
-        let is_ascii = query.text.is_ascii() && query.comments.iter().all(|comment| comment.is_ascii());
-        if resolver.engine == Engine::Sqlite && (!is_ascii || shifted.contains(file)) {
-            if shifted.insert(file) {
-                problems.note(anyhow::anyhow!(
-                    "{file}: query \"{}\": sqlc misplaces every SQLite statement after non-ASCII text in its file, so \
-                     keep the file's SQL and comments ASCII",
-                    query.name
-                ));
+    for query in sqlc_typing::checked_queries(resolver.engine, queries) {
+        let query = match query {
+            Ok(query) => query,
+            Err(error) => {
+                problems.note(error);
+                continue;
             }
-            continue;
-        }
-
+        };
+        let file = &query.filename;
         let name = match module_name(file) {
             Ok(name) => Some(name),
             // A file's name is one problem, however many queries it holds.
@@ -300,20 +290,15 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
         _ => (cmd, cmd == ":copyfrom"),
     };
     let params_class = format!("{class}Params");
-    let (command, columns) = command(query, cmd, &class, resolver, models)?;
-    resolver.engine.check_row_parameters(query)?;
-    let uses = params::params(&query.params, resolver)?;
+    let result = sqlc_typing::QueryResult::read(resolver.engine, query, resolver.catalog)?;
+    let (command, columns) = command(query, cmd, &class, resolver, models, &result)?;
+    let uses = params::params(query, resolver)?;
 
-    // PostgreSQL's `$N` is its parameter's number. We number MySQL's and SQLite's `?` by sqlc's order of the
-    // parameters, as sqlc-gen-go binds them, because the numbers sqlc reports there may not be the text's.
     let binds: Vec<Bind> = (query.params.iter().zip(&uses).enumerate())
         .map(|(i, (parameter, field))| {
             let column = parameter.column.as_ref();
             Bind {
-                number: match resolver.engine {
-                    Engine::PostgreSql => parameter.number,
-                    Engine::MySql | Engine::Sqlite => i as i32 + 1,
-                },
+                number: sqlc_typing::bind_number(resolver.engine, i, parameter),
                 name: &field.name,
                 slice: (column.filter(|c| c.is_sqlc_slice)).map(|c| c.name.as_str()),
             }
@@ -358,8 +343,9 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
         false => Takes::Keywords,
     };
     // A prefixed name hides no builtin or keyword, so it needs no trailing `_`
-    let stream = (matches!(command, Command::Many(_)) && !batch && resolver.engine.reads(&query.text))
+    let stream = (matches!(command, Command::Many(_)) && !batch && result.read_only)
         .then(|| format!("stream_{}", query.name.to_snake_case()));
+    let raises = config.raise_on_none || result.single_row;
     let resolved = Query {
         stream,
         constant: format!("_{}", function.to_uppercase()),
@@ -373,7 +359,7 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
         copy_into: copy_into(query)
             .filter(|into| placeholders == into.columns.len() && !resolver.engine.overrides_user_value(&query.text)),
         columns,
-        raises: config.raise_on_none || resolver.engine.single_row(&query.text),
+        raises,
         takes,
         command,
     };
@@ -389,6 +375,7 @@ fn command(
     class: &str,
     resolver: &Resolver,
     models: &[Model],
+    result: &sqlc_typing::QueryResult,
 ) -> Result<(Command, Vec<Field>)> {
     Ok(match cmd {
         ":exec" => (Command::Exec, Vec::new()),
@@ -396,7 +383,7 @@ fn command(
         ":execresult" => (Command::ExecResult, Vec::new()),
         ":copyfrom" => (Command::CopyFrom, Vec::new()),
         ":one" | ":many" => {
-            let (fields, columns) = results::columns(query, resolver, models)?;
+            let (fields, columns) = results::columns(query, resolver, models, result)?;
             let shape = match fields.as_slice() {
                 [] => bail!(
                     "{cmd} has no result columns in sqlc's report; if the query returns rows, \

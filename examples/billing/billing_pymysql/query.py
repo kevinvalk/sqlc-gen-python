@@ -557,7 +557,7 @@ _COUNTDOWN: Final = """WITH RECURSIVE numbers (n) AS (SELECT 1 UNION ALL SELECT 
 SELECT CAST(JSON_EXTRACT(IF(n = 800, 'malformed', '1'), '$') AS SIGNED) AS share FROM numbers"""
 
 
-def countdown(connection: _Connection) -> list[int]:
+def countdown(connection: _Connection) -> list[int | None]:
     """Reads malformed JSON at its 800th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
@@ -567,10 +567,39 @@ def countdown(connection: _Connection) -> list[int]:
 
 
 @contextlib.contextmanager
-def stream_countdown(connection: _Connection) -> Generator[Iterator[int], None, None]:
+def stream_countdown(
+    connection: _Connection,
+) -> Generator[Iterator[int | None], None, None]:
     """Reads malformed JSON at its 800th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
     with connection.cursor(pymysql.cursors.SSCursor) as cur:
         cur.execute(_COUNTDOWN)
         yield (row[0] for row in cur)
+
+
+_COMPARE_EMAIL: Final = (
+    "SELECT id, email = '' AS empty_email FROM customers WHERE id = %s"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CompareEmailRow:
+    id: int
+    empty_email: bool | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CompareEmailRow":
+        return cls(id=row[0], empty_email=None if row[1] is None else bool(row[1]))
+
+
+def compare_email(connection: _Connection, *, id: int) -> CompareEmailRow | None:
+    with connection.cursor(pymysql.cursors.Cursor) as cur:
+        cur.execute(_COMPARE_EMAIL, (id,))
+        match cur.fetchmany(2):
+            case [row]:
+                return CompareEmailRow.from_row(row)
+            case []:
+                return None
+            case _:
+                raise models.MultipleRowsError

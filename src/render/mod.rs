@@ -5,6 +5,7 @@ mod queries;
 mod spec;
 
 use ruff_python_ast as ast;
+use ruff_python_ast::visitor::Visitor;
 
 use crate::api::Api;
 use crate::api::models::Field;
@@ -19,10 +20,80 @@ use crate::python::{
     parameter, receiver, return_, string, true_, tuple,
 };
 
+/// PostgreSQL leaves rank unenforced. A decoded JSON document can itself be a list, so each subarray must
+/// reach the declared depth even when its neighbor does.
+fn checked_array() -> ast::Stmt {
+    use crate::python::vocabulary::{BOOL, INT, LIST, OBJECT, TYPING, VALUE};
+    use crate::python::{each, expression, for_, if_, raise};
+    let dimensions = name("dimensions");
+    let list_leaves = name("list_leaves");
+    let items = name("items");
+    let checked = name("_checked_array").call_with(
+        [name("child"), dimensions.clone().subtract(int(1))],
+        [keyword("list_leaves", list_leaves.clone())],
+    );
+    let mut flag = parameter("list_leaves", BOOL);
+    flag.default = Some(Box::new(name("False")));
+    let is_list = |value| name("isinstance").call([value, LIST.into()]);
+    Function {
+        parameters: vec![parameter(VALUE, OBJECT), parameter("dimensions", INT)],
+        keyword_only: vec![flag],
+        body: vec![
+            if_(
+                is_list(VALUE.into()),
+                vec![
+                    assign(
+                        "items",
+                        TYPING.attr("cast").call([forward(LIST.index(OBJECT)), VALUE.into()]),
+                    ),
+                    if_(
+                        dimensions.compare(ast::CmpOp::NotEq, int(1)),
+                        vec![
+                            for_(each("child", items.clone()), vec![expression(checked)]),
+                            return_(items.clone()),
+                        ],
+                    ),
+                    if_(
+                        list_leaves
+                            .or(items.clone().not_())
+                            .or(is_list(items.clone().index(int(0))).not_()),
+                        vec![return_(items)],
+                    ),
+                ],
+            ),
+            assign(
+                "message",
+                string("PostgreSQL returned an array with a different number of dimensions than declared"),
+            ),
+            raise(name("TypeError").call([name("message")])),
+        ],
+        ..Function::new("_checked_array", LIST.index(ANY))
+    }
+    .into()
+}
+
 pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File> {
     let header = header(sqlc_version, config);
     let modules = config.modules();
     let file = |name: String, body: &[ast::Stmt]| {
+        struct ReadsArray(bool);
+        impl Visitor<'_> for ReadsArray {
+            fn visit_expr(&mut self, expr: &ast::Expr) {
+                self.0 |= expr.as_name_expr().is_some_and(|n| n.id.as_str() == "_checked_array");
+                if !self.0 {
+                    ast::visitor::walk_expr(self, expr);
+                }
+            }
+        }
+        let mut reads = ReadsArray(false);
+        reads.visit_body(body);
+        let with_array;
+        let body = if reads.0 {
+            with_array = [vec![checked_array()], body.to_vec()].concat();
+            &with_array
+        } else {
+            body
+        };
         let exempt = match python::trips_s105(body) {
             true => "# ruff: noqa: S105\n",
             false => "",

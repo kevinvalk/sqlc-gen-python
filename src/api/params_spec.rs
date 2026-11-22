@@ -7,31 +7,6 @@ use crate::engine::Piece;
 use crate::python::Type;
 
 #[test]
-fn a_row_comparison_refuses_a_parameter_that_sqlc_typed_by_another_column() {
-    let wrong = || {
-        param(
-            2,
-            of_authors(plugin::Column {
-                original_name: "name".into(),
-                ..column("before", "text", true)
-            }),
-        )
-    };
-    let run = |right: &str| {
-        let query = plugin::Query {
-            params: vec![param(1, column("name", "text", true)), wrong()],
-            ..query(
-                ":exec",
-                &format!("DELETE FROM authors WHERE (name, id) < ($1, {right})"),
-            )
-        };
-        Engine::PostgreSql.check_row_parameters(&query)
-    };
-    assert!(error_of(run("$2")).contains("sqlc typed it by \"name\""));
-    run("$2::bigint").unwrap();
-}
-
-#[test]
 fn placeholders_become_the_parameters_python_names() {
     let query = params(
         vec![

@@ -4,10 +4,26 @@
 import dataclasses
 import datetime as dt
 import enum
+import typing
 from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
+
+
+def _checked_array(
+    value: object, dimensions: int, *, list_leaves: bool = False
+) -> list[Any]:
+    if isinstance(value, list):
+        items = typing.cast("list[object]", value)
+        if dimensions != 1:
+            for child in items:
+                _checked_array(child, dimensions - 1, list_leaves=list_leaves)
+            return items
+        if (list_leaves or not items) or not isinstance(items[0], list):
+            return items
+    message = "PostgreSQL returned an array with a different number of dimensions than declared"
+    raise TypeError(message)
 
 
 class BillingPaymentMethod(enum.StrEnum):
@@ -53,9 +69,9 @@ class Customer:
     id: UUID
     name: str
     email: str | None
-    tags: list[str]
+    tags: list[str | None]
     preferred_method: BillingPaymentMethod | None
-    accepted_methods: list[BillingPaymentMethod]
+    accepted_methods: list[BillingPaymentMethod | None]
     metadata: object | None
     created_at: dt.datetime
 
@@ -65,9 +81,12 @@ class Customer:
             id=row[0],
             name=row[1],
             email=row[2],
-            tags=row[3],
+            tags=_checked_array(row[3], 1),
             preferred_method=None if row[4] is None else BillingPaymentMethod(row[4]),
-            accepted_methods=[BillingPaymentMethod(v) for v in row[5]],
+            accepted_methods=[
+                None if _v1 is None else BillingPaymentMethod(_v1)
+                for _v1 in _checked_array(row[5], 1)
+            ],
             metadata=row[6],
             created_at=row[7],
         )

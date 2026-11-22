@@ -4,10 +4,26 @@
 import dataclasses
 import datetime as dt
 import enum
+import typing
 from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
+
+
+def _checked_array(
+    value: object, dimensions: int, *, list_leaves: bool = False
+) -> list[Any]:
+    if isinstance(value, list):
+        items = typing.cast("list[object]", value)
+        if dimensions != 1:
+            for child in items:
+                _checked_array(child, dimensions - 1, list_leaves=list_leaves)
+            return items
+        if (list_leaves or not items) or not isinstance(items[0], list):
+            return items
+    message = "PostgreSQL returned an array with a different number of dimensions than declared"
+    raise TypeError(message)
 
 
 class NoRowError(LookupError):
@@ -24,9 +40,15 @@ class BillingPaymentMethod(enum.StrEnum):
     DIRECT_DEBIT = "direct-debit"
 
     @classmethod
-    def from_array(cls, text: str) -> "list[BillingPaymentMethod]":
+    def from_array(cls, text: str) -> "list[BillingPaymentMethod | None]":
         """The members of an array of this enum, as PostgreSQL writes one: `{a,b}`."""
-        return [cls(label) for label in text[1:-1].split(",") if label]
+        if text.startswith("["):
+            text = text.partition("=")[2]
+        return [
+            None if label == "NULL" else cls(label)
+            for label in text[1:-1].split(",")
+            if label
+        ]
 
 
 class InvoiceStatus(enum.StrEnum):
@@ -66,9 +88,9 @@ class Customer:
     id: UUID
     name: str
     email: str | None
-    tags: list[str]
+    tags: list[str | None]
     preferred_method: BillingPaymentMethod | None
-    accepted_methods: list[BillingPaymentMethod]
+    accepted_methods: list[BillingPaymentMethod | None]
     metadata: object | None
     created_at: dt.datetime
 
@@ -78,7 +100,7 @@ class Customer:
             id=row[0],
             name=row[1],
             email=row[2],
-            tags=row[3],
+            tags=_checked_array(row[3], 1),
             preferred_method=None if row[4] is None else BillingPaymentMethod(row[4]),
             accepted_methods=BillingPaymentMethod.from_array(row[5]),
             metadata=row[6],

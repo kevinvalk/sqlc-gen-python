@@ -38,11 +38,26 @@ pub(super) const ASYNCMY: &[&str] = &[
     return cursor",
 ];
 
+/// The driver returns each PostgreSQL array as one row value. Only its leaves may have an unknown Python type here.
+pub(super) const CHECKED_ARRAY: &[&str] = &[r#"def _checked_array(
+    value: object, dimensions: int, *, list_leaves: bool = False
+) -> list[Any]:
+    if isinstance(value, list):
+        items = typing.cast("list[object]", value)
+        if dimensions != 1:
+            for child in items:
+                _checked_array(child, dimensions - 1, list_leaves=list_leaves)
+            return items
+        if (list_leaves or not items) or not isinstance(items[0], list):
+            return items
+    message = "PostgreSQL returned an array with a different number of dimensions than declared"
+    raise TypeError(message)"#];
+
 /// The prelude `body` holds and where it starts. A query module holds one between its imports and its queries when its
 /// library's stubs need it, and only these statements, to the letter, may be private, annotate with an `Any` that is not
 /// the library's own, or be a class that is no record.
 pub(super) fn prelude(body: &[Stmt], source: &str) -> Option<(usize, &'static [&'static str])> {
-    [PYMYSQL, ASYNCMY].into_iter().find_map(|prelude| {
+    [PYMYSQL, ASYNCMY, CHECKED_ARRAY].into_iter().find_map(|prelude| {
         let held = |stmts: &[Stmt]| (stmts.iter().map(|stmt| &source[stmt.range()])).eq(prelude.iter().copied());
         Some((body.windows(prelude.len()).position(held)?, prelude))
     })
@@ -288,13 +303,20 @@ fn annotations_are_precise(body: &[Stmt], accepts_any: bool, problems: &mut Vec<
     for (what, annotation, drivers_own) in annotations.0 {
         let mut mentions_any = MentionsAny::default();
         mentions_any.visit_expr(annotation);
-        let written = unparse(unwrapped(annotation));
-        let mut leaf = written.strip_suffix(" | None").unwrap_or(&written);
-        while let Some(element) = leaf.strip_prefix("list[").and_then(|inner| inner.strip_suffix(']')) {
-            leaf = element;
+        if !mentions_any.0 || accepts_any {
+            continue;
         }
-        let is_document = leaf == JSON_DOCUMENT;
-        if mentions_any.0 && !accepts_any && !is_document && !drivers_own.contains(&written.as_str()) {
+        let written = unparse(unwrapped(annotation));
+        let bare = written.strip_suffix(" | None").unwrap_or(&written);
+        let mut present = String::from(JSON_DOCUMENT);
+        let mut nullable = format!("{JSON_DOCUMENT} | None");
+        let is_document = bare == JSON_DOCUMENT
+            || (0..6).any(|_| {
+                present = format!("list[{present}]");
+                nullable = format!("list[{nullable}]");
+                bare == format!("{nullable} | {present}")
+            });
+        if !is_document && !drivers_own.contains(&written.as_str()) {
             problems.push(format!("{what} is annotated with `Any`"));
         }
     }

@@ -360,7 +360,8 @@ fn unknown_type_annotates_a_type_sqlc_guessed_too() {
     let Command::One(Shape::Scalar(ty)) = &modules[0].queries[0].command else {
         panic!("a scalar :one");
     };
-    assert_eq!(ty.describe(crate::python::Scope::Queries), "Any");
+    // Neither operand of the addition has a catalog column that proves it present.
+    assert_eq!(ty.describe(crate::python::Scope::Queries), "Any | None");
 }
 
 #[test]

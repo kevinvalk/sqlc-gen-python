@@ -72,9 +72,20 @@ src/
     models.rs        the models module: enums and tables as classes
     queries.rs       a query file's module: statements, row classes, functions
 
-  engine/          the database: what its types are in Python, how its SQL reads
+  sqlc_typing/     the SQL facts the Python API needs for typing
+    mod.rs           starts each result with the columns sqlc reported
+    inference/       reads SQL for result types, row and embed presence, array elements and read-only statements
+      select/          follows projections through joins, CTEs, aggregates and set operations
+    mysql.rs         distinguishes SET columns from ENUM using the reported length and labels
+    sqlc_fixes/
+      mod.rs           rejects SQLite query files whose statement offsets sqlc has shifted
+      bindings.rs      detects unexpanded macros and explains mismatches in the reported placeholders
+      parameters.rs    checks parameter types and binds each reported use to its placeholder number
+      types.rs         distinguishes declared types from guesses and diagnoses ambiguous expressions
+    tokens.rs        token navigation shared by result and parameter inference
+
+  engine/          the database dialect and its Python type map
     mod.rs           `Engine`, one variant per engine sqlc analyses for; `Sql`
-    select.rs        what sqlc does not report of a result, as far as the SQL proves it
     postgresql/      types.rs (the type map), lexer.rs (placeholders as code)
     sqlite/          types.rs (the type map), lexer.rs (placeholders as code)
     mysql/           types.rs (the type map), lexer.rs (placeholders as code)
@@ -88,11 +99,27 @@ src/
     pymysql.rs       PyMySQL and asyncmy, as a `dbapi::Driver` that takes `%s`
 ```
 
-- **engine**: the database (`engine:`): its type map, where its placeholders are, and what its SQL says of a result that sqlc does not report.
+- **engine** owns each dialect's lexer, placeholder binding and driver-verified type map.
 - **backend**: the Python library (`backend:`): how a statement is written and run, and the few types its drivers disagree on.
-- **api**: everything else, decided once. It asks the engine and the backend what only they know and fails there for whatever they cannot do, so `render` after it only writes and cannot fail.
+- **api** combines the corrected request, the engine's type map and the backend's capabilities. It resolves names, records and query signatures before `render` writes any files.
 
-Where sqlc's report is not enough (`engine/select.rs`), we read the SQL's tokens and answer only what they prove. Whatever we cannot read gets the answer that widens a type (a column that may be NULL, a row that may be missing), never the one that narrows it. Try a change there on real statements first: sqlc's request for one, as above, shows what the plugin makes of it.
+### When sqlc changes
+
+We take column order, parameter numbers, command and catalog from the request. `sqlc_typing::QueryResult::read` adds one entry per result column and calls `inference::refine` once. A default entry uses the reported column as received. With no further evidence a `:one` can return no row, an embedded table can be missing and an array can contain NULL. A new correction needs a captured request and a database result that disagree. A new inference for an omitted field needs a generated Python signature that depends on it.
+
+| Why we read more | Example on pinned sqlc | When we can remove it |
+| --- | --- | --- |
+| A reported field disagrees with the database | `GetCustomerContact` reports `contact_address.not_null = true` through two CTEs. PostgreSQL returns NULL for a customer without an email. | Recapture the request on the new pin, remove the matching projection rule, and keep the nullable and populated cases in the runtime suite. |
+| sqlc guesses or omits a type | MySQL's `FilterCustomers` gives the same named parameter the types `any` and `varchar` at its two uses. Some PostgreSQL row comparisons get a different column's type. | Once the uses carry their correct types, remove the matching recovery or diagnostic. The wire tests cover both the ambiguous predicates and the valid ones. |
+| sqlc supplies a plausible but incorrect expression type | An uncast `coalesce(quantity, 0.5)` can take its reported type from the integer column alone. A numeric `sum` can get the first overload’s result type. | When the analyzer resolves the operands and exposes reliable result types, remove the corresponding cast diagnostic and test the uncast expression against the driver. |
+| The protocol has no field for a fact our Python API uses | An ungrouped `count(*)` returns a row even for an empty table. An array can be non-NULL and still contain NULL elements. A `:many` can read rows or write and return them. | Read row presence, element nullability or statement kind from the protocol as sqlc adds each one. Removing these inferences earlier widens Python signatures and needs an explicit API decision. |
+| A catalog entry represents two distinct database types | MySQL represents SET and ENUM as catalog enums. A multi-label column’s length distinguishes the two. A slice parameter reports length `-1` even when its source column has a length. | The wire test flags a change to the missing slice length. Remove that lookup when sqlc supplies the length, and remove the whole distinction in `mysql.rs` when the request names the kind. |
+| sqlc leaves a bind in the SQL or reports it in the wrong position | Unexpanded macros and SQLite’s mixed numbered and anonymous binds can disagree with the parameter list. | Retire the affected diagnostic once the recaptured SQL and binds agree. The dialect lexer still has to match each placeholder to its argument. |
+| sqlc emits damaged SQL text | SQLite statements after a UTF-8 comment can lose their final characters, including a bind placeholder. | `cargo xtask capture` checks the original text of two statements. When both arrive whole on the supported version, make that the capture expectation and remove `checked_queries` and the ASCII restriction. [Upstream regression test](https://github.com/sqlc-dev/sqlc/pull/4568) |
+
+On an upgrade, run `cargo xtask capture` and `cargo test`. The raw-request tests in `tests/rust/golden.rs` flag changes to the CTE and repeated-parameter examples even if the generated files are identical. Rerun the runtime cases with the candidate rule removed before retiring it. If upstream supplies all the result facts, replace the call to `inference::refine` and delete the private `inference/` directory. The engine still owns placeholder binding and the driver type map.
+
+Use the boundary when reviewing a typing change. Whether sqlc guessed a type, lost the length of a MySQL SET, or promoted a nullable source column belongs in `sqlc_typing`. What a Python driver returns for PostgreSQL `money`, SQLite storage classes or an enum array belongs in the engine or backend. The API owns explicit overrides, sharing a Python argument across compatible uses, and constructing an absent embedded row from the returned values. These decisions still need tests with a fully accurate sqlc request.
 
 We never write generated Python as text. Every expression and statement is a ruff AST node (`python/syntax.rs`), so a construct that is not Python does not compile, and schema data can only ever end up as a name or a string. A name the generated code reads or binds itself (`cur`, `Sequence`, `from_row`) is a constant in `python/vocabulary.rs`, so it reads as the name it is: `CUR.attr("execute").call([statement])`. Only a library's own member (`"execute"`) is spelled where it is used, in the backend that calls it.
 

@@ -10,7 +10,7 @@ use sqlc_gen_python::config::Config;
 use sqlc_gen_python::engine::Engine;
 use sqlc_gen_python::plugin;
 
-use super::module::{ASYNCMY, PYMYSQL};
+use super::module::{ASYNCMY, CHECKED_ARRAY, PYMYSQL};
 use ruff_python_ast::visitor::{Visitor, walk_expr};
 
 use super::python::{fields, is_name, unparse};
@@ -34,6 +34,12 @@ pub(super) fn queries_follow_sqlc(
     let expected_prelude = match (backend, asynchronous) {
         (Backend::Pymysql, false) => Some(PYMYSQL),
         (Backend::Pymysql, true) => Some(ASYNCMY),
+        (Backend::SqlAlchemy | Backend::Psycopg, _)
+            if prelude.is_some_and(|(_, held)| held == CHECKED_ARRAY)
+                && Engine::of(request).ok() == Some(Engine::PostgreSql) =>
+        {
+            Some(CHECKED_ARRAY)
+        }
         (Backend::SqlAlchemy | Backend::Psycopg | Backend::Sqlite3, _) => None,
     };
     if prelude.map(|(_, held)| held) != expected_prelude {
@@ -66,6 +72,13 @@ pub(super) fn queries_follow_sqlc(
     for ((query, (constant, sql)), (function, stream)) in queries.into_iter().zip(statements).zip(functions) {
         let parameters = parameters(body, function);
         let takes = Takes::of(query, config);
+        let Some(catalog) = &request.catalog else {
+            return problems.push(format!("{}: missing sqlc catalog", query.name));
+        };
+        let result = match sqlc_gen_python::sqlc_typing::QueryResult::read(engine, query, catalog) {
+            Ok(result) => result,
+            Err(error) => return problems.push(format!("{}: {error}", query.name)),
+        };
         let signature = (connection_annotation.as_str(), asynchronous, takes, config.records);
         if function_follows_sqlc(query, function, &parameters, signature, problems) {
             runs_its_statement(
@@ -77,12 +90,12 @@ pub(super) fn queries_follow_sqlc(
                 takes,
                 problems,
             );
-            result_follows_sqlc(request, query, function, (body, models), (config, engine), problems);
+            result_follows_sqlc(request, query, function, (body, models), (config, &result), problems);
             sql_round_trips(query, &sql, &parameters, backend, engine, problems);
         }
 
         // Every `:many` that only reads streams too, and nothing else does
-        let streams = query.cmd == ":many" && engine.reads(&query.text);
+        let streams = query.cmd == ":many" && result.read_only;
         match stream {
             Some(stream) if streams => {
                 stream_follows_function(query, function, stream, asynchronous, problems);

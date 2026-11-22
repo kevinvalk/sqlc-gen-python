@@ -29,6 +29,13 @@ impl Column {
 }
 
 impl Catalog {
+    pub(crate) fn table(&self, schema: &str, name: &str) -> Option<&Table> {
+        self.schema(schema)?
+            .tables
+            .iter()
+            .find(|t| t.rel.as_ref().is_some_and(|r| r.name == name))
+    }
+
     /// All but the engine's own schemas, which sqlc may report but no model describes.
     pub fn user_schemas(&self) -> impl Iterator<Item = &Schema> {
         (self.schemas.iter()).filter(|schema| !["pg_catalog", "information_schema"].contains(&schema.name.as_str()))

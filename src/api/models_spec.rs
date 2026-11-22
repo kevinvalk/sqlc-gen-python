@@ -47,7 +47,7 @@ fn converters_skip_nulls_in_the_column_and_at_each_array_leaf() {
     );
     assert_eq!(
         python::unparse(&ty.read(name("matrix"), Scope::Queries)),
-        r#"None if matrix is None else [[None if _v2 is None else app.read(typing.cast("str", _v2)) for _v2 in _v1] for _v1 in matrix]"#
+        r#"None if matrix is None else [[None if _v2 is None else app.read(typing.cast("str", _v2)) for _v2 in _v1] for _v1 in _checked_array(matrix, 2)]"#
     );
 }
 
@@ -75,9 +75,13 @@ fn each_array_dimension_adds_a_list() {
 }
 
 #[test]
-fn a_nullable_array_is_an_optional_list_not_a_list_of_optionals() {
-    // The column may be absent; its elements are not independently nullable.
-    assert_eq!(annotation(&field(Type::INT, 1, true)), "list[int] | None");
+fn array_and_element_nullability_are_independent() {
+    let mut array = field(Type::INT, 1, true);
+    assert_eq!(annotation(&array), "list[int] | None");
+    array.collects_nulls = true;
+    assert_eq!(annotation(&array), "list[int | None] | None");
+    array.optional = false;
+    assert_eq!(annotation(&array), "list[int | None]");
 }
 
 #[test]
@@ -213,12 +217,15 @@ fn a_multi_dimensional_enum_array_is_an_error() {
 }
 
 #[test]
-fn a_value_is_read_as_is_unless_it_holds_enum_labels() {
+fn arrays_check_their_dimensions_and_enums_decode_each_label() {
     // Both drivers return labels as `str`.
     let row = || crate::python::name("row").index(crate::python::int(3));
     let read = |ty: FieldType, scope| crate::python::unparse(&ty.read(row(), scope));
     let status = || Type::Enum("Status".into());
-    assert_eq!(read(field(Type::DECIMAL, 1, true), Scope::Models), "row[3]");
+    assert_eq!(
+        read(field(Type::DECIMAL, 1, true), Scope::Models),
+        "None if row[3] is None else _checked_array(row[3], 1)"
+    );
     assert_eq!(read(field(status(), 0, false), Scope::Models), "Status(row[3])");
     assert_eq!(
         read(field(status(), 0, true), Scope::Models),
@@ -226,18 +233,35 @@ fn a_value_is_read_as_is_unless_it_holds_enum_labels() {
     );
     assert_eq!(
         read(field(status(), 1, false), Scope::Queries),
-        "[models.Status(v) for v in row[3]]"
+        "[models.Status(_v1) for _v1 in _checked_array(row[3], 1)]"
     );
     assert_eq!(
         read(field(status(), 1, true), Scope::Models),
-        "None if row[3] is None else [Status(v) for v in row[3]]"
+        "None if row[3] is None else [Status(_v1) for _v1 in _checked_array(row[3], 1)]"
     );
     // psycopg returns an array of enums as its text.
     let as_text = FieldType {
         as_text: true,
+        collects_nulls: true,
         ..field(status(), 1, false)
     };
     assert_eq!(read(as_text, Scope::Queries), "models.Status.from_array(row[3])");
+}
+
+#[test]
+fn an_array_element_can_itself_be_a_list_from_json_or_a_custom_loader() {
+    let custom = Type::Override {
+        annotation: crate::python::name("list").index(crate::python::name("int")),
+        wire: Box::new(Type::OBJECT),
+        converters: None,
+    };
+    for element in [Type::JSONB, custom] {
+        let ty = field(element, 2, false);
+        assert_eq!(
+            crate::python::unparse(&ty.read(crate::python::name("value"), Scope::Models)),
+            "_checked_array(value, 2, list_leaves=True)"
+        );
+    }
 }
 
 #[test]

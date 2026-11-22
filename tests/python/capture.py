@@ -30,7 +30,9 @@ nothing to run but itself: no plugins, no vet.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
+import importlib
 import io
 import json
 import os
@@ -51,8 +53,10 @@ from functools import partial
 from itertools import groupby
 from pathlib import Path
 from queue import Queue
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, get_type_hints
 
+import psycopg
+import sqlalchemy
 import yaml
 
 import postgres
@@ -204,9 +208,13 @@ def main() -> None:
 
     upstream = copy_tree(source / TESTDATA, work / "run/upstream")
     local = copy_tree(EXAMPLES, work / "run/local")
+    sqlite_query_text(sqlc, work / "run/sqlite-text")
     runs = [*upstream_runs(upstream), *local_runs(local)]
     with ExitStack() as stack, ThreadPoolExecutor() as pool:
         servers = postgres_servers(stack)
+        server = servers.get()
+        catalog_nullability(sqlc, work / "run/catalog", server)
+        servers.put(server)
         print(f"{len(runs)} sqlc runs on {servers.qsize()} servers", flush=True)
         try:
             outcomes = list(pool.map(partial(generate, sqlc, servers), runs))
@@ -248,6 +256,82 @@ def main() -> None:
         print("\n".join(differences))
         sys.exit(f"the capture differs from what is committed; see {out}")
     wire_contract(sqlc)
+
+
+def sqlite_query_text(sqlc: Path, work: Path) -> None:
+    """Once sqlc preserves both statements we can drop the ASCII restriction for that version."""
+    work.mkdir(parents=True, exist_ok=True)
+    first, second = "SELECT id FROM customers", "SELECT id FROM customers WHERE id = ?"
+    (work / "schema.sql").write_text("CREATE TABLE customers(id integer PRIMARY KEY);\n")
+    (work / "query.sql").write_text(f"-- name: First :one\n-- café\n{first};\n\n-- name: Second :one\n{second};\n")
+    config = {"version": "2", "sql": [{"engine": "sqlite", "schema": "schema.sql", "queries": "query.sql"}]}
+    run = Run("sqlite-text", "base", "generate", work, config, {}, None)
+    outcome = generate_with(sqlc, run, config)
+    if outcome.status != "captured":
+        sys.exit(f"SQLite query text: {outcome.detail}")
+    (request,) = outcome.requests
+    queries = {query["name"]: query["text"] for query in request["queries"]}
+    if queries == {"First": first, "Second": second}:
+        sys.exit("sqlc now preserves SQLite text after a UTF-8 comment. Review checked_queries and the README")
+    if queries != {"First": first[:-1], "Second": ";\n\n" + second[:-2]}:
+        sys.exit(f"sqlc changed the SQLite UTF-8 offset failure. Review checked_queries for {queries!r}")
+
+
+def catalog_nullability(sqlc: Path, work: Path, server: str) -> None:
+    """Keep the README's three catalog ambiguities reproducible across sqlc upgrades."""
+    work.mkdir(parents=True, exist_ok=True)
+    sql = "SELECT v FROM t"
+    (work / "query.sql").write_text(f"-- name: ReadValues :many\n{sql};\n")
+    config = {
+        "version": "2",
+        "sql": [{"engine": "postgresql", "schema": "schema.sql", "queries": "query.sql"}],
+    }
+    declared = "CREATE TABLE t(v text NOT NULL);"
+    for case, derived, plain, seed in [
+        (
+            "ctas",
+            "CREATE TABLE source(v text NOT NULL); CREATE TABLE t AS SELECT v FROM source;",
+            "CREATE TABLE source(v text NOT NULL); " + declared,
+            "INSERT INTO t VALUES (NULL)",
+        ),
+        (
+            "inherits",
+            "CREATE TABLE t(v text); CREATE TABLE child(v text NOT NULL) INHERITS(t);",
+            declared + " CREATE TABLE child(v text NOT NULL);",
+            "INSERT INTO t VALUES (NULL)",
+        ),
+        (
+            "view",
+            "CREATE TABLE source(v text NOT NULL); CREATE VIEW t AS SELECT nullif(v, '')::text AS v FROM source;",
+            "CREATE TABLE source(v text NOT NULL); " + declared,
+            "INSERT INTO source VALUES ('')",
+        ),
+    ]:
+        requests = []
+        for schema, insert, expected in [
+            (derived, seed, None),
+            (plain, "INSERT INTO t VALUES ('x')", "x"),
+        ]:
+            (work / "schema.sql").write_text(schema)
+            run = Run(case, "base", "generate", work, config, {}, None)
+            outcome = generate_with(sqlc, run, config)
+            if outcome.status != "captured":
+                sys.exit(f"{case}: {outcome.detail}")
+            requests.append(outcome.requests)
+            with (
+                postgres.database(sqlalchemy.make_url(server), schema) as database,
+                psycopg.connect(postgres.conninfo(database)) as connection,
+            ):
+                required = connection.execute(
+                    "SELECT attnotnull FROM pg_attribute WHERE attrelid = 't'::regclass AND attname = 'v'"
+                ).fetchone()
+                if required != (expected is not None,):
+                    sys.exit(f"PostgreSQL changed the nullability of catalog example {case}")
+                connection.execute(insert)
+                if connection.execute(sql).fetchall() != [(expected,)]:
+                    sys.exit(f"PostgreSQL catalog example {case} changed")
+        if requests[0] != requests[1]:
+            sys.exit(f"sqlc now distinguishes the two {case} schemas; review the README and known failures")
 
 
 def wire_contract(sqlc: Path) -> None:
@@ -292,6 +376,132 @@ def wire_contract(sqlc: Path) -> None:
         {"backend": "psycopg", "async": False},
         "the psycopg backend does not run mysql",
     )
+
+    wire_parameters(wire)
+    wire_sqlite_and_mysql(wire)
+
+
+def wire_parameters(wire: Wire) -> None:
+    # Each pair goes through sqlc's actual parameter analysis and the installed WASM.
+    backend = {"backend": "sqlalchemy", "async": False}
+    package = {"engine": "postgresql", "schema": "operands.sql", "queries": "operand.sql"}
+    config = {"version": "2", "plugins": [wire.plugin], "sql": [package]}
+    schema = (
+        "CREATE TABLE sample(id int NOT NULL, big_id bigint NOT NULL, d date NOT NULL, ts timestamp NOT NULL, "
+        "tm time NOT NULL, tz timetz, settings jsonb, tags text[]);"
+    )
+    (wire.work / "operands.sql").write_text(schema)
+    query = wire.work / "operand.sql"
+    for expression, repaired, diagnostic in [
+        (
+            "d + @days > current_date",
+            "d + @days::int > current_date",
+            "date and time addition",
+        ),
+        ("tz - @span > tz", "tz - @span::interval > tz", "takes an interval"),
+        ("ts::date = @day", "ts::date = @day::date", "casts the column"),
+        ("settings ? @key", "settings ? @key::text", "JSON lookup"),
+        ("tags[@i] IS NOT NULL", "tags[@i::int] IS NOT NULL", "add a cast"),
+    ]:
+        template = "-- name: Filter :many\nSELECT id FROM sample WHERE {};\n"
+        query.write_text(template.format(expression))
+        wire.fails(config, backend, 'query "Filter"', diagnostic)
+        query.write_text(template.format(repaired))
+        if (
+            result := wire.generate(
+                config | {"sql": [package | {"codegen": [{"out": "out", "plugin": "python", "options": backend}]}]}
+            )
+        ).returncode != 0:
+            sys.exit(f"sqlc rejected the repaired predicate {repaired}: {result.stderr}")
+
+    query.write_text(
+        "-- name: ByEitherId :many\nSELECT id FROM sample WHERE id = @v OR big_id = @v ORDER BY id;\n"
+        "-- name: DaysSince :many\nSELECT id FROM sample WHERE d - @v > 0 ORDER BY id;\n"
+        "-- name: ByTime :many\nSELECT id FROM sample WHERE tm = @v OR d + @v > ts ORDER BY id;\n"
+        "-- name: ByTimestamp :many\nSELECT id FROM sample WHERE ts = @v OR ts::date = @v ORDER BY id;\n"
+    )
+    codegen = {
+        "out": "operand_queries",
+        "plugin": "python",
+        "options": {"backend": "psycopg", "async": False},
+    }
+    if (result := wire.generate(config | {"sql": [package | {"codegen": [codegen]}]})).returncode != 0:
+        sys.exit(f"sqlc rejected a valid PostgreSQL parameter: {result.stderr}")
+    sys.path.insert(0, str(wire.work))
+    try:
+        queries = importlib.import_module("operand_queries.operand")
+    finally:
+        sys.path.pop(0)
+    with (
+        postgres.server(f"postgres:{POSTGRES}", "POSTGRESQL_SERVER_URI") as server,
+        postgres.database(server, schema) as database,
+        psycopg.connect(postgres.conninfo(database)) as connection,
+    ):
+        connection.execute(
+            "INSERT INTO sample VALUES (42, 99, '2020-01-01', '2020-01-01 00:00', '00:00'), "
+            "(7, 42, '2020-01-02', '2020-01-01 12:00', '12:00')"
+        )
+        day = dt.date(2020, 1, 1)
+        for find, value, expected in [
+            (queries.by_either_id, 42, [7, 42]),
+            (queries.days_since, day, [7]),
+            (queries.by_time, dt.time.min, [7, 42]),
+            (queries.by_timestamp, dt.datetime.combine(day, dt.time.min), [7, 42]),
+        ]:
+            if get_type_hints(find)["v"] is not type(value) or find(connection, v=value) != expected:
+                sys.exit(f"{find.__name__} must bind {type(value).__name__} and return {expected}")
+
+
+def wire_sqlite_and_mysql(wire: Wire) -> None:
+    query = wire.work / "lookup.sql"
+    options = {"backend": "sqlalchemy", "async": False}
+    codegen = {"out": "out", "plugin": "python", "options": options}
+    for engine in ["mysql", "sqlite"]:
+        schema = "CREATE TABLE sample(id INTEGER NOT NULL PRIMARY KEY);\n"
+        if engine == "mysql":
+            schema += "CREATE TABLE permissions(id INT PRIMARY KEY, flags SET('a', 'bb', 'c'));\n"
+        (wire.work / "sample.sql").write_text(schema)
+        package = {"engine": engine, "schema": "sample.sql", "queries": query.name}
+        config = {"version": "2", "plugins": [wire.plugin], "sql": [package | {"codegen": [codegen]}]}
+        query.write_text("-- name: Lookup :many\nSELECT id FROM sample WHERE id = sqlc.arg(pg_catalog_id);\n")
+        if engine == "sqlite":
+            with query.open("a") as source:
+                source.write(
+                    "-- name: Put :many\nWITH n AS (SELECT 1) REPLACE INTO sample (id) VALUES (1) RETURNING id;\n"
+                    "-- name: Find :many\nWITH n AS (SELECT id FROM sample) "
+                    "SELECT id FROM n WHERE replace('a', 'a', 'b') = 'b';\n"
+                )
+        if (result := wire.generate(config)).returncode:
+            sys.exit(f"sqlc rejected {engine} lookups: {result.stderr}")
+        generated = (wire.work / "out/lookup.py").read_text()
+        if "pg_catalog_id: int" not in generated:
+            sys.exit(f"sqlc.arg(pg_catalog_id) lost its integer parameter on {engine}")
+        if engine == "sqlite":
+            if "def stream_put(" in generated or "def stream_find(" not in generated:
+                sys.exit("a SQLite WITH can stream a SELECT calling replace(), but cannot stream a REPLACE INTO")
+        else:
+            wire_mysql_set_slice(wire, package, config)
+            scalar, sliced = "sqlc.narg(ids) IS NULL", "id IN (sqlc.slice(ids))"
+            for first, second in [(scalar, sliced), (sliced, scalar)]:
+                query.write_text(f"-- name: Lookup :many\nSELECT id FROM sample WHERE {first} OR {second};\n")
+                wire.fails(config, options, 'query "Lookup"', "both a scalar and a sqlc.slice")
+
+
+def wire_mysql_set_slice(wire: Wire, package: Json, config: Json) -> None:
+    query = wire.work / package["queries"]
+    query.write_text("-- name: WithFlags :many\nSELECT id FROM permissions WHERE flags IN (sqlc.slice(flags));\n")
+    raw = {"version": "2", "sql": [package]}
+    capture = generate_with(wire.sqlc, Run("set-slice", "base", "generate", wire.work, raw, {}, None), raw)
+    if capture.status != "captured":
+        sys.exit(f"MySQL SET slice: {capture.detail}")
+    (request,) = capture.requests
+    parameter = request["queries"][0]["params"][0]["column"]
+    if parameter["length"] != -1 or parameter["type"]["name"] != "permissions_flags":
+        sys.exit(f"sqlc changed the MySQL SET slice metadata. Review is_set_column for {parameter!r}")
+    if (result := wire.generate(config)).returncode or "flags: list[str]" not in (
+        wire.work / "out/lookup.py"
+    ).read_text():
+        sys.exit(f"a MySQL SET slice must accept str elements: {result.stderr}")
 
 
 def outs(config: Json) -> list[str]:

@@ -133,6 +133,8 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
         preferred_method=None,
         metadata=None,
     )
+    assert (await query.compare_email(id=acme)).empty_email is None
+    assert (await query.compare_email(id=bare)).empty_email is False
     assert bare == acme + 1
     assert (await query.get_customer(id=bare)).vip is False
 

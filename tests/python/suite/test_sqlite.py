@@ -112,6 +112,8 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
         (1250, 0.5, AWKWARD, receipt),
         (-250, None, None, None),
     ]
+    assert (await query.compare_memo(id=second)).empty_memo is None
+    assert (await query.compare_memo(id=entries[0].id)).empty_memo is False
     assert entries[1].id == second
     # A count of the rows a filter keeps, and one over a window.
     counted = await query.count_entries(account_id=cash.id)

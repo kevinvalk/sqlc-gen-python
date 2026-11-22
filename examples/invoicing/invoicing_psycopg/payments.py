@@ -44,7 +44,10 @@ ORDER BY received_at"""
 
 
 def list_payments_by_methods(
-    connection: psycopg.Connection[Any], *, methods: list[models.BillingPaymentMethod]
+    connection: psycopg.Connection[Any],
+    *,
+    methods: list[models.BillingPaymentMethod | None]
+    | list[models.BillingPaymentMethod],
 ) -> list[models.BillingPayment]:
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_PAYMENTS_BY_METHODS, (methods,))
@@ -53,7 +56,10 @@ def list_payments_by_methods(
 
 @contextlib.contextmanager
 def stream_list_payments_by_methods(
-    connection: psycopg.Connection[Any], *, methods: list[models.BillingPaymentMethod]
+    connection: psycopg.Connection[Any],
+    *,
+    methods: list[models.BillingPaymentMethod | None]
+    | list[models.BillingPaymentMethod],
 ) -> Generator[Iterator[models.BillingPayment], None, None]:
     with psycopg.RawServerCursor(
         connection, "stream_list_payments_by_methods", row_factory=tuple_row
@@ -75,7 +81,11 @@ def list_invoice_payment_methods(
         cur.execute(_LIST_INVOICE_PAYMENT_METHODS, (invoice_id,))
         match cur.fetchmany(2):
             case [row]:
-                return models.BillingPaymentMethod.from_array(row[0])
+                return [
+                    models.BillingPaymentMethod(label)
+                    for label in row[0][1:-1].split(",")
+                    if label
+                ]
             case []:
                 raise models.NoRowError
             case _:
@@ -158,7 +168,7 @@ ORDER BY customers.name, invoices.number, payments.amount"""
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class ListCustomerPaidInvoicesRow:
-    name: str | None
+    name: str
     number: str | None
     amount: Decimal | None
 

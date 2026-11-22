@@ -1,5 +1,5 @@
 //! We decide the whole generated API here, once: the models and enums of the catalog ([`models`]) and the functions of
-//! the queries ([`queries`]), with every name and type, asking the engine and the backend only what they alone know.
+//! the queries ([`queries`]), using [`crate::sqlc_typing`] where sqlc misreports their types.
 //! Its types spell their own annotations and conversions, but statements and modules are for [`crate::render`] and the
 //! backends.
 

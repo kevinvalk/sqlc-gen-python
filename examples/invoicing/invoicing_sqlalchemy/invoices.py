@@ -133,7 +133,7 @@ _LIST_INVOICES_BY_IDS: Final = sqlalchemy.text(
 
 
 def list_invoices_by_ids(
-    connection: sqlalchemy.Connection, *, ids: list[UUID]
+    connection: sqlalchemy.Connection, *, ids: list[UUID | None] | list[UUID]
 ) -> list[models.Invoice]:
     return [
         models.Invoice.from_row(row)
@@ -143,7 +143,7 @@ def list_invoices_by_ids(
 
 @contextlib.contextmanager
 def stream_list_invoices_by_ids(
-    connection: sqlalchemy.Connection, *, ids: list[UUID]
+    connection: sqlalchemy.Connection, *, ids: list[UUID | None] | list[UUID]
 ) -> Generator[Iterator[models.Invoice], None, None]:
     with connection.execute(
         _LIST_INVOICES_BY_IDS, {"ids": ids}, execution_options={"stream_results": True}
@@ -157,7 +157,9 @@ _LIST_INVOICES_BY_STATUS: Final = sqlalchemy.text(
 
 
 def list_invoices_by_status(
-    connection: sqlalchemy.Connection, *, statuses: list[models.InvoiceStatus]
+    connection: sqlalchemy.Connection,
+    *,
+    statuses: list[models.InvoiceStatus | None] | list[models.InvoiceStatus],
 ) -> list[models.Invoice]:
     return [
         models.Invoice.from_row(row)
@@ -167,7 +169,9 @@ def list_invoices_by_status(
 
 @contextlib.contextmanager
 def stream_list_invoices_by_status(
-    connection: sqlalchemy.Connection, *, statuses: list[models.InvoiceStatus]
+    connection: sqlalchemy.Connection,
+    *,
+    statuses: list[models.InvoiceStatus | None] | list[models.InvoiceStatus],
 ) -> Generator[Iterator[models.Invoice], None, None]:
     with connection.execute(
         _LIST_INVOICES_BY_STATUS,

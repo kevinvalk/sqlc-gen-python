@@ -15,46 +15,8 @@ mod spec;
 
 /// A query's parameters in sqlc's order, one per placeholder. A name the user chose stays one parameter wherever it is
 /// used, also on MySQL where sqlc reports it once per use.
-pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> Result<Vec<Field>> {
-    let columns: Vec<plugin::Column> = (parameters.iter())
-        .map(|parameter| parameter.column.clone().unwrap_or_default())
-        .collect();
-
-    // A name the user chose is the identifier after `@`. When an operator binds tighter (`@day::date AT TIME ZONE
-    // 'UTC'` is `@(pg_catalog.timezone('UTC', day::date))`), `@` takes an expression, which sqlc names after its parts
-    // and may then have replaced as a whole with the placeholder.
-    if let Some(column) = (columns.iter())
-        .find(|c| c.is_named_param && (!resolver.engine.is_identifier(&c.name) || c.name.starts_with("pg_catalog")))
-    {
-        bail!(
-            "sqlc named a parameter \"{}\", which is no name: sqlc.arg was given one that is \
-             no identifier, or an operator that binds tighter than @, such as AT TIME ZONE or +, \
-             made @ take an expression, all of which sqlc may have replaced; write \
-             sqlc.arg(name), or parenthesise (@name::type)",
-            column.name
-        );
-    }
-
-    // On MySQL sqlc reports each use of a name, and cannot type one that meets no column (`sqlc.narg(x) IS NULL OR
-    // col = sqlc.narg(x)`). The one value binds every use, so a use sqlc typed types it, while its own nullability is
-    // still what sqlc reports of it.
-    let is_guess = |column: &plugin::Column| resolver.engine.is_guess(column, true);
-    let columns: Vec<plugin::Column> = (columns.iter())
-        .map(|column| {
-            let typed = (column.is_named_param && is_guess(column))
-                .then(|| {
-                    (columns.iter()).find(|other| other.is_named_param && other.name == column.name && !is_guess(other))
-                })
-                .flatten();
-            match typed {
-                Some(typed) => plugin::Column {
-                    not_null: column.not_null,
-                    ..typed.clone()
-                },
-                None => column.clone(),
-            }
-        })
-        .collect();
+pub(super) fn params(query: &plugin::Query, resolver: &Resolver) -> Result<Vec<Field>> {
+    let columns = crate::sqlc_typing::parameter_columns(resolver.engine, query)?;
 
     // sqlc's Go codegen numbers parameters that spell one name, but a name the user chose (`sqlc.arg`, `@name`) must
     // bind the placeholder it was written at, so it never takes or gives a suffix. Every later use of such a name holds
@@ -108,7 +70,7 @@ pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> R
     }
 
     let mut fields: Vec<Field> = Vec::new();
-    for (((name, column), parameter), repeat) in names.into_iter().zip(columns).zip(parameters).zip(&repeats) {
+    for (((name, column), parameter), repeat) in names.into_iter().zip(columns).zip(&query.params).zip(&repeats) {
         let what = format!(
             "parameter {} (\"{name}\")",
             resolver.engine.placeholder(parameter.number)
@@ -117,16 +79,7 @@ pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> R
             bail!("sqlc.slice is MySQL/SQLite only; on PostgreSQL use = ANY(@{name}::type[])")
         }
 
-        // We suggest the cast on the placeholder, as a parameter cannot be coalesced
-        let cast = format!(
-            "{}, or {} if it can be NULL",
-            resolver.engine.cast(&match resolver.engine {
-                Engine::PostgreSql => format!("@{name}"),
-                Engine::MySql | Engine::Sqlite => format!("sqlc.arg({name})"),
-            }),
-            resolver.engine.cast(&format!("sqlc.narg('{name}')"))
-        );
-        let mut ty = resolver.field_type(&column, true, &what, &cast)?;
+        let mut ty = resolver.field_type(&column, Some(&name), &what, &crate::sqlc_typing::Column::default())?;
         if column.is_sqlc_slice {
             // A slice is a list and never NULL, as we bind each of its items. No engine with slices has arrays, so it
             // is never a list of lists.

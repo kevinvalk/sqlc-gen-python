@@ -510,7 +510,7 @@ _COUNTDOWN: Final = sqlalchemy.text("""WITH RECURSIVE numbers (n) AS (SELECT 1 U
 SELECT CAST(JSON_EXTRACT(IF(n = 800, 'malformed', '1'), '$') AS SIGNED) AS share FROM numbers""")
 
 
-def countdown(connection: sqlalchemy.Connection) -> list[int]:
+def countdown(connection: sqlalchemy.Connection) -> list[int | None]:
     """Reads malformed JSON at its 800th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
@@ -520,7 +520,7 @@ def countdown(connection: sqlalchemy.Connection) -> list[int]:
 @contextlib.contextmanager
 def stream_countdown(
     connection: sqlalchemy.Connection,
-) -> Generator[Iterator[int], None, None]:
+) -> Generator[Iterator[int | None], None, None]:
     """Reads malformed JSON at its 800th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
@@ -528,3 +528,24 @@ def stream_countdown(
         _COUNTDOWN, execution_options={"stream_results": True}
     ) as cur:
         yield (row[0] for row in cur)
+
+
+_COMPARE_EMAIL: Final = sqlalchemy.text(
+    "SELECT id, email = '' AS empty_email FROM customers WHERE id = :id"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CompareEmailRow:
+    id: int
+    empty_email: bool | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CompareEmailRow":
+        return cls(id=row[0], empty_email=None if row[1] is None else bool(row[1]))
+
+
+def compare_email(connection: sqlalchemy.Connection, *, id: int) -> CompareEmailRow:
+    return CompareEmailRow.from_row(
+        connection.execute(_COMPARE_EMAIL, {"id": id}).one()
+    )

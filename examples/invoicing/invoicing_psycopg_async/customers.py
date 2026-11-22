@@ -3,6 +3,7 @@
 #   sqlc v1.31.1
 import contextlib
 import dataclasses
+import typing
 from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
 from typing import Any, Final
 from uuid import UUID
@@ -11,6 +12,22 @@ import psycopg
 from invoicing_models import models
 from psycopg.rows import tuple_row
 from psycopg.types.json import Jsonb
+
+
+def _checked_array(
+    value: object, dimensions: int, *, list_leaves: bool = False
+) -> list[Any]:
+    if isinstance(value, list):
+        items = typing.cast("list[object]", value)
+        if dimensions != 1:
+            for child in items:
+                _checked_array(child, dimensions - 1, list_leaves=list_leaves)
+            return items
+        if (list_leaves or not items) or not isinstance(items[0], list):
+            return items
+    message = "PostgreSQL returned an array with a different number of dimensions than declared"
+    raise TypeError(message)
+
 
 _CREATE_CUSTOMER: Final = """INSERT INTO customers (name, email, tags, preferred_method, accepted_methods, metadata)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -21,9 +38,11 @@ RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, c
 class CreateCustomerParams:
     name: str
     email: str | None = None
-    tags: list[str]
+    tags: list[str | None] | list[str]
     preferred_method: models.BillingPaymentMethod | None = None
-    accepted_methods: list[models.BillingPaymentMethod]
+    accepted_methods: (
+        list[models.BillingPaymentMethod | None] | list[models.BillingPaymentMethod]
+    )
     metadata: Mapping[str, object] | list[Any] | tuple[object, ...] | float | None = (
         None
     )
@@ -80,7 +99,7 @@ FROM customers WHERE id = $1"""
 class GetQuotedTextRow:
     triple_quotes: str
     backslash: str
-    escaped: str
+    escaped: str | None
     name: str
 
     @classmethod
@@ -146,7 +165,7 @@ _GET_ACCEPTED_METHODS: Final = "SELECT coalesce(accepted_methods, '{}')::billing
 
 async def get_accepted_methods(
     connection: psycopg.AsyncConnection[Any], *, id: UUID
-) -> list[models.BillingPaymentMethod] | None:
+) -> list[models.BillingPaymentMethod | None] | None:
     """PostgreSQL names this column `coalesce`, and sqlc nothing. It is cast, as
     sqlc types a coalesce as its first argument whatever the others are.
     """
@@ -168,8 +187,8 @@ WHERE a.id = $1 AND b.id = $2"""
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class CompareAcceptedMethodsRow:
-    accepted_methods: list[models.BillingPaymentMethod]
-    accepted_methods_2: list[models.BillingPaymentMethod]
+    accepted_methods: list[models.BillingPaymentMethod | None]
+    accepted_methods_2: list[models.BillingPaymentMethod | None]
 
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "CompareAcceptedMethodsRow":
@@ -325,13 +344,20 @@ _COUNT_CUSTOMERS_BY_METADATA: Final = (
 async def count_customers_by_metadata(
     connection: psycopg.AsyncConnection[Any],
     *,
-    documents: list[Mapping[str, object] | list[Any] | tuple[object, ...] | float]
+    documents: list[
+        Mapping[str, object] | list[Any] | tuple[object, ...] | float | None
+    ]
+    | list[Mapping[str, object] | list[Any] | tuple[object, ...] | float]
     | None = None,
 ) -> int:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(
             _COUNT_CUSTOMERS_BY_METADATA,
-            (None if documents is None else [Jsonb(_v1) for _v1 in documents],),
+            (
+                None
+                if documents is None
+                else [None if _v1 is None else Jsonb(_v1) for _v1 in documents],
+            ),
         )
         match await cur.fetchmany(2):
             case [row]:
@@ -397,14 +423,10 @@ class ListLastEmailsByNameRow:
         return cls(
             name=row[0],
             last_email=row[1],
-            emails=row[2],
+            emails=None if row[2] is None else _checked_array(row[2], 1),
             methods=None
             if row[3] is None
-            else [
-                None if label == "NULL" else models.BillingPaymentMethod(label)
-                for label in row[3][1:-1].split(",")
-                if label
-            ],
+            else models.BillingPaymentMethod.from_array(row[3]),
         )
 
 
@@ -425,3 +447,36 @@ async def stream_list_last_emails_by_name(
     ) as cur:
         await cur.execute(_LIST_LAST_EMAILS_BY_NAME)
         yield (ListLastEmailsByNameRow.from_row(row) async for row in cur)
+
+
+_GET_CUSTOMER_CONTACT: Final = """WITH contact AS (
+    SELECT id, name, (email || '!')::text AS address FROM customers
+), renamed AS (
+    SELECT id, name, address AS contact_address FROM contact
+)
+SELECT id, name, contact_address FROM renamed WHERE id = $1::uuid"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class GetCustomerContactRow:
+    id: UUID
+    name: str
+    contact_address: str | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "GetCustomerContactRow":
+        return cls(id=row[0], name=row[1], contact_address=row[2])
+
+
+async def get_customer_contact(
+    connection: psycopg.AsyncConnection[Any], *, id: UUID
+) -> GetCustomerContactRow | None:
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
+        await cur.execute(_GET_CUSTOMER_CONTACT, (id,))
+        match await cur.fetchmany(2):
+            case [row]:
+                return GetCustomerContactRow.from_row(row)
+            case []:
+                return None
+            case _:
+                raise models.MultipleRowsError

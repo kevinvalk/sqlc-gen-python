@@ -4,7 +4,6 @@
 
 mod mysql;
 mod postgresql;
-pub mod select;
 mod sqlite;
 
 #[cfg(test)]
@@ -16,6 +15,7 @@ use anyhow::{Result, bail};
 
 use crate::plugin;
 use crate::python::Type;
+use crate::sqlc_typing::bindings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Engine {
@@ -86,12 +86,6 @@ impl Sql {
     }
 }
 
-/// Whether `column` is a parameter without a column behind it (of a `LIMIT`, an `OFFSET` or a function), which sqlc
-/// types as `integer` itself on every engine.
-pub fn is_typed_by_sqlc(column: &plugin::Column, parameter: bool) -> bool {
-    parameter && column.table.is_none() && column.data_type() == "integer"
-}
-
 impl Engine {
     pub fn of(request: &plugin::GenerateRequest) -> Result<Self> {
         match request.settings.as_ref().map_or("", |s| s.engine.as_str()) {
@@ -138,100 +132,12 @@ impl Engine {
         }
     }
 
-    /// MySQL makes a catalog enum for a SET's labels. No column of that type holds an enum member.
-    pub fn is_set(self, schema: &plugin::Schema, labels: &plugin::Enum) -> bool {
-        if self != Self::MySql {
-            return false;
-        }
-        let mut columns = schema
-            .tables
-            .iter()
-            .flat_map(|table| &table.columns)
-            .filter(|column| {
-                column
-                    .r#type
-                    .as_ref()
-                    .is_some_and(|ty| ty.name == labels.name && (ty.schema.is_empty() || ty.schema == schema.name))
-            })
-            .peekable();
-        columns.peek().is_some() && columns.all(|column| mysql::is_set(column, &labels.vals) == Ok(true))
-    }
-
-    /// MySQL reports a SET as an enum of its members, but its drivers return their comma-separated text.
-    pub fn enum_type(self, column: &plugin::Column, labels: &[String], class: String) -> Result<Type, &'static str> {
-        if self == Self::MySql && mysql::is_set(column, labels)? {
-            Ok(Type::STR)
-        } else {
-            Ok(Type::Enum(class))
-        }
-    }
-
     /// Whether we support `:execlastid`. PostgreSQL and SQLite have `RETURNING` instead, and SQLite's last id is the
     /// connection's, so an `INSERT` that inserted nothing would report the previous one's.
     pub fn has_last_insert_id(self) -> bool {
         match self {
             Self::PostgreSql | Self::Sqlite => false,
             Self::MySql => true,
-        }
-    }
-
-    /// Whether sqlc guessed the type of `column` (a query's parameter when `parameter`, else a result's or a table's
-    /// column) instead of reading it. On MySQL and SQLite a guess is `any` or nothing, for an expression sqlc could
-    /// not type.
-    ///
-    /// On PostgreSQL every standard name is a guess ([`postgresql::is_guess`]), and so is a bare `integer`: sqlc spells
-    /// a column's own type `pg_catalog.int4`, so `integer` is a function's first overload (`age(ts)`, an interval,
-    /// read through a CTE is the `integer` of `age(xid)`). Except for a parameter [`is_typed_by_sqlc`].
-    pub fn is_guess(self, column: &plugin::Column, parameter: bool) -> bool {
-        let data_type = column.data_type();
-        match self {
-            Self::PostgreSql => {
-                postgresql::is_guess(&data_type) || (data_type == "integer" && !is_typed_by_sqlc(column, parameter))
-            }
-            Self::Sqlite | Self::MySql => ["", "any"].contains(&data_type.as_str()),
-        }
-    }
-
-    /// Whether a result `column` is an expression sqlc typed by its form instead of its operands. On MySQL and SQLite
-    /// any arithmetic is `int` (`price * 1.1` too), MySQL's `1.0` (a `DECIMAL`) is `float` and its `BINARY x` (bytes)
-    /// is `char`. Neither a cast nor a column lands here, as a cast keeps its declared spelling (`INTEGER`, `SIGNED`,
-    /// `REAL`, `DOUBLE`) and a column has its table.
-    pub fn is_untyped_expression(self, column: &plugin::Column) -> bool {
-        let forms: &[&str] = match self {
-            Self::PostgreSql => &[],
-            Self::Sqlite => &["int", "float"],
-            Self::MySql => &["int", "float", "char"],
-        };
-        column.table.is_none() && forms.contains(&column.data_type().as_str())
-    }
-
-    /// A hint for the error about a column of `data_type` that has no Python type, or nothing.
-    pub fn unmapped(self, data_type: &str) -> &'static str {
-        match self {
-            // sqlc sends a domain's name, never its base type.
-            Self::PostgreSql if !data_type.starts_with("pg_catalog.") => {
-                ", or, for a domain, declare the column with its base type and a CHECK constraint"
-            }
-            Self::Sqlite => {
-                "; but SQLite stores a value of its NUMERIC affinity as whichever of an integer, \
-                 a real and text it looks like, so better declare it INTEGER, REAL, TEXT or BLOB"
-            }
-            Self::MySql if data_type == "var_string" => {
-                "; it is how sqlc reports a CAST AS CHAR, a str, and a CAST AS BINARY, bytes, alike"
-            }
-            Self::PostgreSql | Self::MySql => "",
-        }
-    }
-
-    /// A hint for the error about a guessed type. On PostgreSQL, sqlc's database analyzer names every type the way its
-    /// static analysis names only its guesses, so we cannot tell them apart.
-    pub fn analysis(self) -> &'static str {
-        match self {
-            Self::PostgreSql => {
-                "; with a database block in sqlc.yaml, also set analyzer: {database: false}, \
-                 as only sqlc's static analysis can be told from a guess"
-            }
-            Self::Sqlite | Self::MySql => "",
         }
     }
 
@@ -249,17 +155,7 @@ impl Engine {
     /// statement is an error: the function would lack the parameter, and the database be sent the call as written!
     /// Without its `(` it is a column of a table named `sqlc`, which sqlc sends as written.
     pub fn sql(self, text: &str, params: &[Bind]) -> Result<Sql> {
-        let words = self.code(text);
-        let is_call = |call: &&[String]| {
-            call[0].eq_ignore_ascii_case("sqlc")
-                && call[1] == "."
-                && (["arg", "narg", "slice", "embed"].iter()).any(|name| call[2].eq_ignore_ascii_case(name))
-                && call[3] == "("
-        };
-        if let Some(call) = words.windows(4).find(is_call) {
-            bail!("sqlc did not rewrite {}{}", call[..3].concat(), self.unrewritten());
-        }
-
+        bindings::check_macros(self, &self.code(text))?;
         match self {
             Self::PostgreSql => postgresql::sql(text, params),
             Self::Sqlite => sqlite::sql(text, params),
@@ -300,197 +196,24 @@ impl Engine {
         Some(words.split_off(start + phrase.len()))
     }
 
-    /// Whether `text` only reads: a `SELECT`, `VALUES` or `TABLE`, or a `WITH` of no statement that writes. A
-    /// `FOR UPDATE` or `FOR NO KEY UPDATE` only locks what it reads.
-    pub fn reads(self, text: &str) -> bool {
-        let words: Vec<String> = (self.words(text).into_iter())
-            .map(|word| word.to_lowercase())
-            .skip_while(|word| word == "(")
-            .collect();
-        let writes = |i: usize| {
-            ["insert", "update", "delete", "merge"].contains(&words[i].as_str())
-                && !(i > 0 && ["for", "key"].contains(&words[i - 1].as_str()))
-        };
-        match words.first().map(String::as_str) {
-            Some("select" | "values" | "table") => true,
-            Some("with") => !(0..words.len()).any(writes),
-            _ => false,
-        }
-    }
-
-    pub fn items(self, text: &str, tables: &[&str], catalog: &plugin::Catalog) -> Option<Vec<select::Item>> {
-        let required = |schema: &str, table: &str, field: &str| {
-            catalog
-                .schema(schema)
-                .and_then(|s| {
-                    s.tables
-                        .iter()
-                        .find(|t| t.rel.as_ref().is_some_and(|r| r.name == table))
-                })
-                .and_then(|t| t.columns.iter().find(|c| c.name == field))
-                .map(|c| c.not_null)
-        };
-        select::items(&self.words(text), tables, &self.aggregates(), required)
-    }
-
-    /// Whether the statement holds a `coalesce`, a `nullif` or a `CASE` anywhere, which is all we know of them where
-    /// [`Self::items`] reads no list.
-    pub fn holds_operand_typed(self, text: &str) -> bool {
-        let is_typed = |word: &str| {
-            ["coalesce", "nullif", "case"]
-                .iter()
-                .any(|typed| word.eq_ignore_ascii_case(typed))
-        };
-        let words = self.words(text);
-        match words.is_empty() {
-            // MySQL's executable comments leave us without tokens, and what they hold runs, so we look in the text
-            true => (text.split(|c: char| !c.is_alphanumeric() && c != '_')).any(is_typed),
-            false => words.iter().any(|word| is_typed(word)),
-        }
-    }
-
-    pub fn single_row(self, text: &str) -> bool {
-        select::single_row(&self.words(text), self)
-    }
-
-    pub fn present(self, text: &str) -> Vec<String> {
-        select::present(&self.words(text), &self.aggregates())
-    }
-
-    /// The aggregate functions as each manual lists them.
-    ///
-    /// NOTE: An aggregate the schema defines is not here, so we read it as any other function.
-    fn aggregates(self) -> select::Aggregates {
-        match self {
-            Self::PostgreSql => select::Aggregates {
-                nullable: &[
-                    "any_value",
-                    "array_agg",
-                    "avg",
-                    "bit_and",
-                    "bit_or",
-                    "bit_xor",
-                    "bool_and",
-                    "bool_or",
-                    "corr",
-                    "covar_pop",
-                    "covar_samp",
-                    "every",
-                    "json_agg",
-                    "json_agg_strict",
-                    "json_arrayagg",
-                    "json_object_agg",
-                    "json_object_agg_strict",
-                    "json_object_agg_unique",
-                    "json_object_agg_unique_strict",
-                    "json_objectagg",
-                    "jsonb_agg",
-                    "jsonb_agg_strict",
-                    "jsonb_object_agg",
-                    "jsonb_object_agg_strict",
-                    "jsonb_object_agg_unique",
-                    "jsonb_object_agg_unique_strict",
-                    "max",
-                    "min",
-                    "mode",
-                    "percentile_cont",
-                    "percentile_disc",
-                    "range_agg",
-                    "range_intersect_agg",
-                    "regr_avgx",
-                    "regr_avgy",
-                    "regr_intercept",
-                    "regr_r2",
-                    "regr_slope",
-                    "regr_sxx",
-                    "regr_sxy",
-                    "regr_syy",
-                    "stddev",
-                    "stddev_pop",
-                    "stddev_samp",
-                    "string_agg",
-                    "sum",
-                    "var_pop",
-                    "var_samp",
-                    "variance",
-                    "xmlagg",
-                ],
-                never_null: &["count", "regr_count"],
-                scalar_of_several: &[],
-                engine: self,
-            },
-            Self::Sqlite => select::Aggregates {
-                nullable: &["avg", "group_concat", "max", "min", "string_agg", "sum"],
-                // Of no rows `total` is `0.0`, and a JSON group is its empty array or object
-                never_null: &[
-                    "count",
-                    "json_group_array",
-                    "json_group_object",
-                    "jsonb_group_array",
-                    "jsonb_group_object",
-                    "total",
-                ],
-                scalar_of_several: &["max", "min"],
-                engine: self,
-            },
-            Self::MySql => select::Aggregates {
-                nullable: &[
-                    "avg",
-                    "group_concat",
-                    "json_arrayagg",
-                    "json_objectagg",
-                    "max",
-                    "min",
-                    "std",
-                    "stddev",
-                    "stddev_pop",
-                    "stddev_samp",
-                    "sum",
-                    "var_pop",
-                    "var_samp",
-                    "variance",
-                ],
-                // Of no rows a bitwise aggregate is its neutral value
-                never_null: &["bit_and", "bit_or", "bit_xor", "count"],
-                scalar_of_several: &[],
-                engine: self,
-            },
-        }
-    }
-
-    /// sqlc's PostgreSQL analyser takes a parameter's type from the first column it finds in a comparison,
-    /// even in a row of several columns (`internal/compiler/resolve.go`, `ast.A_Expr`).
-    pub fn check_row_parameters(self, query: &plugin::Query) -> Result<()> {
-        if self == Self::PostgreSql && !query.params.is_empty() {
-            for (number, field) in select::row_parameters(&self.words(&query.text)) {
-                if let Some(column) = query
-                    .params
-                    .iter()
-                    .find(|p| p.number == number)
-                    .and_then(|p| p.column.as_ref())
-                    && column.table.is_some()
-                    && !column.original_name.is_empty()
-                    && column.original_name != field
-                {
-                    bail!(
-                        "parameter ${number} is compared with \"{field}\" in a row, but sqlc typed it by \"{}\"; \
-                         cast the parameter to the type of \"{field}\"",
-                        column.original_name
-                    );
-                }
-            }
-        }
-        Ok(())
-    }
-
     /// The words of `text` whose meaning we may rely on.
-    fn words(self, text: &str) -> Vec<String> {
+    pub(crate) fn words(self, text: &str) -> Vec<String> {
         match self {
             // MySQL runs an executable comment (`/*! LEFT */ JOIN`) that our lexer leaves out, so we rather read no
             // tokens at all, which reads as nothing known of the statement. MariaDB, which sqlc's mysql engine and
             // the drivers serve too, runs `/*M! ... */` as well.
             Self::MySql if text.contains("/*!") || text.contains("/*M!") => Vec::new(),
-            Self::PostgreSql | Self::Sqlite | Self::MySql => self.code(text),
+            Self::PostgreSql => {
+                // PostgreSQL folds unquoted names before it looks them up in the catalog.
+                let mut words = self.code(text);
+                for word in &mut words {
+                    if postgresql::is_identifier(word) {
+                        word.make_ascii_lowercase();
+                    }
+                }
+                words
+            }
+            Self::Sqlite | Self::MySql => self.code(text),
         }
     }
 
@@ -502,44 +225,6 @@ impl Engine {
             Self::PostgreSql => postgresql::words(&chars),
             Self::Sqlite => sqlite::words(&chars),
             Self::MySql => mysql::words(&chars),
-        }
-    }
-
-    /// A hint for the error when a statement's placeholders are not the parameters sqlc reported.
-    fn misnumbered(self) -> &'static str {
-        match self {
-            Self::PostgreSql => "",
-            // sqlc numbers a `sqlc.arg` among `?`s, and a `sqlc.slice` used twice, differently than SQLite does
-            Self::Sqlite => {
-                "; on SQLite, name every parameter of the statement with sqlc.arg rather than mix them with ?, \
-                 and use a sqlc.slice once; in some clauses, such as HAVING, ORDER BY and \
-                 ON CONFLICT ... DO UPDATE, sqlc reads no parameter at all"
-            }
-            // sqlc reports no parameter for the first two, and an executable comment is no code to our lexer
-            Self::MySql => {
-                "; on MySQL, sqlc reads no parameter in some subqueries, such as > ANY (SELECT ...), nor \
-                 a sqlc.slice without a plain column on its left, and we read no placeholder inside /*! ... */"
-            }
-        }
-    }
-
-    /// A hint for the error about a named parameter sqlc left as written: where sqlc 1.31.1 reads none.
-    fn unrewritten(self) -> &'static str {
-        match self {
-            Self::PostgreSql => {
-                ", as it rewrites none in a statement it does not analyse, such as MERGE; \
-                 write it as INSERT ... ON CONFLICT, or UPDATE ... FROM"
-            }
-            Self::Sqlite => {
-                ", as on SQLite it reads no parameter in some clauses, such as HAVING, ORDER BY and \
-                 ON CONFLICT ... DO UPDATE; write the row's own value as excluded.<column> in a DO UPDATE, \
-                 and filter groups in a WHERE around a subquery rather than in a HAVING"
-            }
-            Self::MySql => {
-                ", as on MySQL it reads no parameter in some subqueries, such as > ANY (SELECT ...) and \
-                 > ALL (SELECT ...); write = ANY as IN (SELECT ...), or compare with (SELECT min(...)) or \
-                 (SELECT max(...))"
-            }
         }
     }
 
@@ -557,15 +242,6 @@ impl Engine {
         match self {
             Self::PostgreSql => postgresql::type_name(data_type),
             Self::Sqlite | Self::MySql => data_type.to_string(),
-        }
-    }
-
-    /// The type of `count(...)`, spelled as sqlc spells a type it read instead of guessed.
-    pub fn count_type(self) -> &'static str {
-        match self {
-            Self::PostgreSql => "pg_catalog.int8",
-            Self::Sqlite => "integer",
-            Self::MySql => "bigint",
         }
     }
 
@@ -596,7 +272,7 @@ fn cut(
              strings and comments{}",
             engine.placeholder(bind.number),
             bind.name,
-            engine.misnumbered()
+            bindings::misnumbered(engine)
         );
     }
 
@@ -608,7 +284,7 @@ fn cut(
         let Some(bind) = params.iter().find(|bind| bind.number == number) else {
             bail!(
                 "the SQL uses {placeholder}, which sqlc reported no parameter for{}",
-                engine.misnumbered()
+                bindings::misnumbered(engine)
             );
         };
         let mut before = text(from..range.start);
@@ -653,7 +329,7 @@ fn cut(
     }) {
         bail!(
             "the SQL spells {marker} where sqlc reported no sqlc.slice, as in a string or a comment{}",
-            engine.misnumbered()
+            bindings::misnumbered(engine)
         );
     }
     Ok(Sql(pieces))

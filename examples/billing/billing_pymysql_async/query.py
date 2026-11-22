@@ -565,7 +565,7 @@ _COUNTDOWN: Final = """WITH RECURSIVE numbers (n) AS (SELECT 1 UNION ALL SELECT 
 SELECT CAST(JSON_EXTRACT(IF(n = 800, 'malformed', '1'), '$') AS SIGNED) AS share FROM numbers"""
 
 
-async def countdown(connection: asyncmy.Connection) -> list[int]:
+async def countdown(connection: asyncmy.Connection) -> list[int | None]:
     """Reads malformed JSON at its 800th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
@@ -577,10 +577,37 @@ async def countdown(connection: asyncmy.Connection) -> list[int]:
 @contextlib.asynccontextmanager
 async def stream_countdown(
     connection: asyncmy.Connection,
-) -> AsyncGenerator[AsyncIterator[int], None]:
+) -> AsyncGenerator[AsyncIterator[int | None], None]:
     """Reads malformed JSON at its 800th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
     async with connection.cursor(asyncmy.cursors.SSCursor) as cur:
         await _typed(cur).execute(_COUNTDOWN)
         yield (row[0] async for row in _typed(cur))
+
+
+_COMPARE_EMAIL: Final = (
+    "SELECT id, email = '' AS empty_email FROM customers WHERE id = %s"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CompareEmailRow:
+    id: int
+    empty_email: bool | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CompareEmailRow":
+        return cls(id=row[0], empty_email=None if row[1] is None else bool(row[1]))
+
+
+async def compare_email(connection: asyncmy.Connection, *, id: int) -> CompareEmailRow:
+    async with connection.cursor(asyncmy.cursors.Cursor) as cur:
+        await _typed(cur).execute(_COMPARE_EMAIL, (id,))
+        match await _typed(cur).fetchmany(2):
+            case [row]:
+                return CompareEmailRow.from_row(row)
+            case []:
+                raise models.NoRowError
+            case _:
+                raise models.MultipleRowsError

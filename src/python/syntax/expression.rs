@@ -262,6 +262,10 @@ pub trait Expression: Into<ast::Expr> {
         binary(self, ast::Operator::Mult, other)
     }
 
+    fn subtract(self, other: impl Into<ast::Expr>) -> ast::Expr {
+        binary(self, ast::Operator::Sub, other)
+    }
+
     fn or(self, other: impl Into<ast::Expr>) -> ast::Expr {
         node!(ast::ExprBoolOp {
             op: ast::BoolOp::Or,
@@ -279,8 +283,12 @@ pub trait Expression: Into<ast::Expr> {
     }
 
     fn equals(self, other: impl Into<ast::Expr>) -> ast::Expr {
+        self.compare(ast::CmpOp::Eq, other)
+    }
+
+    fn compare(self, op: ast::CmpOp, other: impl Into<ast::Expr>) -> ast::Expr {
         node!(ast::ExprCompare {
-            ops: Box::new([ast::CmpOp::Eq]),
+            ops: Box::new([op]),
             operands: Box::new([self.into(), other.into()]),
         })
         .into()

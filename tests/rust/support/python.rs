@@ -115,10 +115,11 @@ impl Shape {
         }
         let members = union(unwrapped(annotation));
         let (nones, others): (Vec<_>, Vec<_>) = members.into_iter().partition(|member| member.is_none_literal_expr());
-        let depth = match others[..] {
-            [Expr::Subscript(list)] if is_name(&list.value, "list") => 1 + Self::of(&list.slice).depth,
+        let mut depths = others.iter().map(|member| match member {
+            Expr::Subscript(list) if is_name(&list.value, "list") => 1 + Self::of(&list.slice).depth,
             _ => 0,
-        };
+        });
+        let depth = depths.next().filter(|d| depths.all(|n| n == *d)).unwrap_or(0);
         Self {
             optional: !nones.is_empty(),
             depth,

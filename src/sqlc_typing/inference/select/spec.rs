@@ -22,7 +22,9 @@ fn tokens(sql: &str) -> Vec<String> {
 
 /// The items of `sql`'s list, sqlc reporting each of the `columns` as of no table.
 fn read(sql: &str, columns: usize) -> Option<Vec<Item>> {
-    items(&tokens(sql), &vec![""; columns], &AGGREGATES, |_, _, _| Some(true))
+    items(&leveled(&tokens(sql)), &vec![""; columns], &AGGREGATES, |_, _, _| {
+        Some(true)
+    })
 }
 
 fn counts(sql: &str, columns: usize) -> Vec<bool> {
@@ -98,7 +100,12 @@ fn a_count_is_one_of_the_rows_a_filter_keeps_or_a_window_holds() {
         [false, false, false, true]
     );
     // SQLite reads either word with nothing of its own after it as an alias, so the call stays an aggregate
-    let sqlite = |sql: &str| items(&Engine::Sqlite.words(sql), &[""], &SQLITE, |_, _, _| Some(true)).expect(sql);
+    let sqlite = |sql: &str| {
+        items(&leveled(&Engine::Sqlite.words(sql)), &[""], &SQLITE, |_, _, _| {
+            Some(true)
+        })
+        .expect(sql)
+    };
     for alias in ["over", "filter"] {
         let sql = format!("SELECT max(x) {alias} FROM t");
         assert!(sqlite(&sql)[0].nullable, "{sql}");
@@ -421,21 +428,6 @@ fn a_window_may_have_no_value_at_its_offset_or_in_its_frame() {
 }
 
 #[test]
-fn row_comparisons_pair_each_uncast_placeholder_with_its_own_column() {
-    for sql in [
-        "SELECT * FROM t WHERE (t.at, t.\"ID\") < ($1, $2)",
-        "SELECT * FROM t WHERE RoW($1, $2) >= rOw(t.at, t.\"ID\")",
-    ] {
-        assert_eq!(row_parameters(&tokens(sql)), [(1, "at".into()), (2, "ID".into())]);
-    }
-    assert_eq!(
-        row_parameters(&tokens("SELECT * FROM t WHERE (at, id) < ($1, $2::uuid)")),
-        [(1, "at".into())]
-    );
-    assert!(row_parameters(&tokens("SELECT make_pair(at, id) = ($1, $2) FROM t")).is_empty());
-}
-
-#[test]
 fn a_json_lookup_may_find_no_key_even_when_cast() {
     let sql = "SELECT (t.doc->>'author')::text, CAST(doc->'ids'->>0 AS int), doc #>> '{a,b}', \
                coalesce(doc->>'author', '')::text, (doc->>'author') IS NULL FROM t";
@@ -445,7 +437,7 @@ fn a_json_lookup_may_find_no_key_even_when_cast() {
 #[test]
 fn a_group_needs_a_present_argument_to_guarantee_an_aggregate_value() {
     let sql = "SELECT max(s.at)::timestamptz, min(s.id)::int, max(s.at + interval '1 hour')::timestamptz, sum(1) FROM app.samples AS s GROUP BY s.kind";
-    let fields = items(&tokens(sql), &[""; 4], &AGGREGATES, |schema, table, field| {
+    let fields = items(&leveled(&tokens(sql)), &[""; 4], &AGGREGATES, |schema, table, field| {
         Some((schema, table, field) == ("app", "samples", "id"))
     })
     .unwrap();
@@ -464,10 +456,13 @@ fn array_agg_keeps_null_inputs_unless_its_filter_omits_them() {
     let sql = "SELECT array_agg(s.note ORDER BY s.id)::text[], CAST(array_agg(s.id) AS int[]), \
                array_agg(DISTINCT s.note) FILTER (WHERE s.note IS NOT NULL)::text[], \
                array_agg(r.id)::int[], count(*) FROM samples s LEFT JOIN replies r ON r.id = s.id";
-    let fields = items(&tokens(sql), &[""; 5], &AGGREGATES, |_, _, field| Some(field == "id")).unwrap();
+    let fields = items(&leveled(&tokens(sql)), &[""; 5], &AGGREGATES, |_, _, field| {
+        Some(field == "id")
+    })
+    .unwrap();
     assert_eq!(
-        fields.iter().map(|item| item.collects_nulls).collect::<Vec<_>>(),
-        [true, false, false, true, false]
+        fields.iter().map(|item| item.required_elements).collect::<Vec<_>>(),
+        [false, true, true, false, false]
     );
 }
 
@@ -475,7 +470,10 @@ fn array_agg_keeps_null_inputs_unless_its_filter_omits_them() {
 fn a_cast_of_a_nullable_column_preserves_its_null() {
     let sql = "SELECT t.note::text AS n, CAST(t.id AS bigint), (t.note)::text, CAST(r.id AS int), \
                coalesce(t.note, '')::text FROM samples t LEFT JOIN replies r ON r.id = t.id";
-    let fields = items(&tokens(sql), &[""; 5], &AGGREGATES, |_, _, field| Some(field == "id")).unwrap();
+    let fields = items(&leveled(&tokens(sql)), &[""; 5], &AGGREGATES, |_, _, field| {
+        Some(field == "id")
+    })
+    .unwrap();
     assert_eq!(
         fields.iter().map(|item| item.nullable).collect::<Vec<_>>(),
         [true, false, true, true, false]
@@ -633,14 +631,17 @@ fn a_coalesce_guards_only_with_a_default() {
     }
     // MySQL's `2nd` is a column, not a number.
     let mysql = "SELECT coalesce(max(a), 2nd) FROM t";
-    let items = items(&Engine::MySql.words(mysql), &[""], &AGGREGATES, |_, _, _| Some(true)).expect(mysql);
+    let items = items(&leveled(&Engine::MySql.words(mysql)), &[""], &AGGREGATES, |_, _, _| {
+        Some(true)
+    })
+    .expect(mysql);
     assert!(items[0].nullable);
 }
 
 #[test]
 fn a_column_beside_an_ungrouped_aggregate_is_null_of_no_rows_where_one_may_stand() {
     let read = |sql: &str, aggregates: &Aggregates| -> Vec<bool> {
-        let items = items(&tokens(sql), &[""; 3], aggregates, |_, _, _| Some(true)).expect(sql);
+        let items = items(&leveled(&tokens(sql)), &[""; 3], aggregates, |_, _, _| Some(true)).expect(sql);
         items.into_iter().map(|item| item.nullable).collect()
     };
     let bare = "SELECT id , CAST ( max ( x ) AS INTEGER ) AS m , count ( * ) FROM k";
@@ -658,7 +659,7 @@ fn a_column_beside_an_ungrouped_aggregate_is_null_of_no_rows_where_one_may_stand
 }
 
 fn single(sql: &str) -> bool {
-    single_row(&tokens(sql), Engine::PostgreSql)
+    single_row(Engine::PostgreSql, &Engine::PostgreSql.words(sql))
 }
 
 #[test]
@@ -702,7 +703,7 @@ fn a_select_that_aggregates_its_rows_returns_exactly_one() {
         "SELECT max ( a , b ) FROM t",
         "SELECT coalesce ( min ( a , b ) , 0 ) FROM t",
     ] {
-        assert!(!single_row(&tokens(sql), Engine::Sqlite), "{sql}");
+        assert!(!single_row(Engine::Sqlite, &Engine::Sqlite.words(sql)), "{sql}");
     }
     // A schema's own function named like an aggregate is not one
     assert!(!single("SELECT app . max ( a , b ) FROM t"));
@@ -737,8 +738,8 @@ fn exists_is_one_row_only_of_no_table_and_unfiltered() {
 fn a_trigger_or_table_constraint_can_skip_an_insert_that_returns_its_row() {
     for engine in [Engine::PostgreSql, Engine::Sqlite] {
         assert!(!single_row(
-            &engine.words("INSERT INTO t VALUES (1) RETURNING id"),
-            engine
+            engine,
+            &engine.words("INSERT INTO t VALUES (1) RETURNING id")
         ));
     }
 }
@@ -803,7 +804,7 @@ fn a_table_an_outer_join_may_leave_without_a_row_is_not() {
 /// Whether an outer join may leave each item of `sql`'s list NULL, sqlc reporting each as a column of its table in
 /// `tables`.
 fn outer_of(sql: &str, tables: &[&str]) -> Vec<bool> {
-    let items = items(&tokens(sql), tables, &AGGREGATES, |_, _, _| Some(true)).expect(sql);
+    let items = items(&leveled(&tokens(sql)), tables, &AGGREGATES, |_, _, _| Some(true)).expect(sql);
     items.into_iter().map(|item| item.nullable).collect()
 }
 
@@ -913,13 +914,12 @@ fn a_cast_preserves_a_missing_join_column_and_a_default_fills_it() {
 }
 
 #[test]
-fn a_from_that_is_not_read_may_leave_any_bare_column_null() {
+fn a_parenthesised_join_exposes_its_members_on_their_own_sides() {
     for sql in [
         "SELECT a.x, b.y, c.z FROM a LEFT JOIN (b JOIN c ON x) ON y",
-        "SELECT a.x, b.y, c.z FROM a LEFT JOIN b JOIN c ON c.b = b.id ON b.a = a.id",
         "UPDATE t SET x = 1 FROM a LEFT JOIN (b JOIN c ON x) ON y RETURNING a.x, b.y, c.z",
     ] {
-        assert_eq!(outer_of(sql, &["a", "b", "c"]), [true; 3], "{sql}");
+        assert_eq!(outer_of(sql, &["a", "b", "c"]), [false, true, true], "{sql}");
     }
     // Anything but a bare column stays as sqlc reports it, as it does where we read the join.
     assert_eq!(
@@ -978,9 +978,8 @@ fn a_name_that_may_be_anothers_proves_no_table_present() {
 #[test]
 fn a_from_that_is_not_read_proves_no_table_present() {
     for sql in [
-        // A join in parentheses.
-        "SELECT * FROM a LEFT JOIN ( b JOIN c ON x ) ON y",
-        "SELECT * FROM ( a LEFT JOIN b ON x ) JOIN c ON y",
+        // A join alias hides its members.
+        "SELECT * FROM a LEFT JOIN ( b JOIN c ON x ) AS joined ON y",
         // A join inside another's, without them.
         "SELECT * FROM a LEFT JOIN b JOIN c ON c . b = b . id ON b . a = a . id",
         "SELECT * FROM a LEFT JOIN b CROSS JOIN c ON b . a = a . id",

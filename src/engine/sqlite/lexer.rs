@@ -1,6 +1,7 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 
 use crate::engine::{Bind, Engine, Sql, cut};
+use crate::sqlc_typing::bindings;
 
 #[cfg(test)]
 #[path = "lexer_spec.rs"]
@@ -28,10 +29,7 @@ pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
             }
             [':' | '@' | '$', c, ..] if continues_identifier(c) => {
                 let name: String = chars[start..end].iter().collect();
-                bail!(
-                    "sqlc did not rewrite {name} into a placeholder{}",
-                    Engine::Sqlite.unrewritten()
-                );
+                return Err(bindings::named_placeholder(Engine::Sqlite, &name));
             }
             _ => {}
         }

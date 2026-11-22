@@ -117,7 +117,7 @@ tnmt-1/samples	685ec2ae6569bf0f58e93b34cab2ca9f40b71357	project	1	4	4	1
 TobiahRex/agent-workflows	ab9029af5fb4fee20654713e657304afc075a880	project	1	4	4	1	
 tristanbatchler/ajishio	2e50f109286a81a4bd61c4a0ac8fab20ef6f450f	project	1	0	4	1	
 tristanbatchler/attenborough	02485562a7ea81dac322abb8bfce66c97b963e8e	project	1	0	4	1	
-tristanbatchler/stashit	669742c7e6c03fea64e49546a76dea02e577b56a	project	1	4	4	1	
+tristanbatchler/stashit	669742c7e6c03fea64e49546a76dea02e577b56a	project	1	0	4	1	Two text casts on the activity query.
 tvallotton/sqlc-python-asyncpg	0d23bae6cc6c0c405206925351e94f00971c8660	project	0	0	0	0	No active Python sqlc configuration with available inputs identified at this revision.
 v0id-user/pg18-chat	6c1130166eb31ef3e4b544e736ef65a54c9f4f60	project	0	0	0	0	No active Python sqlc configuration with available inputs identified at this revision.
 vercel/turborepo	b911d19d45f60c96cb33c756b6e238ad4d32bb73	project	1	4	4	1	

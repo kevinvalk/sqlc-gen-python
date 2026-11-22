@@ -475,6 +475,58 @@ fn a_bare_integer_is_a_type_sqlc_read_only_of_a_parameter_without_a_column() {
 }
 
 #[test]
+fn nullable_expressions_survive_a_cte_a_derived_table_and_an_outer_join() {
+    let sql = "WITH contact(id, label) AS (SELECT id, (bio || 'x')::text FROM AUTHORS),
+                    renamed AS (SELECT id, label AS address FROM contact)
+               SELECT a.id, r.address, (r.id + 1)::bigint
+               FROM authors a LEFT JOIN (SELECT id, address FROM renamed) AS r ON r.id = a.id";
+    let resolved = resolve(plugin::Query {
+        columns: vec![
+            column("id", "pg_catalog.int8", true),
+            column("address", "text", true),
+            column("next", "pg_catalog.int8", true),
+        ],
+        ..query(":many", sql)
+    });
+    assert_eq!(
+        resolved.columns.iter().map(|c| c.ty.optional).collect::<Vec<_>>(),
+        [false, true, true]
+    );
+}
+
+#[test]
+fn each_set_operation_arm_must_supply_the_same_type_and_can_supply_nulls() {
+    let read = |sql| {
+        try_resolve(plugin::Query {
+            columns: vec![column("v", "pg_catalog.int8", true)],
+            ..query(":many", sql)
+        })
+    };
+    for sql in [
+        "SELECT id AS v FROM authors UNION ALL SELECT id::numeric FROM authors",
+        "WITH a AS (SELECT id FROM authors EXCEPT SELECT id::numeric FROM authors) SELECT id AS v FROM a",
+    ] {
+        assert!(error_of(read(sql)).contains("set-operation branches"), "{sql}");
+    }
+    let rows = read("SELECT id AS v FROM authors UNION ALL SELECT NULL::bigint").unwrap();
+    assert!(rows.columns[0].ty.optional);
+    let rows = read("SELECT id AS v FROM authors INTERSECT SELECT id::bigint FROM authors").unwrap();
+    assert!(!rows.columns[0].ty.optional);
+}
+
+#[test]
+fn a_recursive_postgres_cte_keeps_the_anchor_type_and_allows_null_in_later_rows() {
+    let result = resolve(plugin::Query {
+        columns: vec![column("n", "pg_catalog.int8", true)],
+        ..query(
+            ":many",
+            "WITH RECURSIVE r(n) AS (SELECT id FROM authors UNION ALL SELECT NULL::bigint FROM r WHERE n IS NOT NULL) SELECT n FROM r",
+        )
+    });
+    assert!(result.columns[0].ty.optional);
+}
+
+#[test]
 fn a_not_null_column_read_from_a_nullable_one_is_a_coalesce_that_needs_a_cast() {
     // sqlc reports `coalesce(bio, 1.5)` as `bio` itself, NOT NULL: its first
     // argument's table, name and type, which PostgreSQL may well not return.
@@ -491,7 +543,7 @@ fn a_not_null_column_read_from_a_nullable_one_is_a_coalesce_that_needs_a_cast() 
         )
     });
     assert!(
-        error.contains(r#"column "v" has a type sqlc could not infer; add a cast, as coalesce("#),
+        error.contains(r#"column "v" comes from a derived expression"#),
         "{error}"
     );
     // The column itself, or a coalesce of a NOT NULL one, is the column.

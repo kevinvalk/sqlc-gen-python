@@ -63,3 +63,11 @@ SELECT name, max(email)::text AS last_email,
        array_agg(email ORDER BY id)::text[] AS emails,
        CAST(array_agg(preferred_method ORDER BY id) AS billing.payment_method[]) AS methods
 FROM customers GROUP BY name ORDER BY name;
+
+-- name: GetCustomerContact :one
+WITH contact AS (
+    SELECT id, name, (email || '!')::text AS address FROM customers
+), renamed AS (
+    SELECT id, name, address AS contact_address FROM contact
+)
+SELECT id, name, contact_address FROM renamed WHERE id = @id::uuid;

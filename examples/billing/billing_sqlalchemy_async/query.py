@@ -513,7 +513,7 @@ _COUNTDOWN: Final = sqlalchemy.text("""WITH RECURSIVE numbers (n) AS (SELECT 1 U
 SELECT CAST(JSON_EXTRACT(IF(n = 800, 'malformed', '1'), '$') AS SIGNED) AS share FROM numbers""")
 
 
-async def countdown(connection: AsyncConnection) -> list[int]:
+async def countdown(connection: AsyncConnection) -> list[int | None]:
     """Reads malformed JSON at its 800th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
@@ -523,9 +523,31 @@ async def countdown(connection: AsyncConnection) -> list[int]:
 @contextlib.asynccontextmanager
 async def stream_countdown(
     connection: AsyncConnection,
-) -> AsyncGenerator[AsyncIterator[int], None]:
+) -> AsyncGenerator[AsyncIterator[int | None], None]:
     """Reads malformed JSON at its 800th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
     async with connection.stream(_COUNTDOWN) as cur:
         yield (row[0] async for row in cur)
+
+
+_COMPARE_EMAIL: Final = sqlalchemy.text(
+    "SELECT id, email = '' AS empty_email FROM customers WHERE id = :id"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CompareEmailRow:
+    id: int
+    empty_email: bool | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CompareEmailRow":
+        return cls(id=row[0], empty_email=None if row[1] is None else bool(row[1]))
+
+
+async def compare_email(
+    connection: AsyncConnection, *, id: int
+) -> CompareEmailRow | None:
+    row = (await connection.execute(_COMPARE_EMAIL, {"id": id})).one_or_none()
+    return None if row is None else CompareEmailRow.from_row(row)

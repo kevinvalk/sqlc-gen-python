@@ -1,6 +1,7 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 
 use crate::engine::{Bind, Engine, Sql, cut};
+use crate::sqlc_typing::bindings;
 
 #[cfg(test)]
 #[path = "lexer_spec.rs"]
@@ -10,11 +11,8 @@ mod spec;
 pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
     let chars: Vec<char> = text.chars().collect();
     let tokens = tokens(&chars);
-    if let Some(param) = unrewritten(&chars, &tokens) {
-        bail!(
-            "sqlc did not rewrite {param} into a placeholder{}",
-            Engine::PostgreSql.unrewritten()
-        );
+    if let Some(param) = adjacent_at_name(&chars, &tokens) {
+        return Err(bindings::named_placeholder(Engine::PostgreSql, &param));
     }
     let placeholders = (tokens.iter()).filter_map(|token| match token.kind {
         Kind::Placeholder(number) => Some((token.start..token.end, number)),
@@ -44,10 +42,8 @@ pub fn is_identifier(name: &str) -> bool {
     chars.next().is_some_and(starts_identifier) && chars.all(continues_identifier)
 }
 
-/// The first `@name` sqlc left as written in `sql` instead of rewriting it into a placeholder: a lone `@` operator
-/// right before what starts an identifier. sqlc rewrites them in every statement it analyses, and PostgreSQL would
-/// read a leftover as something else: `@amount` is the absolute value of a column `amount`!
-fn unrewritten(sql: &[char], tokens: &[Token]) -> Option<String> {
+/// We need the token positions because PostgreSQL also uses `@` as an operator in expressions such as `@ amount`.
+fn adjacent_at_name(sql: &[char], tokens: &[Token]) -> Option<String> {
     let text = |token: &Token| token.text(sql);
     tokens.windows(2).find_map(|pair| {
         let (at, next) = (&pair[0], &pair[1]);

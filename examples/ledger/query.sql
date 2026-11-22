@@ -112,3 +112,6 @@ DELETE FROM entries WHERE account_id = ?;
 -- stream reads the rows before, as it reads each as it is iterated.
 WITH RECURSIVE numbers (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM numbers WHERE n < 10000)
 SELECT CAST(json_extract(CASE WHEN n = 5000 THEN 'malformed' ELSE '1' END, '$') AS INTEGER) AS share FROM numbers;
+
+-- name: CompareMemo :one
+SELECT id, memo = '' AS empty_memo FROM entries WHERE id = ?;

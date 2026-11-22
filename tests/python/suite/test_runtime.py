@@ -50,6 +50,46 @@ def test_every_function_against_postgres(case: GoldenCase, driver: str, database
         asyncio.run(run(case, database.set(drivername=f"postgresql+{driver}"), called))
 
 
+def test_asyncpg_copyfrom_respects_insert_rules_and_the_callers_savepoint(database: sqlalchemy.URL) -> None:
+    case = next(case for case in cases() if case.backend == "sqlalchemy" and case.is_async)
+    asyncio.run(_insert_rule(case, database.set(drivername="postgresql+asyncpg")))
+
+
+async def _insert_rule(case: GoldenCase, url: sqlalchemy.URL) -> None:
+    async with sqlalchemy_connection(url, asynchronous=True) as connection:
+        api = queries(case, connection, set()).line_items
+        # An INSERT rule can write its rows while providing no RETURNING list.
+        for statement in (
+            "CREATE TEMP TABLE inserted (position integer CHECK (position > 0))",
+            (
+                "CREATE TEMP VIEW line_items AS SELECT CAST(NULL AS uuid) AS invoice_id, position, "
+                "CAST(NULL AS text) AS description, CAST(0 AS numeric) AS quantity, "
+                "CAST(0 AS numeric) AS unit_price, CAST(0 AS numeric) AS vat_rate FROM inserted"
+            ),
+            "CREATE RULE import_line AS ON INSERT TO line_items DO INSTEAD INSERT INTO inserted VALUES (NEW.position)",
+        ):
+            await connection.exec_driver_sql(statement)
+
+        def line(position: int) -> Any:
+            return api.CreateLineItemsParams(
+                invoice_id=uuid4(),
+                position=position,
+                description="rule",
+                quantity=Decimal(1),
+                unit_price=Decimal(1),
+                vat_rate=Decimal(0),
+            )
+
+        assert await api.create_line_items([]) == 0
+        assert await api.create_line_items([line(1), line(2)]) == 2
+        with pytest.raises(sqlalchemy.exc.IntegrityError):
+            async with connection.begin_nested():
+                await api.create_line_items([line(3), line(-1)])
+        assert (
+            await connection.exec_driver_sql("SELECT position FROM inserted ORDER BY position")
+        ).scalars().all() == [1, 2]
+
+
 async def _sqlalchemy(case: GoldenCase, url: sqlalchemy.URL, called: set[str]) -> None:
     async with sqlalchemy_connection(url, asynchronous=case.is_async) as connection:
         await scenario(_api(case, connection, called), _sqlalchemy_sql(connection))
@@ -128,11 +168,12 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     ada = await api.customers.create_customer(
         name="Ada",
         email=None,
-        tags=["vip", "b2b", 'quote"d', "comma,", ""],
+        tags=["vip", "b2b", 'quote"d', "comma,", "", None],
         preferred_method=models.BillingPaymentMethod.DIRECT_DEBIT,
         accepted_methods=[
             models.BillingPaymentMethod.CARD,
             models.BillingPaymentMethod.DIRECT_DEBIT,
+            None,
         ],
         metadata=metadata,
     )
@@ -140,11 +181,12 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     assert await api.customers.count_customers_by_metadata(documents=[]) == 0
     assert await api.customers.count_customers_by_metadata(documents=None) == 0
     assert ada.email is None
-    assert ada.tags == ["vip", "b2b", 'quote"d', "comma,", ""]
+    assert ada.tags == ["vip", "b2b", 'quote"d', "comma,", "", None]
     assert ada.preferred_method is models.BillingPaymentMethod.DIRECT_DEBIT
     assert ada.accepted_methods == [
         models.BillingPaymentMethod.CARD,
         models.BillingPaymentMethod.DIRECT_DEBIT,
+        None,
     ]
     assert ada.metadata == metadata
     assert ada.created_at.utcoffset() is not None
@@ -158,6 +200,10 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         metadata=None,
     )
     assert (bob.tags, bob.accepted_methods, bob.metadata) == ([], [], None)
+    await sql("UPDATE customers SET tags = ARRAY[['nested']] WHERE id = :id RETURNING id", id=bob.id)
+    with pytest.raises(TypeError, match="dimensions"):
+        await api.customers.get_customer(id=bob.id)
+    await sql("UPDATE customers SET tags = CAST('{}' AS text[]) WHERE id = :id RETURNING id", id=bob.id)
     emails = await api.customers.list_last_emails_by_name()
     assert [(row.name, row.last_email) for row in emails] == [("Ada", None), ("Bob", "bob@example.com")]
     assert [row.emails for row in emails] == [[None], ["bob@example.com"]]
@@ -168,6 +214,9 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         ("Ada", "conference", None),
         ("Bob", None, "Ada"),
     ]
+    contact = await api.customers.get_customer_contact(id=ada.id)
+    assert (contact.name, contact.contact_address) == ("Ada", None)
+    assert (await api.customers.get_customer_contact(id=bob.id)).contact_address == "bob@example.com!"
     stored = await sql("SELECT metadata IS NULL FROM customers WHERE id = :id", id=bob.id)
     assert stored, "metadata=None is stored as JSON null"
     # Bare enums, converted one by one, NULL kept as `None`.

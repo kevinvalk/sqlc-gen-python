@@ -96,42 +96,10 @@ pub fn array_problem(data_type: &str, is_parameter: bool) -> Option<&'static str
         .map(|(_, problem)| *problem)
 }
 
-/// Whether `data_type` is sqlc's guess instead of a type it read.
-///
-/// sqlc's static analyser writes a declared or cast type by PostgreSQL's own name, `pg_catalog`-qualified where the
-/// grammar spells it as a keyword (`bigint` is `pg_catalog.int8`, `timestamptz` stays bare). It only writes SQL's
-/// standard name for a type it took off a function's signature: the first overload with that many arguments, whatever
-/// the call resolves to. That guess survives a view, a CTE and a subquery, where `is_func_call` does not. A bare `int`
-/// (its type for any arithmetic), `any` and nothing are guesses too. `integer` alone is not, as sqlc types some
-/// parameters with it itself (`Engine::is_guess`).
-pub fn is_guess(data_type: &str) -> bool {
-    [
-        "",
-        "any",
-        "anyelement",
-        "anyarray",
-        "int",
-        "smallint",
-        "bigint",
-        "real",
-        "double precision",
-        "numeric",
-        "boolean",
-        "character",
-        "character varying",
-        "interval",
-        "time with time zone",
-        "time without time zone",
-        "timestamp with time zone",
-        "timestamp without time zone",
-    ]
-    .contains(&data_type)
-}
-
 /// The types of [`TYPES`] and the backends' maps that an extension creates, in whichever schema it was created in.
 const EXTENSIONS: &[&str] = &["citext", "hstore", "lquery", "ltree", "ltxtquery"];
 
-/// PostgreSQL's own name for a type sqlc read ([`is_guess`] is false). sqlc reports one bare or `pg_catalog`-qualified,
+/// PostgreSQL's own name for a type sqlc read. sqlc reports one bare or `pg_catalog`-qualified,
 /// and by more than one name (a serial pseudo-type, a `LIMIT`'s `integer`), depending on how the column was declared
 /// and how sqlc analysed it. An override names a type by any of those, or by SQL's standard name as the schema spells
 /// it (`bigint`), which from sqlc is a guess and so never read here.

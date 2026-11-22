@@ -141,7 +141,7 @@ _LIST_INVOICES_BY_IDS: Final = sqlalchemy.text(
 
 
 async def list_invoices_by_ids(
-    connection: AsyncConnection, *, ids: list[UUID]
+    connection: AsyncConnection, *, ids: list[UUID | None] | list[UUID]
 ) -> list[models.Invoice]:
     return [
         models.Invoice.from_row(row)
@@ -151,7 +151,7 @@ async def list_invoices_by_ids(
 
 @contextlib.asynccontextmanager
 async def stream_list_invoices_by_ids(
-    connection: AsyncConnection, *, ids: list[UUID]
+    connection: AsyncConnection, *, ids: list[UUID | None] | list[UUID]
 ) -> AsyncGenerator[AsyncIterator[models.Invoice], None]:
     async with connection.stream(_LIST_INVOICES_BY_IDS, {"ids": ids}) as cur:
         yield (models.Invoice.from_row(row) async for row in cur)
@@ -163,7 +163,9 @@ _LIST_INVOICES_BY_STATUS: Final = sqlalchemy.text(
 
 
 async def list_invoices_by_status(
-    connection: AsyncConnection, *, statuses: list[models.InvoiceStatus]
+    connection: AsyncConnection,
+    *,
+    statuses: list[models.InvoiceStatus | None] | list[models.InvoiceStatus],
 ) -> list[models.Invoice]:
     return [
         models.Invoice.from_row(row)
@@ -175,7 +177,9 @@ async def list_invoices_by_status(
 
 @contextlib.asynccontextmanager
 async def stream_list_invoices_by_status(
-    connection: AsyncConnection, *, statuses: list[models.InvoiceStatus]
+    connection: AsyncConnection,
+    *,
+    statuses: list[models.InvoiceStatus | None] | list[models.InvoiceStatus],
 ) -> AsyncGenerator[AsyncIterator[models.Invoice], None]:
     async with connection.stream(
         _LIST_INVOICES_BY_STATUS, {"statuses": statuses}

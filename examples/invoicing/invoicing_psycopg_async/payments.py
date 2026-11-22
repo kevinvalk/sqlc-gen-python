@@ -58,7 +58,8 @@ ORDER BY received_at"""
 async def list_payments_by_methods(
     connection: psycopg.AsyncConnection[Any],
     *,
-    methods: list[models.BillingPaymentMethod],
+    methods: list[models.BillingPaymentMethod | None]
+    | list[models.BillingPaymentMethod],
 ) -> list[models.BillingPayment]:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_PAYMENTS_BY_METHODS, (methods,))
@@ -69,7 +70,8 @@ async def list_payments_by_methods(
 async def stream_list_payments_by_methods(
     connection: psycopg.AsyncConnection[Any],
     *,
-    methods: list[models.BillingPaymentMethod],
+    methods: list[models.BillingPaymentMethod | None]
+    | list[models.BillingPaymentMethod],
 ) -> AsyncGenerator[AsyncIterator[models.BillingPayment], None]:
     async with psycopg.AsyncRawServerCursor(
         connection, "stream_list_payments_by_methods", row_factory=tuple_row
@@ -91,7 +93,11 @@ async def list_invoice_payment_methods(
         await cur.execute(_LIST_INVOICE_PAYMENT_METHODS, (invoice_id,))
         match await cur.fetchmany(2):
             case [row]:
-                return models.BillingPaymentMethod.from_array(row[0])
+                return [
+                    models.BillingPaymentMethod(label)
+                    for label in row[0][1:-1].split(",")
+                    if label
+                ]
             case []:
                 return None
             case _:
@@ -174,7 +180,7 @@ ORDER BY customers.name, invoices.number, payments.amount"""
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class ListCustomerPaidInvoicesRow:
-    name: str | None
+    name: str
     number: str | None
     amount: Decimal | None
 

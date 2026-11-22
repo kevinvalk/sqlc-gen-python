@@ -13,7 +13,7 @@ _COUNTDOWN: Final = (
 )
 
 
-async def countdown(connection: psycopg.AsyncConnection[Any]) -> list[int]:
+async def countdown(connection: psycopg.AsyncConnection[Any]) -> list[int | None]:
     """Divides by zero at its 5000th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
@@ -25,7 +25,7 @@ async def countdown(connection: psycopg.AsyncConnection[Any]) -> list[int]:
 @contextlib.asynccontextmanager
 async def stream_countdown(
     connection: psycopg.AsyncConnection[Any],
-) -> AsyncGenerator[AsyncIterator[int], None]:
+) -> AsyncGenerator[AsyncIterator[int | None], None]:
     """Divides by zero at its 5000th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """

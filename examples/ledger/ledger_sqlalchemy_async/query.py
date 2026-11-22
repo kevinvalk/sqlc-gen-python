@@ -545,7 +545,7 @@ _COUNTDOWN: Final = sqlalchemy.text("""WITH RECURSIVE numbers (n) AS (SELECT 1 U
 SELECT CAST(json_extract(CASE WHEN n = 5000 THEN 'malformed' ELSE '1' END, '$') AS INTEGER) AS share FROM numbers""")
 
 
-async def countdown(connection: AsyncConnection) -> list[int]:
+async def countdown(connection: AsyncConnection) -> list[int | None]:
     """Reads malformed JSON at its 5000th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
@@ -555,9 +555,31 @@ async def countdown(connection: AsyncConnection) -> list[int]:
 @contextlib.asynccontextmanager
 async def stream_countdown(
     connection: AsyncConnection,
-) -> AsyncGenerator[AsyncIterator[int], None]:
+) -> AsyncGenerator[AsyncIterator[int | None], None]:
     """Reads malformed JSON at its 5000th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
     async with connection.stream(_COUNTDOWN) as cur:
         yield (row[0] async for row in cur)
+
+
+_COMPARE_MEMO: Final = sqlalchemy.text(
+    "SELECT id, memo = '' AS empty_memo FROM entries WHERE id = :id"
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CompareMemoRow:
+    id: int
+    empty_memo: bool | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CompareMemoRow":
+        return cls(id=row[0], empty_memo=None if row[1] is None else bool(row[1]))
+
+
+async def compare_memo(
+    connection: AsyncConnection, *, id: int
+) -> CompareMemoRow | None:
+    row = (await connection.execute(_COMPARE_MEMO, {"id": id})).one_or_none()
+    return None if row is None else CompareMemoRow.from_row(row)

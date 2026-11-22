@@ -644,7 +644,7 @@ _COUNTDOWN: Final = """WITH RECURSIVE numbers (n) AS (SELECT 1 UNION ALL SELECT 
 SELECT CAST(json_extract(CASE WHEN n = 5000 THEN 'malformed' ELSE '1' END, '$') AS INTEGER) AS share FROM numbers"""
 
 
-async def countdown(connection: aiosqlite.Connection) -> list[int]:
+async def countdown(connection: aiosqlite.Connection) -> list[int | None]:
     """Reads malformed JSON at its 5000th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
@@ -657,7 +657,7 @@ async def countdown(connection: aiosqlite.Connection) -> list[int]:
 @contextlib.asynccontextmanager
 async def stream_countdown(
     connection: aiosqlite.Connection,
-) -> AsyncGenerator[AsyncIterator[int], None]:
+) -> AsyncGenerator[AsyncIterator[int | None], None]:
     """Reads malformed JSON at its 5000th row. Its function never returns, while its
     stream reads the rows before, as it reads each as it is iterated.
     """
@@ -665,3 +665,31 @@ async def stream_countdown(
         cur.row_factory = None
         await cur.execute(_COUNTDOWN)
         yield (row[0] async for row in cur)
+
+
+_COMPARE_MEMO: Final = "SELECT id, memo = '' AS empty_memo FROM entries WHERE id = ?"
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class CompareMemoRow:
+    id: int
+    empty_memo: bool | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "CompareMemoRow":
+        return cls(id=row[0], empty_memo=None if row[1] is None else bool(row[1]))
+
+
+async def compare_memo(
+    connection: aiosqlite.Connection, *, id: int
+) -> CompareMemoRow | None:
+    async with connection.cursor() as cur:
+        cur.row_factory = None
+        await cur.execute(_COMPARE_MEMO, (id,))
+        match await cur.fetchmany(2):
+            case [row]:
+                return CompareMemoRow.from_row(row)
+            case []:
+                return None
+            case _:
+                raise models.MultipleRowsError

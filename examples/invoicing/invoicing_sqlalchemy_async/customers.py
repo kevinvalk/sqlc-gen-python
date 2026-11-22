@@ -3,6 +3,7 @@
 #   sqlc v1.31.1
 import contextlib
 import dataclasses
+import typing
 from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
 from typing import Any, Final
 from uuid import UUID
@@ -12,6 +13,22 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from . import models
+
+
+def _checked_array(
+    value: object, dimensions: int, *, list_leaves: bool = False
+) -> list[Any]:
+    if isinstance(value, list):
+        items = typing.cast("list[object]", value)
+        if dimensions != 1:
+            for child in items:
+                _checked_array(child, dimensions - 1, list_leaves=list_leaves)
+            return items
+        if (list_leaves or not items) or not isinstance(items[0], list):
+            return items
+    message = "PostgreSQL returned an array with a different number of dimensions than declared"
+    raise TypeError(message)
+
 
 _CREATE_CUSTOMER: Final = (
     sqlalchemy.text("""INSERT INTO customers (name, email, tags, preferred_method, accepted_methods, metadata)
@@ -41,9 +58,10 @@ async def create_customer(
     *,
     name: str,
     email: str | None = None,
-    tags: list[str],
+    tags: list[str | None] | list[str],
     preferred_method: models.BillingPaymentMethod | None = None,
-    accepted_methods: list[models.BillingPaymentMethod],
+    accepted_methods: list[models.BillingPaymentMethod | None]
+    | list[models.BillingPaymentMethod],
     metadata: Mapping[str, object]
     | list[Any]
     | tuple[object, ...]
@@ -100,7 +118,7 @@ FROM customers WHERE id = :id""")
 class GetQuotedTextRow:
     triple_quotes: str
     backslash: str
-    escaped: str
+    escaped: str | None
     name: str
 
     @classmethod
@@ -170,14 +188,21 @@ _GET_ACCEPTED_METHODS: Final = sqlalchemy.text(
 
 async def get_accepted_methods(
     connection: AsyncConnection, *, id: UUID
-) -> list[models.BillingPaymentMethod] | None:
+) -> list[models.BillingPaymentMethod | None] | None:
     """PostgreSQL names this column `coalesce`, and sqlc nothing. It is cast, as
     sqlc types a coalesce as its first argument whatever the others are.
     """
     value = (
         await connection.execute(_GET_ACCEPTED_METHODS, {"id": id})
     ).scalar_one_or_none()
-    return None if value is None else [models.BillingPaymentMethod(v) for v in value]
+    return (
+        None
+        if value is None
+        else [
+            None if _v1 is None else models.BillingPaymentMethod(_v1)
+            for _v1 in _checked_array(value, 1)
+        ]
+    )
 
 
 _COMPARE_ACCEPTED_METHODS: Final = sqlalchemy.text("""SELECT a.accepted_methods, b.accepted_methods
@@ -196,14 +221,20 @@ WHERE a.id = :first AND b.id = :second""").columns(
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class CompareAcceptedMethodsRow:
-    accepted_methods: list[models.BillingPaymentMethod]
-    accepted_methods_2: list[models.BillingPaymentMethod]
+    accepted_methods: list[models.BillingPaymentMethod | None]
+    accepted_methods_2: list[models.BillingPaymentMethod | None]
 
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "CompareAcceptedMethodsRow":
         return cls(
-            accepted_methods=[models.BillingPaymentMethod(v) for v in row[0]],
-            accepted_methods_2=[models.BillingPaymentMethod(v) for v in row[1]],
+            accepted_methods=[
+                None if _v1 is None else models.BillingPaymentMethod(_v1)
+                for _v1 in _checked_array(row[0], 1)
+            ],
+            accepted_methods_2=[
+                None if _v1 is None else models.BillingPaymentMethod(_v1)
+                for _v1 in _checked_array(row[1], 1)
+            ],
         )
 
 
@@ -358,7 +389,10 @@ _COUNT_CUSTOMERS_BY_METADATA: Final = sqlalchemy.text(
 async def count_customers_by_metadata(
     connection: AsyncConnection,
     *,
-    documents: list[Mapping[str, object] | list[Any] | tuple[object, ...] | float]
+    documents: list[
+        Mapping[str, object] | list[Any] | tuple[object, ...] | float | None
+    ]
+    | list[Mapping[str, object] | list[Any] | tuple[object, ...] | float]
     | None = None,
 ) -> int:
     value: int = (
@@ -426,12 +460,12 @@ class ListLastEmailsByNameRow:
         return cls(
             name=row[0],
             last_email=row[1],
-            emails=row[2],
+            emails=None if row[2] is None else _checked_array(row[2], 1),
             methods=None
             if row[3] is None
             else [
                 None if _v1 is None else models.BillingPaymentMethod(_v1)
-                for _v1 in row[3]
+                for _v1 in _checked_array(row[3], 1)
             ],
         )
 
@@ -451,3 +485,29 @@ async def stream_list_last_emails_by_name(
 ) -> AsyncGenerator[AsyncIterator[ListLastEmailsByNameRow], None]:
     async with connection.stream(_LIST_LAST_EMAILS_BY_NAME) as cur:
         yield (ListLastEmailsByNameRow.from_row(row) async for row in cur)
+
+
+_GET_CUSTOMER_CONTACT: Final = sqlalchemy.text("""WITH contact AS (
+    SELECT id, name, (email || '!')\\:\\:text AS address FROM customers
+), renamed AS (
+    SELECT id, name, address AS contact_address FROM contact
+)
+SELECT id, name, contact_address FROM renamed WHERE id = :id\\:\\:uuid""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class GetCustomerContactRow:
+    id: UUID
+    name: str
+    contact_address: str | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "GetCustomerContactRow":
+        return cls(id=row[0], name=row[1], contact_address=row[2])
+
+
+async def get_customer_contact(
+    connection: AsyncConnection, *, id: UUID
+) -> GetCustomerContactRow | None:
+    row = (await connection.execute(_GET_CUSTOMER_CONTACT, {"id": id})).one_or_none()
+    return None if row is None else GetCustomerContactRow.from_row(row)

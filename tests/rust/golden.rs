@@ -106,3 +106,46 @@ fn the_plugin_sorts_imports_for_the_python_the_gate_checks() {
     let requires = pyproject["project"]["requires-python"].as_str().unwrap();
     assert_eq!(requires, format!(">=3.{}", sqlc_gen_python::python::OLDEST_MINOR));
 }
+
+/// The runtime scenario reads a NULL address. Once sqlc agrees we can retire the corresponding CTE inference.
+#[test]
+fn pinned_sqlc_reports_the_nullable_contact_address_as_required() {
+    let request = support::case("invoicing_psycopg").request();
+    let query = request
+        .queries
+        .iter()
+        .find(|query| query.name == "GetCustomerContact")
+        .unwrap();
+    let address = query
+        .columns
+        .iter()
+        .find(|column| column.name == "contact_address")
+        .unwrap();
+    assert!(
+        address.not_null,
+        "sqlc now reports the nullable CTE address. Review the projection workaround"
+    );
+}
+
+/// Both occurrences bind the same Python argument. The MySQL scenario exercises the filter with a name and with NULL.
+#[test]
+fn pinned_sqlc_gives_only_one_use_of_the_mysql_name_filter_a_type() {
+    let request = support::case("billing_pymysql").request();
+    let query = request
+        .queries
+        .iter()
+        .find(|query| query.name == "FilterCustomers")
+        .unwrap();
+    let types: Vec<_> = query
+        .params
+        .iter()
+        .filter_map(|param| param.column.as_ref())
+        .filter(|column| column.name == "name")
+        .map(|column| column.data_type())
+        .collect();
+    assert_eq!(
+        types,
+        ["any", "varchar"],
+        "sqlc changed the named parameter types. Review parameter_columns"
+    );
+}

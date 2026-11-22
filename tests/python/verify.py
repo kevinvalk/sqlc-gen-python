@@ -176,7 +176,7 @@ MUTANTS = {
     # PostgreSQL names the column `coalesce`, so a type given by name misses it.
     "enum arrays typed by name": Mutant(
         RUNTIME,
-        "'{' is not a valid BillingPaymentMethod",
+        "PostgreSQL returned an array with a different number of dimensions than declared",
         "customers.py",
         """WHERE id = :id"
 ).columns(
@@ -262,6 +262,20 @@ MUTANTS = {
         case="invoicing_sqlalchemy_async",
     ),
     # The drivers return money as text, and only the type-truth probe reads it.
+    "nullable column read through two CTEs as required": Mutant(
+        RUNTIME,
+        "get_customer_contact() ->.contact_address: NoneType None",
+        "customers.py",
+        "contact_address: str | None",
+        "contact_address: str",
+    ),
+    "stored array returned at the wrong rank": Mutant(
+        RUNTIME,
+        "get_customer() ->.tags[0]: list ['nested']",
+        "models.py",
+        "tags=_checked_array(row[3], 1)",
+        "tags=row[3]",
+    ),
     "money as Decimal": Mutant(
         TYPEMAP,
         "MISMATCH: value: str '$0.00' is not <class 'decimal.Decimal'>",

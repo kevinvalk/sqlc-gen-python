@@ -42,8 +42,8 @@ fn models_follow_the_columns_nullability_and_array_depth() {
     for (old, new) in [
         ("    small: int\n", "    small: int | None\n"),
         ("    optional: str | None\n", "    optional: str\n"),
-        ("grid: list[list[int]] | None", "grid: list[int] | None"),
-        ("    tags: list[str]\n", "    tags: str\n"),
+        ("grid: list[list[int | None]] | None", "grid: list[int | None] | None"),
+        ("    tags: list[str | None]\n", "    tags: str\n"),
     ] {
         let problems = planted("pgtypes_sqlalchemy", "models.py", old, new).join("\n");
         assert!(
@@ -114,7 +114,7 @@ fn no_parameter_or_result_mentions_any_but_the_drivers_own() {
     // We need this check as pyright strict and mypy --strict accept an explicit `Any`, and ruff's ANN401 only flags a
     // bare one.
     for (file, old, new) in [
-        ("invoices.py", "ids: list[UUID]", "ids: list[Any]"),
+        ("invoices.py", "ids: list[UUID | None] | list[UUID]", "ids: list[Any]"),
         ("invoices.py", ") -> list[str]:", ") -> list[Any]:"),
         (
             "invoices.py",

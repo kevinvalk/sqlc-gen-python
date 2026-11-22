@@ -144,11 +144,11 @@ WHERE email = ANY(:emails\\:\\:citext[])
 def find_scalars(
     connection: sqlalchemy.Connection,
     *,
-    emails: list[str],
-    trees: list[str],
-    patterns: list[str],
+    emails: list[str | None] | list[str],
+    trees: list[str | None] | list[str],
+    patterns: list[str | None] | list[str],
     text_query: str,
-    searches: list[str],
+    searches: list[str | None] | list[str],
 ) -> list[int]:
     return list(
         connection.execute(
@@ -168,11 +168,11 @@ def find_scalars(
 def stream_find_scalars(
     connection: sqlalchemy.Connection,
     *,
-    emails: list[str],
-    trees: list[str],
-    patterns: list[str],
+    emails: list[str | None] | list[str],
+    trees: list[str | None] | list[str],
+    patterns: list[str | None] | list[str],
     text_query: str,
-    searches: list[str],
+    searches: list[str | None] | list[str],
 ) -> Generator[Iterator[int], None, None]:
     with connection.execute(
         _FIND_SCALARS,

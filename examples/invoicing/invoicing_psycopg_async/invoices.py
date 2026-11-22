@@ -140,7 +140,7 @@ _LIST_INVOICES_BY_IDS: Final = "SELECT id, customer_id, number, status, currency
 
 
 async def list_invoices_by_ids(
-    connection: psycopg.AsyncConnection[Any], *, ids: list[UUID]
+    connection: psycopg.AsyncConnection[Any], *, ids: list[UUID | None] | list[UUID]
 ) -> list[models.Invoice]:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_INVOICES_BY_IDS, (ids,))
@@ -149,7 +149,7 @@ async def list_invoices_by_ids(
 
 @contextlib.asynccontextmanager
 async def stream_list_invoices_by_ids(
-    connection: psycopg.AsyncConnection[Any], *, ids: list[UUID]
+    connection: psycopg.AsyncConnection[Any], *, ids: list[UUID | None] | list[UUID]
 ) -> AsyncGenerator[AsyncIterator[models.Invoice], None]:
     async with psycopg.AsyncRawServerCursor(
         connection, "stream_list_invoices_by_ids", row_factory=tuple_row
@@ -162,7 +162,9 @@ _LIST_INVOICES_BY_STATUS: Final = "SELECT id, customer_id, number, status, curre
 
 
 async def list_invoices_by_status(
-    connection: psycopg.AsyncConnection[Any], *, statuses: list[models.InvoiceStatus]
+    connection: psycopg.AsyncConnection[Any],
+    *,
+    statuses: list[models.InvoiceStatus | None] | list[models.InvoiceStatus],
 ) -> list[models.Invoice]:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_INVOICES_BY_STATUS, (statuses,))
@@ -171,7 +173,9 @@ async def list_invoices_by_status(
 
 @contextlib.asynccontextmanager
 async def stream_list_invoices_by_status(
-    connection: psycopg.AsyncConnection[Any], *, statuses: list[models.InvoiceStatus]
+    connection: psycopg.AsyncConnection[Any],
+    *,
+    statuses: list[models.InvoiceStatus | None] | list[models.InvoiceStatus],
 ) -> AsyncGenerator[AsyncIterator[models.Invoice], None]:
     async with psycopg.AsyncRawServerCursor(
         connection, "stream_list_invoices_by_status", row_factory=tuple_row
