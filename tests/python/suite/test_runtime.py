@@ -218,7 +218,11 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     assert (contact.name, contact.contact_address) == ("Ada", None)
     assert (await api.customers.get_customer_contact(id=bob.id)).contact_address == "bob@example.com!"
     stored = await sql("SELECT metadata IS NULL FROM customers WHERE id = :id", id=bob.id)
-    assert stored, "metadata=None is stored as JSON null"
+    assert stored, "nullable metadata was stored as JSON null"
+    assert await api.customers.set_customer_metadata(id=bob.id, document=None) == 1
+    kind = await sql("SELECT jsonb_typeof(metadata) FROM customers WHERE id = :id", id=bob.id)
+    assert kind == "null", "the required document was stored as SQL NULL"
+    assert await api.customers.count_customers_by_metadata(documents=[None]) == 0
     # Bare enums, converted one by one, NULL kept as `None`.
     assert await api.customers.list_preferred_methods() == [
         models.BillingPaymentMethod.DIRECT_DEBIT,

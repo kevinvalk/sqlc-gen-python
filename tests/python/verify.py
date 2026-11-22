@@ -224,12 +224,19 @@ MUTANTS = {
         '{"name": name})\n    ).first()',
         "invoicing_sqlalchemy_async",
     ),
-    "JSON None written as JSON null": Mutant(
+    "nullable JSON written as JSON null": Mutant(
         RUNTIME,
-        "AssertionError: metadata=None is stored as JSON null",
+        "AssertionError: nullable metadata was stored as JSON null",
         "customers.py",
         "JSONB(none_as_null=True)",
         "JSONB()",
+    ),
+    "required JSON null written as SQL NULL": Mutant(
+        RUNTIME,
+        "AssertionError: the required document was stored as SQL NULL",
+        "customers.py",
+        '"document", type_=postgresql.JSONB()',
+        '"document", type_=postgresql.JSONB(none_as_null=True)',
     ),
     "JSON parameter untyped": Mutant(
         RUNTIME,

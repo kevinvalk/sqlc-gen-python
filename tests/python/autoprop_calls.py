@@ -266,19 +266,23 @@ def bound(parameter: Json, value: object) -> object:
     """An argument as psycopg binds it for sqlc's ``parameter``: an enum as its label, and JSON wrapped, as psycopg
     binds no ``dict`` bare.
     """
-    if value is None:
+    column = parameter["column"]
+    depth = column.get("array_dims", 0)
+    if value is None and (depth or not column["not_null"]):
         return None
 
-    type_name = parameter["column"]["type"]["name"].removeprefix("pg_catalog.")
+    type_name = column["type"]["name"].removeprefix("pg_catalog.")
     if type_name in {"json", "jsonb"}:
         wrapper = Jsonb if type_name == "jsonb" else PgJson
 
         def document(element: object, depth: int) -> object:
             if depth == 0:
                 return wrapper(element)
-            return [document(child, depth - 1) for child in typing.cast("list[object]", element)]
+            return [
+                None if child is None else document(child, depth - 1) for child in typing.cast("list[object]", element)
+            ]
 
-        return document(value, parameter["column"].get("array_dims", 0))
+        return document(value, depth)
     if isinstance(value, postgresql.Range):
         if value.empty:
             return PgRange(empty=True)

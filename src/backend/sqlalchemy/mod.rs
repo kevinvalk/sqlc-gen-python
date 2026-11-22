@@ -43,9 +43,11 @@ pub fn check(engine: Engine, query: &Query) -> Result<()> {
 /// pass are the fields', which SQLAlchemy ignores.
 pub fn statement(query: &Query) -> ast::Expr {
     let mut statement = (SQLALCHEMY.attr("text")).call([string(&text::text(&query.sql))]);
-    let json = |class: &str, dimensions| {
-        let element = POSTGRESQL.attr(class).call_with([], [keyword("none_as_null", true_())]);
-        match dimensions {
+    let json = |class: &str, ty: &FieldType| {
+        // A required JSON document can itself be null. An absent parameter or array element is SQL NULL.
+        let sql_null = (ty.optional || ty.array_dims > 0).then(|| keyword("none_as_null", true_()));
+        let element = POSTGRESQL.attr(class).call_with([], sql_null);
+        match ty.array_dims {
             0 => element,
             // A list at the declared depth is a JSON document, even when every document is itself a list.
             depth => POSTGRESQL
@@ -57,8 +59,8 @@ pub fn statement(query: &Query) -> ast::Expr {
         .filter_map(|parameter| {
             let how = match (parameter.ty.element.wire(), parameter.ty.element.json()) {
                 _ if query.sql.is_slice(&parameter.name) => keyword("expanding", true_()),
-                (_, Some(Json::Json)) => keyword("type_", json("JSON", parameter.ty.array_dims)),
-                (_, Some(Json::Jsonb)) => keyword("type_", json("JSONB", parameter.ty.array_dims)),
+                (_, Some(Json::Json)) => keyword("type_", json("JSON", &parameter.ty)),
+                (_, Some(Json::Jsonb)) => keyword("type_", json("JSONB", &parameter.ty)),
                 (
                     Type::Library {
                         sql_type: Some(sql_type),

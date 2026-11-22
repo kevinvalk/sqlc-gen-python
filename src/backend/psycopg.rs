@@ -71,9 +71,8 @@ pub fn scalar_type(pg_type: &str) -> Option<Type> {
 }
 
 /// We wrap a JSON parameter in psycopg's JSON type, as psycopg cannot tell it from any other `dict` or `list`. The
-/// `None` of a nullable parameter stays SQL `NULL` and never becomes the JSON `null`. Any other parameter has no
-/// `None` to keep: its type is the document's, an override's too, where `None` is the JSON `null`, and pyright strict
-/// rejects comparing a type without `None` to it (`reportUnnecessaryComparison`).
+/// `None` of a nullable parameter stays SQL `NULL`. For a required scalar we wrap the whole document, including JSON
+/// `null`.
 fn bind(parameter: &Field, value: ast::Expr) -> ast::Expr {
     let wrapper = parameter.ty.element.json().map(|json| match json {
         Json::Json => JSON,

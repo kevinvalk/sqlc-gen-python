@@ -30,4 +30,6 @@ Each layer catches what the one before cannot see. `cargo xtask help` lists the 
 
 With `--mutants`, `verify` plants plausible generator bugs (`MUTANTS` in `verify.py`) one at a time, and the layer named for each must catch it, saying why. With `--check`, as CI runs it, a `docs/typemap.md` or `exercised.tsv` that would change fails the run. `cargo xtask bless` runs `verify` before it accepts a change, as a wrong type that is still well typed passes the gate.
 
+The PostgreSQL type probe binds JSON back as a nullable parameter, so reading JSON `null` as Python `None` loses the distinction from SQL NULL there. The invoicing scenario also binds `None` to a required JSON parameter and checks the stored document with `jsonb_typeof`.
+
 The [public migration audit](migration-audit.md) records which downstream projects generated successfully, which needed changes, and which queries ran against their databases.

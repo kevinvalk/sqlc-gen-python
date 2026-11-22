@@ -4,8 +4,8 @@ use sqlc_gen_python::config::Records;
 use sqlc_gen_python::plugin;
 
 use super::{Takes, uses};
-use crate::support::module::is_none_for_nullable;
-use crate::support::python::{Shape, docstring, unparse, words};
+use crate::support::module::{JSON_DOCUMENT, is_none_for_nullable};
+use crate::support::python::{Shape, docstring, strip_optional, unparse, unwrapped, words};
 use crate::support::records::named_after;
 
 /// Holds one query's function signature and docstring to sqlc's query. Returns whether its parameters pair up with
@@ -62,12 +62,20 @@ pub(super) fn function_follows_sqlc(
         let optional = !column.is_sqlc_slice
             && (query.params.iter().zip(&uses))
                 .any(|(other, &f)| f == first && !other.column.as_ref().is_some_and(|c| c.not_null));
+        let (name, annotation) = parameters[at];
+        // The built-in JSON annotation also admits the document null for a required scalar.
+        let document = column.array_dims == 0
+            && !column.is_sqlc_slice
+            && column
+                .r#type
+                .as_ref()
+                .is_some_and(|ty| matches!(ty.name.trim_start_matches("pg_catalog."), "json" | "jsonb"))
+            && unparse(strip_optional(unwrapped(annotation))) == JSON_DOCUMENT;
         let expected = Shape {
-            optional,
+            optional: optional || document,
             depth: column.array_dims as usize + usize::from(column.is_sqlc_slice),
             unknown: false,
         };
-        let (name, annotation) = parameters[at];
         if Shape::of(annotation) != expected {
             problems.push(format!(
                 "{}: parameter `{name}` disagrees with sqlc's {} on NULL or array depth",

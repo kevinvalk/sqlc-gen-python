@@ -53,6 +53,7 @@ def sync_api(conn: sqlalchemy.Connection, some: UUID) -> None:
         joined.customer.accepted_methods, list[models.BillingPaymentMethod | None]
     )
     assert_type(joined.customer.metadata, object | None)
+    assert_type(customers.set_customer_metadata(conn, id=some, document=None), int)
     assert_type(
         customers.list_vip_customers(conn),
         list[customers.ListVipCustomersRow],
@@ -97,6 +98,7 @@ async def psycopg_async_api(conn: psycopg.AsyncConnection[Any], some: UUID) -> N
 
 def mistakes(conn: sqlalchemy.Connection, some: UUID, now: dt.datetime) -> None:
     card = models.BillingPaymentMethod.CARD
+    customers.set_customer_metadata(conn, id=some)  # type: ignore[call-arg]
     invoices.list_invoices_by_status(conn, statuses=["draft"])  # type: ignore[arg-type]
     payments.record_payment(
         conn,

@@ -53,6 +53,9 @@ SELECT preferred_method FROM customers ORDER BY name;
 -- name: CountCustomersByMetadata :one
 SELECT count(*) FROM customers WHERE metadata = ANY(sqlc.narg(documents)::jsonb[]);
 
+-- name: SetCustomerMetadata :execrows
+UPDATE customers SET metadata = @document::jsonb WHERE id = @id;
+
 -- name: ListCustomerReferrals :many
 SELECT name, email::text AS email, (metadata->>'referral')::text AS referral,
        (lag(name) OVER (ORDER BY name))::text AS previous_name

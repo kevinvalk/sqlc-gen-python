@@ -9,6 +9,8 @@ use ruff_text_size::Ranged;
 use super::python::{docstring, is_enum, is_error, unparse, unparse_stmt, unwrapped};
 use sqlc_gen_python::config::Records;
 
+pub(super) const JSON_DOCUMENT: &str = "Mapping[str, object] | list[Any] | tuple[object, ...] | float";
+
 pub fn check_module(source: &str) -> Vec<String> {
     let parsed = parse_module(source).expect("planted Python");
     module_problems(&parsed, source, false, Records::Dataclass)
@@ -283,8 +285,6 @@ fn annotations_are_precise(body: &[Stmt], accepts_any: bool, problems: &mut Vec<
     }
 
     // A JSON parameter's `list[Any]` admits a list of anything, as `list` is invariant, and is only ever encoded
-    const JSON_DOCUMENT: &str = "Mapping[str, object] | list[Any] | tuple[object, ...] | float";
-
     #[derive(Default)]
     struct MentionsAny(bool);
     impl<'a> Visitor<'a> for MentionsAny {

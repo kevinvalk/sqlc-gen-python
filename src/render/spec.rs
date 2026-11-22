@@ -107,7 +107,7 @@ fn a_json_parameter_takes_a_document_and_not_its_text() {
     let file = files.into_iter().find(|file| file.name == "authors.py").unwrap();
     let module = String::from_utf8(file.contents).unwrap();
     assert!(
-        module.contains("bio: Mapping[str, object] | list[Any] | tuple[object, ...] | float,"),
+        module.contains("bio: Mapping[str, object] | list[Any] | tuple[object, ...] | float | None,"),
         "{module}"
     );
 }

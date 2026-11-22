@@ -395,6 +395,22 @@ def count_customers_by_metadata(
     return value
 
 
+_SET_CUSTOMER_METADATA: Final = sqlalchemy.text(
+    "UPDATE customers SET metadata = :document\\:\\:jsonb WHERE id = :id"
+).bindparams(sqlalchemy.bindparam("document", type_=postgresql.JSONB()))
+
+
+def set_customer_metadata(
+    connection: sqlalchemy.Connection,
+    *,
+    document: Mapping[str, object] | list[Any] | tuple[object, ...] | float | None,
+    id: UUID,
+) -> int:
+    return connection.execute(
+        _SET_CUSTOMER_METADATA, {"document": document, "id": id}
+    ).rowcount
+
+
 _LIST_CUSTOMER_REFERRALS: Final = sqlalchemy.text("""SELECT name, email\\:\\:text AS email, (metadata->>'referral')\\:\\:text AS referral,
        (lag(name) OVER (ORDER BY name))\\:\\:text AS previous_name
 FROM customers ORDER BY name""")

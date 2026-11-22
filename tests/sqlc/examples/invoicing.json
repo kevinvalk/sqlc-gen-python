@@ -3046,6 +3046,71 @@
       "insert_into_table": null
     },
     {
+      "text": "UPDATE customers SET metadata = $1::jsonb WHERE id = $2",
+      "name": "SetCustomerMetadata",
+      "cmd": ":execrows",
+      "columns": [],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "document",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": null,
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "jsonb"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        },
+        {
+          "number": 2,
+          "column": {
+            "name": "id",
+            "not_null": true,
+            "is_array": false,
+            "comment": "",
+            "length": -1,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": {
+              "catalog": "",
+              "schema": "",
+              "name": "customers"
+            },
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "uuid"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "id",
+            "unsigned": false,
+            "array_dims": 0
+          }
+        }
+      ],
+      "comments": [],
+      "filename": "customers.sql",
+      "insert_into_table": null
+    },
+    {
       "text": "SELECT name, email::text AS email, (metadata->>'referral')::text AS referral,\n       (lag(name) OVER (ORDER BY name))::text AS previous_name\nFROM customers ORDER BY name",
       "name": "ListCustomerReferrals",
       "cmd": ":many",

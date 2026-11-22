@@ -189,9 +189,11 @@ impl FieldType {
         } else {
             array(element)
         };
-        match self.optional {
-            true => ty.or_none(),
-            false => ty,
+        // A required JSON parameter still accepts the JSON document null.
+        if self.optional || (parameter && self.array_dims == 0 && matches!(self.element, Type::Json(_))) {
+            ty.or_none()
+        } else {
+            ty
         }
     }
 

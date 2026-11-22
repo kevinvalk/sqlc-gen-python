@@ -365,6 +365,23 @@ def count_customers_by_metadata(
                 raise models.MultipleRowsError
 
 
+_SET_CUSTOMER_METADATA: Final = (
+    "UPDATE customers SET metadata = $1::jsonb WHERE id = $2"
+)
+
+
+def set_customer_metadata(
+    connection: psycopg.Connection[Any],
+    *,
+    document: Mapping[str, object] | list[Any] | tuple[object, ...] | float | None,
+    id: UUID,
+) -> int:
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
+        with connection.pipeline():
+            cur.execute(_SET_CUSTOMER_METADATA, (Jsonb(document), id))
+        return cur.rowcount
+
+
 _LIST_CUSTOMER_REFERRALS: Final = """SELECT name, email::text AS email, (metadata->>'referral')::text AS referral,
        (lag(name) OVER (ORDER BY name))::text AS previous_name
 FROM customers ORDER BY name"""
