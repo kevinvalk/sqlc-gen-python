@@ -2987,6 +2987,271 @@
       "insert_into_table": null
     },
     {
+      "text": "SELECT count(*) FROM customers WHERE metadata = ANY($1::jsonb[])",
+      "name": "CountCustomersByMetadata",
+      "cmd": ":one",
+      "columns": [
+        {
+          "name": "count",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": true,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bigint"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [
+        {
+          "number": 1,
+          "column": {
+            "name": "documents",
+            "not_null": false,
+            "is_array": true,
+            "comment": "",
+            "length": -1,
+            "is_named_param": true,
+            "is_func_call": false,
+            "scope": "",
+            "table": null,
+            "table_alias": "",
+            "type": {
+              "catalog": "",
+              "schema": "",
+              "name": "jsonb"
+            },
+            "is_sqlc_slice": false,
+            "embed_table": null,
+            "original_name": "",
+            "unsigned": false,
+            "array_dims": 1
+          }
+        }
+      ],
+      "comments": [],
+      "filename": "customers.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT name, email::text AS email, (metadata->>'referral')::text AS referral,\n       (lag(name) OVER (ORDER BY name))::text AS previous_name\nFROM customers ORDER BY name",
+      "name": "ListCustomerReferrals",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "name",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "customers"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "name",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "email",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "referral",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "previous_name",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        }
+      ],
+      "params": [],
+      "comments": [],
+      "filename": "customers.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT name, max(email)::text AS last_email,\n       array_agg(email ORDER BY id)::text[] AS emails,\n       CAST(array_agg(preferred_method ORDER BY id) AS billing.payment_method[]) AS methods\nFROM customers GROUP BY name ORDER BY name",
+      "name": "ListLastEmailsByName",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "name",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "customers"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "name",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "last_email",
+          "not_null": true,
+          "is_array": false,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 0
+        },
+        {
+          "name": "emails",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "methods",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": null,
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "billing",
+            "name": "payment_method"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "",
+          "unsigned": false,
+          "array_dims": 1
+        }
+      ],
+      "params": [],
+      "comments": [],
+      "filename": "customers.sql",
+      "insert_into_table": null
+    },
+    {
       "text": "INSERT INTO invoices (customer_id, number, currency, issued_on, due_on, notes)\nVALUES ($1, $2, $3, $4, $5, $6)\nRETURNING id, customer_id, number, status, currency, issued_on, due_on, notes, created_at, paid_at",
       "name": "CreateInvoice",
       "cmd": ":one",

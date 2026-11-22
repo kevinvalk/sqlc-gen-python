@@ -121,12 +121,8 @@ pub struct CopyInto {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     Exec,
-    /// Writes the rows it takes and returns how many it wrote, as sqlc's Go does. On PostgreSQL that is `every_row`, as
-    /// sqlc refuses a conflict clause there and any row that fails raises, while a MySQL `INSERT IGNORE` or
-    /// `ON DUPLICATE KEY UPDATE` writes as many as the database counts.
-    CopyFrom {
-        every_row: bool,
-    },
+    /// The database counts the rows written. A trigger can skip any of the inputs.
+    CopyFrom,
     ExecRows,
     ExecResult,
     /// Returns the id the `INSERT` generated.
@@ -305,6 +301,7 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
     };
     let params_class = format!("{class}Params");
     let (command, columns) = command(query, cmd, &class, resolver, models)?;
+    resolver.engine.check_row_parameters(query)?;
     let uses = params::params(&query.params, resolver)?;
 
     // PostgreSQL's `$N` is its parameter's number. We number MySQL's and SQLite's `?` by sqlc's order of the
@@ -397,12 +394,7 @@ fn command(
         ":exec" => (Command::Exec, Vec::new()),
         ":execrows" => (Command::ExecRows, Vec::new()),
         ":execresult" => (Command::ExecResult, Vec::new()),
-        ":copyfrom" => (
-            Command::CopyFrom {
-                every_row: resolver.engine == Engine::PostgreSql,
-            },
-            Vec::new(),
-        ),
+        ":copyfrom" => (Command::CopyFrom, Vec::new()),
         ":one" | ":many" => {
             let (fields, columns) = results::columns(query, resolver, models)?;
             let shape = match fields.as_slice() {

@@ -30,7 +30,7 @@ class CreateInvoiceParams:
 
 async def create_invoice(
     connection: psycopg.AsyncConnection[Any], params: CreateInvoiceParams
-) -> models.Invoice:
+) -> models.Invoice | None:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(
             _CREATE_INVOICE,
@@ -47,7 +47,7 @@ async def create_invoice(
             case [row]:
                 return models.Invoice.from_row(row)
             case []:
-                raise models.NoRowError
+                return None
             case _:
                 raise models.MultipleRowsError
 
@@ -702,14 +702,14 @@ async def attach_medium(
     invoice_id: UUID,
     filename: str,
     content: bytes,
-) -> models.Medium:
+) -> models.Medium | None:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_ATTACH_MEDIUM, (invoice_id, filename, content))
         match await cur.fetchmany(2):
             case [row]:
                 return models.Medium.from_row(row)
             case []:
-                raise models.NoRowError
+                return None
             case _:
                 raise models.MultipleRowsError
 

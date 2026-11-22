@@ -318,28 +318,62 @@ impl<'a> Resolver<'a> {
         };
 
         // An override replaces the element's type, while the array around it is still the one the driver returns
-        let element = match rule {
-            Some(_) if sql_enum.is_some() && array_dims > 0 => {
+        let declared = self.declares(&data_type);
+        let mapped = || {
+            if declared {
+                return None;
+            }
+            self.engine.scalar_type(column).or_else(|| {
+                let name = self.engine.type_name(&data_type);
+                self.config.backend.scalar_type(self.engine, &name)
+            })
+        };
+        let element = match (rule, sql_enum) {
+            (Some(_), Some(_)) if array_dims > 0 => {
                 bail!(
                     "{what} is an array of enum \"{data_type}\", whose elements a driver may return as the \
                      array's text; an override cannot replace them"
                 )
             }
-            Some(rule) => Type::Custom {
-                annotation: rule.python_type.expr.clone(),
-                json: (self.engine.scalar_type(column)).and_then(|ty| ty.json()),
-            },
-            None => {
-                // A type the schema declares is the user's, even where its name is also one of PostgreSQL's or an
-                // extension's, and a composite has no class yet
-                let declared = self.declares(&data_type);
-                let Some(element) = (sql_enum
-                    .map(|(schema, sql_enum)| Type::Enum(self.class_name(schema, &sql_enum.name))))
-                .or_else(|| (!declared).then(|| self.engine.scalar_type(column))?)
-                .or_else(|| {
-                    let name = self.engine.type_name(&data_type);
-                    (!declared).then(|| self.config.backend.scalar_type(self.engine, &name))?
-                }) else {
+            (Some(rule), _) => {
+                // A driver returns an enum label. For a type without a verified mapping only object is sound,
+                // so the user's decoder has to narrow it before use.
+                let wire = match (sql_enum.is_some(), mapped()) {
+                    (true, _) => Type::STR,
+                    (_, Some(wire)) => wire,
+                    (_, None) if array_dims == 0 || rule.from_db.is_none() => Type::OBJECT,
+                    _ => bail!(
+                        "{what} is an array of \"{data_type}\", which has no verified list representation; \
+                         cast it to an array type the driver returns as a list"
+                    ),
+                };
+                Type::Override {
+                    annotation: rule.python_type.expr.clone(),
+                    wire: Box::new(wire),
+                    converters: rule.to_db.as_ref().zip(rule.from_db.as_ref()).map(|(to, from)| {
+                        Box::new(crate::python::Converters {
+                            to_db: to.0.expr.clone(),
+                            from_db: from.0.expr.clone(),
+                        })
+                    }),
+                }
+            }
+            (None, Some((schema, sql_enum))) => {
+                let source = self
+                    .source(column)
+                    .filter(|c| c.r#type == column.r#type)
+                    .unwrap_or(column);
+                match self
+                    .engine
+                    .enum_type(source, &sql_enum.vals, self.class_name(schema, &sql_enum.name))
+                {
+                    Ok(ty) => ty,
+                    Err(problem) => return self.unknown(column, format!("{what} {problem}")),
+                }
+            }
+            (None, None) => {
+                // Composites have no verified mapping, even when their name matches a builtin or extension type.
+                let Some(element) = mapped() else {
                     let hint = self.engine.unmapped(&data_type);
                     let default = format!("{}.", self.catalog.default_schema);
                     let named = data_type.strip_prefix(&default).unwrap_or(&data_type);
@@ -351,11 +385,6 @@ impl<'a> Resolver<'a> {
                         ),
                     );
                 };
-                if let Some((_, sql_enum)) = sql_enum
-                    && let Some(problem) = self.engine.enum_problem(column, &sql_enum.vals)
-                {
-                    return self.unknown(column, format!("{what} {problem}"));
-                }
                 element
             }
         };
@@ -371,7 +400,7 @@ impl<'a> Resolver<'a> {
                 format!("{what} is an array of \"{data_type}\", which {problem}"),
             );
         }
-        if matches!(element, Type::Library { .. }) && array_dims > 0 {
+        if matches!(element.wire(), Type::Library { .. }) && array_dims > 0 {
             let problem = format!("{what} is an array of \"{data_type}\", which has no verified Python mapping");
             return self.unknown(column, problem);
         }
@@ -383,6 +412,7 @@ impl<'a> Resolver<'a> {
         }
 
         Ok(FieldType {
+            collects_nulls: false,
             as_text: array_dims > 0 && matches!(element, Type::Enum(_)) && self.config.backend.text_arrays(),
             element,
             array_dims,
@@ -398,12 +428,10 @@ impl<'a> Resolver<'a> {
             bail!("{problem}; or set unknown_type: Any to leave it unchecked");
         };
         Ok(FieldType {
-            element: Type::Custom {
-                annotation: unknown.annotation(),
-                json: None,
-            },
+            element: unknown.ty(),
             array_dims: 0,
             optional: !column.not_null,
+            collects_nulls: false,
             as_text: false,
         })
     }

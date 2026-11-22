@@ -7,8 +7,8 @@ use super::Problems;
 use super::names::members;
 use super::resolver::Resolver;
 use crate::plugin;
-use crate::python::vocabulary::{FROM_ARRAY, LIST, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, V};
-use crate::python::{self, Expression, Scope, Type, each, list_of, unless_none};
+use crate::python::vocabulary::{FROM_ARRAY, LIST, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, Symbol, TYPING, V};
+use crate::python::{self, Expression, Scope, Type, each, forward, list_of, name, unless_none};
 
 #[cfg(test)]
 #[path = "models_spec.rs"]
@@ -54,6 +54,8 @@ pub struct FieldType {
     pub optional: bool,
     /// The backend returns this array of enums as its text, which the enum's class then parses (`from_array`).
     pub as_text: bool,
+    /// The SELECT item collects nullable values with PostgreSQL's array_agg.
+    pub collects_nulls: bool,
 }
 
 /// The classes of the models module, or those of them `used` names. A table with a problem still becomes a model,
@@ -67,7 +69,11 @@ pub fn resolve(
     let mut enums = Vec::new();
     let mut models = Vec::new();
     for schema in resolver.catalog.user_schemas() {
-        for sql_enum in &schema.enums {
+        for sql_enum in schema
+            .enums
+            .iter()
+            .filter(|labels| !resolver.engine.is_set(schema, labels))
+        {
             let what = format!("enum \"{}\"", sql_enum.name);
             let name = resolver.class_name(schema, &sql_enum.name);
             if !is_used(&name) {
@@ -159,8 +165,7 @@ fn usable(name: &str) -> Result<()> {
 }
 
 impl FieldType {
-    /// The annotation as written in `scope`, such as `list[int] | None`. `None` goes outermost because a nullable array
-    /// column is a list that may be absent, not a list of independently absent elements.
+    /// The annotation as written in `scope`. Column nullability belongs to the whole value, even for an array.
     pub fn annotation(&self, scope: Scope) -> ast::Expr {
         self.shaped(self.element.annotation(scope))
     }
@@ -171,6 +176,11 @@ impl FieldType {
     }
 
     fn shaped(&self, element: ast::Expr) -> ast::Expr {
+        let element = if self.nullable_elements() {
+            element.or_none()
+        } else {
+            element
+        };
         let list = (0..self.array_dims).fold(element, |inner, _| LIST.index(inner));
         match self.optional {
             true => list.or_none(),
@@ -183,9 +193,50 @@ impl FieldType {
         python::unparse(&self.annotation(scope))
     }
 
+    fn nullable_elements(&self) -> bool {
+        self.array_dims > 0 && (self.collects_nulls || self.element.converters().is_some())
+    }
+
+    /// The scalar or each array element, preserving SQL NULL around the column and at a converted leaf.
+    fn map_elements(&self, value: ast::Expr, convert: impl FnOnce(ast::Expr) -> ast::Expr) -> ast::Expr {
+        let item = |depth: usize| format!("_{}{depth}", V.as_ref());
+        let at = |depth| if depth == 0 { value.clone() } else { name(item(depth)) };
+        let leaf = at(self.array_dims);
+        let mut mapped = convert(leaf.clone());
+        if self.nullable_elements() {
+            mapped = unless_none(leaf, mapped);
+        }
+        for depth in (1..=self.array_dims).rev() {
+            mapped = list_of(mapped, each(item(depth), at(depth - 1)));
+        }
+        if self.optional {
+            unless_none(value, mapped)
+        } else {
+            mapped
+        }
+    }
+
+    /// A driver's JSON wrapper takes the document after the user's conversion.
+    pub fn bind(&self, value: ast::Expr, wrapper: Option<Symbol>) -> ast::Expr {
+        let converters = self.element.converters();
+        if converters.is_none() && wrapper.is_none() {
+            return value;
+        }
+        self.map_elements(value, |element| {
+            let encoded = match converters {
+                Some(pair) => pair.to_db.clone().call([element]),
+                None => element,
+            };
+            match wrapper {
+                Some(wrapper) => wrapper.call([encoded]),
+                None => encoded,
+            }
+        })
+    }
+
     /// Whether [`Self::read`] converts a value.
     pub fn converts(&self) -> bool {
-        matches!(self.element, Type::Enum(_) | Type::Converted(_))
+        matches!(self.element, Type::Enum(_) | Type::Converted(_)) || self.element.converters().is_some()
     }
 
     /// The expression that turns `value`, as a driver returns it, into this type.
@@ -196,10 +247,25 @@ impl FieldType {
         if !self.converts() {
             return value;
         }
+        if let Some(converters) = self.element.converters() {
+            return self.map_elements(value, |element| {
+                // Rows have Any elements. We give the decoder the verified driver type so a mismatched
+                // signature fails the application type check.
+                let raw = match self.element.wire() {
+                    Type::Converted(builtin) => builtin.call([element]),
+                    wire => TYPING.attr("cast").call([forward(wire.annotation(scope)), element]),
+                };
+                converters.from_db.clone().call([raw])
+            });
+        }
         let class = self.element.annotation(scope);
+        if self.collects_nulls && !self.as_text {
+            return self.map_elements(value, |item| class.call([item]));
+        }
         let read = match (self.array_dims, self.as_text) {
             (0, _) => class.call([value.clone()]),
             (_, false) => list_of(class.call([V.into()]), each(V, value.clone())),
+            (_, true) if self.collects_nulls => enum_array(value.clone(), class, true),
             (_, true) => class.attr(FROM_ARRAY).call([value.clone()]),
         };
         match self.optional {
@@ -207,4 +273,20 @@ impl FieldType {
             false => read,
         }
     }
+}
+
+/// The enum labels we support in PostgreSQL's array text need no quoting. The unquoted word NULL denotes a missing element.
+pub(crate) fn enum_array(value: ast::Expr, class: ast::Expr, nullable: bool) -> ast::Expr {
+    use crate::python::vocabulary::LABEL;
+    let labels = value
+        .slice(python::int(1), python::minus(python::int(1)))
+        .attr("split")
+        .call([python::string(",")]);
+    let member = class.call([LABEL.into()]);
+    let member = if nullable {
+        python::none_if(LABEL.equals(python::string("NULL")), member)
+    } else {
+        member
+    };
+    list_of(member, each(LABEL, labels).when(LABEL))
 }

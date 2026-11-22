@@ -10,6 +10,7 @@ fn field(element: Type, array_dims: usize, optional: bool) -> FieldType {
         element,
         array_dims,
         optional,
+        collects_nulls: false,
         as_text: false,
     }
 }
@@ -23,6 +24,31 @@ fn a_plain_column_annotates_as_its_element_type() {
     assert_eq!(annotation(&field(Type::INT, 0, false)), "int");
     assert_eq!(annotation(&field(Type::DATE, 0, false)), "dt.date");
     assert_eq!(annotation(&field(Type::CIDR, 0, false)), "IPv4Network | IPv6Network");
+}
+
+#[test]
+fn converters_skip_nulls_in_the_column_and_at_each_array_leaf() {
+    let ty = field(
+        Type::Override {
+            annotation: name("int"),
+            wire: Box::new(Type::STR),
+            converters: Some(Box::new(crate::python::Converters {
+                to_db: name("app").attr("write"),
+                from_db: name("app").attr("read"),
+            })),
+        },
+        2,
+        true,
+    );
+    assert_eq!(annotation(&ty), "list[list[int | None]] | None");
+    assert_eq!(
+        python::unparse(&ty.bind(name("matrix"), None)),
+        "None if matrix is None else [[None if _v2 is None else app.write(_v2) for _v2 in _v1] for _v1 in matrix]"
+    );
+    assert_eq!(
+        python::unparse(&ty.read(name("matrix"), Scope::Queries)),
+        r#"None if matrix is None else [[None if _v2 is None else app.read(typing.cast("str", _v2)) for _v2 in _v1] for _v1 in matrix]"#
+    );
 }
 
 #[test]

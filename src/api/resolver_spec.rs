@@ -188,6 +188,17 @@ fn an_override_replaces_no_array_of_enums() {
 }
 
 #[test]
+fn a_converter_cannot_iterate_an_unverified_array_as_a_list() {
+    let mut tags = column("tags", "custom_tag", true);
+    (tags.is_array, tags.array_dims) = (true, 1);
+    let config = options(
+        r#""overrides": [{"db_type": "custom_tag", "python_type": "str", "to_db": "app.write", "from_db": "app.read"}]"#,
+    );
+    let error = error_of(resolve_options(public(vec![table("items", vec![tags])]), &config));
+    assert!(error.contains("has no verified list representation"), "{error}");
+}
+
+#[test]
 fn a_class_is_capwords_and_hides_no_builtin() {
     let error = |schemas: Vec<plugin::Schema>, json: &str| {
         format!("{:#}", resolve_options(schemas, &options(json)).unwrap_err())

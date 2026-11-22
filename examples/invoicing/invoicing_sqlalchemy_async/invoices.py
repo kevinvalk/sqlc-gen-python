@@ -29,22 +29,21 @@ async def create_invoice(
     issued_on: dt.date | None = None,
     due_on: dt.date | None = None,
     notes: str | None = None,
-) -> models.Invoice:
-    return models.Invoice.from_row(
-        (
-            await connection.execute(
-                _CREATE_INVOICE,
-                {
-                    "customer_id": customer_id,
-                    "number": number,
-                    "currency": currency,
-                    "issued_on": issued_on,
-                    "due_on": due_on,
-                    "notes": notes,
-                },
-            )
-        ).one()
-    )
+) -> models.Invoice | None:
+    row = (
+        await connection.execute(
+            _CREATE_INVOICE,
+            {
+                "customer_id": customer_id,
+                "number": number,
+                "currency": currency,
+                "issued_on": issued_on,
+                "due_on": due_on,
+                "notes": notes,
+            },
+        )
+    ).one_or_none()
+    return None if row is None else models.Invoice.from_row(row)
 
 
 _GET_INVOICE: Final = sqlalchemy.text(
@@ -693,15 +692,14 @@ RETURNING id, invoice_id, filename, content, uploaded_at""")
 
 async def attach_medium(
     connection: AsyncConnection, *, invoice_id: UUID, filename: str, content: bytes
-) -> models.Medium:
-    return models.Medium.from_row(
-        (
-            await connection.execute(
-                _ATTACH_MEDIUM,
-                {"invoice_id": invoice_id, "filename": filename, "content": content},
-            )
-        ).one()
-    )
+) -> models.Medium | None:
+    row = (
+        await connection.execute(
+            _ATTACH_MEDIUM,
+            {"invoice_id": invoice_id, "filename": filename, "content": content},
+        )
+    ).one_or_none()
+    return None if row is None else models.Medium.from_row(row)
 
 
 _LIST_MEDIA: Final = sqlalchemy.text(

@@ -224,10 +224,10 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt
     let body = Body::new(driver, query, asynchronous);
     let returning = || [keyword("returning", true_())];
     let on_cursor = match (&query.command, query.takes.rows()) {
-        (Command::CopyFrom { .. }, _) if driver.copies && query.copy_into.is_some() => return body.copy(),
+        (Command::CopyFrom, _) if driver.copies && query.copy_into.is_some() => return body.copy(),
         // A MySQL driver counts what `executemany` wrote, but returns `None` for no rows
-        (Command::CopyFrom { .. }, _) if driver.execute_counts => vec![return_(body.execute_many([]).or(int(0)))],
-        (Command::CopyFrom { .. }, _) => stmts![body.counted(body.execute_many([])), return_(CUR.attr("rowcount"))],
+        (Command::CopyFrom, _) if driver.execute_counts => vec![return_(body.execute_many([]).or(int(0)))],
+        (Command::CopyFrom, _) => stmts![body.counted(body.execute_many([])), return_(CUR.attr("rowcount"))],
         // The cursor is the result, so it stays open
         (Command::ExecResult, _) => {
             return stmts![
@@ -402,9 +402,10 @@ impl<'a> Body<'a> {
         let values = (parameters.iter())
             .map(|parameter| {
                 let value = super::value(self.query, &parameter.name);
+                let bound = (self.driver.bind)(parameter, value);
                 match self.query.sql.is_slice(&parameter.name) {
-                    true => starred(value),
-                    false => (self.driver.bind)(parameter, value),
+                    true => starred(bound),
+                    false => bound,
                 }
             })
             .collect();

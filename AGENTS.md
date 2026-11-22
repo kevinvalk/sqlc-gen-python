@@ -26,6 +26,7 @@ A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates Pytho
 - A nullable parameter defaults to `None`, as `sqlc.narg` is how a query writes a filter without its constraint or a partial update; every other parameter, and every field of a record of results, has no default.
 - We write `models.py` and the query modules into `out`, never `__init__.py`, as `out` may be the application's own package. `models.module` points query modules at models another entry of the same `backend` writes. `models.only` writes those models alone, ignoring the placeholder query sqlc requires. `models.omit_unused` writes only the classes the entry's queries use, and so reports only their problems.
 - An unknown type is an error. An override naming `Any`, or `unknown_type: Any` or `object`, accepts it as the user's own choice in their `sqlc.yaml`; off by default, as sqlc shows a plugin no warning, so whoever turns it on knows what it hides.
+- An override may name two module-level functions, `to_db` and `from_db`. Generated code calls them at the bind and the read, skipping SQL NULL and converting an array at its declared element depth. The decoder takes the backend's verified Python type or, for an unverified scalar, `object`.
 - An uncast `coalesce`, `nullif` or `CASE` in a result is an error, as sqlc types it by one operand whatever the others are, and so is a result list we cannot read that holds one.
 - Class names follow sqlc's own inflection (`media` -> `Medium`).
 - Types follow driver reality; enums are coerced into the enum class.
@@ -47,10 +48,6 @@ Ideas we weighed and do not want, so nobody proposes them again:
 - Indent or other formatting options, as ruff's formatter decides.
 - A turso backend, as sqlc has no engine of its own for it.
 - A shared `one` / `one_or_none` helper in `models.py`, as each `:one` reads its own rows.
-
-## TODO
-
-- **Converters on an override**: a `to_db` / `from_db` pair of dotted functions, so an override converts the value and not only names its type (a JSON column as a typed model, a SQLite `DATETIME` as `dt.datetime`). Applied inline in the generated code, never registered on the driver or at import; NULL-safe; per element of an array; `from_db` receives the value as our type map types it, so pyright checks the converter; validated at config time; proven at runtime in `verify`.
 
 ## Workarounds
 

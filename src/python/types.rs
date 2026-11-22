@@ -20,9 +20,12 @@ pub enum Type {
     Converted(Symbol),
     /// An enum class we generate in the models module.
     Enum(String),
-    /// A type an override names ([`Annotation`]). We hand the driver's value over unconverted, but a JSON column's is
-    /// still bound as JSON.
-    Custom { annotation: ast::Expr, json: Option<Json> },
+    /// We keep the driver's type under an override, as JSON still needs its wrapper and a range its result processor.
+    Override {
+        annotation: ast::Expr,
+        wire: Box<Type>,
+        converters: Option<Box<Converters>>,
+    },
     /// A value of the backend's own class, such as a range. On SQLAlchemy we load and bind it through its PostgreSQL
     /// `sql_type` (`postgresql.INT4RANGE`), so every driver's value is one class.
     Library {
@@ -32,6 +35,12 @@ pub enum Type {
     /// Decoded JSON is annotated `object`, as the decoder is configurable and nothing narrower holds under every
     /// configuration. We keep which JSON type it came from, as a backend may bind each through its own type.
     Json(Json),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Converters {
+    pub to_db: ast::Expr,
+    pub from_db: ast::Expr,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,15 +76,23 @@ impl Type {
     pub const INT: Self = Self::Python(&[names::INT]);
     pub const JSON: Self = Self::Json(Json::Json);
     pub const JSONB: Self = Self::Json(Json::Jsonb);
+    pub const OBJECT: Self = Self::Python(&[names::OBJECT]);
     pub const STR: Self = Self::Python(&[names::STR]);
     pub const TIME: Self = Self::Python(&[names::TIME]);
     pub const TIMEDELTA: Self = Self::Python(&[names::TIMEDELTA]);
     pub const UUID: Self = Self::Python(&[names::UUID]);
 
+    pub fn wire(&self) -> &Self {
+        match self {
+            Self::Override { wire, .. } => wire,
+            other => other,
+        }
+    }
+
     /// An override of a JSON column still binds as its JSON type.
     pub fn json(&self) -> Option<Json> {
-        match self {
-            Self::Json(json) | Self::Custom { json: Some(json), .. } => Some(*json),
+        match self.wire() {
+            Self::Json(json) => Some(*json),
             _ => None,
         }
     }
@@ -87,9 +104,16 @@ impl Type {
                 .expect("a type has a name"),
             (Self::Converted(builtin), _) => (*builtin).into(),
             (Self::Json(_), _) => names::OBJECT.into(),
-            (Self::Custom { annotation, .. } | Self::Library { annotation, .. }, _) => annotation.clone(),
+            (Self::Override { annotation, .. } | Self::Library { annotation, .. }, _) => annotation.clone(),
             (Self::Enum(class), Scope::Models) => name(class),
             (Self::Enum(class), Scope::Queries) => names::MODELS.attr(class),
+        }
+    }
+
+    pub fn converters(&self) -> Option<&Converters> {
+        match self {
+            Self::Override { converters, .. } => converters.as_deref(),
+            _ => None,
         }
     }
 
@@ -167,7 +191,7 @@ fn imported(annotation: &ast::Expr, modules: &mut Vec<String>) -> anyhow::Result
                 "typing" if attribute.attr.as_str() == names::ANY.as_ref() => {
                     anyhow::bail!("generated code imports `Any` from `typing` itself: write `Any`")
                 }
-                _ if is_imported(&root.id) => {
+                _ if is_imported(&root.id) || super::hides_builtin(&root.id) => {
                     anyhow::bail!("`{}` is a name generated code binds", root.id)
                 }
                 // We know what the user meant here, so let's tell them.

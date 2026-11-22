@@ -16,6 +16,8 @@
 
 use std::ops::Range;
 
+use super::Engine;
+
 #[cfg(test)]
 #[path = "select_spec.rs"]
 mod spec;
@@ -28,9 +30,7 @@ pub struct Aggregates {
     pub never_null: &'static [&'static str],
     /// No aggregate when given several arguments, but a function of each row: SQLite's `min` and `max`.
     pub scalar_of_several: &'static [&'static str],
-    /// Whether a column may stand beside an ungrouped aggregate, where it is NULL of no rows: on SQLite, and on MySQL
-    /// without `ONLY_FULL_GROUP_BY`.
-    pub bare_columns: bool,
+    pub engine: Engine,
 }
 
 /// One item of a result list: a column of the result, or one of an embed's.
@@ -38,6 +38,10 @@ pub struct Aggregates {
 pub struct Item {
     /// Whether it is a bare `count(...)` (filtered or over a window as it may be), or a scalar subquery of one alone.
     pub count: bool,
+    /// A decimal integer literal in the range every engine returns as an integer.
+    pub integer: bool,
+    /// PostgreSQL's array_agg preserves a NULL input as an element of the array.
+    pub collects_nulls: bool,
     /// Whether it may be NULL where sqlc reports NOT NULL: a scalar subquery that may find no row, an aggregate of what
     /// may be no rows, a `CASE` that may take no branch or a `NULL` one, a `nullif`, the literal `NULL` itself, a key
     /// its grouping set leaves out, or a column of a source an outer join may leave without a row.
@@ -53,7 +57,12 @@ pub struct Item {
 /// (after any `WITH`) or the `RETURNING` one. In a set operation an item is a count only if it is one in every branch,
 /// and nullable if it is in any. `None` when the list does not read as one item per column, as we then know nothing of
 /// any of them.
-pub fn items(tokens: &[String], tables: &[&str], aggregates: &Aggregates) -> Option<Vec<Item>> {
+pub fn items(
+    tokens: &[String],
+    tables: &[&str],
+    aggregates: &Aggregates,
+    required: impl Fn(&str, &str, &str) -> Option<bool>,
+) -> Option<Vec<Item>> {
     let mut read: Option<Vec<Item>> = None;
     for branch in branches(&leveled(tokens)) {
         let list = &branch[list(&branch)?];
@@ -64,20 +73,22 @@ pub fn items(tokens: &[String], tables: &[&str], aggregates: &Aggregates) -> Opt
         }
         let sources = sources_of(&branch, aggregates);
         let grouped = grouped(&branch);
-        // A group's one row may be the one an outer join left without the table the aggregate reads
-        let whole =
-            grouped && (sources.as_ref()).is_some_and(|(_, sources)| !sources.iter().any(|source| source.outer));
-        let bare =
-            !grouped && (rolled(&branch) || (aggregates.bare_columns && aggregates_rows(&branch, list, aggregates)));
+        let required_column = |tokens: &[Leveled]| {
+            let (ctes, sources) = sources.as_ref()?;
+            column_required(tokens, ctes, sources, &required)
+        };
+        let bare = !grouped
+            && (rolled(&branch)
+                || (aggregates.engine != Engine::PostgreSql && aggregates_rows(&branch, list, aggregates)));
         let items = (split.iter().zip(tables)).map(|(tokens, table)| {
-            let item = item(tokens, whole, bare, aggregates);
+            let item = item(tokens, grouped, bare, aggregates, required_column);
             let outer = match &sources {
                 Some((_, sources)) => outer(tokens, table, sources),
                 // A `FROM` we could not read may leave any of its tables without a row
                 None => column(tokens).is_some(),
             };
             Item {
-                nullable: item.nullable || outer,
+                nullable: item.nullable || outer || cast_input(tokens).and_then(required_column) == Some(false),
                 ..item
             }
         });
@@ -86,6 +97,8 @@ pub fn items(tokens: &[String], tables: &[&str], aggregates: &Aggregates) -> Opt
             Some(first) => (first.into_iter().zip(items))
                 .map(|(a, b)| Item {
                     count: a.count && b.count,
+                    integer: a.integer && b.integer,
+                    collects_nulls: a.collects_nulls || b.collects_nulls,
                     nullable: a.nullable || b.nullable,
                     operand_typed: a.operand_typed || b.operand_typed,
                 })
@@ -95,20 +108,18 @@ pub fn items(tokens: &[String], tables: &[&str], aggregates: &Aggregates) -> Opt
     read
 }
 
-/// Whether the statement returns exactly one row, whatever the data. That is an `INSERT` of one row of `VALUES` (or
-/// `DEFAULT VALUES`) `RETURNING` it, which no `OR IGNORE`, `ON CONFLICT DO NOTHING` or `DO UPDATE ... WHERE` can skip;
-/// a `SELECT` whose list calls an aggregate while nothing groups, filters or limits the result; or a `SELECT` of
-/// `EXISTS (...)` alone, of no table and unfiltered.
-pub fn single_row(tokens: &[String], aggregates: &Aggregates) -> bool {
+/// An ungrouped aggregate or an unconditional EXISTS can guarantee a row. An INSERT cannot, as a
+/// BEFORE trigger may skip it and SQLite may ignore a conflict by a constraint on the table.
+pub fn single_row(tokens: &[String], engine: Engine) -> bool {
+    let aggregates = engine.aggregates();
     let tokens = leveled(tokens);
     let branches = branches(&tokens);
     let [branch] = branches.as_slice() else {
         return false;
     };
     match (kind(branch), list(branch)) {
-        (Some((at, "insert" | "replace")), _) => inserts_one(&branch[at..]),
-        (Some((_, "select")), Some(list)) => {
-            let list = &branch[list];
+        (Some((at, "select")), Some(range)) => {
+            let list = &branch[range.clone()];
             let exists = top(branch, &["from", "where"]).is_none()
                 && (list.split(|&(d, t)| d == 0 && t == ",")).all(|item| match item {
                     [(_, exists), (_, "("), ..] => is(exists, &["exists"]),
@@ -117,10 +128,50 @@ pub fn single_row(tokens: &[String], aggregates: &Aggregates) -> bool {
                 });
             // What follows a statement in parentheses limits it as its own clauses do:
             // `(SELECT count(*) FROM t) LIMIT 0`
-            collapses(&tokens) && collapses(branch) && (exists || aggregated(list, aggregates))
+            collapses(&tokens)
+                && collapses(branch)
+                && (exists || aggregated(list, &aggregates))
+                && scalar_projection(branch, at, range.end, &aggregates)
         }
         _ => false,
     }
+}
+
+fn scalar_projection(branch: &[Leveled], select: usize, end: usize, aggregates: &Aggregates) -> bool {
+    let tail = &branch[end..];
+    aggregates.engine != Engine::PostgreSql
+        || (scalar_calls(&branch[select..end], aggregates)
+            && top(tail, &["order"]).is_none_or(|order| scalar_calls(&tail[order..], aggregates)))
+}
+
+/// PostgreSQL evaluates a set-returning call after grouping, even in an expression used only to sort the rows.
+/// A scalar subquery hides its own calls, and PostgreSQL forbids a set-returning argument to an aggregate.
+fn scalar_calls(tokens: &[Leveled], aggregates: &Aggregates) -> bool {
+    let mut at = 0;
+    while at < tokens.len() {
+        if let Some((inner, _)) = parenthesised(&tokens[at..]) {
+            let name = at.checked_sub(1).map_or("", |i| tokens[i].1);
+            let schema = at.checked_sub(3).filter(|_| tokens[at - 2].1 == ".");
+            let builtin = schema.is_none_or(|i| is(tokens[i].1, &["pg_catalog"]));
+            let aggregate = builtin && (is(name, aggregates.nullable) || is(name, aggregates.never_null));
+            let syntax = schema.is_none()
+                && is(
+                    name,
+                    &[
+                        "select", "as", "in", "exists", "any", "all", "some", "cast", "coalesce", "nullif", "filter",
+                        "over", "by", "where", "from",
+                    ],
+                );
+            if !aggregate && is_word(name) && !syntax {
+                return false;
+            }
+            if aggregate || is_statement(inner) {
+                at += inner.len() + 1;
+            }
+        }
+        at += 1;
+    }
+    true
 }
 
 /// The tables, by name as written, that every row of the result has a row of. In a `SELECT` those are the tables its
@@ -212,6 +263,58 @@ fn column<'t>(item: &[Leveled<'t>]) -> Option<Vec<&'t str>> {
     (!words.is_empty() && is_alias(rest)).then_some(words)
 }
 
+/// Plain placeholders compared positionally to columns in a PostgreSQL row comparison. A cast on the
+/// placeholder gives sqlc its own type, so we leave those out.
+pub(super) fn row_parameters(words: &[String]) -> Vec<(i32, String)> {
+    let tokens = leveled(words);
+    let mut parameters = Vec::new();
+    for (at, &(depth, op)) in tokens.iter().enumerate() {
+        if !matches!(op, "=" | "<" | "<=" | ">" | ">=" | "<>" | "!=") || at == 0 || tokens[at - 1].1 != ")" {
+            continue;
+        }
+        let right = match &tokens[at + 1..] {
+            [(_, row), rest @ ..] if is(row, &["row"]) => rest,
+            rest => rest,
+        };
+        let Some((right, _)) = parenthesised(right) else {
+            continue;
+        };
+        let Some(open) = tokens[..at].iter().rposition(|t| *t == (depth, "(")) else {
+            continue;
+        };
+        let before = open.checked_sub(1).map_or("", |i| tokens[i].1);
+        if is_word(before)
+            && !is(
+                before,
+                &["row", "where", "and", "or", "on", "when", "select", "not", "having"],
+            )
+        {
+            continue;
+        }
+        let comma = |t: &Leveled| *t == (depth + 1, ",");
+        let left = &tokens[open + 1..at - 1];
+        if !left.iter().any(comma) || !right.iter().any(comma) {
+            continue;
+        }
+        for (left, right) in left.split(comma).zip(right.split(comma)) {
+            for (slot, field) in [(left, right), (right, left)] {
+                if let [(_, placeholder)] = slot
+                    && let Some(number) = placeholder.strip_prefix('$').and_then(|n| n.parse().ok())
+                    && let Some(parts) = column(field)
+                    && let Some(name) = parts.last()
+                {
+                    let name = match name.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+                        Some(quoted) => quoted.replace("\"\"", "\""),
+                        None => name.to_ascii_lowercase(),
+                    };
+                    parameters.push((number, name));
+                }
+            }
+        }
+    }
+    parameters
+}
+
 /// The names of the statement's CTEs, and the sources its result's rows are made of: those of a `SELECT`'s `FROM`, or
 /// for an `INSERT`, `UPDATE` or `DELETE` that returns its rows the table it writes, plus those an `UPDATE`'s `FROM` or
 /// a `DELETE`'s `USING` names. No sources where it reads none, as a `SELECT` without a `FROM`. `None` where we do not
@@ -244,7 +347,7 @@ fn sources_of(branch: &[Leveled], aggregates: &Aggregates) -> Option<(Vec<String
     let (target, read): (&[Leveled], &[Leveled]) = match kind {
         "select" => {
             let list = list(statement)?;
-            let nulls = aggregates.bare_columns
+            let nulls = aggregates.engine != Engine::PostgreSql
                 && !grouped(statement)
                 && aggregates_rows(statement, &statement[list.clone()], aggregates);
             let after = &statement[list.end..];
@@ -469,8 +572,6 @@ fn rolled(tokens: &[Leveled]) -> bool {
 /// What may be NULL in an item though sqlc reports NOT NULL ([`found`]).
 struct Found {
     aggregate: bool,
-    /// Whether the aggregate has a `FILTER`, which may keep none of a group's rows.
-    filtered: bool,
     /// An aggregate other than `count` of no rows, a subquery without a row unless it counts all of them, a `CASE`
     /// that may take no branch or a `NULL` one, or a `nullif` of equal arguments.
     nullable: bool,
@@ -484,7 +585,7 @@ struct Found {
 /// A call with `OVER` is a window function, of each row, and one qualified by any schema but `pg_catalog` is that
 /// schema's own function. A subquery that is no value does not count: one read by `EXISTS`, `IN`, `ANY` and the like,
 /// the elements of an `ARRAY(...)`, or one compared with `IS`, as a `nullif` may be too.
-fn found(tokens: &[Leveled], aggregates: &Aggregates) -> Vec<Found> {
+fn found(tokens: &[Leveled], aggregates: &Aggregates, whole: impl Fn(&str, &[Leveled]) -> bool) -> Vec<Found> {
     let mut found = Vec::new();
     // Whether each parenthesis open here is a `coalesce` with a default, or a `count`
     let mut guards: Vec<bool> = Vec::new();
@@ -499,11 +600,11 @@ fn found(tokens: &[Leveled], aggregates: &Aggregates) -> Vec<Found> {
                 // Limited from outside its parentheses, a count may have no row: `((SELECT count(*) FROM t) LIMIT 0)`
                 let counts = !is(after, SET_OPERATIONS)
                     && !is(after, TAIL)
-                    && selects(inner).is_some_and(|(call, collapses)| collapses && is(&call, aggregates.never_null));
+                    && selects(inner, aggregates)
+                        .is_some_and(|(call, collapses)| collapses && is(&call, aggregates.never_null));
                 if value {
                     found.push(Found {
                         aggregate: false,
-                        filtered: false,
                         nullable: !counts,
                         guarded: guards.contains(&true),
                     });
@@ -524,7 +625,6 @@ fn found(tokens: &[Leveled], aggregates: &Aggregates) -> Vec<Found> {
                 if case_may_be_null(&tokens[at..]) {
                     found.push(Found {
                         aggregate: false,
-                        filtered: false,
                         nullable: true,
                         guarded: guards.contains(&true),
                     });
@@ -537,7 +637,6 @@ fn found(tokens: &[Leveled], aggregates: &Aggregates) -> Vec<Found> {
                 if !tested {
                     found.push(Found {
                         aggregate: false,
-                        filtered: false,
                         nullable: true,
                         guarded: guards.contains(&true),
                     });
@@ -549,10 +648,10 @@ fn found(tokens: &[Leveled], aggregates: &Aggregates) -> Vec<Found> {
                 // A function of another schema named like an aggregate is that schema's own
                 let schema = at.checked_sub(2).filter(|_| before == ".");
                 let builtin = schema.is_none_or(|schema| is(tokens[schema].1, &["pg_catalog"]));
-                if (nullable || is(&name, aggregates.never_null))
+                let value_of_window = is(&name, &["lag", "lead", "first_value", "last_value", "nth_value"]);
+                if (nullable || is(&name, aggregates.never_null) || value_of_window)
                     && builtin
                     && let Some((arguments, after)) = parenthesised(&tokens[at + 1..])
-                    && !over(after).0
                     && !(is(&name, aggregates.scalar_of_several) && several(arguments))
                 {
                     // An ordered-set aggregate names its order before its filter
@@ -562,12 +661,19 @@ fn found(tokens: &[Leveled], aggregates: &Aggregates) -> Vec<Found> {
                         }
                         after => after,
                     };
-                    found.push(Found {
-                        aggregate: true,
-                        filtered: matches!(after, [(_, filter), ..] if is(filter, &["filter"])),
-                        nullable,
-                        guarded: guards.contains(&true),
-                    });
+                    // A window preserves each row. Its frame may hold no value, and a lag or lead may have no
+                    // row at its offset even when the argument is NOT NULL.
+                    let window = over(after).0;
+                    if window || !value_of_window {
+                        found.push(Found {
+                            aggregate: !window,
+                            nullable: (nullable || value_of_window)
+                                && (window
+                                    || matches!(after, [(_, filter), ..] if is(filter, &["filter"]))
+                                    || !whole(&name, arguments)),
+                            guarded: guards.contains(&true),
+                        });
+                    }
                 }
             }
         }
@@ -611,6 +717,105 @@ fn case_may_be_null(tokens: &[Leveled]) -> bool {
     true
 }
 
+/// A nonempty group can still contain only NULLs. We can prove a value for these aggregates of a required
+/// column or literal. Sample statistics, for example, need more than one observation.
+fn group_value(name: &str, arguments: &[Leveled], required: impl Fn(&[Leveled]) -> Option<bool>) -> bool {
+    is(
+        name,
+        &[
+            "min", "max", "sum", "avg", "bool_and", "bool_or", "every", "bit_and", "bit_or", "bit_xor",
+        ],
+    ) && non_null_value(aggregate_input(arguments), required)
+}
+
+/// DISTINCT, ALL and the aggregate's ORDER BY leave the input values themselves unchanged.
+fn aggregate_input<'b, 't>(arguments: &'b [Leveled<'t>]) -> &'b [Leveled<'t>] {
+    let arguments = match arguments {
+        [(_, modifier), rest @ ..] if is(modifier, &["distinct", "all"]) => rest,
+        other => other,
+    };
+    let depth = arguments.first().map_or(0, |&(d, _)| d);
+    let order = arguments
+        .windows(2)
+        .position(|pair| pair[0].0 == depth && is(pair[0].1, &["order"]) && is(pair[1].1, &["by"]));
+    &arguments[..order.unwrap_or(arguments.len())]
+}
+
+fn non_null_value(arguments: &[Leveled], required: impl Fn(&[Leveled]) -> Option<bool>) -> bool {
+    required(arguments) == Some(true)
+        || is_defaulted(arguments)
+        || (!several(arguments) && defaults(arguments))
+        || case_literals(arguments).is_some_and(|values| {
+            values
+                .iter()
+                .all(|v| v.starts_with('\'') || is(v, &["true", "false"]) || v.parse::<i32>().is_ok())
+        })
+}
+
+/// A LEFT JOIN supplies a NULL element even for a group that has a row. An aggregate FILTER can omit that row.
+fn collects_nulls(tokens: &[Leveled], required: impl Fn(&[Leveled]) -> Option<bool>) -> bool {
+    let tokens = uncast_item(tokens);
+    let tokens = match tokens {
+        [(_, schema), (_, "."), rest @ ..] if is(schema, &["pg_catalog"]) => rest,
+        _ => tokens,
+    };
+    let [(_, name), rest @ ..] = tokens else { return false };
+    if !is(name, &["array_agg"]) {
+        return false;
+    }
+    let Some((arguments, after)) = parenthesised(rest) else {
+        return false;
+    };
+    if !is_alias(uncast(over(after).1)) {
+        return false;
+    }
+    let value = aggregate_input(arguments);
+    if non_null_value(value, required) {
+        return false;
+    }
+    let filtered = match after {
+        [(_, filter), rest @ ..] if is(filter, &["filter"]) => parenthesised(rest).map(|(predicate, _)| predicate),
+        _ => None,
+    };
+    !matches!(filtered, Some([(_, w), field @ .., (_, i), (_, n), (_, nil)])
+        if is(w, &["where"]) && is(i, &["is"]) && is(n, &["not"]) && is(nil, &["null"])
+            && column(value).is_some_and(|words| Some(words) == column(field)))
+}
+
+/// A bare column's catalog nullability applies only to the table that supplies it. A CTE can shadow that table,
+/// and an outer join can supply NULL for every column of the missing row.
+fn column_required(
+    tokens: &[Leveled],
+    ctes: &[String],
+    sources: &[Source],
+    required: &impl Fn(&str, &str, &str) -> Option<bool>,
+) -> Option<bool> {
+    let words = column(tokens)?;
+    let (source, field) = match words.as_slice() {
+        [field] if sources.len() == 1 => (&sources[0], field),
+        [qualifier, field] => {
+            let qualifier = unquoted(qualifier);
+            let mut named = sources
+                .iter()
+                .filter(|s| s.alias.as_ref().or(s.table.as_ref()) == Some(&qualifier));
+            let source = named.next()?;
+            if named.next().is_some() {
+                return None;
+            }
+            (source, field)
+        }
+        _ => return None,
+    };
+    if source.outer {
+        return Some(false);
+    }
+    let table = source.table.as_ref()?;
+    if source.schema.is_none() && ctes.iter().any(|cte| cte.eq_ignore_ascii_case(table)) {
+        return None;
+    }
+    required(source.schema.as_deref().unwrap_or(""), table, &unquoted(field))
+}
+
 /// Whether `tokens` are the literal `NULL`, cast or not, with at most an alias. It is NULL whatever sqlc reports of
 /// the cast.
 fn is_null(tokens: &[Leveled]) -> bool {
@@ -636,7 +841,9 @@ fn uncast<'b, 't>(tokens: &'b [Leveled<'t>]) -> &'b [Leveled<'t>] {
 }
 
 fn aggregated(tokens: &[Leveled], aggregates: &Aggregates) -> bool {
-    found(tokens, aggregates).iter().any(|found| found.aggregate)
+    found(tokens, aggregates, |_, _| false)
+        .iter()
+        .any(|found| found.aggregate)
 }
 
 /// Whether `statement` aggregates its rows: its result `list` calls an aggregate, or a `HAVING` filters the one group
@@ -694,17 +901,23 @@ fn defaults(arguments: &[Leveled]) -> bool {
     uncast(cast).is_empty()
 }
 
-/// What `tokens`, one item of a result list, are. `whole` when each group of the statement has a row of every table
-/// it reads, and `bare` when an item that calls no aggregate may be NULL all the same: a column beside an ungrouped
-/// aggregate of no rows, or a key its grouping set leaves out. A `coalesce` that ends in a default is that default
-/// then.
-fn item(tokens: &[Leveled], whole: bool, bare: bool, aggregates: &Aggregates) -> Item {
-    let found = found(tokens, aggregates);
+/// With `bare`, a column can be NULL even outside
+/// an aggregate, as happens beside an ungrouped aggregate of no rows or for a key its grouping set leaves out.
+fn item(
+    tokens: &[Leveled],
+    grouped: bool,
+    bare: bool,
+    aggregates: &Aggregates,
+    required: impl Fn(&[Leveled]) -> Option<bool>,
+) -> Item {
+    let found = found(tokens, aggregates, |name, args| {
+        grouped && group_value(name, args, &required)
+    });
     let count = match parenthesised(tokens) {
-        Some((inner, after)) if is_alias(after) => selects(inner).is_some_and(|(call, _)| call == "count"),
+        Some((inner, after)) if is_alias(after) => selects(inner, aggregates).is_some_and(|(call, _)| call == "count"),
         _ => call(tokens).is_some_and(|(call, _)| call == "count"),
     };
-    let null = |found: &Found| found.nullable && !found.guarded && !(found.aggregate && whole && !found.filtered);
+    let null = |found: &Found| found.nullable && !found.guarded;
     let column = bare && !found.iter().any(|found| found.aggregate) && !is_defaulted(tokens);
 
     let mut alone = tokens;
@@ -717,16 +930,25 @@ fn item(tokens: &[Leveled], whole: bool, bare: bool, aggregates: &Aggregates) ->
         [(_, case), ..] if is(case, &["case"]) => after_case(alone).is_some_and(is_alias) && !is_literal_case(alone),
         alone => call(alone).is_some_and(|(call, _)| ["coalesce", "nullif"].contains(&call.as_str())),
     };
+    let integer = matches!(alone, [(_, number), after @ ..] if number.parse::<i32>().is_ok() && is_alias(after));
     Item {
         count,
-        nullable: column || is_null(tokens) || found.iter().any(null),
+        integer,
+        collects_nulls: aggregates.engine == Engine::PostgreSql && collects_nulls(tokens, required),
+        nullable: column || is_null(tokens) || json_lookup(uncast_item(tokens)) || found.iter().any(null),
         operand_typed,
     }
 }
 
 /// Whether `tokens` are a `coalesce` that ends in a default ([`defaults`]), with at most an alias, cast and in
 /// parentheses as it may be.
-fn is_defaulted(mut tokens: &[Leveled]) -> bool {
+fn is_defaulted(tokens: &[Leveled]) -> bool {
+    matches!(uncast_item(tokens), [(_, coalesce), rest @ ..] if is(coalesce, &["coalesce", "ifnull"])
+        && parenthesised(rest).is_some_and(|(arguments, after)| defaults(arguments) && is_alias(uncast(after))))
+}
+
+/// A cast preserves NULL, as do parentheses around the item.
+fn uncast_item<'b, 't>(mut tokens: &'b [Leveled<'t>]) -> &'b [Leveled<'t>] {
     loop {
         tokens = match (tokens, parenthesised(tokens)) {
             (_, Some((inner, after))) if is_alias(uncast(after)) => inner,
@@ -735,16 +957,41 @@ fn is_defaulted(mut tokens: &[Leveled]) -> bool {
                     let to = inner.iter().rposition(|&(d, t)| d == depth + 1 && is(t, &["as"]));
                     &inner[..to.unwrap_or(inner.len())]
                 }
-                _ => return false,
+                _ => return tokens,
             },
-            ([(_, coalesce), rest @ ..], _) => {
-                return is(coalesce, &["coalesce", "ifnull"])
-                    && parenthesised(rest)
-                        .is_some_and(|(arguments, after)| defaults(arguments) && is_alias(uncast(after)));
-            }
-            _ => return false,
+            _ => return tokens,
         };
     }
+}
+
+/// A cast preserves a NULL column on each engine even though sqlc marks the cast NOT NULL.
+fn cast_input<'b, 't>(tokens: &'b [Leveled<'t>]) -> Option<&'b [Leveled<'t>]> {
+    let inner = uncast_item(tokens);
+    if let Some(at) = inner.iter().position(|&(_, token)| token == ":")
+        && is_alias(uncast(&inner[at..]))
+    {
+        return Some(&inner[..at]);
+    }
+    (inner.len() < tokens.len()).then_some(inner)
+}
+
+/// PostgreSQL returns NULL for a missing JSON key or array index, even on a NOT NULL column.
+fn json_lookup(tokens: &[Leveled]) -> bool {
+    let operator = |token: &str| matches!(token, "->" | "->>" | "#>" | "#>>");
+    let Some(at) = tokens.iter().position(|&(_, token)| operator(token)) else {
+        return false;
+    };
+    if column(&tokens[..at]).is_none() {
+        return false;
+    }
+    let mut rest = &tokens[at..];
+    while let [(_, op), (_, key), after @ ..] = rest
+        && operator(op)
+        && (key.starts_with('\'') || key.parse::<i32>().is_ok() || key.starts_with('$'))
+    {
+        rest = after;
+    }
+    is_alias(rest)
 }
 
 /// What follows the `END` of the `CASE` that `tokens` open with.
@@ -766,19 +1013,29 @@ fn after_case<'b, 't>(tokens: &'b [Leveled<'t>]) -> Option<&'b [Leveled<'t>]> {
 /// literals of no type to `text`, and `TRUE` and `FALSE` are `bool` (on SQLite and MySQL sqlc's type of those is a
 /// guess we refuse anyway).
 fn is_literal_case(tokens: &[Leveled]) -> bool {
+    case_literals(tokens).is_some_and(|values| {
+        values.iter().all(|v| v.starts_with('\'')) || values.iter().all(|v| is(v, &["true", "false"]))
+    })
+}
+
+fn case_literals<'t>(tokens: &[Leveled<'t>]) -> Option<Vec<&'t str>> {
+    if !tokens.first().is_some_and(|&(_, word)| is(word, &["case"])) {
+        return None;
+    }
     let depth = tokens.first().map_or(0, |&(d, _)| d);
     let keywords: Vec<usize> = (1..tokens.len())
         .filter(|&at| tokens[at].0 == depth && !is_name_at(tokens, at))
         .filter(|&at| is(tokens[at].1, &["case", "when", "then", "else", "end"]))
         .collect();
-    let Some(end) = keywords.iter().position(|&at| is(tokens[at].1, &["end"])) else {
-        return false;
-    };
+    let end = keywords.iter().position(|&at| is(tokens[at].1, &["end"]))?;
+    if !is_alias(&tokens[keywords[end] + 1..]) {
+        return None;
+    }
     let keywords = &keywords[..=end];
 
     // A `CASE` within, in a condition or a branch, is no literal of ours to read
     if keywords.iter().any(|&at| is(tokens[at].1, &["case"])) {
-        return false;
+        return None;
     }
     let results: Vec<&str> = (keywords.windows(2))
         .filter(|pair| is(tokens[pair[0]].1, &["then", "else"]))
@@ -788,9 +1045,7 @@ fn is_literal_case(tokens: &[Leveled]) -> bool {
         })
         .collect();
     let otherwise = keywords.iter().any(|&at| is(tokens[at].1, &["else"]));
-    otherwise
-        && (results.iter().all(|result| result.starts_with('\''))
-            || results.iter().all(|result| is(result, &["true", "false"])))
+    otherwise.then_some(results)
 }
 
 /// The function, lowercase, that `tokens` are a bare call of (a name and its arguments, with at most a `FILTER`, an
@@ -807,33 +1062,16 @@ fn call(tokens: &[Leveled]) -> Option<(String, bool)> {
 /// The function the subquery `inner` selects a bare call of as its only item, and whether it aggregates every row:
 /// nothing groups, filters or limits them, and no window keeps them apart. Of a `count` the subquery then always has
 /// its one row.
-fn selects(inner: &[Leveled]) -> Option<(String, bool)> {
+fn selects(inner: &[Leveled], aggregates: &Aggregates) -> Option<(String, bool)> {
     let inner = lowered(inner);
     let [branch] = <[_; 1]>::try_from(branches(&inner)).ok()?;
-    let (call, windowed) = call(&branch[list(&branch)?])?;
-    Some((call, !windowed && collapses(&inner) && collapses(&branch)))
-}
-
-/// Whether `tokens`, an `INSERT` from its `INSERT` on, return the one row it inserts.
-fn inserts_one(tokens: &[Leveled]) -> bool {
-    let Some(returning) = top(tokens, &["returning"]) else {
-        return false;
-    };
-
-    // We cut at `RETURNING` first, as a returned column may be named `values` or `do`
-    let head = &tokens[..returning];
-    let Some(values) = top(head, &["values"]) else {
-        return false;
-    };
-    let row = &head[values + 1..];
-    let row = &row[..top(row, &["on"]).unwrap_or(row.len())];
-    let rows = row.iter().filter(|&&(d, t)| d == 0 && t == "(").count();
-    let defaults = values > 0 && is(head[values - 1].1, &["default"]);
-
-    // What may leave the row out: SQLite's `INSERT OR IGNORE`, `DO NOTHING`, and the `WHERE` of a `DO UPDATE`
-    let ignores = matches!(head, [_, (_, or), (_, ignore), ..] if is(or, &["or"]) && is(ignore, &["ignore"]));
-    let skips = top(head, &["do"]).is_some_and(|action| top(&head[action..], &["nothing", "where"]).is_some());
-    (rows == 1 || (defaults && rows == 0)) && !ignores && !skips
+    let range = list(&branch)?;
+    let (call, windowed) = call(&branch[range.clone()])?;
+    let single = !windowed
+        && collapses(&inner)
+        && collapses(&branch)
+        && scalar_projection(&branch, kind(&branch)?.0, range.end, aggregates);
+    Some((call, single))
 }
 
 /// One source of a `FROM` clause: a table, or the rows of a subquery or a function.
@@ -883,9 +1121,15 @@ fn sources(from: &[Leveled]) -> Option<Vec<Source>> {
                     }
                 }
             };
+            // A table alias can rename its columns by position. Their new names tell us nothing about the
+            // catalog column with the same name.
+            let alias = leading_alias(rest);
+            let renamed = alias.is_some()
+                && (matches!(rest, [(_, a), _, (_, "("), ..] if is(a, &["as"])) || matches!(rest, [_, (_, "("), ..]));
+            let table = table.filter(|_| !renamed);
             let own = |alias: &String| (table.as_ref()).is_some_and(|table| table.eq_ignore_ascii_case(alias));
             sources.push(Source {
-                alias: leading_alias(rest).filter(|alias| !own(alias)),
+                alias: alias.filter(|alias| !own(alias)),
                 table,
                 schema,
                 outer,

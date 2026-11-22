@@ -2,6 +2,8 @@
 # versions:
 #   sqlc v1.31.1
 import dataclasses
+import json
+import typing
 from collections.abc import Sequence
 from typing import Any
 
@@ -20,7 +22,7 @@ class Account:
     name: str
     archived: bool
     opened_on: str
-    settings: str | None
+    settings: object | None
 
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "Account":
@@ -29,7 +31,7 @@ class Account:
             name=row[1],
             archived=bool(row[2]),
             opened_on=row[3],
-            settings=row[4],
+            settings=None if row[4] is None else json.loads(typing.cast("str", row[4])),
         )
 
 

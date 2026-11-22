@@ -49,3 +49,17 @@ SELECT id, name, email FROM customers WHERE metadata @> '{"vip":true}' ORDER BY 
 
 -- name: ListPreferredMethods :many
 SELECT preferred_method FROM customers ORDER BY name;
+
+-- name: CountCustomersByMetadata :one
+SELECT count(*) FROM customers WHERE metadata = ANY(sqlc.narg(documents)::jsonb[]);
+
+-- name: ListCustomerReferrals :many
+SELECT name, email::text AS email, (metadata->>'referral')::text AS referral,
+       (lag(name) OVER (ORDER BY name))::text AS previous_name
+FROM customers ORDER BY name;
+
+-- name: ListLastEmailsByName :many
+SELECT name, max(email)::text AS last_email,
+       array_agg(email ORDER BY id)::text[] AS emails,
+       CAST(array_agg(preferred_method ORDER BY id) AS billing.payment_method[]) AS methods
+FROM customers GROUP BY name ORDER BY name;

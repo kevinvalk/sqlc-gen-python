@@ -410,9 +410,14 @@ async def add_line_items(
         }
         for r in rows
     ]
-    if params:
+    if not params:
+        return 0
+    if connection.dialect.supports_sane_multi_rowcount:
         return (await connection.execute(_ADD_LINE_ITEMS, params)).rowcount
-    return 0
+    count = 0
+    for row in params:
+        count += (await connection.execute(_ADD_LINE_ITEMS, row)).rowcount
+    return count
 
 
 _LIST_LINE_ITEMS: Final = sqlalchemy.text(

@@ -70,9 +70,10 @@ async def _sqlalchemy(case: GoldenCase, called: set[str]) -> None:
 
 async def scenario(api: Any) -> None:  # noqa: PLR0915
     query = api.query
-    cash = await query.open_account(name="Cash", opened_on="2026-11-13", settings='{"a": 1}')
+    cash = await query.open_account(name="Cash", opened_on="2026-11-13", settings={"a": 1})
     assert (cash.name, cash.archived, cash.opened_on) == ("Cash", False, "2026-11-13")
-    assert cash.settings == '{"a": 1}'
+    assert cash.settings == {"a": 1}
+    await no_row(api, query.open_account(name="Cash", opened_on="2026-11-13"))
     assert await query.get_account(id=cash.id) == cash
     await no_row(api, query.get_account(id=cash.id + 1))
     quoted = await query.get_quoted_text(id=cash.id)

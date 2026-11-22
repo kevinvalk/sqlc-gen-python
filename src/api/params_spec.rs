@@ -7,6 +7,31 @@ use crate::engine::Piece;
 use crate::python::Type;
 
 #[test]
+fn a_row_comparison_refuses_a_parameter_that_sqlc_typed_by_another_column() {
+    let wrong = || {
+        param(
+            2,
+            of_authors(plugin::Column {
+                original_name: "name".into(),
+                ..column("before", "text", true)
+            }),
+        )
+    };
+    let run = |right: &str| {
+        let query = plugin::Query {
+            params: vec![param(1, column("name", "text", true)), wrong()],
+            ..query(
+                ":exec",
+                &format!("DELETE FROM authors WHERE (name, id) < ($1, {right})"),
+            )
+        };
+        Engine::PostgreSql.check_row_parameters(&query)
+    };
+    assert!(error_of(run("$2")).contains("sqlc typed it by \"name\""));
+    run("$2::bigint").unwrap();
+}
+
+#[test]
 fn placeholders_become_the_parameters_python_names() {
     let query = params(
         vec![
@@ -118,8 +143,6 @@ fn a_json_parameter_keeps_which_json_type_it_is() {
 
 #[test]
 fn an_unprobed_parameter_is_an_error_naming_its_number_and_name() {
-    let mut array = column("docs", "jsonb", true);
-    (array.is_array, array.array_dims) = (true, 1);
     let unknown = |column| {
         error(plugin::Query {
             params: vec![param(2, column)],
@@ -129,21 +152,6 @@ fn an_unprobed_parameter_is_an_error_naming_its_number_and_name() {
     assert!(
         unknown(column("p", "point", true))
             .contains(r#"parameter $2 ("p") has type "point", which has no verified Python mapping"#)
-    );
-    assert!(unknown(array.clone()).contains(r#"parameter $2 ("docs") is an array of "jsonb""#));
-    // An override only names the element's type, so an array of them is still not one JSON document we could bind
-    let config = Config {
-        overrides: serde_json::from_str(r#"[{"db_type": "jsonb", "python_type": "dict[str, int]"}]"#).unwrap(),
-        ..Config::of(Backend::Psycopg)
-    };
-    let overridden = plugin::Query {
-        params: vec![param(2, array)],
-        ..query(":exec", "SELECT $2")
-    };
-    let error = error_of(try_resolve_with("postgresql", vec![overridden], &config));
-    assert!(
-        error.contains(r#"parameter $2 ("docs") is an array of "jsonb""#),
-        "{error}"
     );
     // A parameter's cast is written on the placeholder, not coalesced.
     let uninferred = unknown(column("x", "", false));

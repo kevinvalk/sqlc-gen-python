@@ -4,6 +4,7 @@ use super::models::{Field, Model};
 use super::names::{self, Binding, Repeats};
 use super::queries::{RowField, Shape};
 use super::resolver::Resolver;
+use crate::engine::select::Item;
 use crate::plugin;
 
 #[cfg(test)]
@@ -33,7 +34,7 @@ pub(super) fn columns(
 
     let mut fields = Vec::new();
     let mut flat = Vec::new();
-    for ((name, (column, is_operand_typed)), embed) in
+    for ((name, (column, item)), embed) in
         names::names(&spellings, Repeats::Numbered, Binding::Field, resolver.config.records)?
             .into_iter()
             .zip(&columns)
@@ -69,7 +70,8 @@ pub(super) fn columns(
                 });
             }
             None => {
-                let field = resolver.field(name, column, *is_operand_typed)?;
+                let mut field = resolver.field(name, column, item.is_some_and(|item| item.operand_typed))?;
+                field.ty.collects_nulls = field.ty.array_dims > 0 && item.is_some_and(|item| item.collects_nulls);
                 flat.push(field.clone());
                 fields.push(RowField::Column(field));
             }
@@ -78,8 +80,8 @@ pub(super) fn columns(
     Ok((fields, flat))
 }
 
-/// A column as sqlc reports it, and whether sqlc typed it by one operand of what it is.
-type Reported = (plugin::Column, bool);
+/// A column as sqlc reports it, with what its SELECT item proves.
+type Reported = (plugin::Column, Option<Item>);
 
 /// sqlc's columns of a result, corrected where its report is not enough ([`crate::engine::select`]), and the tables
 /// every row has a row of. sqlc reports the type of a `count(...)` as a guess like any call's, while it is the engine's
@@ -104,7 +106,7 @@ fn reported(
         })
         .collect();
     let tables: Vec<&str> = tables.iter().map(String::as_str).collect();
-    let Some(items) = resolver.engine.items(&query.text, &tables) else {
+    let Some(items) = resolver.engine.items(&query.text, &tables, resolver.catalog) else {
         // IMPORTANT: Nothing tells which column sqlc typed by one operand then, and sqlc reports a cast one no
         // differently, so we cannot take its type for any of them.
         if resolver.engine.holds_operand_typed(&query.text) {
@@ -120,7 +122,7 @@ fn reported(
                 not_null: false,
                 ..column.clone()
             };
-            (column, false)
+            (column, None)
         };
         return Ok((query.columns.iter().map(nullable).collect(), Vec::new()));
     };
@@ -131,22 +133,34 @@ fn reported(
             let item = items.get(at).filter(|_| embed.is_none());
             at += embed.map_or(1, |model| model.fields.len());
             let Some(item) = item else {
-                return (column.clone(), false);
+                return (column.clone(), None);
             };
             let is_count = item.count && column.is_func_call;
+            // sqlc reports both an integer literal and arithmetic as `int`, even for decimal arithmetic. We can
+            // accept the literal when every branch of the query has one in this position.
+            let verified = if is_count {
+                Some(resolver.engine.count_type())
+            } else if item.integer && column.data_type() == "int" {
+                Some(match resolver.engine {
+                    crate::engine::Engine::PostgreSql => "pg_catalog.int4",
+                    crate::engine::Engine::MySql | crate::engine::Engine::Sqlite => "integer",
+                })
+            } else {
+                None
+            };
             let column = plugin::Column {
                 is_func_call: column.is_func_call && !is_count,
-                r#type: match is_count {
-                    true => Some(plugin::Identifier {
-                        name: resolver.engine.count_type().into(),
+                r#type: match verified {
+                    Some(name) => Some(plugin::Identifier {
+                        name: name.into(),
                         ..Default::default()
                     }),
-                    false => column.r#type.clone(),
+                    None => column.r#type.clone(),
                 },
                 not_null: column.not_null && !item.nullable,
                 ..column.clone()
             };
-            (column, item.operand_typed)
+            (column, Some(*item))
         })
         .collect();
     Ok((columns, resolver.engine.present(&query.text)))

@@ -3,7 +3,7 @@ use ruff_python_ast as ast;
 use super::dbapi::{Driver, Flavor};
 use crate::api::models::Field;
 use crate::python::vocabulary::{ANY, CONNECTION, JSON, JSONB, PSYCOPG, RANGE, TUPLE, TUPLE_ROW};
-use crate::python::{Expression, Json, Type, ellipsis, keyword, string, unless_none};
+use crate::python::{Expression, Json, Type, ellipsis, keyword, string};
 
 /// We run each statement on a raw cursor, as it takes PostgreSQL's own `$N` placeholders as sqlc writes them, and ask
 /// for tuples whatever the connection's row factory.
@@ -75,13 +75,9 @@ pub fn scalar_type(pg_type: &str) -> Option<Type> {
 /// `None` to keep: its type is the document's, an override's too, where `None` is the JSON `null`, and pyright strict
 /// rejects comparing a type without `None` to it (`reportUnnecessaryComparison`).
 fn bind(parameter: &Field, value: ast::Expr) -> ast::Expr {
-    let json = match parameter.ty.element.json() {
-        Some(Json::Json) => JSON,
-        Some(Json::Jsonb) => JSONB,
-        None => return value,
-    };
-    match parameter.ty.optional {
-        true => unless_none(value.clone(), json.call([value])),
-        false => json.call([value]),
-    }
+    let wrapper = parameter.ty.element.json().map(|json| match json {
+        Json::Json => JSON,
+        Json::Jsonb => JSONB,
+    });
+    parameter.ty.bind(value, wrapper)
 }

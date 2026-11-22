@@ -41,7 +41,10 @@ pub(super) fn result_follows_sqlc(
             false => vec![column.table.as_ref().map_or("", |table| &table.name)],
         })
         .collect();
-    let items = engine.items(&query.text, &tables);
+    let items = request
+        .catalog
+        .as_ref()
+        .and_then(|catalog| engine.items(&query.text, &tables, catalog));
     let columns: Vec<plugin::Column> = (query.columns.iter().enumerate())
         .map(|(i, column)| {
             let at: usize = query.columns[..i].iter().map(width).sum();

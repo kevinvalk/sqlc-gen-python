@@ -184,6 +184,7 @@ pub const CUR: Symbol = Symbol("cur");
 pub const ROW: Symbol = Symbol("row");
 pub const VALUE: Symbol = Symbol("value");
 pub const VALUES: Symbol = Symbol("values");
+pub const COUNT: Symbol = Symbol("count");
 pub const RESULT: Symbol = Symbol("result");
 pub const COPY: Symbol = Symbol("copy");
 

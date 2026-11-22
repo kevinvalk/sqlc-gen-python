@@ -6,12 +6,12 @@ const AGGREGATES: Aggregates = Aggregates {
     nullable: &["sum", "avg", "min", "max", "string_agg", "percentile_disc"],
     never_null: &["count", "total"],
     scalar_of_several: &[],
-    bare_columns: false,
+    engine: Engine::PostgreSql,
 };
 
 const SQLITE: Aggregates = Aggregates {
     scalar_of_several: &["min", "max"],
-    bare_columns: true,
+    engine: Engine::Sqlite,
     ..AGGREGATES
 };
 
@@ -22,7 +22,7 @@ fn tokens(sql: &str) -> Vec<String> {
 
 /// The items of `sql`'s list, sqlc reporting each of the `columns` as of no table.
 fn read(sql: &str, columns: usize) -> Option<Vec<Item>> {
-    items(&tokens(sql), &vec![""; columns], &AGGREGATES)
+    items(&tokens(sql), &vec![""; columns], &AGGREGATES, |_, _, _| Some(true))
 }
 
 fn counts(sql: &str, columns: usize) -> Vec<bool> {
@@ -33,6 +33,23 @@ fn counts(sql: &str, columns: usize) -> Vec<bool> {
 fn nullable(sql: &str, columns: usize) -> Vec<bool> {
     let items = read(sql, columns).expect(sql);
     items.into_iter().map(|item| item.nullable).collect()
+}
+
+#[test]
+fn an_integer_literal_has_its_own_type_only_when_every_branch_returns_one() {
+    let integer = |sql| read(sql, 1).unwrap()[0].integer;
+    assert!(integer("SELECT (1) AS approved FROM t"));
+    assert!(integer("SELECT 0 AS n UNION ALL SELECT 2147483647"));
+    for sql in [
+        "SELECT 1 AS n UNION ALL SELECT price FROM t",
+        "SELECT 1 + price FROM t",
+        "SELECT 1.5",
+        "SELECT 1e3",
+        "SELECT 9999999999999999999999999999",
+        "SELECT '1'",
+    ] {
+        assert!(!integer(sql), "{sql}");
+    }
 }
 
 #[test]
@@ -81,7 +98,7 @@ fn a_count_is_one_of_the_rows_a_filter_keeps_or_a_window_holds() {
         [false, false, false, true]
     );
     // SQLite reads either word with nothing of its own after it as an alias, so the call stays an aggregate
-    let sqlite = |sql: &str| items(&Engine::Sqlite.words(sql), &[""], &SQLITE).expect(sql);
+    let sqlite = |sql: &str| items(&Engine::Sqlite.words(sql), &[""], &SQLITE, |_, _, _| Some(true)).expect(sql);
     for alias in ["over", "filter"] {
         let sql = format!("SELECT max(x) {alias} FROM t");
         assert!(sqlite(&sql)[0].nullable, "{sql}");
@@ -325,6 +342,7 @@ fn a_scalar_subquery_is_null_without_a_row_unless_it_counts_them_all() {
         "SELECT ( SELECT max ( a ) FROM t ) AS a",
         // What groups, filters or limits a count may leave it no row.
         "SELECT ( SELECT count ( * ) FROM t GROUP BY a ) n",
+        "SELECT ( SELECT count(*) FROM t ORDER BY generate_series(1, 0)) n",
         "SELECT ( SELECT count ( * ) FROM t HAVING count ( * ) > 1 ) n",
         "SELECT ( SELECT count ( * ) FROM t OFFSET 1 ) n",
         "SELECT ( ( SELECT count ( * ) FROM t ) LIMIT 0 ) n",
@@ -361,12 +379,10 @@ fn an_ungrouped_aggregate_but_a_count_is_null_of_no_rows() {
         ),
         [true, false, true, false, true, true, true]
     );
-    // A group has a row, and a window function is of each row, so sqlc's report stands
+    // A group has at least one row.
     for sql in [
         "SELECT sum ( x ) :: int FROM t GROUP BY a",
         "SELECT sum(b.x)::int FROM a JOIN b ON y GROUP BY a.id",
-        "SELECT sum ( x ) OVER ( ) FROM t",
-        "SELECT sum ( x ) FILTER ( WHERE a ) OVER ( ) FROM t",
     ] {
         assert_eq!(nullable(sql, 1), [false], "{sql}");
     }
@@ -385,6 +401,85 @@ fn an_ungrouped_aggregate_but_a_count_is_null_of_no_rows() {
     ] {
         assert_eq!(nullable(sql, 1), [true], "{sql}");
     }
+}
+
+#[test]
+fn a_window_may_have_no_value_at_its_offset_or_in_its_frame() {
+    for sql in [
+        "SELECT lag(x) OVER (ORDER BY id)::int FROM t",
+        "SELECT nth_value(x, 2) OVER w FROM t WINDOW w AS (ORDER BY id)",
+        "SELECT sum(x) FILTER (WHERE false) OVER () FROM t",
+        "SELECT min(x) OVER (ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING) FROM t GROUP BY x",
+    ] {
+        assert_eq!(nullable(sql, 1), [true], "{sql}");
+        assert!(!single(sql), "{sql}");
+    }
+    assert_eq!(
+        nullable("SELECT coalesce(lead(x) OVER (), 0)::int, count(*) OVER () FROM t", 2),
+        [false, false]
+    );
+}
+
+#[test]
+fn row_comparisons_pair_each_uncast_placeholder_with_its_own_column() {
+    for sql in [
+        "SELECT * FROM t WHERE (t.at, t.\"ID\") < ($1, $2)",
+        "SELECT * FROM t WHERE RoW($1, $2) >= rOw(t.at, t.\"ID\")",
+    ] {
+        assert_eq!(row_parameters(&tokens(sql)), [(1, "at".into()), (2, "ID".into())]);
+    }
+    assert_eq!(
+        row_parameters(&tokens("SELECT * FROM t WHERE (at, id) < ($1, $2::uuid)")),
+        [(1, "at".into())]
+    );
+    assert!(row_parameters(&tokens("SELECT make_pair(at, id) = ($1, $2) FROM t")).is_empty());
+}
+
+#[test]
+fn a_json_lookup_may_find_no_key_even_when_cast() {
+    let sql = "SELECT (t.doc->>'author')::text, CAST(doc->'ids'->>0 AS int), doc #>> '{a,b}', \
+               coalesce(doc->>'author', '')::text, (doc->>'author') IS NULL FROM t";
+    assert_eq!(nullable(sql, 5), [true, true, true, false, false]);
+}
+
+#[test]
+fn a_group_needs_a_present_argument_to_guarantee_an_aggregate_value() {
+    let sql = "SELECT max(s.at)::timestamptz, min(s.id)::int, max(s.at + interval '1 hour')::timestamptz, sum(1) FROM app.samples AS s GROUP BY s.kind";
+    let fields = items(&tokens(sql), &[""; 4], &AGGREGATES, |schema, table, field| {
+        Some((schema, table, field) == ("app", "samples", "id"))
+    })
+    .unwrap();
+    assert_eq!(
+        fields.iter().map(|item| item.nullable).collect::<Vec<_>>(),
+        [true, false, true, false]
+    );
+    let shadow = "WITH samples AS (SELECT NULL::int AS id) SELECT max(id)::int FROM samples GROUP BY id";
+    assert_eq!(nullable(shadow, 1), [true]);
+    let renamed = "SELECT max(s.id)::int FROM samples AS s(id, note) GROUP BY s.note";
+    assert_eq!(nullable(renamed, 1), [true]);
+}
+
+#[test]
+fn array_agg_keeps_null_inputs_unless_its_filter_omits_them() {
+    let sql = "SELECT array_agg(s.note ORDER BY s.id)::text[], CAST(array_agg(s.id) AS int[]), \
+               array_agg(DISTINCT s.note) FILTER (WHERE s.note IS NOT NULL)::text[], \
+               array_agg(r.id)::int[], count(*) FROM samples s LEFT JOIN replies r ON r.id = s.id";
+    let fields = items(&tokens(sql), &[""; 5], &AGGREGATES, |_, _, field| Some(field == "id")).unwrap();
+    assert_eq!(
+        fields.iter().map(|item| item.collects_nulls).collect::<Vec<_>>(),
+        [true, false, false, true, false]
+    );
+}
+
+#[test]
+fn a_cast_of_a_nullable_column_preserves_its_null() {
+    let sql = "SELECT t.note::text AS n, CAST(t.id AS bigint), (t.note)::text, CAST(r.id AS int), \
+               coalesce(t.note, '')::text FROM samples t LEFT JOIN replies r ON r.id = t.id";
+    let fields = items(&tokens(sql), &[""; 5], &AGGREGATES, |_, _, field| Some(field == "id")).unwrap();
+    assert_eq!(
+        fields.iter().map(|item| item.nullable).collect::<Vec<_>>(),
+        [true, false, true, true, false]
+    );
 }
 
 #[test]
@@ -538,14 +633,14 @@ fn a_coalesce_guards_only_with_a_default() {
     }
     // MySQL's `2nd` is a column, not a number.
     let mysql = "SELECT coalesce(max(a), 2nd) FROM t";
-    let items = items(&Engine::MySql.words(mysql), &[""], &AGGREGATES).expect(mysql);
+    let items = items(&Engine::MySql.words(mysql), &[""], &AGGREGATES, |_, _, _| Some(true)).expect(mysql);
     assert!(items[0].nullable);
 }
 
 #[test]
 fn a_column_beside_an_ungrouped_aggregate_is_null_of_no_rows_where_one_may_stand() {
     let read = |sql: &str, aggregates: &Aggregates| -> Vec<bool> {
-        let items = items(&tokens(sql), &[""; 3], aggregates).expect(sql);
+        let items = items(&tokens(sql), &[""; 3], aggregates, |_, _, _| Some(true)).expect(sql);
         items.into_iter().map(|item| item.nullable).collect()
     };
     let bare = "SELECT id , CAST ( max ( x ) AS INTEGER ) AS m , count ( * ) FROM k";
@@ -563,7 +658,7 @@ fn a_column_beside_an_ungrouped_aggregate_is_null_of_no_rows_where_one_may_stand
 }
 
 fn single(sql: &str) -> bool {
-    single_row(&tokens(sql), &AGGREGATES)
+    single_row(&tokens(sql), Engine::PostgreSql)
 }
 
 #[test]
@@ -607,11 +702,24 @@ fn a_select_that_aggregates_its_rows_returns_exactly_one() {
         "SELECT max ( a , b ) FROM t",
         "SELECT coalesce ( min ( a , b ) , 0 ) FROM t",
     ] {
-        assert!(!single_row(&tokens(sql), &SQLITE), "{sql}");
+        assert!(!single_row(&tokens(sql), Engine::Sqlite), "{sql}");
     }
     // A schema's own function named like an aggregate is not one
     assert!(!single("SELECT app . max ( a , b ) FROM t"));
     assert!(single("SELECT pg_catalog . max ( a ) FROM t"));
+}
+
+#[test]
+fn a_postgresql_set_returning_function_can_remove_an_aggregate_row() {
+    for sql in [
+        "SELECT unnest(array_agg(id))::int FROM t",
+        "SELECT count(*), app.series() FROM t",
+        "SELECT count(*), app.series((SELECT 1)) FROM t",
+        "SELECT count(*) FROM t ORDER BY generate_series(1, 0)",
+        "SELECT EXISTS(SELECT 1) AND app.flags()",
+    ] {
+        assert!(!single(sql), "{sql}");
+    }
 }
 
 #[test]
@@ -626,32 +734,12 @@ fn exists_is_one_row_only_of_no_table_and_unfiltered() {
 }
 
 #[test]
-fn an_insert_of_one_row_of_values_returns_it_unless_something_may_skip_it() {
-    for sql in [
-        "INSERT INTO t ( a ) VALUES ( $1 ) RETURNING *",
-        "INSERT INTO t ( a ) VALUES ( $1 ) ON CONFLICT ( a ) DO UPDATE SET a = 1 RETURNING id",
-        "INSERT INTO t DEFAULT VALUES RETURNING id",
-        "INSERT INTO t ( a ) VALUES ( $1 ) ON CONFLICT ( a ) WHERE a > 0 DO UPDATE SET a = 1 RETURNING id",
-        "INSERT OR REPLACE INTO t ( a ) VALUES ( max ( ? , 0 ) ) RETURNING id",
-        "REPLACE INTO t ( a ) VALUES ( ? ) RETURNING id",
-        "WITH v AS ( SELECT 1 ) INSERT INTO t ( a ) VALUES ( $1 ) RETURNING id",
-        // A returned column may be named as a keyword read before it.
-        "INSERT INTO t ( a ) VALUES ( $1 ) RETURNING a AS do",
-    ] {
-        assert!(single(sql), "{sql}");
-    }
-    for sql in [
-        "INSERT INTO t ( a ) VALUES ( $1 )",
-        "INSERT INTO t ( a ) VALUES ( 1 ) , ( 2 ) RETURNING id",
-        "INSERT INTO t ( a ) SELECT a FROM u RETURNING id",
-        "INSERT INTO t ( a , values ) SELECT a , b FROM u RETURNING a , values",
-        // A column of that name is no `VALUES`.
-        "INSERT INTO t ( a ) SELECT u . values FROM u WHERE u . id IN ( 1 , 2 ) RETURNING id",
-        "INSERT INTO t ( a ) VALUES ( $1 ) ON CONFLICT DO NOTHING RETURNING id",
-        "INSERT INTO t ( a ) VALUES ( $1 ) ON CONFLICT ( a ) DO UPDATE SET a = 1 WHERE t . b RETURNING id",
-        "INSERT OR IGNORE INTO t ( a ) VALUES ( ? ) RETURNING id",
-    ] {
-        assert!(!single(sql), "{sql}");
+fn a_trigger_or_table_constraint_can_skip_an_insert_that_returns_its_row() {
+    for engine in [Engine::PostgreSql, Engine::Sqlite] {
+        assert!(!single_row(
+            &engine.words("INSERT INTO t VALUES (1) RETURNING id"),
+            engine
+        ));
     }
 }
 
@@ -715,7 +803,7 @@ fn a_table_an_outer_join_may_leave_without_a_row_is_not() {
 /// Whether an outer join may leave each item of `sql`'s list NULL, sqlc reporting each as a column of its table in
 /// `tables`.
 fn outer_of(sql: &str, tables: &[&str]) -> Vec<bool> {
-    let items = items(&tokens(sql), tables, &AGGREGATES).expect(sql);
+    let items = items(&tokens(sql), tables, &AGGREGATES, |_, _, _| Some(true)).expect(sql);
     items.into_iter().map(|item| item.nullable).collect()
 }
 
@@ -813,14 +901,14 @@ fn a_subquerys_column_is_its_aliass_or_without_a_qualifier_of_any_subquery() {
 }
 
 #[test]
-fn only_a_bare_column_is_null_by_an_outer_join() {
+fn a_cast_preserves_a_missing_join_column_and_a_default_fills_it() {
     // To sqlc a `coalesce` of a column is the column, and rightly NOT NULL.
     assert_eq!(
         outer_of(
-            "SELECT coalesce(b.v, 0) AS v, b.v + 1, b.v::text, b.v FROM a LEFT JOIN b ON y",
+            "SELECT coalesce(b.v, 0) AS v, b.v IS NULL, b.v::text, b.v FROM a LEFT JOIN b ON y",
             &["b", "b", "b", "b"]
         ),
-        [false, false, false, true]
+        [false, false, true, true]
     );
 }
 

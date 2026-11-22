@@ -26,3 +26,5 @@ Each layer catches what the one before cannot see. `cargo xtask help` lists the 
 - **`cargo xtask capture --check`**, after proving the captured requests, is the one test of the built WASM as sqlc runs it (`wire_contract` in `tests/python/capture.py`): in each example `sqlc generate` writes exactly its golden cases and nothing outside them, and options sqlc must fail on (none, no `async`, a typo, an unsupported command, a backend that does not run the engine) fail it with the plugin's message, writing nothing.
 
 With `--mutants`, `verify` plants plausible generator bugs (`MUTANTS` in `verify.py`) one at a time, and the layer named for each must catch it, saying why. With `--check`, as CI runs it, a `docs/typemap.md` or `exercised.tsv` that would change fails the run. `cargo xtask bless` runs `verify` before it accepts a change, as a wrong type that is still well typed passes the gate.
+
+The [public migration audit](migration-audit.md) records which downstream projects generated successfully, which needed changes, and which queries ran against their databases.

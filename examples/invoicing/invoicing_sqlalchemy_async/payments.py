@@ -28,21 +28,20 @@ async def record_payment(
     amount: Decimal,
     from_: str | None = None,
     received_at: dt.datetime,
-) -> models.BillingPayment:
-    return models.BillingPayment.from_row(
-        (
-            await connection.execute(
-                _RECORD_PAYMENT,
-                {
-                    "invoice_id": invoice_id,
-                    "method": method,
-                    "amount": amount,
-                    "from_": from_,
-                    "received_at": received_at,
-                },
-            )
-        ).one()
-    )
+) -> models.BillingPayment | None:
+    row = (
+        await connection.execute(
+            _RECORD_PAYMENT,
+            {
+                "invoice_id": invoice_id,
+                "method": method,
+                "amount": amount,
+                "from_": from_,
+                "received_at": received_at,
+            },
+        )
+    ).one_or_none()
+    return None if row is None else models.BillingPayment.from_row(row)
 
 
 _LIST_PAYMENTS_BY_METHODS: Final = sqlalchemy.text("""SELECT id, invoice_id, method, amount, "from", received_at FROM billing.payments

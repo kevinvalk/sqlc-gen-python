@@ -138,11 +138,31 @@ impl Engine {
         }
     }
 
-    /// Why a column sqlc reports as an enum of `labels` cannot be generated as one, if it cannot.
-    pub fn enum_problem(self, column: &plugin::Column, labels: &[String]) -> Option<&'static str> {
-        match self {
-            Self::PostgreSql | Self::Sqlite => None,
-            Self::MySql => mysql::enum_problem(column, labels),
+    /// MySQL makes a catalog enum for a SET's labels. No column of that type holds an enum member.
+    pub fn is_set(self, schema: &plugin::Schema, labels: &plugin::Enum) -> bool {
+        if self != Self::MySql {
+            return false;
+        }
+        let mut columns = schema
+            .tables
+            .iter()
+            .flat_map(|table| &table.columns)
+            .filter(|column| {
+                column
+                    .r#type
+                    .as_ref()
+                    .is_some_and(|ty| ty.name == labels.name && (ty.schema.is_empty() || ty.schema == schema.name))
+            })
+            .peekable();
+        columns.peek().is_some() && columns.all(|column| mysql::is_set(column, &labels.vals) == Ok(true))
+    }
+
+    /// MySQL reports a SET as an enum of its members, but its drivers return their comma-separated text.
+    pub fn enum_type(self, column: &plugin::Column, labels: &[String], class: String) -> Result<Type, &'static str> {
+        if self == Self::MySql && mysql::is_set(column, labels)? {
+            Ok(Type::STR)
+        } else {
+            Ok(Type::Enum(class))
         }
     }
 
@@ -298,8 +318,19 @@ impl Engine {
         }
     }
 
-    pub fn items(self, text: &str, tables: &[&str]) -> Option<Vec<select::Item>> {
-        select::items(&self.words(text), tables, &self.aggregates())
+    pub fn items(self, text: &str, tables: &[&str], catalog: &plugin::Catalog) -> Option<Vec<select::Item>> {
+        let required = |schema: &str, table: &str, field: &str| {
+            catalog
+                .schema(schema)
+                .and_then(|s| {
+                    s.tables
+                        .iter()
+                        .find(|t| t.rel.as_ref().is_some_and(|r| r.name == table))
+                })
+                .and_then(|t| t.columns.iter().find(|c| c.name == field))
+                .map(|c| c.not_null)
+        };
+        select::items(&self.words(text), tables, &self.aggregates(), required)
     }
 
     /// Whether the statement holds a `coalesce`, a `nullif` or a `CASE` anywhere, which is all we know of them where
@@ -319,7 +350,7 @@ impl Engine {
     }
 
     pub fn single_row(self, text: &str) -> bool {
-        select::single_row(&self.words(text), &self.aggregates())
+        select::single_row(&self.words(text), self)
     }
 
     pub fn present(self, text: &str) -> Vec<String> {
@@ -386,7 +417,7 @@ impl Engine {
                 ],
                 never_null: &["count", "regr_count"],
                 scalar_of_several: &[],
-                bare_columns: false,
+                engine: self,
             },
             Self::Sqlite => select::Aggregates {
                 nullable: &["avg", "group_concat", "max", "min", "string_agg", "sum"],
@@ -400,7 +431,7 @@ impl Engine {
                     "total",
                 ],
                 scalar_of_several: &["max", "min"],
-                bare_columns: true,
+                engine: self,
             },
             Self::MySql => select::Aggregates {
                 nullable: &[
@@ -422,9 +453,34 @@ impl Engine {
                 // Of no rows a bitwise aggregate is its neutral value
                 never_null: &["bit_and", "bit_or", "bit_xor", "count"],
                 scalar_of_several: &[],
-                bare_columns: true,
+                engine: self,
             },
         }
+    }
+
+    /// sqlc's PostgreSQL analyser takes a parameter's type from the first column it finds in a comparison,
+    /// even in a row of several columns (`internal/compiler/resolve.go`, `ast.A_Expr`).
+    pub fn check_row_parameters(self, query: &plugin::Query) -> Result<()> {
+        if self == Self::PostgreSql && !query.params.is_empty() {
+            for (number, field) in select::row_parameters(&self.words(&query.text)) {
+                if let Some(column) = query
+                    .params
+                    .iter()
+                    .find(|p| p.number == number)
+                    .and_then(|p| p.column.as_ref())
+                    && column.table.is_some()
+                    && !column.original_name.is_empty()
+                    && column.original_name != field
+                {
+                    bail!(
+                        "parameter ${number} is compared with \"{field}\" in a row, but sqlc typed it by \"{}\"; \
+                         cast the parameter to the type of \"{field}\"",
+                        column.original_name
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     /// The words of `text` whose meaning we may rely on.

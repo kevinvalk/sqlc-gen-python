@@ -68,7 +68,15 @@ pub(super) fn queries_follow_sqlc(
         let takes = Takes::of(query, config);
         let signature = (connection_annotation.as_str(), asynchronous, takes, config.records);
         if function_follows_sqlc(query, function, &parameters, signature, problems) {
-            runs_its_statement(query, function, constant, &parameters, engine, takes, problems);
+            runs_its_statement(
+                query,
+                function,
+                constant,
+                &parameters,
+                (config, engine),
+                takes,
+                problems,
+            );
             result_follows_sqlc(request, query, function, (body, models), (config, engine), problems);
             sql_round_trips(query, &sql, &parameters, backend, engine, problems);
         }
@@ -78,7 +86,7 @@ pub(super) fn queries_follow_sqlc(
         match stream {
             Some(stream) if streams => {
                 stream_follows_function(query, function, stream, asynchronous, problems);
-                runs_its_statement(query, stream, constant, &parameters, engine, takes, problems);
+                runs_its_statement(query, stream, constant, &parameters, (config, engine), takes, problems);
             }
             None if !streams => {}
             _ => problems.push(format!(

@@ -29,7 +29,7 @@ class RecordPaymentParams:
 
 async def record_payment(
     connection: psycopg.AsyncConnection[Any], params: RecordPaymentParams
-) -> models.BillingPayment:
+) -> models.BillingPayment | None:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(
             _RECORD_PAYMENT,
@@ -45,7 +45,7 @@ async def record_payment(
             case [row]:
                 return models.BillingPayment.from_row(row)
             case []:
-                raise models.NoRowError
+                return None
             case _:
                 raise models.MultipleRowsError
 

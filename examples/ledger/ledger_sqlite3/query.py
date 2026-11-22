@@ -3,6 +3,7 @@
 #   sqlc v1.31.1
 import contextlib
 import dataclasses
+import json
 import sqlite3
 from collections.abc import Generator, Iterable, Iterator, Sequence
 from typing import Any, Final
@@ -18,11 +19,14 @@ def open_account(
     *,
     name: str,
     opened_on: str,
-    settings: str | None = None,
+    settings: object | None = None,
 ) -> models.Account:
     with contextlib.closing(connection.cursor()) as cur:
         cur.row_factory = None
-        cur.execute(_OPEN_ACCOUNT, (name, opened_on, settings))
+        cur.execute(
+            _OPEN_ACCOUNT,
+            (name, opened_on, None if settings is None else json.dumps(settings)),
+        )
         match cur.fetchmany(2):
             case [row]:
                 return models.Account.from_row(row)

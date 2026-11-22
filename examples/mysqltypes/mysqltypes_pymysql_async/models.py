@@ -52,6 +52,7 @@ class Scalar:
     c_datetime: dt.datetime | None
     c_timestamp: dt.datetime | None
     c_time: dt.timedelta | None
+    c_set: str | None
 
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "Scalar":
@@ -90,4 +91,5 @@ class Scalar:
             c_datetime=row[31],
             c_timestamp=row[32],
             c_time=row[33],
+            c_set=row[34],
         )

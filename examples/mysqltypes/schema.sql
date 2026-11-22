@@ -35,5 +35,6 @@ CREATE TABLE scalars (
   c_date DATE,
   c_datetime DATETIME(6),
   c_timestamp TIMESTAMP(6) NULL,
-  c_time TIME(6)
+  c_time TIME(6),
+  c_set SET('read', 'write', 'é')
 );

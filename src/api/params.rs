@@ -94,7 +94,9 @@ pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> R
     for ((i, _), name) in firsts.iter().zip(names::names(
         &spellings,
         Repeats::Numbered,
-        Binding::Parameter,
+        Binding::Parameter {
+            asynchronous: resolver.config.asynchronous,
+        },
         resolver.config.records,
     )?) {
         names[*i] = name;
@@ -146,15 +148,10 @@ pub(super) fn params(parameters: &[plugin::Parameter], resolver: &Resolver) -> R
             if before != now {
                 bail!("{what} is used as {before} and as {now}; cast each use to one type");
             }
+            if first.ty.element.converters() != ty.element.converters() {
+                bail!("{what} has different conversions at its uses; give each use its own parameter");
+            }
             first.ty.optional |= ty.optional;
-        }
-        // An override only names the element's type, so an array of them is still not one JSON document we could bind
-        if ty.element.json().is_some() && ty.array_dims > 0 {
-            let problem = format!(
-                "{what} is an array of \"{}\", which has no verified Python mapping",
-                column.data_type()
-            );
-            ty = resolver.unknown(&column, problem)?;
         }
         fields.push(Field {
             name,

@@ -190,7 +190,7 @@ fn a_sqlc_call_sqlc_left_in_a_mysql_statement_is_an_error() {
 fn a_mysql_statement_with_a_comment_that_is_code_is_not_read() {
     // MySQL runs what `/*! ... */` holds while our lexer leaves it out: this is a `LEFT JOIN`, so `b` may be missing
     let sql = "SELECT a.id, b.id FROM a /*! LEFT */ JOIN b ON b.a_id = a.id";
-    assert_eq!(Engine::MySql.items(sql, &[""; 2]), None);
+    assert_eq!(Engine::MySql.items(sql, &[""; 2], &Default::default()), None);
     assert!(Engine::MySql.present(sql).is_empty());
     assert!(!Engine::MySql.single_row("SELECT count(*) FROM a /*! GROUP BY id */"));
     // MariaDB, which sqlc's mysql engine and the drivers serve too, runs `/*M! ... */`

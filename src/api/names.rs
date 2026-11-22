@@ -75,7 +75,7 @@ const PYDANTIC_MODEL: &[&str] = &[
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Binding {
     Field,
-    Parameter,
+    Parameter { asynchronous: bool },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,11 +107,14 @@ pub fn names(spellings: &[&str], repeats: Repeats, binding: Binding, records: Re
                 _ => name,
             };
             let reads = |body: &[Symbol]| body.iter().any(|reserved| reserved.as_ref() == name);
+            // Ruff's ASYNC109 reserves a coroutine's `timeout` for cancellation. A SQL parameter of that name
+            // still binds the same placeholder when we spell its Python name with a trailing underscore.
+            let local = match binding {
+                Binding::Field => false,
+                Binding::Parameter { asynchronous } => reads(FUNCTION_BODY) || (asynchronous && name == "timeout"),
+            };
             let is_pydantic = records == Records::Pydantic && PYDANTIC_MODEL.contains(&name.as_str());
-            let reserved = reads(CLASS_BODY)
-                || (binding == Binding::Parameter && reads(FUNCTION_BODY))
-                || is_pydantic
-                || python::is_imported(&name);
+            let reserved = reads(CLASS_BODY) || local || is_pydantic || python::is_imported(&name);
             let name = match is_keyword(&name) || reserved {
                 true => name + "_",
                 false => name,

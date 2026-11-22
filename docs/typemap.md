@@ -208,6 +208,7 @@ Observed on MySQL 8.4, session time zone +05:30, with pymysql 1.2, asyncmy 0.2.
 | `datetime(6)` | `datetime` | `datetime` | `datetime` | `datetime` | `datetime` | `datetime` | ok |
 | `timestamp(6)` | `datetime` | `datetime` | `datetime` | `datetime` | `datetime` | `datetime` | ok |
 | `time(6)` | `timedelta` | `timedelta` | `timedelta` | `timedelta` | `timedelta` | `timedelta` | ok |
+| `set('read','write','é')` | `str` | `str` | `str` | `str` | `str` | `str` | ok |
 
 ### MySQL edges that raise or are lossy
 

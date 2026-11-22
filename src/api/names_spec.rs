@@ -84,9 +84,31 @@ fn a_parameter_named_like_a_local_of_the_function_takes_a_trailing_underscore() 
     let locals = ["connection", "cur", "len", "row", "value", "str"];
     let renamed: Vec<String> = locals.iter().map(|name| format!("{name}_")).collect();
     assert_eq!(
-        names(&locals, Repeats::Numbered, Binding::Parameter, Records::Dataclass).unwrap(),
+        names(
+            &locals,
+            Repeats::Numbered,
+            Binding::Parameter { asynchronous: false },
+            Records::Dataclass
+        )
+        .unwrap(),
         renamed
     );
+}
+
+#[test]
+fn an_async_query_spells_its_timeout_parameter_with_a_trailing_underscore() {
+    let parameters = |asynchronous| {
+        names(
+            &["timeout"],
+            Repeats::Numbered,
+            Binding::Parameter { asynchronous },
+            Records::Dataclass,
+        )
+        .unwrap()
+    };
+    assert_eq!(parameters(true), ["timeout_"]);
+    assert_eq!(parameters(false), ["timeout"]);
+    assert_eq!(field_names(&["timeout"]), ["timeout"]);
 }
 
 #[test]

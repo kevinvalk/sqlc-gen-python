@@ -51,6 +51,28 @@ fn an_option_error_points_at_the_option_not_into_the_json_sqlc_sent() {
 }
 
 #[test]
+fn converters_are_a_pair_of_importable_function_names() {
+    let options = |pair: &str| {
+        format!(
+            r#"{{"backend":"sqlite3","async":false,"overrides":[{{"column":"t.date","python_type":"str",{pair}}}]}}"#
+        )
+    };
+    for invalid in [
+        r#""to_db":"app.encode""#,
+        r#""from_db":"app.decode""#,
+        r#""to_db":"encode","from_db":"app.decode""#,
+        r#""to_db":"app.encode()","from_db":"app.decode""#,
+        r#""to_db":"app..encode","from_db":"app.decode""#,
+        r#""to_db":"connection.encode","from_db":"app.decode""#,
+        r#""to_db":"list.encode","from_db":"app.decode""#,
+    ] {
+        assert!(parse(&options(invalid)).is_err(), "{invalid}");
+    }
+    let config = parse(&options(r#""to_db":"app.writer.encode","from_db":"app.reader.decode""#)).unwrap();
+    assert_eq!(config.modules(), ["app.writer", "app.reader"]);
+}
+
+#[test]
 fn an_override_names_exactly_one_of_a_type_and_a_column() {
     for rule in [
         r#"{"python_type": "str"}"#,

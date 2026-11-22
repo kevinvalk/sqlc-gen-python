@@ -105,8 +105,12 @@ pub fn keyword(name: impl AsRef<str>, value: impl Into<ast::Expr>) -> ast::Keywo
 
 /// `None if value is None else then`, for a `then` that reads a nullable `value`.
 pub fn unless_none(value: impl Into<ast::Expr>, then: impl Into<ast::Expr>) -> ast::Expr {
+    none_if(value.absent(), then)
+}
+
+pub fn none_if(test: impl Into<ast::Expr>, then: impl Into<ast::Expr>) -> ast::Expr {
     node!(ast::ExprIf {
-        test: Box::new(value.absent()),
+        test: Box::new(test.into()),
         body: Box::new(none()),
         orelse: Box::new(then.into()),
     })
@@ -262,6 +266,22 @@ pub trait Expression: Into<ast::Expr> {
         node!(ast::ExprBoolOp {
             op: ast::BoolOp::Or,
             values: vec![self.into(), other.into()],
+        })
+        .into()
+    }
+
+    fn not_(self) -> ast::Expr {
+        node!(ast::ExprUnaryOp {
+            op: ast::UnaryOp::Not,
+            operand: Box::new(self.into()),
+        })
+        .into()
+    }
+
+    fn equals(self, other: impl Into<ast::Expr>) -> ast::Expr {
+        node!(ast::ExprCompare {
+            ops: Box::new([ast::CmpOp::Eq]),
+            operands: Box::new([self.into(), other.into()]),
         })
         .into()
     }

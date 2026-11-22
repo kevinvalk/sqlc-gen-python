@@ -1,6 +1,7 @@
 use ruff_python_ast::{Stmt, StmtClassDef};
 use sqlc_gen_python::api::names::{self, Binding, Repeats};
 use sqlc_gen_python::config::Config;
+use sqlc_gen_python::engine::Engine;
 use sqlc_gen_python::plugin;
 
 use super::python::{Shape, fields, is_enum, is_error};
@@ -16,7 +17,10 @@ pub(super) fn models_follow_catalog(
     problems: &mut Vec<String>,
 ) {
     let schemas = || request.catalog.iter().flat_map(|catalog| catalog.user_schemas());
-    let mut enums: Vec<&plugin::Enum> = schemas().flat_map(|schema| &schema.enums).collect();
+    let engine = Engine::of(request).unwrap();
+    let mut enums: Vec<&plugin::Enum> = schemas()
+        .flat_map(|schema| schema.enums.iter().filter(move |labels| !engine.is_set(schema, labels)))
+        .collect();
     // The options' `rename` applies to enum labels too.
     let rename = &config.rename;
     let records = config.records;

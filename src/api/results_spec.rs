@@ -14,9 +14,9 @@ fn the_commands_that_return_no_rows_ignore_any_columns() {
     assert_eq!(returning(":exec", id()), Command::Exec);
     assert_eq!(returning(":execrows", id()), Command::ExecRows);
     assert_eq!(returning(":execresult", vec![]), Command::ExecResult);
-    // A `:copyfrom` writes each row, and returns how many it wrote.
+    // A `:copyfrom` returns the number the database wrote.
     let copy = resolve(self::query(":copyfrom", "SELECT 1"));
-    assert_eq!(copy.command, Command::CopyFrom { every_row: true });
+    assert_eq!(copy.command, Command::CopyFrom);
     assert_eq!(copy.takes, Takes::Rows("GetAuthorParams".into()));
 }
 
@@ -26,6 +26,7 @@ fn a_single_column_is_returned_bare() {
         element: Type::INT,
         array_dims: 0,
         optional: false,
+        collects_nulls: false,
         as_text: false,
     };
     assert_eq!(
@@ -220,6 +221,7 @@ fn an_ungrouped_aggregate_is_optional_though_sqlc_reports_its_cast_not_null() {
         element: Type::DECIMAL,
         array_dims: 0,
         optional,
+        collects_nulls: false,
         as_text: false,
     };
     // One row, whose value is NULL of no rows.

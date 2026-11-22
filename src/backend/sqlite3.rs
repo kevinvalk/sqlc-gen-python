@@ -33,7 +33,7 @@ pub const DRIVER: Driver = Driver {
     }),
     execute_counts: false,
     pipelines: false,
-    bind: |_, value| value,
+    bind: |field, value| field.ty.bind(value, None),
     text_arrays: false,
     copies: false,
     plain_rows: Some(plain_rows),

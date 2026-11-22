@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     from autoprop_pool import Pool
 
-COMPARED = {":one", ":many", ":execrows"}
+COMPARED = {":one", ":many", ":execrows", ":copyfrom"}
 WRITERS = re.compile(r"\s*(?:--[^\n]*\n\s*)*(INSERT|DELETE|TRUNCATE)\b", re.IGNORECASE)
 
 Json = dict[str, Any]
@@ -104,11 +104,7 @@ class Call:
             return "inconclusive", False
 
         cmd = self.query["cmd"]
-        expected = (
-            self.direct(connection, rows[0] if self.bundled else kwargs, enums)
-            if enums is not None and cmd in COMPARED
-            else None
-        )
+        expected = self.direct(connection, rows, enums) if enums is not None and cmd in COMPARED else None
         nested = await aw(connection.begin_nested())
         try:
             result = await aw(self.function(callee, **kwargs))
@@ -124,16 +120,14 @@ class Call:
                 return "inconclusive", False
             raise
         await aw(nested.commit())
-        # On PostgreSQL a `:copyfrom` writes every row, or raises
-        if cmd == ":copyfrom" and result != len(rows):
-            message = f"{self.name}: wrote {result} of {len(rows)} rows"
-            raise AssertionError(message)
         pool.harvest(result)
         return self.outcome(result, expected)
 
     def outcome(self, result: object, expected: object) -> tuple[str, bool]:
         cmd = self.query["cmd"]
-        if cmd in {":exec", ":copyfrom", ":batchexec"}:
+        if cmd == ":copyfrom":
+            return "ran", self.compare(expected, result)
+        if cmd in {":exec", ":batchexec"}:
             return "ran", False
         # A batch returns each row's result, so it returned rows if any of them has one.
         if cmd in {":batchone", ":batchmany"}:
@@ -169,35 +163,33 @@ class Call:
     def direct(
         self,
         connection: sqlalchemy.Connection,
-        kwargs: dict[str, object],
+        rows: list[dict[str, object]],
         enums: list[Labels],
     ) -> object:
-        """sqlc's text, run twice with ``kwargs`` by psycopg's ``RawCursor`` and rolled back each time.
+        """sqlc's text, run twice with ``rows`` by psycopg's ``RawCursor`` and rolled back each time.
 
         Returns its rows as a sorted list of their reprs or its row count, ``"unstable"`` when the two runs differ, or
         ``"unrunnable"`` when it raised.
         """
-        values = dict(
-            zip(
-                (p["number"] for p in self.query["params"]),
-                (bound(p, kwargs[a.name]) for p, a in zip(self.query["params"], self.arguments, strict=True)),
-                strict=True,
-            )
-        )
-        positional = [values[number] for number in sorted(values)]
-        runs = []
+        parameters = sorted(zip(self.query["params"], self.arguments, strict=True), key=lambda pair: pair[0]["number"])
+        positional = [[bound(parameter, row[arg.name]) for parameter, arg in parameters] for row in rows]
+        runs: list[int | list[str]] = []
         for _ in range(2):
             nested = connection.begin_nested()
             try:
                 with psycopg.RawCursor(driver(connection)) as cursor:
                     for info, labelled in enums:
                         register_enum(info, cursor, labelled)
-                    cursor.execute(self.query["text"], positional)
-                    runs.append(
-                        cursor.rowcount
-                        if self.query["cmd"] == ":execrows"
-                        else sorted(repr(tuple(map(plain, row))) for row in cursor.fetchall())
-                    )
+                    if self.query["cmd"] == ":copyfrom":
+                        cursor.executemany(self.query["text"], positional)
+                        runs.append(cursor.rowcount)
+                    else:
+                        cursor.execute(self.query["text"], positional[0])
+                        runs.append(
+                            cursor.rowcount
+                            if self.query["cmd"] == ":execrows"
+                            else sorted(repr(tuple(map(plain, row))) for row in cursor.fetchall())
+                        )
             except psycopg.Error:
                 return "unrunnable"
             finally:
@@ -277,7 +269,14 @@ def bound(parameter: Json, value: object) -> object:
 
     type_name = parameter["column"]["type"]["name"].removeprefix("pg_catalog.")
     if type_name in {"json", "jsonb"}:
-        return (Jsonb if type_name == "jsonb" else PgJson)(value)
+        wrapper = Jsonb if type_name == "jsonb" else PgJson
+
+        def document(element: object, depth: int) -> object:
+            if depth == 0:
+                return wrapper(element)
+            return [document(child, depth - 1) for child in typing.cast("list[object]", element)]
+
+        return document(value, parameter["column"].get("array_dims", 0))
     if isinstance(value, postgresql.Range):
         if value.empty:
             return PgRange(empty=True)
@@ -324,7 +323,7 @@ def calls(
             message = f"{function.__qualname__}: {len(parameters)} parameters, sqlc has {len(params)}"
             raise AssertionError(message)
         arguments = [
-            argument(connection, name, hints[name], param["column"])
+            argument(connection, name, hints[name], param, query["text"])
             for name, param in zip(parameters, params, strict=True)
         ]
         name = f"{module.__name__.split('.')[-1]}.{function.__name__}"
@@ -347,11 +346,18 @@ def argument(
     connection: sqlalchemy.Connection,
     name: str,
     hint: Any,
-    column: Json,
+    parameter: Json,
+    text: str,
 ) -> Argument:
     """Draw values for a parameter as sqlc typed it, in the annotation's form."""
+    column = parameter["column"]
     table = (column.get("table") or {}).get("name", "")
-    keys = tuple(key for key in (f"{table}.{column['name']}", column["name"]) if key != "")
+    # For an equality lookup we want an existing value of the column, even when sqlc.arg(first) named
+    # the parameter. For a bound such as age < @max_age the row's own age cannot select it.
+    placeholder = rf"\${parameter['number']}\b"
+    equal = re.search(rf"(?<![<>=!])=\s*{placeholder}|{placeholder}\s*=(?!=)", text)
+    source = (column.get("original_name") if equal else None) or column["name"]
+    keys = tuple(key for key in (f"{table}.{source}", source) if key != "")
     bare, _ = strip_none(hint)
     dimensions, leaf = 0, bare
     while typing.get_origin(leaf) is list:

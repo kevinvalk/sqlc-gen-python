@@ -123,6 +123,7 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         "rate": 0.5,
         "tags": ["a", None],
         "n": None,
+        "referral": "conference",
     }
     ada = await api.customers.create_customer(
         name="Ada",
@@ -135,6 +136,9 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         ],
         metadata=metadata,
     )
+    assert await api.customers.count_customers_by_metadata(documents=[["nested", "list"], metadata]) == 1
+    assert await api.customers.count_customers_by_metadata(documents=[]) == 0
+    assert await api.customers.count_customers_by_metadata(documents=None) == 0
     assert ada.email is None
     assert ada.tags == ["vip", "b2b", 'quote"d', "comma,", ""]
     assert ada.preferred_method is models.BillingPaymentMethod.DIRECT_DEBIT
@@ -154,6 +158,16 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
         metadata=None,
     )
     assert (bob.tags, bob.accepted_methods, bob.metadata) == ([], [], None)
+    emails = await api.customers.list_last_emails_by_name()
+    assert [(row.name, row.last_email) for row in emails] == [("Ada", None), ("Bob", "bob@example.com")]
+    assert [row.emails for row in emails] == [[None], ["bob@example.com"]]
+    assert [row.methods for row in emails] == [[models.BillingPaymentMethod.DIRECT_DEBIT], [None]]
+    referrals = await api.customers.list_customer_referrals()
+    assert [row.email for row in referrals] == [None, "bob@example.com"]
+    assert [(row.name, row.referral, row.previous_name) for row in referrals] == [
+        ("Ada", "conference", None),
+        ("Bob", None, "Ada"),
+    ]
     stored = await sql("SELECT metadata IS NULL FROM customers WHERE id = :id", id=bob.id)
     assert stored, "metadata=None is stored as JSON null"
     # Bare enums, converted one by one, NULL kept as `None`.
@@ -289,7 +303,15 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
             vat_rate=Decimal("0.0900"),
         ),
     ]
-    assert await api.line_items.create_line_items(lines) == 2
+    skipped = api.line_items.CreateLineItemsParams(
+        invoice_id=first.id,
+        position=0,
+        description="skipped",
+        quantity=Decimal(1),
+        unit_price=Decimal(1),
+        vat_rate=Decimal(0),
+    )
+    assert await api.line_items.create_line_items([*lines, skipped]) == 2
     assert await api.line_items.create_line_items([]) == 0
     stored = await api.line_items.list_line_items(invoice_id=first.id)
     assert [(line.position, line.description) for line in stored] == [

@@ -9,6 +9,7 @@ import dataclasses
 import enum
 import functools
 import inspect
+import json
 import types
 import typing
 import uuid
@@ -38,6 +39,10 @@ def check(value: object, hint: Any, path: str = "value") -> None:  # noqa: C901
         if origin is list:
             assert type(value) is list, f"{path}: {type(value).__name__} is not a list"
         (item,) = typing.get_args(hint)
+        if origin is list and item is Any:
+            # A JSON parameter accepts a list of anything its encoder can write.
+            json.dumps(value, allow_nan=False)
+            return
         for i, element in enumerate(typing.cast("list[object]", value)):
             check(element, item, f"{path}[{i}]")
     elif origin is not None:

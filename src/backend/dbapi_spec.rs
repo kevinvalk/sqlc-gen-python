@@ -14,6 +14,7 @@ fn field(name: &str, element: Type) -> Field {
             element,
             array_dims: 0,
             optional: false,
+            collects_nulls: false,
             as_text: false,
         },
     }
@@ -59,9 +60,10 @@ fn a_driver_is_given_sqlcs_statement_as_written() {
 fn a_driver_binds_each_parameter_by_position_json_wrapped_on_psycopg() {
     let mut nullable = field("note", Type::JSONB);
     nullable.ty.optional = true;
-    let overridden = Type::Custom {
+    let overridden = Type::Override {
         annotation: python::name("Meta"),
-        json: Some(python::Json::Jsonb),
+        wire: Box::new(Type::JSONB),
+        converters: None,
     };
     let parameters = vec![
         field("id", Type::INT),
@@ -84,6 +86,24 @@ fn a_driver_binds_each_parameter_by_position_json_wrapped_on_psycopg() {
         body,
         "async with connection.cursor() as cur:\n    \
          await cur.execute(_GET, (id,))"
+    );
+}
+
+#[test]
+fn each_json_document_is_adapted_at_the_declared_array_depth() {
+    let mut matrix = field("matrix", Type::JSONB);
+    matrix.ty.array_dims = 2;
+    matrix.ty.optional = true;
+    let query = query(Command::Exec, vec![matrix]);
+    let body = python::unparse_stmts(&Backend::Psycopg.body(&query, false));
+    assert!(
+        body.contains("None if matrix is None else [[Jsonb(_v2) for _v2 in _v1] for _v1 in matrix]"),
+        "{body}"
+    );
+    let statement = python::unparse(&Backend::SqlAlchemy.statement(&query));
+    assert!(
+        statement.contains("postgresql.ARRAY(postgresql.JSONB(none_as_null=True), dimensions=2)"),
+        "{statement}"
     );
 }
 

@@ -3,6 +3,7 @@
 #   sqlc v1.31.1
 import contextlib
 import dataclasses
+import json
 from collections.abc import AsyncGenerator, AsyncIterator, Iterable, Sequence
 from typing import Any, Final
 
@@ -19,16 +20,19 @@ async def open_account(
     *,
     name: str,
     opened_on: str,
-    settings: str | None = None,
-) -> models.Account:
+    settings: object | None = None,
+) -> models.Account | None:
     async with connection.cursor() as cur:
         cur.row_factory = None
-        await cur.execute(_OPEN_ACCOUNT, (name, opened_on, settings))
+        await cur.execute(
+            _OPEN_ACCOUNT,
+            (name, opened_on, None if settings is None else json.dumps(settings)),
+        )
         match await cur.fetchmany(2):
             case [row]:
                 return models.Account.from_row(row)
             case []:
-                raise models.NoRowError
+                return None
             case _:
                 raise models.MultipleRowsError
 
@@ -282,7 +286,7 @@ async def book_returning_id(
     account_id: int,
     amount_cents: int,
     memo: str | None = None,
-) -> int:
+) -> int | None:
     async with connection.cursor() as cur:
         cur.row_factory = None
         await cur.execute(_BOOK_RETURNING_ID, (account_id, amount_cents, memo))
@@ -291,7 +295,7 @@ async def book_returning_id(
                 value: int = row[0]
                 return value
             case []:
-                raise models.NoRowError
+                return None
             case _:
                 raise models.MultipleRowsError
 

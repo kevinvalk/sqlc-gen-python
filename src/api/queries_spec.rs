@@ -92,7 +92,7 @@ fn every_problem_is_reported_at_once() {
     let guessed = |name: &str| plugin::Query {
         name: name.into(),
         columns: vec![column("v", "int", true)],
-        ..query(":one", "SELECT 1")
+        ..query(":one", "SELECT price * 1.5 AS total FROM sales")
     };
     let error = format!("{:#}", try_resolve_all(vec![guessed("A"), guessed("B")]).unwrap_err());
     assert!(error.starts_with("2 problems:"), "{error}");
@@ -418,7 +418,7 @@ fn a_type_sqlc_only_guessed_is_an_error_that_asks_for_a_cast() {
         let call = column.is_func_call;
         let error = error(plugin::Query {
             columns: vec![column],
-            ..query(":one", "SELECT 1")
+            ..query(":one", "SELECT price * 1.5 AS total FROM sales")
         });
         let problem = match call {
             true => "is a function's result, which sqlc types by the function's first overload",
@@ -725,13 +725,7 @@ fn a_many_that_only_reads_also_streams_under_its_name_with_no_trailing_underscor
 }
 
 #[test]
-fn a_copyfrom_returns_how_many_rows_it_wrote_which_on_postgresql_is_every_one() {
-    // sqlc refuses a conflict clause on PostgreSQL alone, where a row that fails raises; MySQL's `INSERT IGNORE` skips
-    let command = |engine| on(engine, query(":copyfrom", "SELECT 1")).unwrap().command;
-    assert_eq!(command("postgresql"), Command::CopyFrom { every_row: true });
-    assert_eq!(command("mysql"), Command::CopyFrom { every_row: false });
-    assert_eq!(command("sqlite"), Command::CopyFrom { every_row: false });
-
+fn a_copyfrom_returns_the_database_row_count() {
     let copy = resolve(query(":copyfrom", "SELECT 1"));
     for backend in [Backend::SqlAlchemy, Backend::Psycopg] {
         assert_eq!(crate::python::unparse(&backend.returns(&copy, false)), "int");

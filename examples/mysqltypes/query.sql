@@ -8,10 +8,10 @@ INSERT INTO scalars (
   c_bigint_unsigned, c_year, c_float, c_double, c_decimal, c_char, c_varchar,
   c_tinytext, c_text, c_mediumtext, c_longtext, c_json, c_binary,
   c_varbinary, c_tinyblob, c_blob, c_mediumblob, c_longblob, c_bit_1,
-  c_bit_64, c_date, c_datetime, c_timestamp, c_time
+  c_bit_64, c_date, c_datetime, c_timestamp, c_time, c_set
 ) VALUES (
   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-  ?, ?, ?, ?, ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 );
 
 -- name: ListDerived :many

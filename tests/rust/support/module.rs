@@ -87,6 +87,14 @@ fn only_defines(body: &[Stmt], problems: &mut Vec<String>) {
     for stmt in body {
         let defines = match stmt {
             Stmt::Import(_) | Stmt::ImportFrom(_) | Stmt::ClassDef(_) => true,
+            Stmt::If(branch) => {
+                unparse(&branch.test) == "typing.TYPE_CHECKING"
+                    && branch.elif_else_clauses.is_empty()
+                    && branch
+                        .body
+                        .iter()
+                        .all(|stmt| matches!(stmt, Stmt::Import(_) | Stmt::ImportFrom(_)))
+            }
             Stmt::FunctionDef(function) => (function.decorator_list.iter())
                 .all(|decorator| unparse(&decorator.expression).starts_with("contextlib.")),
             Stmt::AnnAssign(constant) => constant.value.as_deref().is_some_and(is_statement),
@@ -281,7 +289,11 @@ fn annotations_are_precise(body: &[Stmt], accepts_any: bool, problems: &mut Vec<
         let mut mentions_any = MentionsAny::default();
         mentions_any.visit_expr(annotation);
         let written = unparse(unwrapped(annotation));
-        let is_document = written.strip_suffix(" | None").unwrap_or(&written) == JSON_DOCUMENT;
+        let mut leaf = written.strip_suffix(" | None").unwrap_or(&written);
+        while let Some(element) = leaf.strip_prefix("list[").and_then(|inner| inner.strip_suffix(']')) {
+            leaf = element;
+        }
+        let is_document = leaf == JSON_DOCUMENT;
         if mentions_any.0 && !accepts_any && !is_document && !drivers_own.contains(&written.as_str()) {
             problems.push(format!("{what} is annotated with `Any`"));
         }

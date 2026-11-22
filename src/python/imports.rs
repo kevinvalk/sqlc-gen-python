@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use ruff_python_ast as ast;
 use ruff_python_ast::visitor::{Visitor, walk_expr};
 
-use super::vocabulary::{Import, MODELS, VOCABULARY};
-use super::{import, import_from};
+use super::vocabulary::{Import, MODELS, TYPE_CHECKING, VOCABULARY};
+use super::{if_, import, import_from};
 
 #[cfg(test)]
 #[path = "imports_spec.rs"]
@@ -17,15 +17,28 @@ mod spec;
 pub(super) fn imports(body: &[ast::Stmt], modules: &[String], models: Option<&str>) -> Vec<Vec<ast::Stmt>> {
     // We keep dotted names in full (`a.b.C`) so a module's read can be told from another's.
     #[derive(Default)]
-    struct Reads(BTreeSet<String>);
+    struct Reads {
+        names: BTreeSet<String>,
+        casts: BTreeSet<String>,
+    }
     impl<'a> Visitor<'a> for Reads {
         fn visit_expr(&mut self, expr: &'a ast::Expr) {
             match expr {
                 ast::Expr::Name(name) if name.ctx.is_load() => {
-                    self.0.insert(name.id.to_string());
+                    self.names.insert(name.id.to_string());
                 }
                 ast::Expr::Attribute(_) => {
-                    self.0.extend(dotted(expr));
+                    self.names.extend(dotted(expr));
+                }
+                ast::Expr::Call(call) if dotted(&call.func).as_deref() == Some("typing.cast") => {
+                    // A cast quotes the type. Only the type checkers need its imports.
+                    if let Some(ast::Expr::StringLiteral(annotation)) = call.arguments.args.first() {
+                        let parsed = ruff_python_parser::parse_expression(annotation.value.to_str())
+                            .expect("a cast holds a generated annotation");
+                        let mut checked = Self::default();
+                        checked.visit_expr(&parsed.syntax().body);
+                        self.casts.extend(checked.names);
+                    }
                 }
                 _ => {}
             }
@@ -41,10 +54,21 @@ pub(super) fn imports(body: &[ast::Stmt], modules: &[String], models: Option<&st
     }
     let mut reads = Reads::default();
     reads.visit_body(body);
+    let mut runtime = sections(&reads.names, modules, models);
+    let checked = reads.casts.difference(&reads.names).cloned().collect();
+    runtime.extend(
+        sections(&checked, &[], None)
+            .into_iter()
+            .map(|section| vec![if_(TYPE_CHECKING, section)]),
+    );
+    runtime
+}
+
+fn sections(reads: &BTreeSet<String>, modules: &[String], models: Option<&str>) -> Vec<Vec<ast::Stmt>> {
     // `app.types.Embedding` reads `app.types`, but another module's `app.names.Name` does not.
     let reads_from = |module: &str| {
         let prefix = format!("{module}.");
-        reads.0.iter().any(|read| read.starts_with(&prefix))
+        reads.iter().any(|read| read.starts_with(&prefix))
     };
     let stdlib = |module: &str| {
         let root = module.split('.').next().unwrap_or(module);
@@ -57,7 +81,7 @@ pub(super) fn imports(body: &[ast::Stmt], modules: &[String], models: Option<&st
             let mut plain: Vec<(&str, ast::Stmt)> = Vec::new();
             let mut froms: Vec<(&str, Vec<&str>)> = Vec::new();
             let is_elsewhere = |entry: &&Import| models.is_some() && entry.binding() == MODELS.as_ref();
-            for entry in (section.iter()).filter(|i| reads.0.contains(i.binding()) && !is_elsewhere(i)) {
+            for entry in (section.iter()).filter(|i| reads.contains(i.binding()) && !is_elsewhere(i)) {
                 match *entry {
                     Import::Module(module, _) => {
                         let bound = module.split('.').next(); // `import a.b` binds `a`
@@ -82,7 +106,7 @@ pub(super) fn imports(body: &[ast::Stmt], modules: &[String], models: Option<&st
             // `import app.db_models as models`, but `from app import models`, as ruff prefers it to an alias (PLR0402)
             if let Some(module) = models
                 && index == 1
-                && reads.0.contains(MODELS.as_ref())
+                && reads.contains(MODELS.as_ref())
             {
                 match module.rsplit_once('.') {
                     Some((parent, last)) if last == MODELS.as_ref() => froms.push((parent, vec![MODELS.as_ref()])),

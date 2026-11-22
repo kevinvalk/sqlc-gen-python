@@ -59,23 +59,19 @@ pub fn scalar_type(column: &plugin::Column) -> Option<Type> {
         .map(|(_, python)| python.clone())
 }
 
-/// Why a column sqlc reports as an enum of `labels` cannot be one. sqlc reports a `SET` as an `ENUM` of its members,
-/// but a `SET` holds several (`'x,y'`), which is no member. We tell them apart by their length in bytes: an `ENUM`'s is
-/// its longest label's, a `SET`'s that of all labels joined by commas. Of one label the two are the same length, so we
-/// cannot tell at all.
-pub fn enum_problem(column: &plugin::Column, labels: &[String]) -> Option<&'static str> {
+/// sqlc reports both SET and ENUM as a list of labels. Its MySQL parser measures a SET by all its labels joined
+/// with commas and an ENUM by its longest label, both in bytes.
+pub fn is_set(column: &plugin::Column, labels: &[String]) -> Result<bool, &'static str> {
+    if labels.len() == 1 {
+        return Err(
+            "has one member, which sqlc reports alike for an ENUM and a SET; use a str override or give it a second member",
+        );
+    }
     let longest = labels.iter().map(String::len).max().unwrap_or(0);
     let joined = labels.iter().map(String::len).sum::<usize>() + labels.len().saturating_sub(1);
-    let length = usize::try_from(column.length).unwrap_or(0);
-    match labels.len() {
-        1 => Some(
-            "has one member, which sqlc reports alike for an ENUM and a SET; give it a second, \
-             or store it otherwise",
-        ),
-        _ if length == joined && length > longest => Some(
-            "is a SET, which holds several of its members; store them otherwise, such as in a \
-             JSON column",
-        ),
-        _ => None,
+    match usize::try_from(column.length) {
+        Ok(length) if length == longest => Ok(false),
+        Ok(length) if length == joined => Ok(true),
+        _ => Err("has no length that distinguishes its ENUM or SET labels; use a str override"),
     }
 }

@@ -7,12 +7,12 @@ use crate::api::models::{Field, FieldType};
 use crate::api::queries::{Command, Query, Shape};
 use crate::engine::Engine;
 use crate::python::vocabulary::{
-    ANY, ASYNC_CONNECTION, CONNECTION, CUR, DICT, LEN, LIST, MODELS, PARAMS, POSTGRESQL, R, ROW, ROWS, SQLALCHEMY, STR,
-    VALUE, VALUES,
+    ANY, ASYNC_CONNECTION, CONNECTION, COUNT, CUR, DICT, LIST, MODELS, PARAMS, POSTGRESQL, R, ROW, ROWS, SQLALCHEMY,
+    STR, VALUE, VALUES,
 };
 use crate::python::{
-    Expression, Json, Scope, Type, ann_assign, assign, dict, each, expression, for_, generator_of, if_, int, keyword,
-    list, list_of, name, return_, starred, stmts, string, true_, unless_none, with, yield_,
+    Expression, Json, Scope, Type, add_assign, ann_assign, assign, dict, each, expression, for_, generator_of, if_,
+    int, keyword, list, list_of, name, return_, starred, stmts, string, true_, unless_none, with, yield_,
 };
 
 pub fn check(engine: Engine, query: &Query) -> Result<()> {
@@ -43,13 +43,22 @@ pub fn check(engine: Engine, query: &Query) -> Result<()> {
 /// pass are the fields', which SQLAlchemy ignores.
 pub fn statement(query: &Query) -> ast::Expr {
     let mut statement = (SQLALCHEMY.attr("text")).call([string(&text::text(&query.sql))]);
-    let json = |class: &str| (POSTGRESQL.attr(class)).call_with([], [keyword("none_as_null", true_())]);
+    let json = |class: &str, dimensions| {
+        let element = POSTGRESQL.attr(class).call_with([], [keyword("none_as_null", true_())]);
+        match dimensions {
+            0 => element,
+            // A list at the declared depth is a JSON document, even when every document is itself a list.
+            depth => POSTGRESQL
+                .attr("ARRAY")
+                .call_with([element], [keyword("dimensions", int(depth))]),
+        }
+    };
     let binds: Vec<ast::Expr> = (query.params.iter())
         .filter_map(|parameter| {
-            let how = match (&parameter.ty.element, parameter.ty.element.json()) {
+            let how = match (parameter.ty.element.wire(), parameter.ty.element.json()) {
                 _ if query.sql.is_slice(&parameter.name) => keyword("expanding", true_()),
-                (_, Some(Json::Json)) => keyword("type_", json("JSON")),
-                (_, Some(Json::Jsonb)) => keyword("type_", json("JSONB")),
+                (_, Some(Json::Json)) => keyword("type_", json("JSON", parameter.ty.array_dims)),
+                (_, Some(Json::Jsonb)) => keyword("type_", json("JSONB", parameter.ty.array_dims)),
                 (
                     Type::Library {
                         sql_type: Some(sql_type),
@@ -93,7 +102,7 @@ pub fn scalar_type(pg_type: &str) -> Option<Type> {
 /// The SQLAlchemy type a column loads through, if a driver needs one. We pass a type of SQLAlchemy's own class as the
 /// class, which SQLAlchemy instantiates, as SQLAlchemy 2.0's `HSTORE()` is untyped.
 fn column_type(column: &Field) -> Option<ast::Expr> {
-    match (&column.ty.element, column.ty.array_dims) {
+    match (column.ty.element.wire(), column.ty.array_dims) {
         (Type::Enum(class), 1..) => {
             let labels = SQLALCHEMY.attr("Enum").call([starred(MODELS.attr(class))]);
             Some(POSTGRESQL.attr("ARRAY").call([labels]))
@@ -128,7 +137,7 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
 
     // A batch binds each row's values (`r.p`), but all at once as `params` if it returns nothing
     let values = match (rows, &query.command, query.params.is_empty()) {
-        (true, Command::Exec | Command::CopyFrom { .. }, _) => Some(PARAMS.into()),
+        (true, Command::Exec | Command::CopyFrom, _) => Some(PARAMS.into()),
         (false, _, true) => None,
         _ => Some(named(query)),
     };
@@ -145,21 +154,24 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
             ];
         }
         Command::Exec => return vec![expression(executed)],
-        // asyncpg counts no list of rows (-1), but on PostgreSQL every row is written or the call raises
-        Command::CopyFrom { every_row } => {
-            let params = assign(PARAMS, list_of(named(query), each(R, ROWS)));
-            return match every_row {
-                true => stmts![
-                    params,
-                    if_(PARAMS, vec![expression(executed)]),
-                    return_(LEN.call([PARAMS.into()])),
-                ],
-                false => stmts![
-                    params,
-                    if_(PARAMS, vec![return_(executed.attr("rowcount"))]),
-                    return_(int(0)),
-                ],
-            };
+        Command::CopyFrom => {
+            // asyncpg's executemany returns no count. We count single executions there because a BEFORE INSERT
+            // trigger can skip a row on PostgreSQL too.
+            let one = CONNECTION
+                .attr("execute")
+                .call([name(&query.constant), ROW.into()])
+                .awaited(asynchronous);
+            return stmts![
+                assign(PARAMS, list_of(named(query), each(R, ROWS))),
+                if_(PARAMS.not_(), vec![return_(int(0))]),
+                if_(
+                    CONNECTION.attr("dialect").attr("supports_sane_multi_rowcount"),
+                    vec![return_(executed.attr("rowcount"))]
+                ),
+                assign(COUNT, int(0)),
+                for_(each(ROW, PARAMS), vec![add_assign(COUNT, one.attr("rowcount"))]),
+                return_(COUNT),
+            ];
         }
         Command::ExecRows => (vec![], executed.attr("rowcount")),
         Command::ExecLastId => (vec![], executed.attr("lastrowid")),
@@ -242,7 +254,12 @@ pub fn stream(query: &Query, shape: &Shape, asynchronous: bool) -> Vec<ast::Stmt
 /// `{"id": id}`
 fn named(query: &Query) -> ast::Expr {
     let items = (query.params.iter())
-        .map(|parameter| (string(&parameter.name), super::value(query, &parameter.name)))
+        .map(|parameter| {
+            (
+                string(&parameter.name),
+                parameter.ty.bind(super::value(query, &parameter.name), None),
+            )
+        })
         .collect();
     dict(items)
 }

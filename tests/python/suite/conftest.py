@@ -42,5 +42,11 @@ def pytest_sessionfinish(session: pytest.Session) -> None:
 @pytest.fixture(scope="session")
 def database(server: sqlalchemy.URL) -> Iterator[sqlalchemy.URL]:
     schema = next(case for case in golden_cases() if case.example == "invoicing").schema_sql
-    with postgres.database(server, schema.read_text()) as url:
+    # We skip position zero so a bulk insert has to count what PostgreSQL wrote.
+    trigger = """
+        CREATE FUNCTION skip_line() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;
+        CREATE TRIGGER skip_line BEFORE INSERT ON line_items
+        FOR EACH ROW WHEN (NEW.position = 0) EXECUTE FUNCTION skip_line();
+    """
+    with postgres.database(server, schema.read_text() + trigger) as url:
         yield url

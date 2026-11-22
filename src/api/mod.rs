@@ -72,7 +72,14 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
         .filter_map(|query| query.row())
         .flat_map(|(_, fields)| fields.iter().map(RowField::name));
     let records = (queries.clone())
-        .filter(|query| query.takes.class().is_some())
+        .filter(|query| {
+            query.takes.class().is_some()
+                || query
+                    .params
+                    .iter()
+                    .chain(&query.columns)
+                    .any(|field| field.ty.element.converters().is_some())
+        })
         .flat_map(|query| &query.params);
     let names = (models.chain(records).map(|field| field.name.as_str()))
         .chain(rows)

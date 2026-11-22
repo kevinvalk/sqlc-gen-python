@@ -2,12 +2,11 @@ use ruff_python_ast as ast;
 
 use super::{Attribute, documentation, record};
 use crate::api::Api;
-use crate::api::models::{Enum, Model};
+use crate::api::models::{Enum, Model, enum_array};
 use crate::config::Records;
-use crate::python::vocabulary::{CLASSMETHOD, CLS, ENUM, FROM_ARRAY, LABEL, LIST, STR, TEXT};
+use crate::python::vocabulary::{CLASSMETHOD, CLS, ENUM, FROM_ARRAY, LIST, STR, TEXT};
 use crate::python::{
-    Expression, Function, Scope, assign, class, docstring, each, forward, int, list_of, minus, name, parameter,
-    receiver, return_, string,
+    Expression, Function, Scope, assign, class, docstring, forward, name, parameter, receiver, return_, string,
 };
 
 /// The classes every query module shares.
@@ -26,8 +25,7 @@ pub fn module(api: &Api, records: Records) -> Vec<ast::Stmt> {
 fn enum_class(sql_enum: &Enum, from_array: bool) -> ast::Stmt {
     let members = (sql_enum.members.iter()).map(|member| assign(&member.name, string(&member.value)));
     let from_array = from_array.then(|| {
-        let labels = (TEXT.slice(int(1), minus(int(1))).attr("split")).call([string(",")]);
-        let members = list_of(CLS.call([LABEL.into()]), each(LABEL, labels).when(LABEL));
+        let members = enum_array(TEXT.into(), CLS.into(), false);
         Function {
             decorators: vec![CLASSMETHOD.into()],
             parameters: vec![receiver(CLS), parameter(TEXT, STR)],

@@ -23,14 +23,14 @@ def add_device(
     address: ipaddress.IPv4Address,
     location: str | None = None,
     budget: Decimal,
-) -> models.Machine:
+) -> models.Machine | None:
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_ADD_DEVICE, (address, location, budget))
         match cur.fetchmany(2):
             case [row]:
                 return models.Machine.from_row(row)
             case []:
-                raise models.NoRowError
+                return None
             case _:
                 raise models.MultipleRowsError
 
@@ -82,13 +82,13 @@ _ADD_PRESET: Final = "INSERT INTO presets (settings) VALUES ($1) RETURNING id, s
 
 def add_preset(
     connection: psycopg.Connection[Any], *, settings: dict[str, object]
-) -> models.Preset:
+) -> models.Preset | None:
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_ADD_PRESET, (Jsonb(settings),))
         match cur.fetchmany(2):
             case [row]:
                 return models.Preset.from_row(row)
             case []:
-                raise models.NoRowError
+                return None
             case _:
                 raise models.MultipleRowsError

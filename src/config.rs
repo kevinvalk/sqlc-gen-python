@@ -72,10 +72,10 @@ pub enum UnknownType {
 }
 
 impl UnknownType {
-    pub fn annotation(self) -> ruff_python_ast::Expr {
+    pub fn ty(self) -> python::Type {
         match self {
-            Self::Any => python::vocabulary::ANY.into(),
-            Self::Object => python::vocabulary::OBJECT.into(),
+            Self::Any => python::Type::Python(&[python::vocabulary::ANY]),
+            Self::Object => python::Type::OBJECT,
         }
     }
 }
@@ -88,6 +88,40 @@ pub struct Override {
     /// `table.column` or `schema.table.column`
     pub column: Option<String>,
     pub python_type: Annotation,
+    pub to_db: Option<Callable>,
+    pub from_db: Option<Callable>,
+}
+
+/// A module-level callable, imported by the same rules as an override's dotted type.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(try_from = "String")]
+pub struct Callable(pub Annotation);
+
+impl TryFrom<String> for Callable {
+    type Error = anyhow::Error;
+
+    fn try_from(path: String) -> Result<Self> {
+        use python::vocabulary::{CLS, CONNECTION, COPY, COUNT, CUR, PARAMS, R, RESULT, ROW, ROWS, VALUE, VALUES};
+        if !path.rsplit_once('.').is_some_and(|(module, function)| {
+            module.split('.').all(python::is_module_name) && python::is_public_name(function)
+        }) {
+            bail!("converter \"{path}\" must be a dotted function name, as app.codecs.decode");
+        }
+        // We call the function inside a query or from_row, where a parameter or cursor of our own
+        // must still leave the module in scope.
+        let root = path.split('.').next().unwrap_or_default();
+        if [
+            CLS, CONNECTION, COPY, COUNT, CUR, PARAMS, R, RESULT, ROW, ROWS, VALUE, VALUES,
+        ]
+        .iter()
+        .any(|local| local.as_ref() == root)
+        {
+            bail!(
+                "converter \"{path}\": `{root}` is a local of generated code; import the function through another module"
+            );
+        }
+        Ok(Self(Annotation::try_from(path)?))
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -147,6 +181,9 @@ impl Config {
         }
 
         for (i, rule) in config.overrides.iter().enumerate() {
+            if rule.from_db.is_some() != rule.to_db.is_some() {
+                bail!("overrides[{i}]: to_db and from_db must be set together");
+            }
             if rule.db_type.is_some() == rule.column.is_some() {
                 bail!("overrides[{i}]: name exactly one of db_type and column");
             }
@@ -160,7 +197,10 @@ impl Config {
     /// The modules the overrides' types read from, which generated code has to import.
     pub fn modules(&self) -> Vec<String> {
         (self.overrides.iter())
-            .flat_map(|rule| rule.python_type.modules.iter().cloned())
+            .flat_map(|rule| {
+                std::iter::once(&rule.python_type).chain(rule.to_db.iter().chain(&rule.from_db).map(|call| &call.0))
+            })
+            .flat_map(|annotation| annotation.modules.iter().cloned())
             .collect()
     }
 }

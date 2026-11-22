@@ -13,22 +13,30 @@ sql:
       - out: ledger_sqlalchemy
         plugin: python
         options:
+          overrides: &settings
+            - column: accounts.settings
+              python_type: object
+              to_db: json.dumps
+              from_db: json.loads
           backend: sqlalchemy
           async: false
       - out: ledger_sqlalchemy_async
         plugin: python
         options:
+          overrides: *settings
           backend: sqlalchemy
           async: true
       - out: ledger_sqlite3
         plugin: python
         options:
+          overrides: *settings
           backend: sqlite3
           async: false
           raise_on_none: true
       - out: ledger_sqlite3_async
         plugin: python
         options:
+          overrides: *settings
           backend: sqlite3
           async: true
           max_params: 3

@@ -6,6 +6,7 @@ use fancy_regex::Regex;
 use ruff_python_ast::visitor::{Visitor, walk_expr};
 use ruff_python_ast::{Expr, ExprCall, ExprDict, StmtFunctionDef};
 use sqlc_gen_python::backend::Backend;
+use sqlc_gen_python::config::Config;
 use sqlc_gen_python::engine::{Bind, Engine, Piece, Sql};
 use sqlc_gen_python::plugin;
 
@@ -13,7 +14,7 @@ use super::{Takes, uses};
 use crate::support::python::{is_name, unparse};
 
 /// A query's function executes its own statement exactly once and binds each parameter as itself: by its own name
-/// (`{"p": p}`) on SQLAlchemy, or in its own place in a tuple (`(p, q)`) on a driver, wrapped at most in a JSON type;
+/// (`{"p": p}`) on SQLAlchemy, or in its own place in a tuple (`(p, q)`) on a driver, through any JSON wrapper or encoder;
 /// as `r.p` for each row of a `:copyfrom` or batch, and as `params.p` for the one record. A function run on its
 /// neighbour's statement, or with two values of one type swapped, would type-check and run. It does nothing else with
 /// the connection either, as the caller owns the transaction a `connection.commit()` would end.
@@ -22,7 +23,7 @@ pub(super) fn runs_its_statement(
     function: &StmtFunctionDef,
     constant: &str,
     parameters: &[(&str, &Expr)],
-    engine: Engine,
+    (config, engine): (&Config, Engine),
     takes: Takes,
     problems: &mut Vec<String>,
 ) {
@@ -52,13 +53,43 @@ pub(super) fn runs_its_statement(
 
     let mut executes = Executes::default();
     executes.visit_body(&function.body);
-    let ([call], 1) = (&executes.calls[..], executes.connections) else {
-        return problems.push(format!(
-            "{}: executes {} statements, and reads `connection` {} times, not only to execute one",
-            query.name,
-            executes.calls.len(),
-            executes.connections
-        ));
+    let call = match (&executes.calls[..], executes.connections) {
+        ([call], 1) => call,
+        // Both arms must execute our statement. One takes all the bindings and returns before the fallback
+        // that sums a count for each of those same rows.
+        ([batch, one], 3) if config.backend == Backend::SqlAlchemy && query.cmd == ":copyfrom" => {
+            let correct = unparse(&one.func) == "connection.execute"
+                && matches!(&one.arguments.args[..], [sql, row] if is_name(sql, constant) && is_name(row, "row"))
+                && one.arguments.keywords.is_empty()
+                && function.body.iter().any(|stmt| {
+                    stmt.as_if_stmt().is_some_and(|guard| {
+                        unparse(&guard.test) == "connection.dialect.supports_sane_multi_rowcount"
+                            && matches!(guard.body.as_slice(), [stmt] if stmt.is_return_stmt())
+                    })
+                })
+                && function.body.iter().any(|stmt| {
+                    stmt.as_for_stmt().is_some_and(|loop_| {
+                        is_name(&loop_.target, "row")
+                            && is_name(&loop_.iter, "params")
+                            && matches!(loop_.body.as_slice(), [stmt] if stmt.is_aug_assign_stmt())
+                    })
+                });
+            if !correct {
+                return problems.push(format!(
+                    "{}: does not count each execution on a driver without a bulk count",
+                    query.name
+                ));
+            }
+            batch
+        }
+        _ => {
+            return problems.push(format!(
+                "{}: executes {} statements, and reads `connection` {} times, not only to execute its SQL",
+                query.name,
+                executes.calls.len(),
+                executes.connections
+            ));
+        }
     };
 
     // With a `sqlc.slice` the statement is the constant with its placeholders made one per item: `_X.replace(...)`.
@@ -123,6 +154,30 @@ pub(super) fn runs_its_statement(
         .map(|(i, (_, value))| (format!("${}", i + 1), value))
         .collect();
 
+    let encoders = config
+        .overrides
+        .iter()
+        .filter_map(|rule| rule.to_db.as_ref().map(|call| unparse(&call.0.expr)))
+        .collect::<BTreeSet<_>>();
+    let positions = |items: &[Expr]| {
+        items
+            .iter()
+            .enumerate()
+            .map(|(i, item)| (format!("${}", i + 1), value_bound(item, &encoders)))
+            .collect::<Vec<_>>()
+    };
+    let pairs = |dict: &ExprDict| {
+        dict.items
+            .iter()
+            .map(|item| {
+                let key = item.key.as_ref().and_then(Expr::as_string_literal_expr);
+                (
+                    key.map_or("?".into(), |key| key.value.to_str().into()),
+                    value_bound(&item.value, &encoders),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
     let bound = match (&arguments[1..], takes_rows) {
         ([], false) => Some(Vec::new()),
         ([Expr::Dict(dict)], _) => Some(pairs(dict)),
@@ -185,37 +240,38 @@ pub(super) fn runs_its_statement(
     }
 }
 
-fn pairs(dict: &ExprDict) -> Vec<(String, String)> {
-    (dict.items.iter())
-        .map(|item| {
-            let key = item.key.as_ref().and_then(Expr::as_string_literal_expr);
-            let key = key.map_or("?".into(), |key| key.value.to_str().into());
-            (key, unparse(&item.value))
-        })
-        .collect()
+/// The value a bind reads through its JSON wrapper, configured encoder, NULL guard and array comprehensions.
+fn value_bound(item: &Expr, encoders: &BTreeSet<String>) -> String {
+    if let Expr::Starred(starred) = item {
+        return format!("*{}", value_bound(&starred.value, encoders));
+    }
+    converted(item, encoders).unwrap_or_else(|| unparse(item))
 }
 
-/// A tuple's items, each as the placeholder `$N` of its position and its value unwrapped from a JSON type: `Jsonb(v)`
-/// and `None if v is None else Jsonb(v)` are `v`.
-fn positions(items: &[Expr]) -> Vec<(String, String)> {
-    let json = |item: &Expr| {
-        (item.as_call_expr())
-            .filter(|call| ["Json", "Jsonb"].iter().any(|json| is_name(&call.func, json)))
-            .and_then(|call| call.arguments.args.first())
-            .map(unparse)
-    };
-    let unwrapped = |item: &Expr| match item {
-        Expr::If(choice)
-            if choice.body.is_none_literal_expr()
-                && json(&choice.orelse).is_some_and(|value| unparse(&choice.test) == format!("{value} is None")) =>
+fn converted(item: &Expr, encoders: &BTreeSet<String>) -> Option<String> {
+    match item {
+        Expr::Call(call)
+            if call.arguments.keywords.is_empty()
+                && (["Json", "Jsonb"].iter().any(|name| is_name(&call.func, name))
+                    || encoders.contains(&unparse(&call.func)))
+                && let [value] = call.arguments.args.as_ref() =>
         {
-            json(&choice.orelse).unwrap_or_default()
+            Some(value_bound(value, encoders))
         }
-        _ => json(item).unwrap_or_else(|| unparse(item)),
-    };
-    (items.iter().enumerate())
-        .map(|(i, item)| (format!("${}", i + 1), unwrapped(item)))
-        .collect()
+        Expr::If(choice) if choice.body.is_none_literal_expr() => {
+            let value = converted(&choice.orelse, encoders)?;
+            (unparse(&choice.test) == format!("{value} is None")).then_some(value)
+        }
+        Expr::ListComp(list)
+            if let [each] = list.generators.as_slice()
+                && each.ifs.is_empty()
+                && !each.is_async
+                && converted(&list.elt, encoders).is_some_and(|value| value == unparse(&each.target)) =>
+        {
+            Some(unparse(&each.iter))
+        }
+        _ => None,
+    }
 }
 
 /// A query's statement runs exactly the SQL sqlc wrote, given the names it binds its parameters under in sqlc's order.

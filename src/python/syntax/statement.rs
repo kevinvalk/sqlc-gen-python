@@ -81,6 +81,15 @@ pub fn assign(name: impl AsRef<str>, value: impl Into<ast::Expr>) -> ast::Stmt {
     assign_to(target(name), value)
 }
 
+pub fn add_assign(name: impl AsRef<str>, value: impl Into<ast::Expr>) -> ast::Stmt {
+    node!(ast::StmtAugAssign {
+        target: Box::new(target(name)),
+        op: ast::Operator::Add,
+        value: Box::new(value.into()),
+    })
+    .into()
+}
+
 /// For a target that is not a bare name, such as `cur.row_factory = None`.
 pub fn assign_to(target: ast::Expr, value: impl Into<ast::Expr>) -> ast::Stmt {
     node!(ast::StmtAssign {

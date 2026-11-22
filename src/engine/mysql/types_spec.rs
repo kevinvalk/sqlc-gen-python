@@ -78,21 +78,32 @@ fn every_mapped_type_has_a_column_the_runtime_proof_reads() {
     let boolean = |column: &&plugin::Column| scalar_type(column) == Some(Type::BOOL_FROM_INT);
     assert!(probed.iter().any(|c| c.data_type() == "tinyint" && boolean(c)));
     assert!(probed.iter().any(|c| c.data_type() == "tinyint" && !boolean(c)));
+    let set = probed.iter().find(|c| c.name == "c_set").unwrap();
+    let labels = request
+        .catalog
+        .as_ref()
+        .unwrap()
+        .user_schemas()
+        .flat_map(|schema| &schema.enums)
+        .find(|labels| labels.name == set.data_type())
+        .unwrap();
+    assert!(is_set(set, &labels.vals).unwrap());
 }
 
 #[test]
 fn a_set_is_told_from_an_enum_by_its_length() {
     let labels = ["one".to_string(), "two".into(), "three".into()];
-    assert!(enum_problem(&column("t_cset", 13), &labels).is_some());
-    assert!(enum_problem(&column("t_cenum", 5), &labels).is_none());
+    assert!(is_set(&column("t_cset", 13), &labels).unwrap());
+    assert!(!is_set(&column("t_cenum", 5), &labels).unwrap());
 }
 
 #[test]
 fn a_set_is_measured_in_bytes_and_one_member_is_ambiguous() {
     let labels = ["é".to_string(), "ü".into()];
     // Each label is two bytes, so a SET's length is 2 + 1 + 2
-    assert!(enum_problem(&column("t_cset", 5), &labels).is_some());
-    assert!(enum_problem(&column("t_cenum", 2), &labels).is_none());
-    let error = enum_problem(&column("t_one", 1), &["a".to_string()]).unwrap();
+    assert!(is_set(&column("t_cset", 5), &labels).unwrap());
+    assert!(!is_set(&column("t_cenum", 2), &labels).unwrap());
+    assert!(is_set(&column("t_missing", -1), &labels).is_err());
+    let error = is_set(&column("t_one", 1), &["a".to_string()]).unwrap_err();
     assert!(error.contains("one member"), "{error}");
 }

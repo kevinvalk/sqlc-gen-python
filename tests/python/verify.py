@@ -140,6 +140,14 @@ class Mutant:
 
 
 MUTANTS = {
+    "decoder expects a file for a TEXT column": Mutant(
+        GATE,
+        'cannot be assigned to parameter "fp"',
+        "models.py",
+        'json.loads(typing.cast("str", row[4]))',
+        'json.load(typing.cast("str", row[4]))',
+        case="ledger_sqlite3",
+    ),
     "enum value left as str": Mutant(
         RUNTIME,
         ".status: str 'draft' is not <enum 'InvoiceStatus'>",
@@ -243,13 +251,15 @@ MUTANTS = {
         "triple_quotes=row[0], backslash=row[1]",
         "triple_quotes=row[1], backslash=row[0]",
     ),
-    # The sweep holds a model to the row it seeded, read by position.
+    # We plant this in the async package so the seed's positional check catches it. In the sync
+    # package a query can find the swapped values first when its result is compared with direct SQL.
     "columns of a model swapped": Mutant(
         SWEEP,
         "is not the row read by position",
         "models.py",
         "id=row[0],\n            customer_id=row[1],",
         "id=row[1],\n            customer_id=row[0],",
+        case="invoicing_sqlalchemy_async",
     ),
     # The drivers return money as text, and only the type-truth probe reads it.
     "money as Decimal": Mutant(
@@ -334,8 +344,8 @@ MUTANTS = {
         RUNTIME,
         "A value is required for bind parameter 'invoice_id'",
         "line_items.py",
-        "    if params:\n        connection.execute(_CREATE_LINE_ITEMS, params)",
-        "    connection.execute(_CREATE_LINE_ITEMS, params)",
+        "    if not params:\n        return 0\n",
+        "",
     ),
     # psycopg returns an enum array as its text, which only the enum parses.
     "enum array text left unparsed": Mutant(

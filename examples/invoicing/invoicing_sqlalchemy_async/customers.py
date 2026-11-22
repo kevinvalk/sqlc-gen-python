@@ -49,22 +49,21 @@ async def create_customer(
     | tuple[object, ...]
     | float
     | None = None,
-) -> models.Customer:
-    return models.Customer.from_row(
-        (
-            await connection.execute(
-                _CREATE_CUSTOMER,
-                {
-                    "name": name,
-                    "email": email,
-                    "tags": tags,
-                    "preferred_method": preferred_method,
-                    "accepted_methods": accepted_methods,
-                    "metadata": metadata,
-                },
-            )
-        ).one()
-    )
+) -> models.Customer | None:
+    row = (
+        await connection.execute(
+            _CREATE_CUSTOMER,
+            {
+                "name": name,
+                "email": email,
+                "tags": tags,
+                "preferred_method": preferred_method,
+                "accepted_methods": accepted_methods,
+                "metadata": metadata,
+            },
+        )
+    ).one_or_none()
+    return None if row is None else models.Customer.from_row(row)
 
 
 _GET_CUSTOMER: Final = sqlalchemy.text(
@@ -344,3 +343,111 @@ async def stream_list_preferred_methods(
             None if row[0] is None else models.BillingPaymentMethod(row[0])
             async for row in cur
         )
+
+
+_COUNT_CUSTOMERS_BY_METADATA: Final = sqlalchemy.text(
+    "SELECT count(*) FROM customers WHERE metadata = ANY(:documents\\:\\:jsonb[])"
+).bindparams(
+    sqlalchemy.bindparam(
+        "documents",
+        type_=postgresql.ARRAY(postgresql.JSONB(none_as_null=True), dimensions=1),
+    )
+)
+
+
+async def count_customers_by_metadata(
+    connection: AsyncConnection,
+    *,
+    documents: list[Mapping[str, object] | list[Any] | tuple[object, ...] | float]
+    | None = None,
+) -> int:
+    value: int = (
+        await connection.execute(_COUNT_CUSTOMERS_BY_METADATA, {"documents": documents})
+    ).scalar_one()
+    return value
+
+
+_LIST_CUSTOMER_REFERRALS: Final = sqlalchemy.text("""SELECT name, email\\:\\:text AS email, (metadata->>'referral')\\:\\:text AS referral,
+       (lag(name) OVER (ORDER BY name))\\:\\:text AS previous_name
+FROM customers ORDER BY name""")
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListCustomerReferralsRow:
+    name: str
+    email: str | None
+    referral: str | None
+    previous_name: str | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListCustomerReferralsRow":
+        return cls(name=row[0], email=row[1], referral=row[2], previous_name=row[3])
+
+
+async def list_customer_referrals(
+    connection: AsyncConnection,
+) -> list[ListCustomerReferralsRow]:
+    return [
+        ListCustomerReferralsRow.from_row(row)
+        for row in await connection.execute(_LIST_CUSTOMER_REFERRALS)
+    ]
+
+
+@contextlib.asynccontextmanager
+async def stream_list_customer_referrals(
+    connection: AsyncConnection,
+) -> AsyncGenerator[AsyncIterator[ListCustomerReferralsRow], None]:
+    async with connection.stream(_LIST_CUSTOMER_REFERRALS) as cur:
+        yield (ListCustomerReferralsRow.from_row(row) async for row in cur)
+
+
+_LIST_LAST_EMAILS_BY_NAME: Final = sqlalchemy.text("""SELECT name, max(email)\\:\\:text AS last_email,
+       array_agg(email ORDER BY id)\\:\\:text[] AS emails,
+       CAST(array_agg(preferred_method ORDER BY id) AS billing.payment_method[]) AS methods
+FROM customers GROUP BY name ORDER BY name""").columns(
+    sqlalchemy.column("name"),
+    sqlalchemy.column("last_email"),
+    sqlalchemy.column("emails"),
+    sqlalchemy.column(
+        "methods", postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod))
+    ),
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ListLastEmailsByNameRow:
+    name: str
+    last_email: str | None
+    emails: list[str | None] | None
+    methods: list[models.BillingPaymentMethod | None] | None
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "ListLastEmailsByNameRow":
+        return cls(
+            name=row[0],
+            last_email=row[1],
+            emails=row[2],
+            methods=None
+            if row[3] is None
+            else [
+                None if _v1 is None else models.BillingPaymentMethod(_v1)
+                for _v1 in row[3]
+            ],
+        )
+
+
+async def list_last_emails_by_name(
+    connection: AsyncConnection,
+) -> list[ListLastEmailsByNameRow]:
+    return [
+        ListLastEmailsByNameRow.from_row(row)
+        for row in await connection.execute(_LIST_LAST_EMAILS_BY_NAME)
+    ]
+
+
+@contextlib.asynccontextmanager
+async def stream_list_last_emails_by_name(
+    connection: AsyncConnection,
+) -> AsyncGenerator[AsyncIterator[ListLastEmailsByNameRow], None]:
+    async with connection.stream(_LIST_LAST_EMAILS_BY_NAME) as cur:
+        yield (ListLastEmailsByNameRow.from_row(row) async for row in cur)

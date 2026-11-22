@@ -43,7 +43,7 @@ pub(super) fn function_follows_sqlc(
         parameters,
         &spellings,
         Repeats::Numbered,
-        (Binding::Parameter, records),
+        (Binding::Parameter { asynchronous }, records),
         problems,
     );
     if words(&docstring(function.body.first())) != words(&query.comments.join("\n")) {

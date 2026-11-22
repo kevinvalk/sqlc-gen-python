@@ -3,6 +3,7 @@
 #   sqlc v1.31.1
 import contextlib
 import dataclasses
+import json
 from collections.abc import AsyncGenerator, AsyncIterator, Iterable, Sequence
 from typing import Any, Final
 
@@ -20,16 +21,19 @@ async def open_account(
     *,
     name: str,
     opened_on: str,
-    settings: str | None = None,
-) -> models.Account:
-    return models.Account.from_row(
-        (
-            await connection.execute(
-                _OPEN_ACCOUNT,
-                {"name": name, "opened_on": opened_on, "settings": settings},
-            )
-        ).one()
-    )
+    settings: object | None = None,
+) -> models.Account | None:
+    row = (
+        await connection.execute(
+            _OPEN_ACCOUNT,
+            {
+                "name": name,
+                "opened_on": opened_on,
+                "settings": None if settings is None else json.dumps(settings),
+            },
+        )
+    ).one_or_none()
+    return None if row is None else models.Account.from_row(row)
 
 
 _GET_ACCOUNT: Final = sqlalchemy.text(
@@ -205,9 +209,14 @@ async def book_many(connection: AsyncConnection, rows: Iterable[BookManyParams])
         {"account_id": r.account_id, "amount_cents": r.amount_cents, "memo": r.memo}
         for r in rows
     ]
-    if params:
+    if not params:
+        return 0
+    if connection.dialect.supports_sane_multi_rowcount:
         return (await connection.execute(_BOOK_MANY, params)).rowcount
-    return 0
+    count = 0
+    for row in params:
+        count += (await connection.execute(_BOOK_MANY, row)).rowcount
+    return count
 
 
 _BOOK_RETURNING_ID: Final = sqlalchemy.text("""INSERT INTO entries (account_id, amount_cents, memo) VALUES (:account_id, :amount_cents, :memo)
@@ -220,13 +229,13 @@ async def book_returning_id(
     account_id: int,
     amount_cents: int,
     memo: str | None = None,
-) -> int:
-    value: int = (
+) -> int | None:
+    value: int | None = (
         await connection.execute(
             _BOOK_RETURNING_ID,
             {"account_id": account_id, "amount_cents": amount_cents, "memo": memo},
         )
-    ).scalar_one()
+    ).scalar_one_or_none()
     return value
 
 
