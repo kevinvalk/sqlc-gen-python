@@ -8,14 +8,14 @@ use crate::api::models::{Enum, Field};
 use crate::api::queries::{Command, CopyInto, Query, Shape};
 use crate::engine::Piece;
 use crate::python::vocabulary::{
-    ANY, ASYNC_ITERATOR, CONNECTION, CONNECTION_TYPE, COPY, CUR, CURSOR, INT, LEN, MODELS, MULTIPLE_ROWS_ERROR,
-    NO_ROW_ERROR, PROTOCOL, R, RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPE_CHECKING, TYPED, TYPED_CURSOR,
-    VALUE, VALUES,
+    ANY, ASYNC_ITERATOR, BASE_EXCEPTION, CONNECTION, CONNECTION_TYPE, COPY, CUR, CURSOR, INT, LEN, MODELS,
+    MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, PROTOCOL, R, RESULT, ROW, ROWS, SELF, SEQUENCE, STR, Symbol, TYPE_CHECKING,
+    TYPED, TYPED_CURSOR, VALUE, VALUES,
 };
 use crate::python::{
     Each, Expression, Function, Scope, ann_assign, assign, class, each, ellipsis, expression, for_, generator_of,
-    if_else, int, keyword, list, list_of, match_, name, none, parameter, pattern, raise, receiver, return_, starred,
-    stmts, string, true_, tuple, with, yield_,
+    if_else, int, keyword, list, list_of, match_, name, none, on_error, parameter, pattern, raise, receiver, return_,
+    starred, stmts, string, true_, tuple, with, yield_,
 };
 
 #[cfg(test)]
@@ -228,12 +228,14 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt
         // A MySQL driver counts what `executemany` wrote, but returns `None` for no rows
         (Command::CopyFrom, _) if driver.execute_counts => vec![return_(body.execute_many([]).or(int(0)))],
         (Command::CopyFrom, _) => stmts![body.counted(body.execute_many([])), return_(CUR.attr("rowcount"))],
-        // The cursor is the result, so it stays open
+        // The cursor is the result, so it stays open. Unless the statement fails, when nobody is left to close it: a
+        // cancelled coroutine too, which is why we catch more than an `Exception`.
         (Command::ExecResult, _) => {
             return stmts![
                 assign(CUR, (body.flavor.cursor)()),
-                crate::python::on_error(
+                on_error(
                     stmts![body.plain_rows(), body.counted(body.execute())],
+                    BASE_EXCEPTION,
                     expression(CUR.attr("close").call([]).awaited(asynchronous)),
                 ),
                 return_(CUR),

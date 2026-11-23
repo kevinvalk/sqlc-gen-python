@@ -70,7 +70,8 @@ pub(crate) fn expression_problem(
     }
 }
 
-/// A type override can name a declared type. sqlc also writes type names for guesses and for a synthetic LIMIT parameter.
+/// A type override can name a declared type. sqlc also writes type names for guesses and for a synthetic LIMIT
+/// parameter.
 pub(crate) fn allows_type_override(
     engine: Engine,
     column: &plugin::Column,

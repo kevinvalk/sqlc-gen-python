@@ -77,11 +77,11 @@ pub fn raise(error: impl Into<ast::Expr>) -> ast::Stmt {
     .into()
 }
 
-/// Release a resource if its setup fails, including when an async caller cancels the operation.
-pub fn on_error(body: Vec<ast::Stmt>, cleanup: ast::Stmt) -> ast::Stmt {
+/// `try: body`, and `except error: cleanup` before it raises again.
+pub fn on_error(body: Vec<ast::Stmt>, error: impl Into<ast::Expr>, cleanup: ast::Stmt) -> ast::Stmt {
     let reraise = node!(ast::StmtRaise { exc: None, cause: None });
     let handler = node!(ast::ExceptHandlerExceptHandler {
-        type_: Some(Box::new(super::name("BaseException"))),
+        type_: Some(Box::new(error.into())),
         name: None,
         body: vec![cleanup, reraise.into()].into(),
     });

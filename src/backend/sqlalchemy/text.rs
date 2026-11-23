@@ -16,7 +16,9 @@ use crate::problem::Problem;
 #[path = "text_spec.rs"]
 mod spec;
 
-/// SQLAlchemy expands a `sqlc.slice`'s bind into its items in parentheses of its own, so it replaces sqlc's: `IN :ids`
+/// SQLAlchemy expands a `sqlc.slice`'s bind into its items in parentheses of its own, so it replaces sqlc's: `IN :ids`.
+/// Where only those parentheses kept the bind apart from what `text()` reads as part of it, as in
+/// `IN(sqlc.slice(ids))`, a space does.
 pub fn text(sql: &Sql) -> String {
     let mut text = String::new();
     let mut slice = false;
@@ -27,6 +29,9 @@ pub fn text(sql: &Sql) -> String {
                     true => part.strip_prefix(')').unwrap_or(part),
                     false => part,
                 };
+                if slice && part.starts_with(is_word) {
+                    text.push(' ');
+                }
                 text += &part.replace(':', r"\:");
                 slice = false;
             }
@@ -34,6 +39,9 @@ pub fn text(sql: &Sql) -> String {
             Piece::Slice { name, .. } => {
                 slice = true;
                 text.pop();
+                if text.ends_with(|c| matches!(c, ':' | '\\') || is_word(c)) {
+                    text.push(' ');
+                }
                 text += &format!(":{name}");
             }
         }

@@ -86,4 +86,10 @@ fn a_slice_takes_the_place_of_the_parentheses_sqlc_wrote_around_it() {
     assert_eq!(text(&slice), r"SELECT 1 WHERE id IN :ids AND x\:\:int = 1");
     let error = check(&sql("( ", ")")).unwrap_err();
     assert!(error.to_string().contains("directly inside them"), "{error}");
+
+    // `text()` reads no bind right after a word, nor one that a word follows
+    let Sql(mut pieces) = slice;
+    pieces[0] = Piece::Text("SELECT 1 WHERE id IN(".into());
+    pieces[2] = Piece::Text(")AND x = 1".into());
+    assert_eq!(text(&Sql(pieces)), "SELECT 1 WHERE id IN :ids AND x = 1");
 }

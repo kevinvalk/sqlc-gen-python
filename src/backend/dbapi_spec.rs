@@ -349,6 +349,26 @@ fn a_copy_quotes_every_name_as_postgresql_stores_it() {
 }
 
 #[test]
+fn a_stream_whose_name_postgresql_would_cut_names_its_cursor_by_a_hash_of_it() {
+    let scalar = Shape::Scalar(field("id", Type::INT).ty);
+    let many = query(Command::Many(scalar.clone()), Vec::new());
+    let cursor = |stream: &str| {
+        let body = python::unparse_stmts(&Backend::Psycopg.stream(&many, (stream, &scalar), false));
+        body.split('"').nth(1).unwrap().to_string()
+    };
+    assert_eq!(cursor("stream_get"), "stream_get");
+    let long = format!(
+        "stream_{}",
+        "list_invoices_for_customer_ordered_by_creation_date_descending"
+    );
+    let (paid, unpaid) = (cursor(&format!("{long}_paid")), cursor(&format!("{long}_unpaid")));
+    assert!(
+        paid.len() == 63 && unpaid.len() == 63 && paid != unpaid,
+        "{paid} {unpaid}"
+    );
+}
+
+#[test]
 fn a_stream_reads_each_row_from_the_connection_as_it_is_iterated() {
     let scalar = crate::api::queries::Shape::Scalar(field("n", Type::INT).ty);
     let many = query(Command::Many(scalar.clone()), vec![field("id", Type::INT)]);

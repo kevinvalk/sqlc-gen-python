@@ -93,6 +93,165 @@ fn row_parameters(words: &[String]) -> Vec<(i32, String)> {
     parameters
 }
 
+const COMPARISONS: &[&str] = &["=", "<>", "!=", "<", "<=", ">", ">="];
+
+/// What ends the operand of a comparison, besides another comparison and what closes or divides its parentheses.
+const BOUNDS: &[&str] = &[
+    "and",
+    "between",
+    "by",
+    "else",
+    "end",
+    "except",
+    "fetch",
+    "for",
+    "from",
+    "group",
+    "having",
+    "ilike",
+    "in",
+    "intersect",
+    "is",
+    "like",
+    "limit",
+    "not",
+    "offset",
+    "on",
+    "or",
+    "order",
+    "returning",
+    "select",
+    "set",
+    "then",
+    "union",
+    "when",
+    "where",
+    "window",
+];
+
+fn bounds(word: &str) -> bool {
+    COMPARISONS.contains(&word) || is(word, BOUNDS)
+}
+
+/// The operand that `words` end with.
+fn operand_before(words: &[String]) -> &[String] {
+    let mut depth = 0usize;
+    let start = (0..words.len()).rev().find(|&at| match words[at].as_str() {
+        ")" | "]" => {
+            depth += 1;
+            false
+        }
+        "(" | "[" if depth > 0 => {
+            depth -= 1;
+            false
+        }
+        "(" | "[" | "," | ";" => true,
+        word => depth == 0 && bounds(word),
+    });
+    &words[start.map_or(0, |at| at + 1)..]
+}
+
+/// The operand that `words` start with.
+fn operand_after(words: &[String]) -> &[String] {
+    let mut depth = 0usize;
+    let end = (0..words.len()).find(|&at| match words[at].as_str() {
+        "(" | "[" => {
+            depth += 1;
+            false
+        }
+        ")" | "]" if depth > 0 => {
+            depth -= 1;
+            false
+        }
+        ")" | "]" | "," | ";" => true,
+        word => depth == 0 && bounds(word),
+    });
+    &words[..end.unwrap_or(words.len())]
+}
+
+/// The bracket that `words[at]` stands directly inside, if it does.
+fn bracket(words: &[String], at: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    (0..at).rev().find_map(|open| match words[open].as_str() {
+        ")" | "]" => {
+            depth += 1;
+            None
+        }
+        "(" | "[" if depth > 0 => {
+            depth -= 1;
+            None
+        }
+        "[" => Some(Some(open)),
+        "(" => Some(None),
+        _ => None,
+    })?
+}
+
+/// Whether `operand` ends with a subscript: the element of an array, where `ARRAY[...]` makes one.
+fn subscripts(operand: &[String]) -> bool {
+    operand.last().is_some_and(|close| close == "]")
+        && bracket(operand, operand.len() - 1).is_some_and(|open| !(open > 0 && is(&operand[open - 1], &["array"])))
+}
+
+/// Whether each parenthesis and bracket that `words` close is one they opened, and none is left open.
+fn balanced(words: &[String]) -> bool {
+    let mut depth = 0i32;
+    words.iter().all(|word| {
+        depth += match word.as_str() {
+            "(" | "[" => 1,
+            ")" | "]" => -1,
+            _ => 0,
+        };
+        depth >= 0
+    }) && depth == 0
+}
+
+/// `operand` without the parentheses around the whole of it.
+fn bare(mut operand: &[String]) -> &[String] {
+    while let [open, inner @ .., close] = operand
+        && open == "("
+        && close == ")"
+        && balanced(inner)
+    {
+        operand = inner;
+    }
+    operand
+}
+
+/// The type the whole of `operand` is cast to, if it is: `x::type` or `CAST(x AS type)`, without the type's modifiers.
+fn cast_type(operand: &[String]) -> Option<String> {
+    let ty = match bare(operand) {
+        [cast, open, inner @ .., close] if is(cast, &["cast"]) && open == "(" && close == ")" => {
+            &inner[inner.iter().rposition(|word| is(word, &["as"]))? + 1..]
+        }
+        operand => &operand[operand.windows(2).rposition(|pair| pair[0] == ":" && pair[1] == ":")? + 2..],
+    };
+    let name: Vec<&str> = (ty.iter().map(String::as_str))
+        .take_while(|word| !matches!(*word, "(" | "["))
+        .collect();
+    let names = |word: &&str| *word == "." || Engine::PostgreSql.is_identifier(word);
+    (!name.is_empty() && name.iter().all(names)).then(|| name.join(" ").replace(" . ", ".").to_ascii_lowercase())
+}
+
+/// Where the whole of `operand` is the call of a function, whether its result has the type of what it is given, as
+/// only then sqlc's type by a column in there is the result's: `max(temp_lo)`, or `lower(name)` of text (of a range it
+/// is the range's bound).
+fn call_keeps_type(operand: &[String], ty: &str) -> Option<bool> {
+    const KEEPS_TYPE: &[&str] = &["abs", "coalesce", "greatest", "least", "max", "min", "nullif"];
+    const KEEPS_TEXT: &[&str] = &["btrim", "initcap", "lower", "ltrim", "rtrim", "trim", "upper"];
+    let [name, open, arguments @ .., close] = bare(operand) else {
+        return None;
+    };
+    if open != "(" || close != ")" || !balanced(arguments) || is(name, &["cast"]) {
+        return None;
+    }
+    let is_text = matches!(ty, "text" | "varchar" | "bpchar" | "char" | "citext" | "name");
+    let keeps = is(name, KEEPS_TYPE) || (is_text && is(name, KEEPS_TEXT));
+    // What a call among its arguments returns is of another type again
+    let plain = !arguments.iter().any(|word| word == "(");
+    Engine::PostgreSql.is_identifier(name).then_some(keeps && plain)
+}
+
 /// sqlc can give a placeholder the type of a column on the other side of an operator. We keep its binding
 /// number and ask for a cast where that column's type cannot establish the operand's type.
 fn check_operands(words: &[String], parameters: &[plugin::Parameter]) -> Result<()> {
@@ -121,57 +280,59 @@ fn check_operands(words: &[String], parameters: &[plugin::Parameter]) -> Result<
         let previous = before.last().map_or("", String::as_str);
         let next = after.first().map_or("", String::as_str);
         let ty = Engine::PostgreSql.type_name(&column.data_type());
-        let comparison = |op: &str| matches!(op, "=" | "<>" | "!=" | "<" | "<=" | ">" | ">=");
-        let cast = match (before, after) {
-            ([.., a, b, name, op], _) if a == ":" && b == ":" && comparison(op) => Some(name),
-            (_, [op, _, a, b, name, ..]) if comparison(op) && a == ":" && b == ":" => Some(name),
-            ([.., close, op], _) if close == ")" && comparison(op) => {
-                let mut depth = 0;
-                before[..before.len() - 1]
-                    .iter()
-                    .rposition(|t| {
-                        if t == ")" {
-                            depth += 1;
-                        }
-                        if t == "(" {
-                            depth -= 1;
-                        }
-                        depth == 0
-                    })
-                    .and_then(|at| match (&before[..at], &before[at + 1..before.len() - 2]) {
-                        ([.., cast], [.., keyword, name])
-                            if cast.eq_ignore_ascii_case("cast") && keyword.eq_ignore_ascii_case("as") =>
-                        {
-                            Some(name)
-                        }
-                        _ => None,
-                    })
-            }
-            _ => None,
+        let comparison = |op: &str| COMPARISONS.contains(&op);
+        let is_json = matches!(ty.as_str(), "json" | "jsonb");
+        // What the parameter is held against: sqlc types it by the first column in there
+        let other = match (before, after) {
+            ([compared @ .., op], _) if comparison(op) || is(op, &["like", "ilike"]) => operand_before(compared),
+            ([compared @ .., r#in, open], _) if open == "(" && is(r#in, &["in"]) => operand_before(compared),
+            (_, [op, compared @ ..]) if comparison(op) => operand_after(compared),
+            _ => &[],
         };
+        let quantifies = |words: &[String]| matches!(words, [quantifier, open, ..] if open == "(" && is(quantifier, &["any", "all", "some"]));
+        let inside = bracket(words, at);
+        let is_time = matches!(ty.as_str(), "date" | "timestamp" | "timestamptz" | "time" | "timetz");
+        let adds = |operand: &[String]| operand.iter().any(|word| matches!(word.as_str(), "+" | "-"));
         // PostgreSQL can subtract two dates or timestamps. A later comparison can also coerce a parameter
         // whose type PostgreSQL already inferred at its first use.
-        let reason = if previous == "[" && next == "]" && column.is_array {
+        let reason = if column.is_array && inside.is_some_and(|open| open > 0 && is(&words[open - 1], &["array"])) {
+            "an ARRAY[...] takes the elements of the array"
+        } else if column.is_array && inside.is_some() {
             "an array subscript takes an integer"
-        } else if matches!(previous, "?" | "?|" | "?&" | "->" | "->>" | "#>" | "#>>")
-            && matches!(ty.as_str(), "json" | "jsonb")
-        {
+        } else if is_json && matches!(previous, "?" | "?|" | "?&" | "->" | "->>" | "#>" | "#>>") {
             "a JSON lookup takes a key, index or path"
+        } else if is_json && matches!(previous, "-" | "#-" | "@?" | "@@") {
+            "this JSON operator takes a key, a path or a jsonpath"
         } else if words[..at].contains(token) {
             continue;
+        } else if !column.is_array && before.len() >= 2 && quantifies(&before[before.len() - 2..]) {
+            "ANY, ALL and SOME take an array"
+        } else if column.is_array && matches!(after, [op, quantified @ ..] if comparison(op) && quantifies(quantified))
+        {
+            "ANY, ALL and SOME compare it with each element of the array"
+        } else if column.is_array && subscripts(other) {
+            "the other operand is one element of the array"
+        } else if is_json && other.iter().any(|word| matches!(word.as_str(), "->>" | "#>>")) {
+            "the ->> and #>> operators give text"
         } else if previous == "-" && ty == "timetz" {
             "subtracting from a time with time zone takes an interval"
-        } else if (previous == "+" || next == "+")
-            && matches!(ty.as_str(), "date" | "timestamp" | "timestamptz" | "time" | "timetz")
-        {
+        } else if is_time && (previous == "+" || next == "+") {
             "date and time addition needs a different operand type"
-        } else if cast.is_some_and(|cast| Engine::PostgreSql.type_name(&cast.to_ascii_lowercase()) != ty) {
+        } else if is_time && adds(other) {
+            "date and time arithmetic gives another type"
+        } else if cast_type(other).is_some_and(|cast| Engine::PostgreSql.type_name(&cast) != ty) {
             "the comparison casts the column to another type"
+        } else if column.table.is_some() && call_keeps_type(other, &ty) == Some(false) {
+            "the other operand is a function's result"
         } else {
             continue;
         };
+        let typed = match column.is_array {
+            true => format!("{ty}[]"),
+            false => ty,
+        };
         bail!(Problem::new(
-            format!("parameter {token} was typed by its column as {ty}, but {reason}"),
+            format!("parameter {token} was typed by its column as {typed}, but {reason}"),
             "explicitly cast the parameter at its use"
         ));
     }

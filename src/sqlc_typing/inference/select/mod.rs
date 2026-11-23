@@ -191,14 +191,24 @@ pub(super) fn result_items(
     }
 
     // We can still read a RETURNING or SELECT list when a derived relation was too complex to follow.
-    let mut result = items(&tokens, tables, &aggregates, |schema, table, field| {
-        catalog
-            .table(schema, table)?
-            .columns
-            .iter()
-            .find(|c| c.name == field)
-            .map(|c| c.not_null)
-    })?;
+    let required = |schema: &str, table: &str, field: &str| {
+        let columns = &catalog.table(schema, table)?.columns;
+        columns.iter().find(|c| c.name == field).map(|c| c.not_null)
+    };
+    let mut result = items(&tokens, tables, &aggregates, required)?;
+    // Nothing read what each cast holds then, and sqlc reports every cast NOT NULL
+    for tokens in branches(&tokens) {
+        let Some(branch) = Branch::read(&tokens, &aggregates) else {
+            continue;
+        };
+        let proven = |column: &[Leveled]| {
+            let (ctes, sources) = branch.sources.as_ref()?;
+            column_required(column, ctes, sources, &required)
+        };
+        for (item, expression) in result.iter_mut().zip(branch.expressions()) {
+            item.nullable |= casts_unproven(expression, proven);
+        }
+    }
     if branches(&tokens).len() > 1 {
         for item in &mut result {
             item.problem = Some(projection::UNION);
@@ -207,12 +217,24 @@ pub(super) fn result_items(
     Some(result)
 }
 
+/// How a statement groups its rows, which decides what may be NULL though sqlc reports NOT NULL.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Grouping {
+    None,
+    /// By its keys, so that each aggregate has a row at least.
+    Keys,
+    /// Into the one row of an aggregate nothing groups, where SQLite and MySQL allow a column beside it: of no rows
+    /// that column is NULL.
+    Whole,
+    /// By several sets of its keys, where a key is NULL in the rows of each set that leaves it out.
+    Sets,
+}
+
 struct Branch<'a, 't> {
     projection: &'a [Leveled<'t>],
     tail: &'a [Leveled<'t>],
     sources: Option<(Vec<String>, Vec<Source>)>,
-    grouped: bool,
-    bare: bool,
+    grouping: Grouping,
 }
 
 impl<'a, 't> Branch<'a, 't> {
@@ -223,13 +245,17 @@ impl<'a, 't> Branch<'a, 't> {
         let grouped = grouped(tokens);
         let empty_aggregate =
             !grouped && aggregates.engine != Engine::PostgreSql && aggregates_rows(tokens, projection, aggregates);
-        let bare = empty_aggregate || (!grouped && rolled(tokens));
+        let grouping = match (rolled(tokens), grouped, empty_aggregate) {
+            (true, _, _) => Grouping::Sets,
+            (_, true, _) => Grouping::Keys,
+            (_, _, true) => Grouping::Whole,
+            _ => Grouping::None,
+        };
         Some(Self {
             projection,
             tail,
-            grouped,
-            bare,
-            sources: sources_of(tokens, tail, empty_aggregate),
+            grouping,
+            sources: sources_of(tokens, tail, empty_aggregate, aggregates.engine),
         })
     }
 
@@ -246,9 +272,10 @@ impl<'a, 't> Branch<'a, 't> {
     ) -> Item {
         let outer = match &self.sources {
             Some((_, sources)) => outer(tokens, table, sources),
+            // A `FROM` we could not read may leave any of its tables without a row
             None => column(tokens).is_some(),
         };
-        let mut item = item(tokens, self.grouped, self.bare, aggregates, &required);
+        let mut item = item(tokens, self.grouping, aggregates, &required);
         item.nullable |= outer || cast_input(tokens).and_then(required) == Some(false);
         item
     }
@@ -268,6 +295,7 @@ fn items(
     let mut read: Option<Vec<Item>> = None;
     for tokens in branches(tokens) {
         let branch = Branch::read(&tokens, aggregates)?;
+        // An empty item is a list cut short, as SQLite and MySQL allow a column named as a clause (`offset`)
         if branch.expressions().count() != tables.len() || branch.expressions().any(<[_]>::is_empty) {
             return None;
         }
@@ -369,7 +397,9 @@ fn present(tokens: &[String], aggregates: &Aggregates) -> Vec<String> {
     let [branch] = branches.as_slice() else {
         return Vec::new();
     };
-    let Some((ctes, sources)) = Branch::read(branch, aggregates).and_then(|branch| branch.sources) else {
+    // In the rows of a grouping set that leaves a table's keys out, each of its columns is NULL
+    let read = Branch::read(branch, aggregates).filter(|branch| branch.grouping != Grouping::Sets);
+    let Some((ctes, sources)) = read.and_then(|branch| branch.sources) else {
         return Vec::new();
     };
     // A name proves nothing when a CTE or an alias spells it (`WITH a AS (...)`, `LEFT JOIN c AS b`), or when an outer
@@ -391,8 +421,9 @@ fn present(tokens: &[String], aggregates: &Aggregates) -> Vec<String> {
 /// `RIGHT` or `FULL` join of several tables, for a subquery's rows, and on SQLite and MySQL for what a `LEFT` join
 /// brings once a `JOIN` follows.
 ///
-/// Its sources are the one its qualifier names. Without a qualifier they are those of its table or, when no source
-/// names that table, those that name none (the subqueries), as sqlc reports a subquery's column as its own table's.
+/// Its sources are the one its qualifier names, and any at all when none spells the qualifier. Without a qualifier
+/// they are those of its table or, when no source names that table, those that name none (the subqueries), as sqlc
+/// reports a subquery's column as its own table's.
 /// Anything but a bare column stays as sqlc reports it: to sqlc a `coalesce` of the column is the column, and rightly
 /// NOT NULL.
 fn outer(item: &[Leveled], table: &str, sources: &[Source]) -> bool {
@@ -406,7 +437,13 @@ fn outer(item: &[Leveled], table: &str, sources: &[Source]) -> bool {
                 Some(_) => spells(&s.alias, &source),
                 None => spells(&s.table, &source),
             };
-            sources.iter().filter(exposed).collect()
+            let exposed: Vec<&Source> = sources.iter().filter(exposed).collect();
+            // A qualifier that no source spells is one of a `FROM` we did not read as it is written, so any join of
+            // it may be an outer one
+            if exposed.is_empty() {
+                return true;
+            }
+            exposed
         }
         [_] if !table.is_empty() => {
             // Tables of one name in two schemas are told apart by the schema sqlc reports, where the statement names it
@@ -435,7 +472,12 @@ fn outer(item: &[Leveled], table: &str, sources: &[Source]) -> bool {
 /// a `DELETE`'s `USING` names. No sources where it reads none, as a `SELECT` without a `FROM`. `None` where we do not
 /// read them ([`sources`]), or where a column may stand beside an ungrouped aggregate and the statement aggregates no
 /// rows into a row of NULLs.
-fn sources_of(branch: &[Leveled], tail: &[Leveled], empty_aggregate: bool) -> Option<(Vec<String>, Vec<Source>)> {
+fn sources_of(
+    branch: &[Leveled],
+    tail: &[Leveled],
+    empty_aggregate: bool,
+    engine: Engine,
+) -> Option<(Vec<String>, Vec<Source>)> {
     const TARGET_ENDS: &[&str] = &[
         "(",
         "set",
@@ -487,7 +529,7 @@ fn sources_of(branch: &[Leveled], tail: &[Leveled], empty_aggregate: bool) -> Op
     let sources = [target, read]
         .into_iter()
         .filter(|clause| !clause.is_empty())
-        .map(sources)
+        .map(|clause| sources(clause, engine))
         .collect::<Option<Vec<_>>>()?;
     Some((ctes, sources.concat()))
 }
@@ -575,13 +617,26 @@ fn list(tokens: &[Leveled]) -> Option<Range<usize>> {
         let end = top(&tokens[start..], &[";"]).map_or(tokens.len(), |end| start + end);
         return Some(start..end);
     }
+    // What may stand between `SELECT` and its list, MySQL's modifiers among them
+    const MODIFIERS: &[&str] = &[
+        "all",
+        "distinct",
+        "distinctrow",
+        "high_priority",
+        "sql_big_result",
+        "sql_buffer_result",
+        "sql_calc_found_rows",
+        "sql_no_cache",
+        "sql_small_result",
+        "straight_join",
+    ];
     let mut start = at + 1;
-    if tokens.get(start).is_some_and(|&(_, t)| is(t, &["distinct", "all"])) {
+    while tokens.get(start).is_some_and(|&(_, t)| is(t, MODIFIERS)) {
         start += 1;
-        // `DISTINCT ON (...)`
-        if tokens.get(start).is_some_and(|&(_, t)| is(t, &["on"])) {
-            start += top(&tokens[start..], &[")"])? + 1;
-        }
+    }
+    // `DISTINCT ON (...)`
+    if start > at + 1 && tokens.get(start).is_some_and(|&(_, t)| is(t, &["on"])) {
+        start += top(&tokens[start..], &[")"])? + 1;
     }
     let end = top(&tokens[start..], ENDS).map_or(tokens.len(), |end| start + end);
     Some(start..end)
@@ -890,10 +945,12 @@ fn aggregated(tokens: &[Leveled], aggregates: &Aggregates) -> bool {
         .any(|found| found.aggregate)
 }
 
-/// Whether `statement` aggregates its rows: its result `list` calls an aggregate, or a `HAVING` filters the one group
-/// they then are.
+/// Whether `statement` aggregates its rows: its result `list` calls an aggregate, a `HAVING` filters the one group
+/// they then are, or an aggregate orders them, as MariaDB and SQLite allow (`ORDER BY count(*)`).
 fn aggregates_rows(statement: &[Leveled], list: &[Leveled], aggregates: &Aggregates) -> bool {
-    aggregated(list, aggregates) || top(statement, &["having"]).is_some()
+    aggregated(list, aggregates)
+        || top(statement, &["having"]).is_some()
+        || top(statement, &["order"]).is_some_and(|at| aggregated(&statement[at..], aggregates))
 }
 
 /// Whether what follows a call's arguments makes it a window function (`OVER (...)` or `OVER window`, after any
@@ -945,24 +1002,28 @@ fn defaults(arguments: &[Leveled]) -> bool {
     uncast(cast).is_empty()
 }
 
-/// With `bare`, a column can be NULL even outside
-/// an aggregate, as happens beside an ungrouped aggregate of no rows or for a key its grouping set leaves out.
 fn item(
     tokens: &[Leveled],
-    grouped: bool,
-    bare: bool,
+    grouping: Grouping,
     aggregates: &Aggregates,
     required: impl Fn(&[Leveled]) -> Option<bool>,
 ) -> Item {
     let found = found(tokens, aggregates, |name, args| {
-        grouped && group_value(name, args, &required)
+        grouping == Grouping::Keys && group_value(name, args, &required)
     });
     let count = match parenthesised(tokens) {
         Some((inner, after)) if is_alias(after) => selects(inner, aggregates).is_some_and(|(call, _)| call == "count"),
         _ => call(tokens).is_some_and(|(call, _)| call == "count"),
     };
     let null = |found: &Found| found.nullable && !found.guarded;
-    let column = bare && !found.iter().any(|found| found.aggregate) && !is_defaulted(tokens);
+    let is_aggregate = |name: &str| is(name, aggregates.nullable) || is(name, aggregates.never_null);
+    let column = match grouping {
+        // Beside the aggregate a column is NULL of no rows, where an aggregate says so itself
+        Grouping::Whole => !found.iter().any(|found| found.aggregate),
+        // Whatever names a key is NULL where a set leaves the key out, which only an aggregate alone does not
+        Grouping::Sets => !call(uncast_item(tokens)).is_some_and(|(name, windowed)| !windowed && is_aggregate(&name)),
+        Grouping::None | Grouping::Keys => false,
+    } && !is_defaulted(tokens);
 
     let mut alone = tokens;
     while let Some((inner, after)) = parenthesised(alone)
@@ -975,14 +1036,78 @@ fn item(
         alone => call(alone).is_some_and(|(call, _)| ["coalesce", "nullif"].contains(&call.as_str())),
     };
     let integer = matches!(alone, [(_, number), after @ ..] if number.parse::<i32>().is_ok() && is_alias(after));
+    // sqlc types these by their form: on SQLite `x & 6` as the `bool` a comparison is, where 4 would read `True`, and
+    // on MySQL a binary literal as text and `||` as a `bool`, though the server's `sql_mode` may make it concatenate
+    let problem = match aggregates.engine {
+        Engine::Sqlite if is_bitwise(alone) => Some((
+            "is an integer of bits, which sqlc types as a bool",
+            "add a cast, as CAST(<expr> AS INTEGER)",
+        )),
+        Engine::MySql if is_binary_literal(alone) => Some((
+            "is a binary literal, which sqlc types as text",
+            "add a cast, as CAST(<expr> AS BINARY)",
+        )),
+        Engine::MySql if concatenates(alone) => Some((
+            "uses ||, which MySQL reads as OR or as a concatenation by the server's sql_mode",
+            "write OR, or CONCAT() in a cast",
+        )),
+        _ => None,
+    };
     Item {
         count,
-        problem: None,
+        problem,
         integer,
         required_elements: aggregates.engine == Engine::PostgreSql && required_elements(tokens, required),
         nullable: column || is_null(tokens) || json_lookup(uncast_item(tokens)) || found.iter().any(null),
         operand_typed,
     }
+}
+
+/// Whether `tokens` are an integer of bits: a `&`, `|`, `<<` or `>>` at their top level, and nothing there that binds
+/// weaker and so makes it an operand (a comparison, `AND`, `IN`, a `CASE`'s own words). SQLite's and MySQL's tokens
+/// are single characters, so `||` is two of them and concatenates, and `<=` compares.
+fn is_bitwise(tokens: &[Leveled]) -> bool {
+    const WEAKER: &[&str] = &[
+        "and", "between", "case", "else", "end", "glob", "in", "is", "isnull", "like", "match", "not", "notnull", "or",
+        "regexp", "then", "when",
+    ];
+    let depth = tokens.first().map_or(0, |&(d, _)| d);
+    let top: Vec<&str> = (tokens.iter()).filter(|&&(d, _)| d == depth).map(|&(_, t)| t).collect();
+    let mut bitwise = false;
+    let mut at = 0;
+    while at < top.len() {
+        match (top[at], top.get(at + 1).copied().unwrap_or_default()) {
+            ("<<" | ">>", _) | ("<", "<") | (">", ">") => (bitwise, at) = (true, at + 1),
+            ("||", _) | ("|", "|") => at += 1,
+            ("&" | "|", _) => bitwise = true,
+            ("<" | ">" | "=" | "!" | "<=" | ">=" | "<>" | "!=" | "==", _) => return false,
+            (word, _) if is(word, WEAKER) => return false,
+            _ => {}
+        }
+        at += 1;
+    }
+    bitwise
+}
+
+/// Whether `tokens` are one of MySQL's binary literals with at most an alias, which a driver returns as `bytes`:
+/// `0x41`, `0b01`, `X'41'`, `b'01'` or `_binary 'a'`.
+fn is_binary_literal(tokens: &[Leveled]) -> bool {
+    let radix = |token: &str| ["0x", "0X", "0b", "0B"].iter().any(|prefix| token.starts_with(prefix));
+    match tokens {
+        [(_, number), alias @ ..] if radix(number) => is_alias(alias),
+        [(_, introducer), (_, string), alias @ ..] if is(introducer, &["x", "b", "_binary"]) => {
+            string.starts_with('\'') && is_alias(alias)
+        }
+        _ => false,
+    }
+}
+
+/// Whether `tokens` hold a `||` at their top level, as two `|` of MySQL's lexer.
+fn concatenates(tokens: &[Leveled]) -> bool {
+    let depth = tokens.first().map_or(0, |&(d, _)| d);
+    tokens
+        .windows(2)
+        .any(|pair| pair[0] == (depth, "|") && pair[1] == (depth, "|"))
 }
 
 /// Whether `tokens` are a `coalesce` that ends in a default ([`defaults`]), with at most an alias, cast and in
@@ -1007,6 +1132,19 @@ fn uncast_item<'b, 't>(mut tokens: &'b [Leveled<'t>]) -> &'b [Leveled<'t>] {
             _ => return tokens,
         };
     }
+}
+
+/// Whether `tokens` cast what this reader cannot prove has a value, where sqlc reports every cast NOT NULL: anything
+/// but a NOT NULL column, a literal, a count, or a `coalesce` that ends in a default.
+fn casts_unproven(tokens: &[Leveled], required: impl Fn(&[Leveled]) -> Option<bool>) -> bool {
+    cast_input(tokens).is_some_and(|input| {
+        let literal =
+            |value: &str| value.starts_with(|c: char| c == '\'' || c.is_ascii_digit()) || is(value, &["true", "false"]);
+        let valued = matches!(input, [(_, value)] if literal(value))
+            || call(input).is_some_and(|(name, _)| name == "count")
+            || is_defaulted(tokens);
+        !valued && required(input) != Some(true)
+    })
 }
 
 /// A cast preserves a NULL column on each engine even though sqlc marks the cast NOT NULL.
@@ -1053,8 +1191,8 @@ fn after_case<'b, 't>(tokens: &'b [Leveled<'t>]) -> Option<&'b [Leveled<'t>]> {
         .map(|end| &tokens[end + 1..])
 }
 
-/// Whether the `CASE` that `tokens` open with gives a literal of one kind in each branch, an `ELSE` among them: a string
-/// in each, or `TRUE` or `FALSE` in each. sqlc's type of its `ELSE` is then the `CASE`'s, as PostgreSQL resolves
+/// Whether the `CASE` that `tokens` open with gives a literal of one kind in each branch, an `ELSE` among them: a
+/// string in each, or `TRUE` or `FALSE` in each. sqlc's type of its `ELSE` is then the `CASE`'s, as PostgreSQL resolves
 /// literals of no type to `text`, and `TRUE` and `FALSE` are `bool` (on SQLite and MySQL sqlc's type of those is a
 /// guess we refuse anyway).
 fn is_literal_case(tokens: &[Leveled]) -> bool {
@@ -1137,11 +1275,11 @@ struct Source {
 ///
 /// We return `None` when an alias hides the tables of a parenthesized join, or a nested join starts before the
 /// outer join's `ON` (`a LEFT JOIN b JOIN c ON ... ON ...`).
-fn sources(from: &[Leveled]) -> Option<Vec<Source>> {
-    joined_sources(from, 0)
+fn sources(from: &[Leveled], engine: Engine) -> Option<Vec<Source>> {
+    joined_sources(from, engine, 0)
 }
 
-fn joined_sources(from: &[Leveled], nesting: usize) -> Option<Vec<Source>> {
+fn joined_sources(from: &[Leveled], engine: Engine, nesting: usize) -> Option<Vec<Source>> {
     if nesting >= 48 {
         return None;
     }
@@ -1166,7 +1304,7 @@ fn joined_sources(from: &[Leveled], nesting: usize) -> Option<Vec<Source>> {
                         if leading_alias(rest).is_some() {
                             return None;
                         }
-                        let mut group = joined_sources(&lowered(inner), nesting + 1)?;
+                        let mut group = joined_sources(&lowered(inner), engine, nesting + 1)?;
                         for source in &mut group {
                             source.outer |= outer;
                         }
@@ -1179,6 +1317,11 @@ fn joined_sources(from: &[Leveled], nesting: usize) -> Option<Vec<Source>> {
                     let (name, schema, rest) = name(source)?;
                     match parenthesised(rest) {
                         // A function called for its rows is no table
+                        Some((_, [(_, with), (_, ordinality), rest @ ..]))
+                            if is(with, &["with"]) && is(ordinality, &["ordinality"]) =>
+                        {
+                            (None, None, rest)
+                        }
                         Some((_, rest)) => (None, None, rest),
                         None => (Some(name), schema, rest),
                     }
@@ -1203,10 +1346,15 @@ fn joined_sources(from: &[Leveled], nesting: usize) -> Option<Vec<Source>> {
             continue;
         }
         if token == "," {
-            (joined, next) = (sources.len(), Some((at + 1, false)));
+            // PostgreSQL and MySQL join before they read a comma, so a `RIGHT` join after one reaches back to it and no
+            // further. To SQLite a comma is a join like any other: `a, b RIGHT JOIN c` may leave `a` without a row too.
+            if engine != Engine::Sqlite {
+                joined = sources.len();
+            }
+            next = Some((at + 1, false));
         } else if is(token, &["on", "using"]) {
             awaits_on = false;
-        } else if is(token, &["join", "straight_join"]) {
+        } else if is(token, &["join", "straight_join"]) && !(at > 0 && is(from[at - 1].1, &["for"])) {
             let sides: Vec<&str> = (from[..at].iter().rev())
                 .take_while(|&&(d, t)| d == 0 && is(t, SIDES))
                 .map(|&(_, t)| t)
@@ -1240,7 +1388,9 @@ fn name<'b, 't>(tokens: &'b [Leveled<'t>]) -> Option<(String, Option<String>, &'
     }
 }
 
-/// The alias `tokens` open with, if they do: `AS alias`, or a bare word that is no keyword of a `FROM`.
+/// The alias `tokens` open with, if they do: `AS alias`, or a bare word that is no keyword of a `FROM`. Those are the
+/// words of a join, and what opens a hint or a sample after a table: SQLite's `INDEXED BY` and `NOT INDEXED`, MySQL's
+/// `USE`, `FORCE` and `IGNORE INDEX` and its `PARTITION`, and PostgreSQL's `TABLESAMPLE`.
 fn leading_alias(tokens: &[Leveled]) -> Option<String> {
     const KEYWORDS: &[&str] = &[
         "on",
@@ -1254,6 +1404,13 @@ fn leading_alias(tokens: &[Leveled]) -> Option<String> {
         "right",
         "full",
         "outer",
+        "indexed",
+        "not",
+        "use",
+        "force",
+        "ignore",
+        "partition",
+        "tablesample",
     ];
     let alias = match tokens {
         [(_, r#as), (_, alias), ..] if is(r#as, &["as"]) => alias,

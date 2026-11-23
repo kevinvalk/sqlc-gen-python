@@ -190,6 +190,29 @@ impl Engine {
         }
     }
 
+    /// Whether a driver reads the row count of `sql` before the engine has it. SQLite counts the rows a statement
+    /// writes as it returns them, so the count is 0 until every row of a `RETURNING` is read.
+    pub fn counts_as_it_returns(self, sql: &str) -> bool {
+        match self {
+            Self::Sqlite => Self::after(self.words(sql), &["returning"]).is_some(),
+            // Both count the rows before they return the first.
+            Self::PostgreSql | Self::MySql => false,
+        }
+    }
+
+    /// Whether a result `column` is an expression cast to a type that is none of SQLite's own. SQLite casts to one of
+    /// five affinities, and such a type (`DATETIME`, `DECIMAL`) has the NUMERIC one: the cast makes a number of text
+    /// that starts as one (`'2024-06-07'` is `2024`), which no column of that type holds.
+    pub fn casts_to_number(self, column: &plugin::Column) -> bool {
+        match self {
+            Self::Sqlite => {
+                column.table.is_none() && !column.data_type().is_empty() && self.scalar_type(column).is_none()
+            }
+            // Both cast to the type they name.
+            Self::PostgreSql | Self::MySql => false,
+        }
+    }
+
     /// Whether `sql`, a MySQL statement, binds a parameter after its `ON DUPLICATE KEY UPDATE`.
     pub fn binds_on_duplicate(self, sql: &str) -> bool {
         Self::after(self.code(sql), &["on", "duplicate"]).is_some_and(|words| words.iter().any(|word| word == "?"))
@@ -327,6 +350,23 @@ fn cut(
 
     if from < chars.len() {
         pieces.push(Piece::Text(text(from..chars.len())));
+    }
+
+    // Generated code writes a slice as one placeholder per item, and as a subquery of no rows for an empty list, which
+    // is no item of a list: `IN (SELECT ..., ?)` is a syntax error.
+    let alone = |at: usize| {
+        let opens = |piece: &Piece| matches!(piece, Piece::Text(text) if text.trim_end().ends_with('('));
+        let closes = |piece: &Piece| matches!(piece, Piece::Text(text) if text.trim_start().starts_with(')'));
+        at.checked_sub(1).is_some_and(|before| opens(&pieces[before])) && pieces.get(at + 1).is_some_and(closes)
+    };
+    if let Some(name) = pieces.iter().enumerate().find_map(|(at, piece)| match piece {
+        Piece::Slice { name, .. } if !alone(at) => Some(name),
+        _ => None,
+    }) {
+        bail!(Problem::new(
+            format!("sqlc.slice({name}) shares its parentheses, where an empty list leaves a subquery of no rows"),
+            "write it alone, as IN (sqlc.slice(name)), with anything else in an OR beside it"
+        ));
     }
 
     // Generated code expands a slice by replacing its marker anywhere in the statement, so a string or a comment that

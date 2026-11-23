@@ -42,7 +42,9 @@ pub fn is_identifier(name: &str) -> bool {
     chars.next().is_some_and(starts_identifier) && chars.all(continues_identifier)
 }
 
-/// We need the token positions because PostgreSQL also uses `@` as an operator in expressions such as `@ amount`.
+/// The first `@name` sqlc left as written: a lone `@` right before what starts an identifier, as `@ amount` with a
+/// space is PostgreSQL's operator. A leftover would run as that operator too: `@amount` is the absolute value of a
+/// column `amount`!
 fn adjacent_at_name(sql: &[char], tokens: &[Token]) -> Option<String> {
     let text = |token: &Token| token.text(sql);
     tokens.windows(2).find_map(|pair| {

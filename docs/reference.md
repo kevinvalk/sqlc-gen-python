@@ -35,7 +35,7 @@ Use `sqlc.narg` for an optional filter or partial update. Nullable parameters de
 | SQLite | `CAST(sqlc.narg(name) AS TEXT) IS NULL OR name = sqlc.narg(name)` |
 | MySQL | `sqlc.narg(name) IS NULL OR name = sqlc.narg(name)` |
 
-On PostgreSQL, a cast such as `@paid_at::timestamptz` makes an ordinary parameter required even when its column is nullable. Give a `sqlc.slice` and a scalar distinct names when both filter the same column. The slice takes a list. An async function spells a SQL parameter named `timeout` as `timeout_`.
+On PostgreSQL, a cast such as `@paid_at::timestamptz` makes an ordinary parameter required even when its column is nullable. Give a `sqlc.slice` and a scalar distinct names when both filter the same column. The slice takes a list and stands alone in its parentheses, as `IN (sqlc.slice(ids))`. An async function spells a SQL parameter named `timeout` as `timeout_`.
 
 ## Streaming
 
@@ -75,7 +75,7 @@ PostgreSQL overrides accept database names and unambiguous standard spellings, s
 
 ## Bulk inserts
 
-`:copyfrom` takes rows of `<Query>Params` for a plain `INSERT INTO t (a, b) VALUES (@a, @b)` and returns the number actually written, including when a trigger skips rows. Raw psycopg streams its input into `COPY FROM STDIN` atomically. COPY fires no rules and cannot target a view. An insert with `OVERRIDING USER VALUE` uses ordinary INSERT semantics so the database can generate the identity values.
+`:copyfrom` takes rows of `<Query>Params` for a plain `INSERT INTO t (a, b) VALUES (@a, @b)` and returns the number actually written, including when a trigger skips rows. Raw psycopg streams its input into `COPY FROM STDIN` atomically. COPY fires no rules and cannot target a view. It also stores a value for a `GENERATED ALWAYS` identity column, which the `INSERT` would refuse. An insert with `OVERRIDING USER VALUE` uses ordinary INSERT semantics so the database can generate the identity values.
 
 Other backends use a bulk call when the driver reports a row count. SQLAlchemy with asyncpg counts each insert separately. Batch large inputs and wrap them in a transaction. We timed 10,000 four-column rows in one transaction on Python 3.11 with local Docker databases in November 2026. [How the count was verified](migration-audit.md#what-counted-bulk-inserts-require)
 

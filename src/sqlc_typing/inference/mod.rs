@@ -129,11 +129,7 @@ fn count_type(engine: Engine) -> &'static str {
 }
 
 fn holds_operand_typed(words: &[String], text: &str) -> bool {
-    let is_typed = |word: &str| {
-        ["coalesce", "nullif", "case"]
-            .iter()
-            .any(|typed| word.eq_ignore_ascii_case(typed))
-    };
+    let is_typed = |word: &str| is(word, &["coalesce", "nullif", "case"]);
     match words.is_empty() {
         // MySQL's executable comments leave us without tokens, and what they hold runs, so we look in the text
         true => (text.split(|c: char| !c.is_alphanumeric() && c != '_')).any(is_typed),

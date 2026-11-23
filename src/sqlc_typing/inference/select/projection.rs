@@ -81,24 +81,10 @@ impl Read<'_> {
                 let (body, after) = parenthesised(after)?;
                 relations.insert(name.clone(), None);
                 let body = lowered(body);
-                let fields = if recursive && let Some(anchor) = self.recursive_anchor(&body, &name) {
-                    let mut fields = self.query(anchor, &relations, depth + 1)?;
-                    let items = &anchor[list(anchor)?];
-                    let expressions = items.split(|&(d, t)| d == 0 && t == ",");
-                    if expressions.clone().count() != fields.len() {
-                        return None;
-                    }
-                    for (field, expression) in fields.iter_mut().zip(expressions) {
-                        if matches!(aliased(expression).0, [(_, value)] if is(value, &["null"])) {
-                            field.ty = Some("text".into());
-                            field.item.problem = None;
-                        }
-                        field.item.nullable = true;
-                        field.item.required_elements = false;
-                    }
-                    Some(fields)
-                } else {
-                    self.query(&body, &relations, depth + 1)
+                let anchor = recursive.then(|| self.recursive_anchor(&body, &name)).flatten();
+                let fields = match anchor {
+                    Some(anchor) => self.anchored(anchor, &relations, depth),
+                    None => self.query(&body, &relations, depth + 1),
                 };
                 relations.insert(name, renamed(fields, names).map(Rc::new));
                 match after {
@@ -140,10 +126,12 @@ impl Read<'_> {
                 }
             }
             let sources = branch.sources.as_ref().map(|(_, sources)| sources.as_slice());
+            // A column we cannot place among derived rows, or in a `FROM` we did not read, may be any of theirs
+            let derives = |sources: &[Source]| sources.iter().any(|source| self.derived(source, &local).is_some());
             let lookup = |tokens: &[Leveled]| {
                 self.field(tokens, sources, &local).or_else(|| {
                     let name = unquoted(column(tokens)?.last()?);
-                    sources.is_none().then(|| Field {
+                    sources.is_none_or(derives).then(|| Field {
                         name,
                         item: Item::nullable(true),
                         ..Field::default()
@@ -177,7 +165,7 @@ impl Read<'_> {
                 field.item = Item {
                     nullable: field.item.nullable || facts.nullable,
                     required_elements: field.item.required_elements || facts.required_elements,
-                    problem: field.item.problem,
+                    problem: field.item.problem.or(facts.problem),
                     ..facts
                 };
                 if self.engine == Engine::PostgreSql
@@ -207,6 +195,27 @@ impl Read<'_> {
             }
         }
         output
+    }
+
+    /// The fields of a recursive CTE, read off its nonrecursive term `anchor`, in parentheses as it may be. `None`
+    /// where we cannot read it, as for a `VALUES`.
+    fn anchored(&self, anchor: &[Leveled], relations: &Relations, depth: usize) -> Option<Vec<Field>> {
+        let [anchor] = <[_; 1]>::try_from(branches(anchor)).ok()?;
+        let mut fields = self.query(&anchor, relations, depth + 1)?;
+        let items = &anchor[list(&anchor)?];
+        let expressions = items.split(|&(d, t)| d == 0 && t == ",");
+        if expressions.clone().count() != fields.len() {
+            return None;
+        }
+        for (field, expression) in fields.iter_mut().zip(expressions) {
+            if matches!(aliased(expression).0, [(_, value)] if is(value, &["null"])) {
+                field.ty = Some("text".into());
+                field.item.problem = None;
+            }
+            field.item.nullable = true;
+            field.item.required_elements = false;
+        }
+        Some(fields)
     }
 
     /// PostgreSQL fixes a recursive CTE's types from its nonrecursive term. An untyped NULL in it is
@@ -281,21 +290,17 @@ impl Read<'_> {
                 continue;
             }
             let candidate = match self.derived(source, relations) {
-                Some(fields) => fields
-                    .as_ref()
-                    .and_then(|fs| fs.iter().find(|f| f.name == name))
-                    .cloned()
-                    .or_else(|| {
-                        Some(Field {
-                            name: name.clone(),
-                            item: Item {
-                                nullable: true,
-                                problem: Some(DERIVED),
-                                ..Item::default()
-                            },
-                            ..Field::default()
-                        })
-                    }),
+                Some(Some(fields)) => fields.iter().find(|f| f.name == name).cloned(),
+                // A relation we could not read may well have the column
+                Some(None) => Some(Field {
+                    name: name.clone(),
+                    item: Item {
+                        nullable: true,
+                        problem: Some(DERIVED),
+                        ..Item::default()
+                    },
+                    ..Field::default()
+                }),
                 None => self
                     .table(source)
                     .and_then(|t| t.columns.iter().find(|c| c.name == name))
@@ -320,8 +325,24 @@ impl Read<'_> {
             };
         }
         let recurse = |tokens: &[Leveled]| self.expression(tokens, lookup, depth + 1);
+        let aggregates = aggregates(self.engine);
         if let Some((body, [])) = parenthesised(tokens) {
-            return recurse(body);
+            if !is_statement(body) {
+                return recurse(body);
+            }
+            // A scalar subquery is NULL without a row, which only a count of every row always has
+            let counts =
+                selects(body, &aggregates).is_some_and(|(call, whole)| whole && is(&call, aggregates.never_null));
+            return Field {
+                item: Item::nullable(!counts),
+                ..Field::default()
+            };
+        }
+        // A sign keeps what it stands before
+        if let [(_, "-" | "+"), signed @ ..] = tokens
+            && !signed.is_empty()
+        {
+            return recurse(signed);
         }
         let level = tokens[0].0;
         if is_literal_case(tokens) {
@@ -337,8 +358,11 @@ impl Read<'_> {
             };
         }
         if is(tokens[0].1, &["case"]) && after_case(tokens).is_some_and(|rest| rest.is_empty()) {
+            // With an `ELSE` and a literal in every branch, none of them `NULL`, it always has a value
+            let literal = |value: &&str| value.starts_with('\'') || value.parse::<i32>().is_ok();
+            let valued = case_literals(tokens).is_some_and(|values| values.iter().all(literal));
             return Field {
-                item: Item::nullable(true),
+                item: Item::nullable(!valued),
                 ..Field::default()
             };
         }
@@ -364,7 +388,11 @@ impl Read<'_> {
         }
         if let Some(at) = tokens.iter().position(|&(d, t)| d == level && is(t, &["is"])) {
             let tested = &tokens[at + 1..];
-            if matches!(tested, [(_, t)] | [(_, "not" | "NOT"), (_, t)] if is(t,&["null","true","false","unknown"])) {
+            let truth = match tested {
+                [(_, not), truth @ ..] if is(not, &["not"]) => truth,
+                truth => truth,
+            };
+            if matches!(truth, [(_, truth)] if is(truth, &["null", "true", "false", "unknown"])) {
                 return Field {
                     ty: Some("bool".into()),
                     ..Field::default()
@@ -375,28 +403,39 @@ impl Read<'_> {
             d == level
                 && matches!(
                     t,
-                    "+" | "-" | "*" | "/" | "%" | "||" | "=" | "<>" | "!=" | "<" | ">" | "<=" | ">="
+                    "+" | "-" | "*" | "/" | "%" | "||" | "=" | "<>" | "!=" | "<" | ">" | "<=" | ">=" | "!"
                 )
         }) && at > 0
         {
-            let left = recurse(&tokens[..at]);
-            let right = recurse(&tokens[at + 1..]);
             let op = tokens[at].1;
+            // SQLite's and MySQL's lexers read `>=`, `<>` and `!=` as two tokens
+            let right = match &tokens[at + 1..] {
+                [(_, "=" | ">"), right @ ..] if matches!(op, "<" | ">" | "!") => right,
+                right => right,
+            };
+            let left = recurse(&tokens[..at]);
+            let right = recurse(right);
             let nullable = left.item.nullable
                 || right.item.nullable
                 || (self.engine != Engine::PostgreSql && matches!(op, "/" | "%"));
             return Field {
                 item: Item::nullable(nullable),
-                ty: matches!(op, "=" | "<>" | "!=" | "<" | ">" | "<=" | ">=").then(|| "bool".into()),
+                ty: matches!(op, "=" | "<>" | "!=" | "<" | ">" | "<=" | ">=" | "!").then(|| "bool".into()),
                 ..Field::default()
             };
         }
         if let Some((body, ty)) = cast(tokens) {
             let value = recurse(body);
+            // MySQL casts what reads as no date or time to NULL with a warning, where every other cast of a value is
+            // an error or a value
+            const TIMES: &[&str] = &["date", "datetime", "time", "timestamp", "year"];
+            let is_time = |ty: &str| is(ty.split([' ', '(']).next().unwrap_or_default(), TIMES);
+            let unread = self.engine == Engine::MySql && is_time(&ty) && !value.ty.as_deref().is_some_and(is_time);
             return Field {
                 ty: Some(self.engine.type_name(&ty)),
                 item: Item {
                     problem: None,
+                    nullable: value.item.nullable || unread,
                     ..value.item
                 },
                 ..value
@@ -404,6 +443,14 @@ impl Read<'_> {
         }
         if let Some(field) = lookup(tokens) {
             return field;
+        }
+        // A number is never NULL: `1.5` is one token to PostgreSQL and three to SQLite and MySQL
+        let digits = |token: &str| token.starts_with(|c: char| c.is_ascii_digit());
+        if let [(_, number)] | [(_, number), (_, "."), _] = tokens
+            && digits(number)
+            && (tokens.len() > 1 || number.parse::<i32>().is_err())
+        {
+            return Field::default();
         }
         if let [(_, value)] = tokens {
             let ty = if value.parse::<i32>().is_ok() {
@@ -447,15 +494,28 @@ impl Read<'_> {
                 };
             }
         }
-        // The existing aggregate and CASE rules know which of their rows can supply NULL.
-        let recognized = call(tokens).is_some_and(|(name, _)| is(&name, aggregates(self.engine).nullable))
+        // The existing aggregate and CASE rules know which of their rows can supply NULL. SQLite's `max(a, b)` is no
+        // aggregate but a function of each row, which is NULL when an argument is.
+        let scalar = is(tokens[0].1, aggregates.scalar_of_several)
+            && parenthesised(&tokens[1..]).is_some_and(|(arguments, _)| several(arguments));
+        let aggregate = |(name, _): (String, bool)| is(&name, aggregates.nullable) || is(&name, aggregates.never_null);
+        let recognized = (!scalar && call(tokens).is_some_and(aggregate))
             || (is(tokens[0].1, &["case"]) && case_literals(tokens).is_some())
-            || is(tokens[0].1, &["exists", "array"]);
+            // An `EXISTS (...)`, an `ARRAY[...]` or an `ARRAY(...)` alone: an operator after it may still be NULL
+            || (is(tokens[0].1, &["exists", "array"]) && closes(&tokens[1..]));
         Field {
             item: Item::nullable(!recognized && (depth > 0 || column(tokens).is_none())),
             ..Field::default()
         }
     }
+}
+
+/// Whether `tokens` are one pair of parentheses or brackets and what it holds.
+fn closes(tokens: &[Leveled]) -> bool {
+    let [(depth, "(" | "["), held @ ..] = tokens else {
+        return false;
+    };
+    held.iter().position(|&(d, t)| d == *depth && matches!(t, ")" | "]")) == Some(held.len() - 1)
 }
 
 fn array_rows<'a, 't>(mut tokens: &'a [Leveled<'t>]) -> Option<&'a [Leveled<'t>]> {

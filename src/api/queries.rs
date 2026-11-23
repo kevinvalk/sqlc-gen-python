@@ -373,6 +373,10 @@ fn command(
 ) -> Result<(Command, Vec<Field>)> {
     Ok(match cmd {
         ":exec" => (Command::Exec, Vec::new()),
+        ":execrows" if resolver.engine.counts_as_it_returns(&query.text) => bail!(Problem::new(
+            ":execrows reads the row count before SQLite has counted the rows a RETURNING returns",
+            "leave the RETURNING out, or use :many"
+        )),
         ":execrows" => (Command::ExecRows, Vec::new()),
         ":execresult" => (Command::ExecResult, Vec::new()),
         ":copyfrom" => (Command::CopyFrom, Vec::new()),

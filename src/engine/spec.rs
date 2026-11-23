@@ -66,6 +66,10 @@ fn a_statements_placeholders_must_be_exactly_the_parameters_sqlc_reported() {
     assert!(cut(Engine::Sqlite, "SELECT 1 WHERE id IN (/*SLICE:ids*/?)", &slice).is_ok());
     let unmarked = cut(Engine::Sqlite, "SELECT 1 WHERE id IN (?)", &slice).unwrap_err();
     assert!(unmarked.contains("has no marker /*SLICE:ids*/"), "{unmarked}");
+    // An empty list is a subquery of no rows, which is no item among others
+    let shared = cut(Engine::Sqlite, "SELECT 1 WHERE id IN (/*SLICE:ids*/?, 3)", &slice).unwrap_err();
+    assert!(shared.contains("sqlc.slice(ids) shares its parentheses"), "{shared}");
+    assert!(cut(Engine::Sqlite, "SELECT 1 WHERE id IN ( /*SLICE:ids*/? )", &slice).is_ok());
     // Expanding the slice would rewrite the string too
     let spelt = cut(
         Engine::Sqlite,

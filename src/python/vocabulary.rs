@@ -27,18 +27,21 @@ impl From<Symbol> for ast::Expr {
     }
 }
 
+pub const BASE_EXCEPTION: Symbol = Symbol("BaseException");
 pub const BOOL: Symbol = Symbol("bool");
 pub const BYTES: Symbol = Symbol("bytes");
 pub const CLASSMETHOD: Symbol = Symbol("classmethod");
 pub const DICT: Symbol = Symbol("dict");
 pub const FLOAT: Symbol = Symbol("float");
 pub const INT: Symbol = Symbol("int");
+pub const ISINSTANCE: Symbol = Symbol("isinstance");
 pub const LEN: Symbol = Symbol("len");
 pub const LIST: Symbol = Symbol("list");
 pub const LOOKUP_ERROR: Symbol = Symbol("LookupError");
 pub const OBJECT: Symbol = Symbol("object");
 pub const STR: Symbol = Symbol("str");
 pub const TUPLE: Symbol = Symbol("tuple");
+pub const TYPE_ERROR: Symbol = Symbol("TypeError");
 
 pub const CONTEXTLIB: Symbol = Symbol("contextlib");
 pub const DATACLASSES: Symbol = Symbol("dataclasses");
@@ -196,6 +199,16 @@ pub const FROM_ARRAY: Symbol = Symbol("from_array");
 pub const TEXT: Symbol = Symbol("text");
 pub const LABEL: Symbol = Symbol("label");
 pub const V: Symbol = Symbol("v");
+
+/// What reads an array a driver returned as lists and fails for one of another depth than its column declares, with
+/// its parameters and locals.
+pub const CHECKED_ARRAY: Symbol = Symbol("_checked_array");
+pub const DIMENSIONS: Symbol = Symbol("dimensions");
+/// Whether an element may itself be a list, which is then no deeper array.
+pub const LIST_LEAVES: Symbol = Symbol("list_leaves");
+pub const ITEMS: Symbol = Symbol("items");
+pub const CHILD: Symbol = Symbol("child");
+pub const MESSAGE: Symbol = Symbol("message");
 
 /// The connection's class, for where it is only generic in the library's stubs.
 pub const CONNECTION_TYPE: Symbol = Symbol("_Connection");

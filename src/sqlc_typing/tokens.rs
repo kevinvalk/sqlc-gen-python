@@ -40,7 +40,7 @@ pub(super) fn is_name_at(tokens: &[Leveled], at: usize) -> bool {
 }
 
 /// Where the first of `words` stands at the top level of `tokens` as a keyword: not as a name, and not as the `FROM` of
-/// `IS DISTINCT FROM` or the `GROUP` of `WITHIN GROUP`.
+/// `IS DISTINCT FROM`, the `GROUP` of `WITHIN GROUP`, or what a MySQL index hint is `FOR` (`USE INDEX FOR GROUP BY`).
 pub(super) fn top(tokens: &[Leveled], words: &[&str]) -> Option<usize> {
     let mut before = "";
     (0..tokens.len()).find(|&at| {
@@ -49,7 +49,8 @@ pub(super) fn top(tokens: &[Leveled], words: &[&str]) -> Option<usize> {
             return false;
         }
         let name = is_name_at(tokens, at);
-        let operator = is(before, &["distinct", "within"]) && is(token, &["from", "group"]);
+        let operator = (is(before, &["distinct", "within"]) && is(token, &["from", "group"]))
+            || (is(before, &["for"]) && is(token, &["join", "order", "group"]));
         before = match name {
             true => "",
             false => token,

@@ -21,6 +21,7 @@ import tempfile
 import tomllib
 import types
 from contextlib import AsyncExitStack, asynccontextmanager, contextmanager, nullcontext
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -38,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[4]
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Iterator
+    from contextlib import AbstractContextManager
 
     from sqlalchemy.engine import URL, Engine
 
@@ -52,7 +54,7 @@ def git(repository: Path, *args: str) -> bytes:
 
 def checkout(row: dict[str, str], sources: Path | None) -> Path:
     name, pin = row["repository"], row["revision"]
-    if sources:
+    if sources is not None:
         repository = sources / name
         git(repository, "cat-file", "-e", pin + "^{commit}")
         return repository
@@ -76,33 +78,35 @@ def checkout(row: dict[str, str], sources: Path | None) -> Path:
     return repository
 
 
-def generate(row: dict[str, str], repo: Path, work: Path, sqlc: Path, wasm: Path) -> tuple[Path, str]:
+def generate(row: dict[str, str], repository: Path, work: Path, sqlc: Path, wasm: Path) -> tuple[Path, str]:
     pin = row["revision"]
-    path = Path(row["configuration"])
-    config = yaml.safe_load(git(repo, "show", f"{pin}:{path.as_posix()}"))
+    configuration = Path(row["configuration"])
+    config = yaml.safe_load(git(repository, "show", f"{pin}:{configuration.as_posix()}"))
     original = (config.get("sql") or config["packages"])[int(row["entry"]) - 1]
     engine = row["engine"]
     assert original["engine"] == engine
-    paths = [p.decode() for p in git(repo, "ls-tree", "-rz", "--name-only", pin).split(b"\0") if p.endswith(b".sql")]
+    listed = git(repository, "ls-tree", "-rz", "--name-only", pin).split(b"\0")
+    paths = [path.decode() for path in listed if path.endswith(b".sql")]
     entry: dict[str, object] = {"engine": engine}
     schema = []
     for field in ("schema", "queries"):
         inputs = original[field]
         files = []
-        for ref in [inputs] if isinstance(inputs, str) else inputs:
-            pattern = posixpath.normpath(posixpath.join(path.parent.as_posix(), ref))
-
-            matches = sorted(p for p in paths if fnmatch.fnmatchcase(p, pattern) or p.startswith(pattern + "/"))
-            if not matches:
-                msg = f"No pinned SQL matches {pattern}"
-                raise ValueError(msg)
+        for reference in [inputs] if isinstance(inputs, str) else inputs:
+            pattern = posixpath.normpath(posixpath.join(configuration.parent.as_posix(), reference))
+            matches = sorted(
+                path for path in paths if fnmatch.fnmatchcase(path, pattern) or path.startswith(pattern + "/")
+            )
+            if len(matches) <= 0:
+                message = f"No pinned SQL matches {pattern}"
+                raise ValueError(message)
             files.extend(matches)
         files = list(dict.fromkeys(files))
         entry[field] = files
         for filename in files:
-            dest = work / filename
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            data = git(repo, "show", f"{pin}:{filename}")
+            destination = work / filename
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            data = git(repository, "show", f"{pin}:{filename}")
             if row["scenario"] == "rankings" and filename.endswith("/analytics.sql"):
                 before = b"    tasks_created,\n    rn\nFROM ("
                 assert data.count(before) == 1
@@ -110,7 +114,7 @@ def generate(row: dict[str, str], repo: Path, work: Path, sqlc: Path, wasm: Path
                     before,
                     b"    tasks_created,\n    CAST(rn AS UNSIGNED) AS rn\nFROM (",
                 )
-            dest.write_bytes(data)
+            destination.write_bytes(data)
             if field != "schema" or filename.endswith(".down.sql"):
                 continue
             ddl = data.decode()
@@ -156,18 +160,21 @@ def functions(package: Path) -> dict[str, Callable[..., Any]]:
     namespace = types.ModuleType(name)
     namespace.__path__ = [str(package)]
     sys.modules[name] = namespace
-    result: dict[str, Callable[..., Any]] = {}
-    for p in package.glob("*.py"):
-        if p.name == "models.py":
+    found: dict[str, Callable[..., Any]] = {}
+    for path in package.glob("*.py"):
+        if path.name == "models.py":
             continue
-        module = importlib.import_module(f"{name}.{p.stem}")
-        for fn in vars(module).values():
-            if inspect.isfunction(fn) and fn.__module__ == module.__name__ and not fn.__name__.startswith("_"):
-                if fn.__name__ in result:
-                    msg = f"Ambiguous function {fn.__name__}"
-                    raise ValueError(msg)
-                result[fn.__name__] = fn
-    return result
+        module = importlib.import_module(f"{name}.{path.stem}")
+        for function in vars(module).values():
+            if not inspect.isfunction(function) or function.__module__ != module.__name__:
+                continue
+            if function.__name__.startswith("_"):
+                continue
+            if function.__name__ in found:
+                message = f"Ambiguous function {function.__name__}"
+                raise ValueError(message)
+            found[function.__name__] = function
+    return found
 
 
 class Queries:
@@ -179,8 +186,8 @@ class Queries:
         self.in_transaction = False
 
     def sql(self, statement: str, params: tuple[object, ...] = ()) -> list[tuple[Any, ...]]:
-        with self.reference.begin() as conn:
-            result = conn.exec_driver_sql(statement, params)
+        with self.reference.begin() as connection:
+            result = connection.exec_driver_sql(statement, params)
             return [tuple(row) for row in result] if result.returns_rows else []
 
     @asynccontextmanager
@@ -193,11 +200,11 @@ class Queries:
             self.in_transaction = False
 
     async def call(self, name: str, /, **arguments: Any) -> Any:
-        fn = self.functions[name]
+        function = self.functions[name]
         for field, value in arguments.items():
-            check(value, fn.__annotations__[field], f"{name}.{field}")
-        value = await postgres.aw(fn(self.connection, **arguments))
-        hint = fn.__annotations__["return"]
+            check(value, function.__annotations__[field], f"{name}.{field}")
+        value = await postgres.aw(function(self.connection, **arguments))
+        hint = function.__annotations__["return"]
         check(value, type(None) if hint is None else hint, name)
         if hasattr(value, "rowcount") and hasattr(value, "close"):
             assert value.rowcount >= 0
@@ -247,29 +254,29 @@ async def exercise(row: dict[str, str], url: URL, profile: Path) -> list[str]:
     async with AsyncExitStack() as stack:
         reference = sqlalchemy.create_engine(url.set(drivername=sync[engine]))
         stack.callback(reference.dispose)
-        conn: Any
+        connection: Any
         if backend == "sqlalchemy":
             if mode == "async":
-                db = create_async_engine(url.set(drivername=asynchronous[engine]))
-                stack.push_async_callback(db.dispose)
-                conn = await stack.enter_async_context(db.connect())
+                async_engine = create_async_engine(url.set(drivername=asynchronous[engine]))
+                stack.push_async_callback(async_engine.dispose)
+                connection = await stack.enter_async_context(async_engine.connect())
             else:
-                conn = stack.enter_context(reference.connect())
+                connection = stack.enter_context(reference.connect())
         elif backend == "sqlite3":
             assert url.database is not None
             if mode == "async":
-                conn = await stack.enter_async_context(aiosqlite.connect(url.database))
+                connection = await stack.enter_async_context(aiosqlite.connect(url.database))
             else:
-                conn = sqlite3.connect(url.database)
-                stack.callback(conn.close)
+                connection = sqlite3.connect(url.database)
+                stack.callback(connection.close)
         elif backend == "pymysql":
-            conn = await mysql.connect_async(url) if mode == "async" else mysql.connect(url)
-            stack.callback(conn.close)
+            connection = await mysql.connect_async(url) if mode == "async" else mysql.connect(url)
+            stack.callback(connection.close)
         elif mode == "async":
-            conn = await stack.enter_async_context(await psycopg.AsyncConnection.connect(postgres.conninfo(url)))
+            connection = await stack.enter_async_context(await psycopg.AsyncConnection.connect(postgres.conninfo(url)))
         else:
-            conn = stack.enter_context(psycopg.connect(postgres.conninfo(url)))
-        queries = Queries(conn, reference, profile)
+            connection = stack.enter_context(psycopg.connect(postgres.conninfo(url)))
+        queries = Queries(connection, reference, profile)
         await getattr(scenarios, row["scenario"])(queries)
         return queries.calls
 
@@ -299,27 +306,33 @@ def main() -> None:
     if not args.wasm.is_file() or not args.sqlc.is_file():
         parser.error("build the WASM with cargo wasm and supply a sqlc executable with --sqlc")
     engine = "mysql" if args.server == "mariadb" else args.server
-    with LEDGER.open() as f:
+    with LEDGER.open() as ledger:
         rows = [
-            r
-            for r in csv.DictReader(f, delimiter="\t")
-            if r["engine"] == engine and r["scenario"] and (not args.project or r["repository"] == args.project)
+            row
+            for row in csv.DictReader(ledger, delimiter="\t")
+            if row["engine"] == engine
+            and row["scenario"] != ""
+            and (args.project is None or row["repository"] == args.project)
         ]
-    if not rows:
+    if len(rows) <= 0:
         parser.error("no recorded workload matches that project and server")
-    if args.server == "mariadb":
-        mysql.IMAGE = "mariadb:11.4"
+    servers: dict[str, Callable[[], AbstractContextManager[URL | None]]] = {
+        "sqlite": partial(nullcontext, None),
+        "mysql": mysql.server,
+        "mariadb": partial(mysql.server, "mariadb:11.4"),
+        "postgresql": postgres.server,
+    }
     runtime = mysql if engine == "mysql" else postgres
     WORK.mkdir(parents=True, exist_ok=True)
-    with nullcontext(None) if engine == "sqlite" else runtime.server() as server:
+    with servers[args.server]() as server:
         version = sqlite3.sqlite_version if engine == "sqlite" else runtime.version(server)
         if engine == "mysql" and (("mariadb" in version.lower()) != (args.server == "mariadb")):
             parser.error(f"expected {args.server}, connected to {version}")
         print(f"{args.server} {version}", flush=True)
         for row in rows:
-            repo = checkout(row, args.sources)
+            repository = checkout(row, args.sources)
             with tempfile.TemporaryDirectory(dir=WORK) as temp:
-                profiles, ddl = generate(row, repo, Path(temp), args.sqlc.resolve(), args.wasm.resolve())
+                profiles, ddl = generate(row, repository, Path(temp), args.sqlc.resolve(), args.wasm.resolve())
                 for profile in sorted(profiles.iterdir()):
                     with sqlite_database(ddl) if engine == "sqlite" else runtime.database(server, ddl) as url:
                         calls = asyncio.run(exercise(row, url, profile))

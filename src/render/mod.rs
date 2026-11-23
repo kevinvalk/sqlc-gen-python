@@ -12,88 +12,81 @@ use crate::api::models::Field;
 use crate::config::{Config, Records};
 use crate::plugin;
 use crate::python::vocabulary::{
-    ANY, CLASSMETHOD, CLS, DATACLASSES, FROM_ROW, LOOKUP_ERROR, MODEL_CONFIG, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR,
-    PYDANTIC, ROW, SEQUENCE,
+    ANY, BOOL, CHECKED_ARRAY, CHILD, CLASSMETHOD, CLS, DATACLASSES, DIMENSIONS, FROM_ROW, INT, ISINSTANCE, ITEMS, LIST,
+    LIST_LEAVES, LOOKUP_ERROR, MESSAGE, MODEL_CONFIG, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, OBJECT, PYDANTIC, ROW,
+    SEQUENCE, Symbol, TYPE_ERROR, TYPING, VALUE,
 };
 use crate::python::{
-    self, Expression, Function, Scope, ann_assign, annotate, assign, class, docstring, forward, int, keyword, name,
-    parameter, receiver, return_, string, true_, tuple,
+    self, Expression, Function, Scope, ann_assign, annotate, assign, class, docstring, each, expression, false_, for_,
+    forward, if_, int, keyword, name, parameter, raise, receiver, return_, string, true_, tuple,
 };
 
-/// PostgreSQL leaves rank unenforced. A decoded JSON document can itself be a list, so each subarray must
-/// reach the declared depth even when its neighbor does.
+/// The module's reader of an array, as PostgreSQL holds no array to the dimensions its column declares
+/// (https://www.postgresql.org/docs/current/arrays.html#ARRAYS-DECLARATION). With `list_leaves` an element may itself
+/// be a list, as a JSON document may, so we only check the lists around it.
 fn checked_array() -> ast::Stmt {
-    use crate::python::vocabulary::{BOOL, INT, LIST, OBJECT, TYPING, VALUE};
-    use crate::python::{each, expression, for_, if_, raise};
-    let dimensions = name("dimensions");
-    let list_leaves = name("list_leaves");
-    let items = name("items");
-    let checked = name("_checked_array").call_with(
-        [name("child"), dimensions.clone().subtract(int(1))],
-        [keyword("list_leaves", list_leaves.clone())],
+    let is_list = |value: ast::Expr| ISINSTANCE.call([value, LIST.into()]);
+    let mut list_leaves = parameter(LIST_LEAVES, BOOL);
+    list_leaves.default = Some(Box::new(false_()));
+    let child = CHECKED_ARRAY.call_with(
+        [CHILD.into(), DIMENSIONS.subtract(int(1))],
+        [keyword(LIST_LEAVES, LIST_LEAVES)],
     );
-    let mut flag = parameter("list_leaves", BOOL);
-    flag.default = Some(Box::new(name("False")));
-    let is_list = |value| name("isinstance").call([value, LIST.into()]);
+    let message = "PostgreSQL returned an array with a different number of dimensions than declared";
     Function {
-        parameters: vec![parameter(VALUE, OBJECT), parameter("dimensions", INT)],
-        keyword_only: vec![flag],
+        parameters: vec![parameter(VALUE, OBJECT), parameter(DIMENSIONS, INT)],
+        keyword_only: vec![list_leaves],
         body: vec![
             if_(
                 is_list(VALUE.into()),
                 vec![
                     assign(
-                        "items",
+                        ITEMS,
                         TYPING.attr("cast").call([forward(LIST.index(OBJECT)), VALUE.into()]),
                     ),
                     if_(
-                        dimensions.compare(ast::CmpOp::NotEq, int(1)),
-                        vec![
-                            for_(each("child", items.clone()), vec![expression(checked)]),
-                            return_(items.clone()),
-                        ],
+                        DIMENSIONS.compare(ast::CmpOp::NotEq, int(1)),
+                        vec![for_(each(CHILD, ITEMS), vec![expression(child)]), return_(ITEMS)],
                     ),
                     if_(
-                        list_leaves
-                            .or(items.clone().not_())
-                            .or(is_list(items.clone().index(int(0))).not_()),
-                        vec![return_(items)],
+                        (LIST_LEAVES.or(ITEMS.not_())).or(is_list(ITEMS.index(int(0))).not_()),
+                        vec![return_(ITEMS)],
                     ),
                 ],
             ),
-            assign(
-                "message",
-                string("PostgreSQL returned an array with a different number of dimensions than declared"),
-            ),
-            raise(name("TypeError").call([name("message")])),
+            assign(MESSAGE, string(message)),
+            raise(TYPE_ERROR.call([MESSAGE.into()])),
         ],
-        ..Function::new("_checked_array", LIST.index(ANY))
+        ..Function::new(CHECKED_ARRAY, LIST.index(ANY))
     }
     .into()
+}
+
+/// Whether `body` reads the name `symbol`.
+fn reads(body: &[ast::Stmt], symbol: Symbol) -> bool {
+    struct Reads(Symbol, bool);
+    impl Visitor<'_> for Reads {
+        fn visit_expr(&mut self, expr: &ast::Expr) {
+            self.1 |= expr
+                .as_name_expr()
+                .is_some_and(|name| name.id.as_str() == self.0.as_ref());
+            if !self.1 {
+                ast::visitor::walk_expr(self, expr);
+            }
+        }
+    }
+    let mut reads = Reads(symbol, false);
+    reads.visit_body(body);
+    reads.1
 }
 
 pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File> {
     let header = header(sqlc_version, config);
     let modules = config.modules();
     let file = |name: String, body: &[ast::Stmt]| {
-        struct ReadsArray(bool);
-        impl Visitor<'_> for ReadsArray {
-            fn visit_expr(&mut self, expr: &ast::Expr) {
-                self.0 |= expr.as_name_expr().is_some_and(|n| n.id.as_str() == "_checked_array");
-                if !self.0 {
-                    ast::visitor::walk_expr(self, expr);
-                }
-            }
-        }
-        let mut reads = ReadsArray(false);
-        reads.visit_body(body);
-        let with_array;
-        let body = if reads.0 {
-            with_array = [vec![checked_array()], body.to_vec()].concat();
-            &with_array
-        } else {
-            body
-        };
+        // Only a module that reads an array defines the reader, as an import defines only what is read.
+        let reader = reads(body, CHECKED_ARRAY).then(checked_array);
+        let body = &[reader.as_slice(), body].concat();
         let exempt = match python::trips_s105(body) {
             true => "# ruff: noqa: S105\n",
             false => "",

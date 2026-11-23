@@ -28,6 +28,10 @@ pub fn true_() -> ast::Expr {
     node!(ast::ExprBooleanLiteral { value: true }).into()
 }
 
+pub fn false_() -> ast::Expr {
+    node!(ast::ExprBooleanLiteral { value: false }).into()
+}
+
 pub fn ellipsis() -> ast::Expr {
     node!(ast::ExprEllipsisLiteral {}).into()
 }

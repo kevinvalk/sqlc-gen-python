@@ -25,8 +25,10 @@ pub(crate) fn checked_queries(
             if !query.text.is_ascii() || query.comments.iter().any(|comment| !comment.is_ascii()) {
                 shifted.insert(&query.filename);
                 return Some(Err(anyhow!(
-                    "{}: query \"{}\": sqlc misplaces every SQLite statement after non-ASCII text in its file, so keep the file's SQL and comments ASCII",
-                    query.filename, query.name
+                    "{}: query \"{}\": sqlc misplaces every SQLite statement after non-ASCII text in its file, so keep \
+                     the file's SQL and comments ASCII",
+                    query.filename,
+                    query.name
                 )));
             }
         }

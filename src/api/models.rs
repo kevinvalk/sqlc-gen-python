@@ -8,7 +8,9 @@ use super::names::members;
 use super::resolver::Resolver;
 use crate::plugin;
 use crate::problem::Problem;
-use crate::python::vocabulary::{FROM_ARRAY, LIST, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, Symbol, TYPING, V};
+use crate::python::vocabulary::{
+    CHECKED_ARRAY, FROM_ARRAY, LIST, LIST_LEAVES, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, Symbol, TYPING, V,
+};
 use crate::python::{self, Expression, Scope, Type, each, forward, list_of, name, unless_none};
 
 #[cfg(test)]
@@ -262,9 +264,9 @@ impl FieldType {
         let raw = if self.array_dims > 0 && !self.as_text {
             // A JSON decoder or the application's loader for an unmapped type can return a list for one element.
             let wire = self.element.wire();
-            let options = (matches!(wire, Type::Json(_)) || *wire == Type::OBJECT)
-                .then(|| python::keyword("list_leaves", python::true_()));
-            name("_checked_array").call_with([value.clone(), python::int(self.array_dims)], options)
+            let list_leaves = (matches!(wire, Type::Json(_)) || *wire == Type::OBJECT)
+                .then(|| python::keyword(LIST_LEAVES, python::true_()));
+            CHECKED_ARRAY.call_with([value.clone(), python::int(self.array_dims)], list_leaves)
         } else {
             value.clone()
         };
@@ -296,7 +298,8 @@ impl FieldType {
     }
 }
 
-/// The enum labels we support in PostgreSQL's array text need no quoting. The unquoted word NULL denotes a missing element.
+/// The enum labels we support in PostgreSQL's array text need no quoting. The unquoted word NULL denotes a missing
+/// element.
 pub(crate) fn enum_array(value: ast::Expr, class: ast::Expr, nullable: bool) -> ast::Expr {
     use crate::python::vocabulary::LABEL;
     let labels = value

@@ -838,6 +838,64 @@ fn a_column_is_null_where_every_source_it_may_be_of_may_be_without_a_row() {
 }
 
 #[test]
+fn what_a_mysql_index_hint_is_for_names_no_clause() {
+    // Grouped, each `max` of a NOT NULL column has a row. Of no rows at all it is NULL
+    assert_eq!(nullable("SELECT max(x)::int FROM t GROUP BY k", 1), [false]);
+    for hint in [
+        "USE INDEX FOR GROUP BY (i)",
+        "FORCE INDEX FOR ORDER BY (i)",
+        "IGNORE INDEX FOR JOIN (i)",
+    ] {
+        let sql = format!("SELECT max(x)::int FROM t {hint} WHERE x > 5");
+        assert_eq!(nullable(&sql, 1), [true], "{sql}");
+    }
+}
+
+#[test]
+fn a_comma_is_a_join_like_any_other_to_sqlite_alone() {
+    let sql = "SELECT a.x, b.y, c.z FROM a, b RIGHT JOIN c ON y";
+    let outer = |aggregates: &Aggregates| {
+        let items = items(&leveled(&tokens(sql)), &["a", "b", "c"], aggregates, |_, _, _| {
+            Some(true)
+        })
+        .expect(sql);
+        items.into_iter().map(|item| item.nullable).collect::<Vec<_>>()
+    };
+    // PostgreSQL and MySQL read `a, (b RIGHT JOIN c)`
+    assert_eq!(outer(&AGGREGATES), [false, true, false]);
+    assert_eq!(outer(&SQLITE), [true, true, false]);
+}
+
+#[test]
+fn bits_are_no_bool_unless_something_compares_them() {
+    let bitwise = |sql: &str| {
+        let words = Engine::Sqlite.words(sql);
+        items(&leveled(&words), &[""], &SQLITE, |_, _, _| Some(true)).expect(sql)[0]
+            .problem
+            .is_some()
+    };
+    for sql in [
+        "SELECT x & 6 AS v FROM a",
+        "SELECT (x | 8) FROM a",
+        "SELECT x << 2 FROM a",
+        "SELECT x >> 1 + y FROM a",
+    ] {
+        assert!(bitwise(sql), "{sql}");
+    }
+    for sql in [
+        "SELECT x & 6 > 0 FROM a",
+        "SELECT x & 6 <> 0 AND y FROM a",
+        "SELECT name || 'x' FROM a",
+        "SELECT x <= 2 FROM a",
+        "SELECT CASE WHEN x & 1 THEN 'odd' ELSE 'even' END FROM a",
+        "SELECT CAST(x & 6 AS INTEGER) FROM a",
+        "SELECT x IN (y | 1) FROM a",
+    ] {
+        assert!(!bitwise(sql), "{sql}");
+    }
+}
+
+#[test]
 fn a_bare_column_is_of_the_table_in_the_schema_sqlc_reports() {
     // Two tables of one name are two sources only in two schemas, which sqlc tells apart and so must we
     let sql = "SELECT label FROM a.items AS x LEFT JOIN b.items AS y ON y.id = x.id";
@@ -859,11 +917,16 @@ fn a_qualified_column_is_its_qualifiers_source_and_a_bare_one_its_tables() {
         outer_of("SELECT public.b.v, b.v FROM a x LEFT JOIN b ON z", &["b", "b"]),
         [true, true]
     );
-    // Under an alias, a table's own name is not its source's.
+    // Under an alias, a table's own name is not its source's. A qualifier that spells no source is of a `FROM` we did
+    // not read as it is written (`b INDEXED BY i`, `b USE INDEX (i)`), where any join may be an outer one.
     assert_eq!(
         outer_of("SELECT y.v, b.v FROM a x LEFT JOIN b AS y ON z", &["b", "b"]),
-        [true, false]
+        [true, true]
     );
+    for hint in ["INDEXED BY i", "NOT INDEXED", "USE INDEX (i)", "TABLESAMPLE SYSTEM (1)"] {
+        let sql = format!("SELECT a.v, b.v FROM a LEFT JOIN b {hint} ON z JOIN c ON y");
+        assert_eq!(outer_of(&sql, &["a", "b"]), [false, true], "{sql}");
+    }
     // Without a qualifier, both sources of its table must be without a row.
     assert_eq!(
         outer_of(

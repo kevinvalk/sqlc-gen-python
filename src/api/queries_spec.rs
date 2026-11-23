@@ -510,6 +510,138 @@ fn nullable_expressions_survive_a_cte_a_derived_table_and_an_outer_join() {
     );
 }
 
+/// Whether each column of `sql`'s result may be `None`, where sqlc reports every one of `types` NOT NULL.
+fn optional(engine: &str, sql: &str, types: &[&str]) -> Vec<bool> {
+    let columns = types.iter().enumerate();
+    let resolved = on(
+        engine,
+        plugin::Query {
+            columns: columns.map(|(i, ty)| column(&format!("c{i}"), ty, true)).collect(),
+            ..query(":many", sql)
+        },
+    );
+    let resolved = resolved.unwrap_or_else(|error| panic!("{sql}: {error:#}"));
+    resolved.columns.iter().map(|c| c.ty.optional).collect()
+}
+
+#[test]
+fn an_unqualified_column_is_of_the_one_derived_source_that_has_it() {
+    let sql = "WITH x AS (SELECT id, name FROM authors),
+                    y AS (SELECT id AS author_id, max(bio)::text AS top FROM authors GROUP BY id)
+               SELECT name, top FROM x JOIN y ON y.author_id = x.id";
+    assert_eq!(optional("postgresql", sql, &["text", "text"]), [false, true]);
+    let sql = "SELECT id, name, author_id, bio FROM (SELECT id, name FROM authors) x
+               LEFT JOIN (SELECT id AS author_id, bio FROM authors) y ON y.author_id = x.id";
+    let types = ["pg_catalog.int8", "text", "pg_catalog.int8", "text"];
+    assert_eq!(optional("postgresql", sql, &types), [false, false, true, true]);
+}
+
+#[test]
+fn a_recursive_term_in_parentheses_is_read_and_one_we_cannot_read_widens_what_reads_it() {
+    let chain = "WITH RECURSIVE r AS (
+                   (SELECT id FROM authors ORDER BY id LIMIT 1)
+                   UNION ALL
+                   SELECT (SELECT a.id FROM authors a WHERE a.id > r.id ORDER BY a.id LIMIT 1) FROM r WHERE r.id IS NOT NULL
+                 ) SELECT id FROM r";
+    assert_eq!(optional("postgresql", chain, &["pg_catalog.int8"]), [true]);
+    // sqlc reports every cast NOT NULL, also the one of a nullable column beside a relation we cannot read
+    let values = "WITH RECURSIVE r(n) AS (VALUES (1) UNION ALL SELECT n + 1 FROM r WHERE n < 3)
+                  SELECT (a.bio || 'x')::text FROM r JOIN authors a ON a.id = r.n";
+    assert_eq!(optional("postgresql", values, &["text"]), [true]);
+}
+
+#[test]
+fn a_key_beside_an_aggregate_is_still_null_where_its_grouping_set_leaves_it_out() {
+    let sql = "SELECT (name || ': ' || count(*)::text)::text, count(*) FROM authors GROUP BY ROLLUP (name)";
+    assert_eq!(optional("postgresql", sql, &["text", "pg_catalog.int8"]), [true, false]);
+}
+
+#[test]
+fn what_follows_an_array_or_an_exists_may_still_be_null() {
+    let sql = "SELECT (ARRAY['x'] && string_to_array(bio, ','))::bool, (EXISTS (SELECT 1 FROM authors))::bool,
+                      (SELECT count(*) FROM authors b WHERE b.id > a.id)
+               FROM authors a";
+    let types = ["pg_catalog.bool", "pg_catalog.bool", "pg_catalog.int8"];
+    assert_eq!(optional("postgresql", sql, &types), [true, false, false]);
+}
+
+#[test]
+fn a_literal_in_every_branch_or_a_signed_number_is_never_null() {
+    let sql = "SELECT (CASE WHEN bio IS NULL THEN 0 ELSE 1 END)::int, coalesce(id, -1)::bigint, 1.5::numeric,
+                      (CASE WHEN bio IS NULL THEN 0 END)::int
+               FROM authors";
+    let types = [
+        "pg_catalog.int4",
+        "pg_catalog.int8",
+        "pg_catalog.numeric",
+        "pg_catalog.int4",
+    ];
+    assert_eq!(optional("postgresql", sql, &types), [false, false, false, true]);
+}
+
+#[test]
+fn mysql_and_sqlite_read_a_comparison_of_two_characters_and_what_only_they_make_null() {
+    // Their lexers read `>=` as two tokens
+    let compared = "SELECT 1 >= 0, 1 <> 2, 1 != 2 FROM authors";
+    assert_eq!(optional("mysql", compared, &["bool"; 3]), [false; 3]);
+    // MySQL casts what reads as no date to NULL, where a cast to a number is a number
+    let cast = "SELECT CAST('tomorrow' AS DATE), CAST('12' AS SIGNED) FROM authors";
+    assert_eq!(optional("mysql", cast, &["date", "bigint"]), [true, false]);
+    // MariaDB and SQLite make one row of an aggregate that only orders, and of no rows a column beside it is NULL
+    for (engine, ty) in [("mysql", "bigint"), ("sqlite", "INTEGER")] {
+        let ordered = "SELECT id FROM authors WHERE id > 5 ORDER BY count(*)";
+        assert_eq!(optional(engine, ordered, &[ty]), [true]);
+        assert_eq!(
+            optional(engine, "SELECT id FROM authors WHERE id > 5 ORDER BY id", &[ty]),
+            [false]
+        );
+    }
+    // SQLite's `max` of several arguments is a function of each row, NULL where an argument is
+    let larger = "SELECT CAST(max(1, 2) AS INTEGER), CAST(max(1) AS INTEGER) FROM authors GROUP BY id";
+    assert_eq!(optional("sqlite", larger, &["INTEGER", "INTEGER"]), [true, false]);
+}
+
+#[test]
+fn what_sqlc_types_by_its_form_is_an_error_that_asks_for_a_cast() {
+    let refused = |engine: &str, cmd: &str, sql: &str, ty: &str| {
+        let query = plugin::Query {
+            columns: vec![column("v", ty, true)],
+            ..query(cmd, sql)
+        };
+        format!("{:#}", on(engine, query).unwrap_err())
+    };
+    for sql in ["SELECT id & 6 AS v FROM authors", "SELECT (id << 2) AS v FROM authors"] {
+        assert!(
+            refused("sqlite", ":many", sql, "bool").contains("an integer of bits"),
+            "{sql}"
+        );
+    }
+    for sql in ["SELECT 0x41 AS v FROM authors", "SELECT X'4142' AS v FROM authors"] {
+        assert!(
+            refused("mysql", ":many", sql, "text").contains("a binary literal"),
+            "{sql}"
+        );
+    }
+    let pipes = refused("mysql", ":many", "SELECT name || bio AS v FROM authors", "bool");
+    assert!(pipes.contains("by the server's sql_mode"), "{pipes}");
+    // SQLite casts to an affinity: to one that is no type of its own, a date's text becomes its year
+    let cast = refused(
+        "sqlite",
+        ":many",
+        "SELECT CAST(max(name) AS DATETIME) AS v FROM authors",
+        "datetime",
+    );
+    assert!(cast.contains("makes a number of text that starts as one"), "{cast}");
+}
+
+#[test]
+fn sqlite_counts_the_rows_of_a_returning_only_as_it_returns_them() {
+    let update = "UPDATE authors SET name = 'x' RETURNING id";
+    let error = format!("{:#}", on("sqlite", query(":execrows", update)).unwrap_err());
+    assert!(error.contains("leave the RETURNING out, or use :many"), "{error}");
+    on("postgresql", query(":execrows", update)).unwrap();
+}
+
 #[test]
 fn each_set_operation_arm_must_supply_the_same_type_and_can_supply_nulls() {
     let read = |sql| {

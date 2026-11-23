@@ -117,7 +117,8 @@ impl TryFrom<String> for Callable {
         .any(|local| local.as_ref() == root)
         {
             bail!(
-                "converter \"{path}\": `{root}` is a local of generated code; import the function through another module"
+                "converter \"{path}\": `{root}` is a local of generated code; import the function through another \
+                 module"
             );
         }
         Ok(Self(Annotation::try_from(path)?))

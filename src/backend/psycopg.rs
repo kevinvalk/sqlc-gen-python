@@ -45,7 +45,25 @@ fn cursor(class: &str) -> ast::Expr {
 /// need no transaction, but holds the connection's lock between rows, so one left before its end blocks the connection
 /// until it is garbage, and its stubs type it as an iterator that cannot be closed sooner.
 fn server_cursor(class: &str, name: &str) -> ast::Expr {
-    (PSYCOPG.attr(class)).call_with([CONNECTION.into(), string(name)], [keyword("row_factory", TUPLE_ROW)])
+    let name = cursor_name(name);
+    (PSYCOPG.attr(class)).call_with([CONNECTION.into(), string(&name)], [keyword("row_factory", TUPLE_ROW)])
+}
+
+/// PostgreSQL cuts a name at 63 bytes with a notice, where the names of two streams may become one. So a longer name
+/// is cut here, and ends with a hash of the whole of it.
+fn cursor_name(stream: &str) -> String {
+    const LIMIT: usize = 63; // NAMEDATALEN - 1
+    if stream.len() <= LIMIT {
+        return stream.into();
+    }
+    let hash = (stream.bytes()).fold(0x811c_9dc5_u32, |hash, byte| {
+        (hash ^ u32::from(byte)).wrapping_mul(0x0100_0193)
+    });
+    let end = (0..=LIMIT - 9)
+        .rev()
+        .find(|&end| stream.is_char_boundary(end))
+        .unwrap_or(0);
+    format!("{}_{hash:08x}", &stream[..end])
 }
 
 /// `psycopg.<class>[tuple[Any, ...]]`

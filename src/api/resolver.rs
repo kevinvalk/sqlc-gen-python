@@ -241,6 +241,12 @@ impl<'a> Resolver<'a> {
         let rule = match self.column_override(column) {
             Some(rule) => Some(rule),
             None => match sqlc_typing::allows_type_override(self.engine, column, parameter, what) {
+                Ok(_) if parameter.is_none() && self.engine.casts_to_number(column) => {
+                    let problem = format!(
+                        "{what} is cast to \"{data_type}\", which on SQLite makes a number of text that starts as one"
+                    );
+                    return self.unknown(column, Problem::new(problem, "cast it to TEXT, INTEGER, REAL or BLOB"));
+                }
                 Ok(true) => self.first_override(|rule| {
                     rule.db_type
                         .as_deref()

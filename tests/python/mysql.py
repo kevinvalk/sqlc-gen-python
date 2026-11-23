@@ -31,9 +31,9 @@ PASSWORD = "sqlc"  # noqa: S105 -- a throwaway container's
 
 
 @contextmanager
-def server() -> Iterator[sqlalchemy.URL]:
+def server(image: str = IMAGE) -> Iterator[sqlalchemy.URL]:
     """Yield a server's ``mysql+pymysql`` URL without a database, valid for as long as the context lasts: the one
-    ``ENV`` names when it is set, else a container of ``IMAGE`` that we remove with its volumes afterwards.
+    ``ENV`` names when it is set, else a container of ``image`` that we remove with its volumes afterwards.
     """
     if given := os.environ.get(ENV):
         yield sqlalchemy.make_url(given).set(drivername="mysql+pymysql", database=None)
@@ -41,7 +41,7 @@ def server() -> Iterator[sqlalchemy.URL]:
 
     arguments = [
         f"--env=MYSQL_ROOT_PASSWORD={PASSWORD}",
-        IMAGE,
+        image,
         *["--skip-log-bin", "--innodb-flush-log-at-trx-commit=0"],
     ]
     with container("MySQL", ENV, 3306, arguments) as port:
