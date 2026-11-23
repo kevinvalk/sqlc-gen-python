@@ -265,8 +265,7 @@ async def scenario(api: Any) -> None:  # noqa: PLR0915
     total = (await query.get_invoice(id=invoice_id)).total
     assert str(total) == "18.95"
 
-    # IMPORTANT: The README says a statement on the connection ends a MySQL stream early with only a warning. We pin that,
-    # so a driver that starts to raise or to buffer is seen.
+    # We pin the MySQL stream warning documented in docs/reference.md so we notice if a driver starts to raise or buffer.
     with pytest.warns(UserWarning, match="Previous unbuffered result was left incomplete"):
         read = await _read_with_lookup(
             query.stream_list_line_items(invoice_id=invoice_id),
