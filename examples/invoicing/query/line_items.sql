@@ -13,3 +13,10 @@ SELECT invoice_id, sum(round(quantity * unit_price, 2)) FILTER (WHERE vat_rate <
 FROM line_items
 GROUP BY invoice_id
 ORDER BY invoice_id;
+
+-- name: AddBlankLines :many
+-- One line per position, skipping the positions the invoice already has
+INSERT INTO line_items (invoice_id, position, description, quantity, unit_price, vat_rate)
+SELECT @invoice_id::uuid, unnest(@positions::int[]), '', 1, 0, 0
+ON CONFLICT (invoice_id, position) DO NOTHING
+RETURNING *;

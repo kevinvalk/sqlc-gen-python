@@ -419,6 +419,51 @@ async def set_customer_metadata(
     ).rowcount
 
 
+_MERGE_CUSTOMER_METADATA: Final = (
+    sqlalchemy.text("""UPDATE customers SET
+    metadata = CASE WHEN :metadata\\:\\:jsonb IS NULL THEN metadata ELSE coalesce(metadata, '{}') || :metadata END,
+    email = coalesce(:email\\:\\:text, email)
+WHERE id = :id
+RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, created_at""")
+    .bindparams(
+        sqlalchemy.bindparam("metadata", type_=postgresql.JSONB(none_as_null=True))
+    )
+    .columns(
+        sqlalchemy.column("id"),
+        sqlalchemy.column("name"),
+        sqlalchemy.column("email"),
+        sqlalchemy.column("tags"),
+        sqlalchemy.column("preferred_method"),
+        sqlalchemy.column(
+            "accepted_methods",
+            postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
+        ),
+        sqlalchemy.column("metadata"),
+        sqlalchemy.column("created_at"),
+    )
+)
+
+
+async def merge_customer_metadata(
+    connection: AsyncConnection,
+    *,
+    metadata: Mapping[str, object]
+    | list[Any]
+    | tuple[object, ...]
+    | float
+    | None = None,
+    email: str | None = None,
+    id: UUID,
+) -> models.Customer | None:
+    """A partial update: what is NULL leaves its column as it is, and a document merges into the stored one"""
+    row = (
+        await connection.execute(
+            _MERGE_CUSTOMER_METADATA, {"metadata": metadata, "email": email, "id": id}
+        )
+    ).one_or_none()
+    return None if row is None else models.Customer.from_row(row)
+
+
 _LIST_CUSTOMER_REFERRALS: Final = sqlalchemy.text("""SELECT name, email\\:\\:text AS email, (metadata->>'referral')\\:\\:text AS referral,
        (lag(name) OVER (ORDER BY name))\\:\\:text AS previous_name
 FROM customers ORDER BY name""")

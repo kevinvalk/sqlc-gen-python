@@ -2,10 +2,15 @@ use sqlc_gen_python::plugin;
 
 use crate::support;
 
+/// What the plugin generates for golden case `case`, as the golden test pins what is committed to it.
+fn generated(case: &support::Case) -> Vec<plugin::File> {
+    sqlc_gen_python::generate(&case.request()).unwrap()
+}
+
 /// Golden case `case`'s request and files, with the first `old` of each edit replaced by its `new` in `file`.
 fn plant(case: &str, file: &str, edits: &[(&str, &str)]) -> (plugin::GenerateRequest, Vec<plugin::File>) {
     let case = support::case(case);
-    let mut files = support::generated_files(&case.directory());
+    let mut files = generated(&case);
     let module = files.iter_mut().find(|f| f.name == file).unwrap();
     let mut source = String::from_utf8(module.contents.clone()).unwrap();
     for (old, new) in edits {
@@ -28,7 +33,7 @@ fn planted(case: &str, file: &str, old: &str, new: &str) -> Vec<String> {
 /// What the invariants say of the invoicing case with its files edited.
 fn files_planted(edit: impl FnOnce(&mut Vec<plugin::File>)) -> Vec<String> {
     let case = support::case("invoicing_sqlalchemy");
-    let mut files = support::generated_files(&case.directory());
+    let mut files = generated(&case);
     edit(&mut files);
     support::check_output(&case.request(), &files)
 }

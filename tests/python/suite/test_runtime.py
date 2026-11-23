@@ -314,6 +314,25 @@ async def scenario(api: Any, sql: Callable[..., Awaitable[Any]]) -> None:  # noq
     assert await api.invoices.list_invoices_by_ids(ids=[]) == []
     drafts = await api.invoices.list_invoices_by_status(statuses=[models.InvoiceStatus.DRAFT])
     assert drafts == [first, second, for_bob]
+    # A CTE named after the table it writes reads the table's own columns
+    noted = await api.invoices.set_invoice_notes(notes="call first", id=for_bob.id)
+    assert (noted.number, noted.notes, noted.customer_name) == ("2026-0003", "call first", "Bob")
+    assert (await api.invoices.set_invoice_notes(notes=None, id=for_bob.id)).notes is None
+    # INSERT ... SELECT unnest(...) ON CONFLICT DO NOTHING returns only the rows it wrote
+    added = await api.line_items.add_blank_lines(invoice_id=for_bob.id, positions=[1, 2])
+    assert [line.position for line in added] == [1, 2]
+    added = await api.line_items.add_blank_lines(invoice_id=for_bob.id, positions=[2, 3])
+    assert [line.position for line in added] == [3]
+    gone = "WITH gone AS (DELETE FROM line_items WHERE invoice_id = :id RETURNING 1) SELECT count(*) FROM gone"
+    assert await sql(gone, id=for_bob.id) == 3
+    # A partial update leaves what is None alone, and merges a JSON document into the stored one
+    before = await api.customers.get_customer(id=ada.id)
+    merged = await api.customers.merge_customer_metadata(metadata={"plan": "pro"}, email=None, id=ada.id)
+    assert merged.metadata == {**metadata, "plan": "pro"}
+    assert merged.email == before.email
+    unchanged = await api.customers.merge_customer_metadata(metadata=None, email=None, id=ada.id)
+    assert unchanged.metadata == merged.metadata
+    assert await api.customers.set_customer_metadata(id=ada.id, document=metadata) == 1
     assert await api.invoices.list_invoices_by_status(statuses=[]) == []
     assert await api.invoices.list_invoice_numbers(customer_id=ada.id) == [
         "2026-0001",

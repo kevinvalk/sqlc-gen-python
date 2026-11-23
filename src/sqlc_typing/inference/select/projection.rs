@@ -79,7 +79,11 @@ impl Read<'_> {
                     after = tail;
                 }
                 let (body, after) = parenthesised(after)?;
-                relations.insert(name.clone(), None);
+                // Only a recursive CTE reads itself. In any other, its own name is still the table's:
+                // `WITH accounts AS (INSERT INTO accounts ... RETURNING *)`
+                if recursive {
+                    relations.insert(name.clone(), None);
+                }
                 let body = lowered(body);
                 let anchor = recursive.then(|| self.recursive_anchor(&body, &name)).flatten();
                 let fields = match anchor {

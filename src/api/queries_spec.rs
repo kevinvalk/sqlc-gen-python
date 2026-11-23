@@ -537,6 +537,17 @@ fn an_unqualified_column_is_of_the_one_derived_source_that_has_it() {
 }
 
 #[test]
+fn a_cte_named_as_the_table_it_writes_returns_that_tables_columns() {
+    // As sqlc sends it, with each `*` expanded
+    let sql = "WITH authors AS (INSERT INTO authors (id, name) VALUES (1, 'a') RETURNING id, name, bio)
+               SELECT authors.id, authors.name, authors.bio FROM authors";
+    assert_eq!(
+        optional("postgresql", sql, &["pg_catalog.int8", "text", "text"]),
+        [false, false, true]
+    );
+}
+
+#[test]
 fn a_recursive_term_in_parentheses_is_read_and_one_we_cannot_read_widens_what_reads_it() {
     let chain = "WITH RECURSIVE r AS (
                    (SELECT id FROM authors ORDER BY id LIMIT 1)

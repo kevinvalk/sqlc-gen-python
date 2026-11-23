@@ -138,3 +138,10 @@ SELECT number FROM invoices WHERE customer_id = $1 ORDER BY number;
 
 -- name: VoidInvoicesBatch :batchexec
 UPDATE invoices SET status = 'void' WHERE id = $1 AND status = 'issued';
+
+-- name: SetInvoiceNotes :one
+-- A CTE named after the table it writes, where `invoices` is still the table
+WITH invoices AS (
+    UPDATE invoices SET notes = sqlc.narg(notes) WHERE invoices.id = @id RETURNING *
+)
+SELECT invoices.*, customers.name AS customer_name FROM invoices JOIN customers ON customers.id = invoices.customer_id;

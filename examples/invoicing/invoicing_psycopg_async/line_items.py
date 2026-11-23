@@ -107,3 +107,21 @@ async def stream_sum_lines_below_vat_rate(
     ) as cur:
         await cur.execute(_SUM_LINES_BELOW_VAT_RATE, (vat_rate,))
         yield (SumLinesBelowVatRateRow.from_row(row) async for row in cur)
+
+
+_ADD_BLANK_LINES: Final = """INSERT INTO line_items (invoice_id, position, description, quantity, unit_price, vat_rate)
+SELECT $1::uuid, unnest($2::int[]), '', 1, 0, 0
+ON CONFLICT (invoice_id, position) DO NOTHING
+RETURNING id, invoice_id, position, description, quantity, unit_price, vat_rate"""
+
+
+async def add_blank_lines(
+    connection: psycopg.AsyncConnection[Any],
+    *,
+    invoice_id: UUID,
+    positions: list[int | None] | list[int],
+) -> list[models.LineItem]:
+    """One line per position, skipping the positions the invoice already has"""
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
+        await cur.execute(_ADD_BLANK_LINES, (invoice_id, positions))
+        return [models.LineItem.from_row(row) for row in await cur.fetchall()]

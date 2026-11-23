@@ -846,3 +846,55 @@ async def void_invoices_batch(
 ) -> None:
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.executemany(_VOID_INVOICES_BATCH, [(r.id,) for r in rows])
+
+
+_SET_INVOICE_NOTES: Final = """WITH invoices AS (
+    UPDATE invoices SET notes = $1 WHERE invoices.id = $2 RETURNING id, customer_id, number, status, currency, issued_on, due_on, notes, created_at, paid_at
+)
+SELECT invoices.id, invoices.customer_id, invoices.number, invoices.status, invoices.currency, invoices.issued_on, invoices.due_on, invoices.notes, invoices.created_at, invoices.paid_at, customers.name AS customer_name FROM invoices JOIN customers ON customers.id = invoices.customer_id"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class SetInvoiceNotesRow:
+    id: UUID
+    customer_id: UUID
+    number: str
+    status: models.InvoiceStatus
+    currency: str
+    issued_on: dt.date | None
+    due_on: dt.date | None
+    notes: str | None
+    created_at: dt.datetime
+    paid_at: dt.datetime | None
+    customer_name: str
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any]) -> "SetInvoiceNotesRow":
+        return cls(
+            id=row[0],
+            customer_id=row[1],
+            number=row[2],
+            status=models.InvoiceStatus(row[3]),
+            currency=row[4],
+            issued_on=row[5],
+            due_on=row[6],
+            notes=row[7],
+            created_at=row[8],
+            paid_at=row[9],
+            customer_name=row[10],
+        )
+
+
+async def set_invoice_notes(
+    connection: psycopg.AsyncConnection[Any], *, notes: str | None = None, id: UUID
+) -> SetInvoiceNotesRow | None:
+    """A CTE named after the table it writes, where `invoices` is still the table"""
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
+        await cur.execute(_SET_INVOICE_NOTES, (notes, id))
+        match await cur.fetchmany(2):
+            case [row]:
+                return SetInvoiceNotesRow.from_row(row)
+            case []:
+                return None
+            case _:
+                raise models.MultipleRowsError

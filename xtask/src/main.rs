@@ -21,10 +21,10 @@ commands:
   bless [--allow-regressions] [--mutants]
           rewrite the golden cases whose output changed (each the codegen `out`
           directory of an examples/*/sqlc.yaml) and the endtoend ledger.
-          Refuses when the unit specs, the sweep or the static gate fail, when
-          an endtoend request stops generating (unless --allow-regressions), or
-          when verify fails on what would change (with --mutants also its
-          planted bugs), which also rewrites docs/typemap.md and
+          Refuses when check's lints, the unit specs, the sweep or the static
+          gate fail, when an endtoend request stops generating (unless
+          --allow-regressions), or when verify fails on what would change (with
+          --mutants also its planted bugs), which also rewrites docs/typemap.md and
           tests/python/exercised.tsv to match (needs docker, or
           SQLC_TEST_DATABASE_URL and SQLC_TEST_MYSQL_URL)
   capture [--sqlc-bin PATH] [--check]
@@ -93,11 +93,23 @@ fn usage() -> Result<(), String> {
 /// Everything that must pass before a change is ready for review. Every step runs even after one fails, so one report
 /// shows everything that is wrong.
 fn check(generated: &GenDir) -> Result<(), String> {
-    let failed: Vec<String> = [
+    let failed: Vec<String> = [run(&mut generated.test("--workspace")), generated.gate()]
+        .into_iter()
+        .chain(lints())
+        .filter_map(Result::err)
+        .collect();
+    match failed.is_empty() {
+        true => Ok(()),
+        false => Err(format!("check failed:\n  {}", failed.join("\n  "))),
+    }
+}
+
+/// What `check` holds the code to besides the tests and the gate, which `bless` runs too, so that what it blesses is
+/// ready to commit.
+fn lints() -> [Result<(), String>; 6] {
+    [
         run(&mut cargo("fmt --all --check")),
         run(&mut cargo("clippy --workspace --all-targets -- -D warnings")),
-        run(&mut generated.test("--workspace")),
-        generated.gate(),
         run(&mut uv_python("tests/python/scanner.py")),
         run(uv_python("-m").args(["ruff", "check", "tests/python"])),
         run(uv_python("-m").args(["ruff", "format", "--check", "tests/python"])),
@@ -107,13 +119,6 @@ fn check(generated: &GenDir) -> Result<(), String> {
             "--cache-dir=target/py/mypy",
         ])),
     ]
-    .into_iter()
-    .filter_map(Result::err)
-    .collect();
-    match failed.is_empty() {
-        true => Ok(()),
-        false => Err(format!("check failed:\n  {}", failed.join("\n  "))),
-    }
 }
 
 /// IMPORTANT: Only bless output you have read and verified to be more correct than what it replaces. To keep that
@@ -122,6 +127,10 @@ fn check(generated: &GenDir) -> Result<(), String> {
 /// says that is intended). The static gate cannot see a wrong type that is still well typed, so what changes must also
 /// pass the runtime proof, every layer of which reads a golden case or an endtoend output.
 fn bless(generated: &GenDir, flags: &[&str]) -> Result<(), String> {
+    let failed: Vec<String> = lints().into_iter().filter_map(Result::err).collect();
+    if !failed.is_empty() {
+        return Err(format!("bless refused:\n  {}", failed.join("\n  ")));
+    }
     run(&mut generated.test("--quiet --lib"))?;
 
     generated.export()?;

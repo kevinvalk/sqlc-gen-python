@@ -119,3 +119,24 @@ def stream_sum_lines_below_vat_rate(
         execution_options={"stream_results": True},
     ) as cur:
         yield (SumLinesBelowVatRateRow.from_row(row) for row in cur)
+
+
+_ADD_BLANK_LINES: Final = sqlalchemy.text("""INSERT INTO line_items (invoice_id, position, description, quantity, unit_price, vat_rate)
+SELECT :invoice_id\\:\\:uuid, unnest(:positions\\:\\:int[]), '', 1, 0, 0
+ON CONFLICT (invoice_id, position) DO NOTHING
+RETURNING id, invoice_id, position, description, quantity, unit_price, vat_rate""")
+
+
+def add_blank_lines(
+    connection: sqlalchemy.Connection,
+    *,
+    invoice_id: UUID,
+    positions: list[int | None] | list[int],
+) -> list[models.LineItem]:
+    """One line per position, skipping the positions the invoice already has"""
+    return [
+        models.LineItem.from_row(row)
+        for row in connection.execute(
+            _ADD_BLANK_LINES, {"invoice_id": invoice_id, "positions": positions}
+        )
+    ]

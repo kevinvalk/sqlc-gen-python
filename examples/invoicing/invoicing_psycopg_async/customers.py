@@ -386,6 +386,39 @@ async def set_customer_metadata(
         return cur.rowcount
 
 
+_MERGE_CUSTOMER_METADATA: Final = """UPDATE customers SET
+    metadata = CASE WHEN $1::jsonb IS NULL THEN metadata ELSE coalesce(metadata, '{}') || $1 END,
+    email = coalesce($2::text, email)
+WHERE id = $3
+RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, created_at"""
+
+
+async def merge_customer_metadata(
+    connection: psycopg.AsyncConnection[Any],
+    *,
+    metadata: Mapping[str, object]
+    | list[Any]
+    | tuple[object, ...]
+    | float
+    | None = None,
+    email: str | None = None,
+    id: UUID,
+) -> models.Customer | None:
+    """A partial update: what is NULL leaves its column as it is, and a document merges into the stored one"""
+    async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
+        await cur.execute(
+            _MERGE_CUSTOMER_METADATA,
+            (None if metadata is None else Jsonb(metadata), email, id),
+        )
+        match await cur.fetchmany(2):
+            case [row]:
+                return models.Customer.from_row(row)
+            case []:
+                return None
+            case _:
+                raise models.MultipleRowsError
+
+
 _LIST_CUSTOMER_REFERRALS: Final = """SELECT name, email::text AS email, (metadata->>'referral')::text AS referral,
        (lag(name) OVER (ORDER BY name))::text AS previous_name
 FROM customers ORDER BY name"""

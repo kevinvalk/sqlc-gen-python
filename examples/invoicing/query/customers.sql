@@ -56,6 +56,14 @@ SELECT count(*) FROM customers WHERE metadata = ANY(sqlc.narg(documents)::jsonb[
 -- name: SetCustomerMetadata :execrows
 UPDATE customers SET metadata = @document::jsonb WHERE id = @id;
 
+-- name: MergeCustomerMetadata :one
+-- A partial update: what is NULL leaves its column as it is, and a document merges into the stored one
+UPDATE customers SET
+    metadata = CASE WHEN sqlc.narg(metadata)::jsonb IS NULL THEN metadata ELSE coalesce(metadata, '{}') || sqlc.narg(metadata) END,
+    email = coalesce(sqlc.narg(email)::text, email)
+WHERE id = @id
+RETURNING *;
+
 -- name: ListCustomerReferrals :many
 SELECT name, email::text AS email, (metadata->>'referral')::text AS referral,
        (lag(name) OVER (ORDER BY name))::text AS previous_name
