@@ -65,7 +65,18 @@ def targets(golden: Path, generated: Path) -> list[Target]:
             message = f"{golden / case.name}: the golden case was not exported"
             raise FileNotFoundError(message)
         asynchronous, raw = bool(case.options["async"]), case.backend == "psycopg"
-        found.append(Target(case.name, case.models, case.request, case.schema_sql, (), asynchronous, raw))
+        found.append(
+            Target(
+                case.name,
+                case.models,
+                case.request,
+                case.schema_sql,
+                (),
+                asynchronous,
+                raw,
+                raise_on_none=bool(case.options.get("raise_on_none")),
+            )
+        )
 
     profiles = json.loads((ROOT / "tests/sqlc/endtoend/profiles.json").read_text())
     # Several requests may share one package, so we keep the first request and its options per package.
@@ -79,7 +90,18 @@ def targets(golden: Path, generated: Path) -> list[Target]:
     for package, (path, options) in modes.items():
         known = tuple(text for case, text in failures if case in path.parents)
         asynchronous, raw = bool(options["async"]), options["backend"] == "psycopg"
-        found.append(Target(package, f"{package}.models", path, schema_of(path), known, asynchronous, raw))
+        found.append(
+            Target(
+                package,
+                f"{package}.models",
+                path,
+                schema_of(path),
+                known,
+                asynchronous,
+                raw,
+                raise_on_none=bool(options.get("raise_on_none")),
+            )
+        )
     return found
 
 

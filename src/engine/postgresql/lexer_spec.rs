@@ -42,7 +42,8 @@ fn a_placeholder_is_only_code_never_text_postgresql_would_not_read_as_code() {
 fn a_statement_is_cut_at_its_placeholders_each_named_and_back_to_sqlcs_text() {
     let text = "SELECT 'é', $12 WHERE $12 = $1";
     let cut = sql(text, &binds(&[(12, "p"), (1, "q")])).unwrap();
-    let param = |number: i32, name: &str| Piece::Param {
+    let param = |number: i32, argument: usize, name: &str| Piece::Param {
+        argument,
         placeholder: format!("${number}"),
         number,
         name: name.into(),
@@ -51,11 +52,11 @@ fn a_statement_is_cut_at_its_placeholders_each_named_and_back_to_sqlcs_text() {
         cut.0,
         [
             Piece::Text("SELECT 'é', ".into()),
-            param(12, "p"),
+            param(12, 0, "p"),
             Piece::Text(" WHERE ".into()),
-            param(12, "p"),
+            param(12, 0, "p"),
             Piece::Text(" = ".into()),
-            param(1, "q"),
+            param(1, 1, "q"),
         ]
     );
     assert_eq!(cut.text(), text);

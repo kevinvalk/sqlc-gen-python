@@ -6,6 +6,7 @@ use ruff_python_stdlib::keyword::is_keyword;
 
 use super::models::Member;
 use crate::config::Records;
+use crate::problem::Problem;
 use crate::python;
 use crate::python::vocabulary::{
     BOOL, BYTES, CLASSMETHOD, CONNECTION, CUR, DICT, FLOAT, FROM_ROW, INT, LEN, LIST, OBJECT, ROW, STR, Symbol, TUPLE,
@@ -157,10 +158,10 @@ pub fn members<'l>(labels: &'l [String], spelling: impl Fn(&'l str) -> &'l str) 
 fn usable(spelling: &str, name: String) -> Result<String> {
     match python::is_public_name(&name) {
         true => Ok(name),
-        false => bail!(
-            "\"{spelling}\" does not become a usable Python name; give it one with the rename \
-             option"
-        ),
+        false => bail!(Problem::new(
+            format!("\"{spelling}\" does not become a usable Python name"),
+            "give it one with the rename option"
+        )),
     }
 }
 

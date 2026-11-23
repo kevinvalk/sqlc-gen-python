@@ -139,11 +139,11 @@ fn aggregates(engine: Engine) -> Aggregates {
 }
 
 /// One item of a result list: a column of the result, or one of an embed's.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(super) struct Item {
     /// Whether it is a bare `count(...)` (filtered or over a window as it may be), or a scalar subquery of one alone.
     pub(super) count: bool,
-    pub(super) problem: Option<&'static str>,
+    pub(super) problem: Option<(&'static str, &'static str)>,
     /// A decimal integer literal in the range every engine returns as an integer.
     pub(super) integer: bool,
     /// PostgreSQL's array_agg preserves a NULL input as an element of the array.
@@ -158,22 +158,100 @@ pub(super) struct Item {
     pub(super) operand_typed: bool,
 }
 
+impl Item {
+    fn nullable(nullable: bool) -> Self {
+        Self {
+            nullable,
+            ..Self::default()
+        }
+    }
+
+    fn union(self, other: Self) -> Self {
+        Self {
+            count: self.count && other.count,
+            integer: self.integer && other.integer,
+            operand_typed: self.operand_typed || other.operand_typed,
+            nullable: self.nullable || other.nullable,
+            required_elements: self.required_elements && other.required_elements,
+            problem: self.problem.or(other.problem),
+        }
+    }
+}
+
 pub(super) fn result_items(
     words: &[String],
     engine: Engine,
     tables: &[&str],
     catalog: &crate::plugin::Catalog,
 ) -> Option<Vec<Item>> {
-    let required = |schema: &str, table: &str, field: &str| {
-        catalog
-            .table(schema, table)
-            .and_then(|t| t.columns.iter().find(|c| c.name == field))
-            .map(|c| c.not_null)
-    };
     let tokens = leveled(words);
-    let mut result = items(&tokens, tables, &aggregates(engine), required)?;
-    projection::apply(&tokens, engine, catalog, &mut result);
+    let aggregates = aggregates(engine);
+    if let Some(items) = projection::read(&tokens, engine, catalog, tables) {
+        return Some(items);
+    }
+
+    // We can still read a RETURNING or SELECT list when a derived relation was too complex to follow.
+    let mut result = items(&tokens, tables, &aggregates, |schema, table, field| {
+        catalog
+            .table(schema, table)?
+            .columns
+            .iter()
+            .find(|c| c.name == field)
+            .map(|c| c.not_null)
+    })?;
+    if branches(&tokens).len() > 1 {
+        for item in &mut result {
+            item.problem = Some(projection::UNION);
+        }
+    }
     Some(result)
+}
+
+struct Branch<'a, 't> {
+    projection: &'a [Leveled<'t>],
+    tail: &'a [Leveled<'t>],
+    sources: Option<(Vec<String>, Vec<Source>)>,
+    grouped: bool,
+    bare: bool,
+}
+
+impl<'a, 't> Branch<'a, 't> {
+    fn read(tokens: &'a [Leveled<'t>], aggregates: &Aggregates) -> Option<Self> {
+        let range = list(tokens)?;
+        let tail = &tokens[range.end..];
+        let projection = &tokens[range];
+        let grouped = grouped(tokens);
+        let empty_aggregate =
+            !grouped && aggregates.engine != Engine::PostgreSql && aggregates_rows(tokens, projection, aggregates);
+        let bare = empty_aggregate || (!grouped && rolled(tokens));
+        Some(Self {
+            projection,
+            tail,
+            grouped,
+            bare,
+            sources: sources_of(tokens, tail, empty_aggregate),
+        })
+    }
+
+    fn expressions(&self) -> impl Iterator<Item = &'a [Leveled<'t>]> {
+        self.projection.split(|&(depth, token)| depth == 0 && token == ",")
+    }
+
+    fn item(
+        &self,
+        tokens: &[Leveled],
+        table: &str,
+        aggregates: &Aggregates,
+        required: impl Fn(&[Leveled]) -> Option<bool>,
+    ) -> Item {
+        let outer = match &self.sources {
+            Some((_, sources)) => outer(tokens, table, sources),
+            None => column(tokens).is_some(),
+        };
+        let mut item = item(tokens, self.grouped, self.bare, aggregates, &required);
+        item.nullable |= outer || cast_input(tokens).and_then(required) == Some(false);
+        item
+    }
 }
 
 /// What each item of the statement's result list is, by position, where `tables` holds the table sqlc reports for each
@@ -188,46 +266,22 @@ fn items(
     required: impl Fn(&str, &str, &str) -> Option<bool>,
 ) -> Option<Vec<Item>> {
     let mut read: Option<Vec<Item>> = None;
-    for branch in branches(tokens) {
-        let list = &branch[list(&branch)?];
-        let split: Vec<&[Leveled]> = list.split(|&(d, t)| d == 0 && t == ",").collect();
-        // An empty item is a list cut short, as SQLite and MySQL allow a column named as a clause (`offset`)
-        if split.iter().any(|item| item.is_empty()) || split.len() != tables.len() {
+    for tokens in branches(tokens) {
+        let branch = Branch::read(&tokens, aggregates)?;
+        if branch.expressions().count() != tables.len() || branch.expressions().any(<[_]>::is_empty) {
             return None;
         }
-        let sources = sources_of(&branch, aggregates);
-        let grouped = grouped(&branch);
         let required_column = |tokens: &[Leveled]| {
-            let (ctes, sources) = sources.as_ref()?;
+            let (ctes, sources) = branch.sources.as_ref()?;
             column_required(tokens, ctes, sources, &required)
         };
-        let bare = !grouped
-            && (rolled(&branch)
-                || (aggregates.engine != Engine::PostgreSql && aggregates_rows(&branch, list, aggregates)));
-        let items = (split.iter().zip(tables)).map(|(tokens, table)| {
-            let item = item(tokens, grouped, bare, aggregates, required_column);
-            let outer = match &sources {
-                Some((_, sources)) => outer(tokens, table, sources),
-                // A `FROM` we could not read may leave any of its tables without a row
-                None => column(tokens).is_some(),
-            };
-            Item {
-                nullable: item.nullable || outer || cast_input(tokens).and_then(required_column) == Some(false),
-                ..item
-            }
-        });
+        let items = branch
+            .expressions()
+            .zip(tables)
+            .map(|(tokens, table)| branch.item(tokens, table, aggregates, required_column));
         read = Some(match read {
             None => items.collect(),
-            Some(first) => (first.into_iter().zip(items))
-                .map(|(a, b)| Item {
-                    count: a.count && b.count,
-                    problem: None,
-                    integer: a.integer && b.integer,
-                    required_elements: a.required_elements && b.required_elements,
-                    nullable: a.nullable || b.nullable,
-                    operand_typed: a.operand_typed || b.operand_typed,
-                })
-                .collect(),
+            Some(first) => (first.into_iter().zip(items)).map(|(a, b)| a.union(b)).collect(),
         });
     }
     read
@@ -315,10 +369,7 @@ fn present(tokens: &[String], aggregates: &Aggregates) -> Vec<String> {
     let [branch] = branches.as_slice() else {
         return Vec::new();
     };
-    if kind(branch).is_some_and(|(_, kind)| kind != "select") && top(branch, &["returning"]).is_none() {
-        return Vec::new();
-    }
-    let Some((ctes, sources)) = sources_of(branch, aggregates) else {
+    let Some((ctes, sources)) = Branch::read(branch, aggregates).and_then(|branch| branch.sources) else {
         return Vec::new();
     };
     // A name proves nothing when a CTE or an alias spells it (`WITH a AS (...)`, `LEFT JOIN c AS b`), or when an outer
@@ -384,7 +435,7 @@ fn outer(item: &[Leveled], table: &str, sources: &[Source]) -> bool {
 /// a `DELETE`'s `USING` names. No sources where it reads none, as a `SELECT` without a `FROM`. `None` where we do not
 /// read them ([`sources`]), or where a column may stand beside an ungrouped aggregate and the statement aggregates no
 /// rows into a row of NULLs.
-fn sources_of(branch: &[Leveled], aggregates: &Aggregates) -> Option<(Vec<String>, Vec<Source>)> {
+fn sources_of(branch: &[Leveled], tail: &[Leveled], empty_aggregate: bool) -> Option<(Vec<String>, Vec<Source>)> {
     const TARGET_ENDS: &[&str] = &[
         "(",
         "set",
@@ -410,21 +461,16 @@ fn sources_of(branch: &[Leveled], aggregates: &Aggregates) -> Option<(Vec<String
     // What the statement writes, then what it reads beside it
     let (target, read): (&[Leveled], &[Leveled]) = match kind {
         "select" => {
-            let list = list(statement)?;
-            let nulls = aggregates.engine != Engine::PostgreSql
-                && !grouped(statement)
-                && aggregates_rows(statement, &statement[list.clone()], aggregates);
-            let after = &statement[list.end..];
-            let read = match after {
+            let read = match tail {
                 [(_, from), read @ ..] if is(from, &["from"]) => read,
                 // Without a `FROM` there is nothing to read, but one after an `INTO` is one we do not
-                _ if top(after, &["from"]).is_none() => &[],
+                _ if top(tail, &["from"]).is_none() => &[],
                 _ => return None,
             };
             let (read, after) = read.split_at(top(read, ENDS).unwrap_or(read.len()));
             // A join after what we took as the end of the clause means it was none, as MySQL and SQLite allow a column
             // named as a clause (`offset`)
-            if nulls || top(after, &["join"]).is_some() {
+            if empty_aggregate || top(after, &["join"]).is_some() {
                 return None;
             }
             (&[], read)

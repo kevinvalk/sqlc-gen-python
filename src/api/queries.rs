@@ -11,7 +11,8 @@ use super::models::{Field, FieldType, Model};
 use super::resolver::Resolver;
 use super::{Problems, params, results};
 use crate::config::Config;
-use crate::engine::{Bind, Engine, Piece, Sql};
+use crate::engine::{Engine, Piece, Sql};
+use crate::problem::Problem;
 use crate::python::vocabulary::{FROM_ROW, MODELS};
 use crate::python::{self, Expression, Scope, int, name};
 use crate::{plugin, sqlc_typing};
@@ -233,8 +234,9 @@ pub fn modules(
         if let Some(other) = files.insert(name.clone(), file)
             && other != file
         {
-            problems.note(anyhow::anyhow!(
-                "{other} and {file} both become the module \"{name}.py\"; rename one"
+            problems.note(Problem::new(
+                format!("{other} and {file} both become the module \"{name}.py\""),
+                "rename one",
             ));
         }
         let functions = std::iter::once(resolved.function.as_str()).chain(resolved.stream.as_deref());
@@ -265,10 +267,16 @@ fn module_name(file: &str) -> Result<String> {
         .unwrap_or("")
         .replace('-', "_");
     if ["models", "__init__"].contains(&stem.to_lowercase().as_str()) {
-        bail!("{file}: would overwrite the generated module \"{stem}.py\"; rename the file");
+        bail!(Problem::new(
+            format!("{file}: would overwrite the generated module \"{stem}.py\""),
+            "rename the file"
+        ));
     }
     if !python::is_module_name(&stem) {
-        bail!("{file}: \"{stem}\" is not a lowercase Python module name; rename the file");
+        bail!(Problem::new(
+            format!("{file}: \"{stem}\" is not a lowercase Python module name"),
+            "rename the file"
+        ));
     }
     Ok(stem)
 }
@@ -279,7 +287,10 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
     // A batch runs a command once per row, on PostgreSQL alone, as pgx does.
     let (cmd, batch) = match cmd.strip_prefix(":batch") {
         Some(_) if resolver.engine != Engine::PostgreSql => {
-            bail!("{cmd} is PostgreSQL only, as sqlc's pgx; use :copyfrom or a :exec per row")
+            bail!(Problem::new(
+                format!("{cmd} is PostgreSQL only, as sqlc's pgx"),
+                "use :copyfrom or a :exec per row"
+            ))
         }
         Some(_) if query.params.is_empty() => {
             bail!("{cmd} has no parameters to run it per row with")
@@ -292,37 +303,20 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
     let params_class = format!("{class}Params");
     let result = sqlc_typing::QueryResult::read(resolver.engine, query, resolver.catalog)?;
     let (command, columns) = command(query, cmd, &class, resolver, models, &result)?;
-    let uses = params::params(query, resolver)?;
-
-    let binds: Vec<Bind> = (query.params.iter().zip(&uses).enumerate())
-        .map(|(i, (parameter, field))| {
-            let column = parameter.column.as_ref();
-            Bind {
-                number: sqlc_typing::bind_number(resolver.engine, i, parameter),
-                name: &field.name,
-                slice: (column.filter(|c| c.is_sqlc_slice)).map(|c| c.name.as_str()),
-            }
-        })
-        .collect();
-    let sql = resolver.engine.sql(&query.text, &binds)?;
+    let (params, sql) = params::resolve(query, resolver)?;
 
     // A batch runs one statement for every row, while a slice makes it another statement for each number of items
     if batch && (sql.0.iter()).any(|piece| matches!(piece, Piece::Slice { .. })) {
-        bail!(
-            "{} runs one statement for every row, and a sqlc.slice makes it another for each \
-             number of items; use :exec, once per row",
-            query.cmd
-        )
+        bail!(Problem::new(
+            format!(
+                "{} runs one statement for every row, and a sqlc.slice makes it another for each number of items",
+                query.cmd
+            ),
+            "use :exec, once per row"
+        ))
     }
 
     let placeholders = (sql.0.iter()).filter(|piece| !matches!(piece, Piece::Text(_))).count();
-    let mut params: Vec<Field> = Vec::new();
-    for field in uses {
-        if !params.iter().any(|p| p.name == field.name) {
-            params.push(field);
-        }
-    }
-
     // A module-level function takes PEP 8's trailing `_` for a keyword, and for an import or a builtin it would hide
     // (`Any` is `any_`, ruff A001). It keeps the name of a local of a body (`row`), as no body calls it.
     let function = query.name.to_snake_case();
@@ -331,10 +325,10 @@ fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config:
         false => function,
     };
     if !python::is_public_name(&function) {
-        bail!(
-            "\"{}\" does not become a usable Python name; name the query otherwise",
-            query.name
-        );
+        bail!(Problem::new(
+            format!("\"{}\" does not become a usable Python name", query.name),
+            "name the query otherwise"
+        ));
     }
 
     let takes = match batch {
@@ -385,10 +379,11 @@ fn command(
         ":one" | ":many" => {
             let (fields, columns) = results::columns(query, resolver, models, result)?;
             let shape = match fields.as_slice() {
-                [] => bail!(
-                    "{cmd} has no result columns in sqlc's report; if the query returns rows, \
-                     list them with casts (SELECT n::int, s::text FROM ...), otherwise use :exec"
-                ),
+                [] => bail!(Problem::new(
+                    format!("{cmd} has no result columns in sqlc's report"),
+                    "if the query returns rows, list them with casts (SELECT n::int, s::text FROM ...), otherwise \
+                     use :exec"
+                )),
                 [RowField::Column(field)] => Shape::Scalar(field.ty.clone()),
                 _ => results::row_shape(models, &query.columns, fields, resolver.catalog, format!("{class}Row")),
             };
@@ -398,10 +393,10 @@ fn command(
             }
         }
         ":execlastid" if resolver.engine.has_last_insert_id() => (Command::ExecLastId, Vec::new()),
-        ":execlastid" => bail!(
-            ":execlastid is not supported on {}; use INSERT ... RETURNING with :one",
-            resolver.engine.name()
-        ),
+        ":execlastid" => bail!(Problem::new(
+            format!(":execlastid is not supported on {}", resolver.engine.name()),
+            "use INSERT ... RETURNING with :one"
+        )),
         _ => bail!("{cmd} is not a command sqlc-gen-python knows"),
     })
 }

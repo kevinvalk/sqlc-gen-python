@@ -7,18 +7,20 @@ use std::rc::Rc;
 use super::*;
 use crate::plugin;
 
-const DERIVED: &str =
-    "comes from a derived expression whose type sqlc cannot establish; cast the expression in its SELECT";
-const UNION: &str =
-    "has set-operation branches without one verified SQL type; cast this column to the same type in every branch";
+const DERIVED: (&str, &str) = (
+    "comes from a derived expression whose type sqlc cannot establish",
+    "cast the expression in its SELECT",
+);
+pub(super) const UNION: (&str, &str) = (
+    "has set-operation branches without one verified SQL type",
+    "cast this column to the same type in every branch",
+);
 
 #[derive(Clone, Default)]
 struct Field {
     name: String,
     ty: Option<String>,
-    nullable: bool,
-    problem: Option<&'static str>,
-    required_elements: bool,
+    item: Item,
 }
 
 type Relations = BTreeMap<String, Option<Rc<Vec<Field>>>>;
@@ -26,23 +28,22 @@ type Relations = BTreeMap<String, Option<Rc<Vec<Field>>>>;
 struct Read<'a> {
     engine: Engine,
     catalog: &'a plugin::Catalog,
+    tables: &'a [&'a str],
 }
 
-pub(super) fn apply(tokens: &[Leveled], engine: Engine, catalog: &plugin::Catalog, items: &mut [Item]) {
-    let read = Read { engine, catalog };
-    if let Some(fields) = read.query(tokens, &Relations::new(), 0)
-        && fields.len() == items.len()
-    {
-        for (item, field) in items.iter_mut().zip(fields) {
-            item.nullable |= field.nullable;
-            item.problem = field.problem;
-            item.required_elements |= field.required_elements;
-        }
-    } else if branches(tokens).len() > 1 {
-        for item in items {
-            item.problem = Some(UNION);
-        }
+pub(super) fn read(
+    tokens: &[Leveled],
+    engine: Engine,
+    catalog: &plugin::Catalog,
+    tables: &[&str],
+) -> Option<Vec<Item>> {
+    let fields = Read {
+        engine,
+        catalog,
+        tables,
     }
+    .query(tokens, &Relations::new(), 0)?;
+    (fields.len() == tables.len()).then(|| fields.into_iter().map(|field| field.item).collect())
 }
 
 impl Read<'_> {
@@ -90,10 +91,10 @@ impl Read<'_> {
                     for (field, expression) in fields.iter_mut().zip(expressions) {
                         if matches!(aliased(expression).0, [(_, value)] if is(value, &["null"])) {
                             field.ty = Some("text".into());
-                            field.problem = None;
+                            field.item.problem = None;
                         }
-                        field.nullable = true;
-                        field.required_elements = false;
+                        field.item.nullable = true;
+                        field.item.required_elements = false;
                     }
                     Some(fields)
                 } else {
@@ -111,20 +112,24 @@ impl Read<'_> {
         }
 
         let mut output: Option<Vec<Field>> = None;
-        for branch in branches(rest) {
-            let range = list(&branch)?;
+        let aggregates = aggregates(self.engine);
+        for tokens in branches(rest) {
+            let branch = Branch::read(&tokens, &aggregates)?;
+            if depth == 0 && branch.expressions().count() != self.tables.len() {
+                return None;
+            }
             let mut local = relations.clone();
             // Derived tables expose the names of their own SELECT at the alias in the surrounding FROM.
-            for (at, &(level, token)) in branch.iter().enumerate().skip(range.end) {
+            for (at, &(level, token)) in branch.tail.iter().enumerate() {
                 if level != 0
                     || token != "("
                     || !at
                         .checked_sub(1)
-                        .is_some_and(|i| is(branch[i].1, &["from", "join", "lateral", ","]))
+                        .is_some_and(|i| is(branch.tail[i].1, &["from", "join", "lateral", ","]))
                 {
                     continue;
                 }
-                if let Some((body, after)) = parenthesised(&branch[at..])
+                if let Some((body, after)) = parenthesised(&branch.tail[at..])
                     && is_statement(body)
                     && let Some(alias) = leading_alias(after)
                 {
@@ -134,30 +139,26 @@ impl Read<'_> {
                     local.insert(alias, renamed(fields, names).map(Rc::new));
                 }
             }
-            let aggregates = aggregates(self.engine);
-            let sources = sources_of(&branch, &aggregates).map(|(_, sources)| sources);
+            let sources = branch.sources.as_ref().map(|(_, sources)| sources.as_slice());
             let lookup = |tokens: &[Leveled]| {
-                self.field(tokens, sources.as_deref(), &local).or_else(|| {
+                self.field(tokens, sources, &local).or_else(|| {
                     let name = unquoted(column(tokens)?.last()?);
                     sources.is_none().then(|| Field {
                         name,
-                        nullable: true,
+                        item: Item::nullable(true),
                         ..Field::default()
                     })
                 })
             };
-            let list = &branch[range];
-            let grouped = grouped(&branch);
-            let bare = !grouped
-                && (rolled(&branch)
-                    || (self.engine != Engine::PostgreSql && aggregates_rows(&branch, list, &aggregates)));
-            let split = list.split(|&(level, token)| level == 0 && token == ",");
             let mut fields = Vec::new();
-            for tokens in split {
+            for (position, tokens) in branch.expressions().enumerate() {
+                if tokens.is_empty() {
+                    return None;
+                }
                 let (expression, alias) = aliased(tokens);
                 if let [(_, "*")] | [(_, _), (_, "."), (_, "*")] = expression {
                     let qualifier = (expression.len() == 3).then(|| unquoted(expression[0].1));
-                    for source in sources.as_deref()? {
+                    for source in sources? {
                         let exposed = source.alias.as_ref().or(source.table.as_ref());
                         if qualifier.is_some() && qualifier.as_ref() != exposed {
                             continue;
@@ -170,19 +171,24 @@ impl Read<'_> {
                 if let Some(name) = alias {
                     field.name = unquoted(name);
                 }
-                let required = |column: &[Leveled]| lookup(column).map(|f| !f.nullable);
-                let facts = item(expression, grouped, bare, &aggregates, required);
-                field.nullable |= facts.nullable;
-                field.required_elements |= facts.required_elements;
+                let required = |column: &[Leveled]| lookup(column).map(|f| !f.item.nullable);
+                let table = if depth == 0 { self.tables[position] } else { "" };
+                let facts = branch.item(expression, table, &aggregates, required);
+                field.item = Item {
+                    nullable: field.item.nullable || facts.nullable,
+                    required_elements: field.item.required_elements || facts.required_elements,
+                    problem: field.item.problem,
+                    ..facts
+                };
                 if self.engine == Engine::PostgreSql
                     && let Some(rows) = array_rows(expression)
                     && let Some(fields) = self.query(&lowered(rows), &local, depth + 1)
-                    && matches!(&fields[..], [f] if f.ty.is_some() && !f.nullable && f.problem.is_none())
+                    && matches!(&fields[..], [f] if f.ty.is_some() && !f.item.nullable && f.item.problem.is_none())
                 {
-                    field.required_elements = true;
+                    field.item.required_elements = true;
                 }
                 if depth > 0 && field.ty.is_none() {
-                    field.problem = field.problem.or(Some(DERIVED));
+                    field.item.problem = field.item.problem.or(Some(DERIVED));
                 }
                 fields.push(field);
             }
@@ -191,12 +197,10 @@ impl Read<'_> {
                 Some(first) if first.len() == fields.len() => {
                     for (left, right) in first.iter_mut().zip(fields) {
                         if left.ty.is_none() || left.ty != right.ty {
-                            left.problem = Some(UNION);
+                            left.item.problem = Some(UNION);
                             left.ty = None;
                         }
-                        left.nullable |= right.nullable;
-                        left.required_elements &= right.required_elements;
-                        left.problem = left.problem.or(right.problem);
+                        left.item = left.item.union(right.item);
                     }
                 }
                 Some(_) => return None,
@@ -219,7 +223,7 @@ impl Read<'_> {
         if top(rhs, SET_OPERATIONS).is_some() || !rhs.first().is_some_and(|t| is(t.1, &["select"])) {
             return None;
         }
-        let (_, sources) = sources_of(rhs, &aggregates(self.engine))?;
+        let (_, sources) = Branch::read(rhs, &aggregates(self.engine))?.sources?;
         sources
             .iter()
             .any(|s| s.schema.is_none() && s.table.as_deref() == Some(name))
@@ -240,8 +244,7 @@ impl Read<'_> {
                     "[]".repeat(usize::try_from(column.array_dims).unwrap_or(0).min(6))
                 )
             }),
-            nullable: !column.not_null,
-            ..Field::default()
+            item: Item::nullable(!column.not_null),
         }
     }
 
@@ -263,7 +266,7 @@ impl Read<'_> {
             None => self.table(source)?.columns.iter().map(|c| self.declared(c)).collect(),
         };
         for field in &mut fields {
-            field.nullable |= source.outer;
+            field.item.nullable |= source.outer;
         }
         Some(fields)
     }
@@ -285,8 +288,11 @@ impl Read<'_> {
                     .or_else(|| {
                         Some(Field {
                             name: name.clone(),
-                            nullable: true,
-                            problem: Some(DERIVED),
+                            item: Item {
+                                nullable: true,
+                                problem: Some(DERIVED),
+                                ..Item::default()
+                            },
                             ..Field::default()
                         })
                     }),
@@ -299,7 +305,7 @@ impl Read<'_> {
                 if found.is_some() {
                     return None;
                 }
-                field.nullable |= source.outer;
+                field.item.nullable |= source.outer;
                 found = Some(field);
             }
         }
@@ -309,7 +315,7 @@ impl Read<'_> {
     fn expression(&self, tokens: &[Leveled], lookup: &impl Fn(&[Leveled]) -> Option<Field>, depth: usize) -> Field {
         if depth >= 48 || tokens.is_empty() {
             return Field {
-                nullable: true,
+                item: Item::nullable(true),
                 ..Field::default()
             };
         }
@@ -332,7 +338,7 @@ impl Read<'_> {
         }
         if is(tokens[0].1, &["case"]) && after_case(tokens).is_some_and(|rest| rest.is_empty()) {
             return Field {
-                nullable: true,
+                item: Item::nullable(true),
                 ..Field::default()
             };
         }
@@ -341,17 +347,17 @@ impl Read<'_> {
             .position(|&(d, t)| d == level && is(t, &["and", "or", "like", "ilike", "in", "between"]))
         {
             let nullable = is(tokens[at].1, &["in", "between"])
-                || recurse(&tokens[..at]).nullable
-                || recurse(&tokens[at + 1..]).nullable;
+                || recurse(&tokens[..at]).item.nullable
+                || recurse(&tokens[at + 1..]).item.nullable;
             return Field {
                 ty: Some("bool".into()),
-                nullable,
+                item: Item::nullable(nullable),
                 ..Field::default()
             };
         }
         if is(tokens[0].1, &["not"]) {
             return Field {
-                nullable: recurse(&tokens[1..]).nullable,
+                item: Item::nullable(recurse(&tokens[1..]).item.nullable),
                 ty: Some("bool".into()),
                 ..Field::default()
             };
@@ -376,10 +382,11 @@ impl Read<'_> {
             let left = recurse(&tokens[..at]);
             let right = recurse(&tokens[at + 1..]);
             let op = tokens[at].1;
-            let nullable =
-                left.nullable || right.nullable || (self.engine != Engine::PostgreSql && matches!(op, "/" | "%"));
+            let nullable = left.item.nullable
+                || right.item.nullable
+                || (self.engine != Engine::PostgreSql && matches!(op, "/" | "%"));
             return Field {
-                nullable,
+                item: Item::nullable(nullable),
                 ty: matches!(op, "=" | "<>" | "!=" | "<" | ">" | "<=" | ">=").then(|| "bool".into()),
                 ..Field::default()
             };
@@ -388,7 +395,10 @@ impl Read<'_> {
             let value = recurse(body);
             return Field {
                 ty: Some(self.engine.type_name(&ty)),
-                problem: None,
+                item: Item {
+                    problem: None,
+                    ..value.item
+                },
                 ..value
             };
         }
@@ -406,13 +416,11 @@ impl Read<'_> {
                 None
             };
             return Field {
-                nullable: (depth > 0 && ty.is_none())
-                    || is(value, &["null"])
-                    || value.starts_with('$')
-                    || *value == "?",
+                item: Item::nullable(
+                    (depth > 0 && ty.is_none()) || is(value, &["null"]) || value.starts_with('$') || *value == "?",
+                ),
                 ty,
                 name: unquoted(value),
-                ..Field::default()
             };
         }
         if let [(_, name), after @ ..] = tokens
@@ -431,10 +439,10 @@ impl Read<'_> {
             if is(name, &["coalesce", "ifnull"]) && tail.is_empty() {
                 let nullable = args
                     .split(|&(d, t)| d == level + 1 && t == ",")
-                    .all(|arg| recurse(arg).nullable);
+                    .all(|arg| recurse(arg).item.nullable);
                 return Field {
                     name: unquoted(name),
-                    nullable,
+                    item: Item::nullable(nullable),
                     ..Field::default()
                 };
             }
@@ -444,7 +452,7 @@ impl Read<'_> {
             || (is(tokens[0].1, &["case"]) && case_literals(tokens).is_some())
             || is(tokens[0].1, &["exists", "array"]);
         Field {
-            nullable: !recognized && (depth > 0 || column(tokens).is_none()),
+            item: Item::nullable(!recognized && (depth > 0 || column(tokens).is_none())),
             ..Field::default()
         }
     }

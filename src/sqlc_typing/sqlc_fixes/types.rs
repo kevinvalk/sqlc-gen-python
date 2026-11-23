@@ -4,6 +4,7 @@ mod spec;
 
 use crate::engine::Engine;
 use crate::plugin;
+use crate::problem::Problem;
 use crate::sqlc_typing::{Column, source};
 
 /// Whether `column` is a parameter without a column behind it (of a `LIMIT`, an `OFFSET` or a function), which sqlc
@@ -35,10 +36,10 @@ pub(crate) fn expression_problem(
     catalog: &plugin::Catalog,
     facts: &Column,
     field_name: &str,
-) -> Option<String> {
+) -> Option<Problem> {
     // Through a subquery, sqlc can report a coalesce as its nullable source column made NOT NULL.
-    if let Some(reason) = facts.problem {
-        return Some(format!("column \"{field_name}\" {reason}"));
+    if let Some((reason, remedy)) = facts.problem {
+        return Some(Problem::new(format!("column \"{field_name}\" {reason}"), remedy));
     }
     let name = if column.name.is_empty() {
         field_name
@@ -47,20 +48,22 @@ pub(crate) fn expression_problem(
     };
     if facts.operand_typed {
         let cast = cast_hint(engine, None);
-        Some(format!(
-            "column \"{name}\" is a coalesce, a nullif or a CASE, which sqlc types by one operand \
-             whatever the others are; add a cast, as {cast}{}",
-            analysis(engine)
+        Some(Problem::new(
+            format!(
+                "column \"{name}\" is a coalesce, a nullif or a CASE, which sqlc types by one operand whatever the \
+                 others are"
+            ),
+            format!("add a cast, as {cast}{}", analysis(engine)),
         ))
     } else if column.not_null && source(catalog, column).is_some_and(|source| !source.not_null) {
-        Some(format!(
-            "column \"{name}\" has a type sqlc could not infer; add a cast, as {}",
-            engine.cast("coalesce(<expr>, <default>)")
+        Some(Problem::new(
+            format!("column \"{name}\" has a type sqlc could not infer"),
+            format!("add a cast, as {}", engine.cast("coalesce(<expr>, <default>)")),
         ))
     } else if is_untyped_expression(engine, column) {
-        Some(format!(
-            "column \"{name}\" is an expression sqlc typed by its form, not its operands; add a cast, as {}",
-            engine.cast("<expr>")
+        Some(Problem::new(
+            format!("column \"{name}\" is an expression sqlc typed by its form, not its operands"),
+            format!("add a cast, as {}", engine.cast("<expr>")),
         ))
     } else {
         None
@@ -73,18 +76,19 @@ pub(crate) fn allows_type_override(
     column: &plugin::Column,
     parameter: Option<&str>,
     what: &str,
-) -> Result<bool, String> {
+) -> Result<bool, Problem> {
     if column.is_func_call {
-        Err(format!(
-            "{what} is a function's result, which sqlc types by the function's first \
-             overload whatever its arguments (sum() of a numeric column as bigint); add a cast, as {}",
-            cast_hint(engine, parameter)
+        Err(Problem::new(
+            format!(
+                "{what} is a function's result, which sqlc types by the function's first overload whatever its \
+                 arguments (sum() of a numeric column as bigint)"
+            ),
+            format!("add a cast, as {}", cast_hint(engine, parameter)),
         ))
     } else if is_guess(engine, column, parameter.is_some()) {
-        Err(format!(
-            "{what} has a type sqlc could not infer; add a cast, as {}{}",
-            cast_hint(engine, parameter),
-            analysis(engine)
+        Err(Problem::new(
+            format!("{what} has a type sqlc could not infer"),
+            format!("add a cast, as {}{}", cast_hint(engine, parameter), analysis(engine)),
         ))
     } else {
         Ok(!is_typed_by_sqlc(column, parameter.is_some()))

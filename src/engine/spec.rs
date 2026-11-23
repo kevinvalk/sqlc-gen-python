@@ -59,6 +59,7 @@ fn a_statements_placeholders_must_be_exactly_the_parameters_sqlc_reported() {
     // A slice's placeholder follows the marker sqlc writes before it
     let slice = [Bind {
         number: 1,
+        argument: 0,
         name: "ids",
         slice: Some("ids"),
     }];

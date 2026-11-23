@@ -9,6 +9,7 @@ use anyhow::{Result, bail};
 use super::types;
 use crate::engine::Engine;
 use crate::plugin;
+use crate::problem::Problem;
 use crate::sqlc_typing::tokens::{Leveled, column, is, is_word, leveled, parenthesised};
 
 /// sqlc's PostgreSQL analyser takes a parameter's type from the first column it finds in a comparison,
@@ -27,11 +28,13 @@ fn check_parameters(engine: Engine, query: &plugin::Query) -> Result<()> {
                 && !column.original_name.is_empty()
                 && column.original_name != field
             {
-                bail!(
-                    "parameter ${number} is compared with \"{field}\" in a row, but sqlc typed it by \"{}\"; \
-                     cast the parameter to the type of \"{field}\"",
-                    column.original_name
-                );
+                bail!(Problem::new(
+                    format!(
+                        "parameter ${number} is compared with \"{field}\" in a row, but sqlc typed it by \"{}\"",
+                        column.original_name
+                    ),
+                    format!("cast the parameter to the type of \"{field}\"")
+                ));
             }
         }
     }
@@ -167,9 +170,10 @@ fn check_operands(words: &[String], parameters: &[plugin::Parameter]) -> Result<
         } else {
             continue;
         };
-        bail!(
-            "parameter {token} was typed by its column as {ty}, but {reason}; explicitly cast the parameter at its use"
-        );
+        bail!(Problem::new(
+            format!("parameter {token} was typed by its column as {ty}, but {reason}"),
+            "explicitly cast the parameter at its use"
+        ));
     }
     Ok(())
 }
@@ -197,13 +201,15 @@ pub(crate) fn parameter_columns(engine: Engine, query: &plugin::Query) -> Result
         if !engine.is_identifier(&column.name)
             || (engine == Engine::PostgreSql && column.name.starts_with("pg_catalog"))
         {
-            bail!(
-                "sqlc named a parameter \"{}\", which is no name: sqlc.arg was given one that is \
-                 no identifier, or an operator that binds tighter than @, such as AT TIME ZONE or +, \
-                 made @ take an expression, all of which sqlc may have replaced; write \
-                 sqlc.arg(name), or parenthesise (@name::type)",
-                column.name
-            );
+            bail!(Problem::new(
+                format!(
+                    "sqlc named a parameter \"{}\", which is no name: sqlc.arg was given one that is no identifier, \
+                     or an operator that binds tighter than @, such as AT TIME ZONE or +, made @ take an expression, \
+                     all of which sqlc may have replaced",
+                    column.name
+                ),
+                "write sqlc.arg(name), or parenthesise (@name::type)"
+            ));
         }
         // sqlc shares a placeholder across uses on PostgreSQL and SQLite. Only MySQL reports one per use.
         if engine != Engine::MySql {
@@ -211,10 +217,13 @@ pub(crate) fn parameter_columns(engine: Engine, query: &plugin::Query) -> Result
         }
         if let Some(other) = named.get(column.name.as_str()) {
             if other.is_sqlc_slice != column.is_sqlc_slice {
-                bail!(
-                    "parameter \"{}\" is used as both a scalar and a sqlc.slice; give the scalar and slice different names",
-                    column.name
-                );
+                bail!(Problem::new(
+                    format!(
+                        "parameter \"{}\" is used as both a scalar and a sqlc.slice",
+                        column.name
+                    ),
+                    "give the scalar and slice different names"
+                ));
             }
             if !is_guess(other) {
                 continue;

@@ -1,12 +1,13 @@
 use std::collections::BTreeSet;
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, bail};
 use ruff_python_ast as ast;
 
 use super::Problems;
 use super::names::members;
 use super::resolver::Resolver;
 use crate::plugin;
+use crate::problem::Problem;
 use crate::python::vocabulary::{FROM_ARRAY, LIST, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, Symbol, TYPING, V};
 use crate::python::{self, Expression, Scope, Type, each, forward, list_of, name, unless_none};
 
@@ -124,9 +125,9 @@ pub fn resolve(
     // A class called `Decimal` would replace the import every `Decimal`
     // annotation means.
     for name in classes.iter().filter(|name| python::is_imported(name)) {
-        problems.note(anyhow!(
-            "`{name}` is a name generated code imports; name the table or type otherwise with \
-             the rename option"
+        problems.note(Problem::new(
+            format!("`{name}` is a name generated code imports"),
+            "name the table or type otherwise with the rename option",
         ));
     }
     // A driver has no errors for a `:one`, so there the module defines them, and a class of either name would replace
@@ -139,15 +140,15 @@ pub fn resolve(
         .iter()
         .filter(|name| errors.iter().any(|error| error.as_ref() == **name))
     {
-        problems.note(anyhow!(
-            "`{name}` is a class the models define; name the table or type otherwise with the rename option"
+        problems.note(Problem::new(
+            format!("`{name}` is a class the models define"),
+            "name the table or type otherwise with the rename option",
         ));
     }
     for pair in classes.windows(2).filter(|pair| pair[0] == pair[1]) {
-        problems.note(anyhow!(
-            "more than one table or type would be the Python class `{}`; name one otherwise with \
-             the rename option",
-            pair[0]
+        problems.note(Problem::new(
+            format!("more than one table or type would be the Python class `{}`", pair[0]),
+            "name one otherwise with the rename option",
         ));
     }
     (enums, models)
@@ -156,10 +157,10 @@ pub fn resolve(
 /// Fails for a class name Python cannot take, as the singular of a table `s`, for one, is no name at all.
 fn usable(name: &str) -> Result<()> {
     if !python::is_class_name(name) {
-        bail!(
-            "`{name}` is not a usable Python class name, one in CapWords that hides no builtin; \
-             name it with the rename option"
-        )
+        bail!(Problem::new(
+            format!("`{name}` is not a usable Python class name, one in CapWords that hides no builtin"),
+            "name it with the rename option"
+        ))
     }
     Ok(())
 }

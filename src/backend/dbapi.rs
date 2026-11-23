@@ -94,22 +94,22 @@ impl Driver {
     /// The parameter of each value a statement binds, in order: one per placeholder in the text's order for a driver
     /// with its own placeholders, or else one per `$N`, by `N`.
     fn binds<'q>(&self, query: &'q Query) -> Vec<&'q Field> {
-        let mut binds: Vec<(i32, &Field)> = Vec::new();
-        for (index, piece) in query.sql.0.iter().enumerate() {
-            let (Piece::Param { number, name, .. } | Piece::Slice { number, name, .. }) = piece else {
-                continue;
-            };
-            let number = match self.placeholders {
-                Some(_) => index as i32,
-                None => *number,
-            };
-            if !binds.iter().any(|&(bound, _)| bound == number) {
-                let parameter = query.params.iter().find(|parameter| parameter.name == *name);
-                binds.push((number, parameter.expect("a placeholder is a parameter's")));
-            }
+        let mut binds: Vec<_> = query
+            .sql
+            .0
+            .iter()
+            .filter_map(|piece| match piece {
+                Piece::Param { number, argument, .. } | Piece::Slice { number, argument, .. } => {
+                    Some((*number, *argument))
+                }
+                Piece::Text(_) => None,
+            })
+            .collect();
+        if self.placeholders.is_none() {
+            binds.sort_by_key(|&(number, _)| number);
+            binds.dedup_by_key(|bind| bind.0);
         }
-        binds.sort_by_key(|&(number, _)| number);
-        binds.into_iter().map(|(_, parameter)| parameter).collect()
+        binds.into_iter().map(|(_, argument)| &query.params[argument]).collect()
     }
 }
 
@@ -232,8 +232,10 @@ pub fn body(driver: &Driver, query: &Query, asynchronous: bool) -> Vec<ast::Stmt
         (Command::ExecResult, _) => {
             return stmts![
                 assign(CUR, (body.flavor.cursor)()),
-                body.plain_rows(),
-                body.counted(body.execute()),
+                crate::python::on_error(
+                    stmts![body.plain_rows(), body.counted(body.execute())],
+                    expression(CUR.attr("close").call([]).awaited(asynchronous)),
+                ),
                 return_(CUR),
             ];
         }

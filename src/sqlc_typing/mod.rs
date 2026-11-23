@@ -38,7 +38,7 @@ pub struct Column {
     pub may_be_null: bool,
     required_elements: bool,
     pub(crate) table_present: bool,
-    problem: Option<&'static str>,
+    problem: Option<(&'static str, &'static str)>,
     operand_typed: bool,
     type_name: Option<&'static str>,
     verified_call: bool,

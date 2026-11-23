@@ -32,6 +32,24 @@ if TYPE_CHECKING:
 
 EXAMPLES = 100
 
+# The invoice number is unique, as are the GROUP BY keys and the DISTINCT statuses in these results.
+ORDERED_INVOICE_QUERIES = {
+    "CountInvoicesByStatus",
+    "CountInvoicesByStatusAndInAll",
+    "ListDearestLines",
+    "ListInvoiceNumbers",
+    "ListInvoiceNumbersPage",
+    "ListInvoiceStatuses",
+    "ListInvoicesByIds",
+    "ListInvoicesByStatus",
+    "ListInvoicesIssuedBetween",
+    "ListIssuedNumbers",
+    "ListLastEmailsByName",
+    "ListOverdueInvoices",
+    "SearchInvoices",
+    "SumLinesBelowVatRate",
+}
+
 
 @dataclass(frozen=True)
 class Target:
@@ -45,6 +63,7 @@ class Target:
     # Whether Hypothesis shrinks a failure to its smallest example, which a planted bug only needs found, not shrunk:
     # shrinking one takes minutes.
     shrinks: bool = True
+    raise_on_none: bool = False
 
 
 @dataclass
@@ -125,8 +144,13 @@ class Sweep:
                     for enum in schema.get("enums", [])
                     if len(enum["vals"]) > 0  # An enum without labels has no value to read
                 ]
+                ordered = ORDERED_INVOICE_QUERIES if target.request.name == "invoicing.json" else set()
                 self.calls = [
-                    call for stem, module in modules.items() for call in calls(connection, module, queries(stem))
+                    call
+                    for stem, module in modules.items()
+                    for call in calls(
+                        connection, module, queries(stem), ordered_queries=ordered, raise_on_none=target.raise_on_none
+                    )
                 ]
         finally:
             oracle.dispose()

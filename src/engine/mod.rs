@@ -14,6 +14,7 @@ use std::ops::Range;
 use anyhow::{Result, bail};
 
 use crate::plugin;
+use crate::problem::Problem;
 use crate::python::Type;
 use crate::sqlc_typing::bindings;
 
@@ -35,6 +36,7 @@ pub enum Piece {
     Param {
         placeholder: String,
         number: i32,
+        argument: usize,
         name: String,
     },
     /// The placeholder of a `sqlc.slice`, which sqlc writes after a marker (`/*SLICE:ids*/`) and which stands for one
@@ -43,6 +45,7 @@ pub enum Piece {
         marker: String,
         placeholder: String,
         number: i32,
+        argument: usize,
         name: String,
     },
 }
@@ -51,6 +54,8 @@ pub enum Piece {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bind<'a> {
     pub number: i32,
+    /// Index in the generated function's public parameters.
+    pub argument: usize,
     /// The Python name.
     pub name: &'a str,
     /// sqlc's own name of a `sqlc.slice`, which its marker spells.
@@ -60,8 +65,10 @@ pub struct Bind<'a> {
 #[cfg(test)]
 pub fn binds<'a>(params: &[(i32, &'a str)]) -> Vec<Bind<'a>> {
     (params.iter())
-        .map(|&(number, name)| Bind {
+        .enumerate()
+        .map(|(argument, &(number, name))| Bind {
             number,
+            argument,
             name,
             slice: None,
         })
@@ -199,10 +206,8 @@ impl Engine {
     /// The words of `text` whose meaning we may rely on.
     pub(crate) fn words(self, text: &str) -> Vec<String> {
         match self {
-            // MySQL runs an executable comment (`/*! LEFT */ JOIN`) that our lexer leaves out, so we rather read no
-            // tokens at all, which reads as nothing known of the statement. MariaDB, which sqlc's mysql engine and
-            // the drivers serve too, runs `/*M! ... */` as well.
-            Self::MySql if text.contains("/*!") || text.contains("/*M!") => Vec::new(),
+            // Executable comments can change a join or projection. Only trust the words when the lexer found none.
+            Self::MySql => mysql::words(&text.chars().collect::<Vec<_>>(), false),
             Self::PostgreSql => {
                 // PostgreSQL folds unquoted names before it looks them up in the catalog.
                 let mut words = self.code(text);
@@ -213,7 +218,7 @@ impl Engine {
                 }
                 words
             }
-            Self::Sqlite | Self::MySql => self.code(text),
+            Self::Sqlite => self.code(text),
         }
     }
 
@@ -224,7 +229,7 @@ impl Engine {
         match self {
             Self::PostgreSql => postgresql::words(&chars),
             Self::Sqlite => sqlite::words(&chars),
-            Self::MySql => mysql::words(&chars),
+            Self::MySql => mysql::words(&chars, true),
         }
     }
 
@@ -267,13 +272,15 @@ fn cut(
     let placeholders: Vec<(Range<usize>, i32)> = placeholders.collect();
 
     if let Some(bind) = (params.iter()).find(|bind| !placeholders.iter().any(|(_, found)| *found == bind.number)) {
-        bail!(
-            "sqlc reported parameter {} (\"{}\"), but the SQL has no placeholder for it outside \
-             strings and comments{}",
-            engine.placeholder(bind.number),
-            bind.name,
+        bail!(Problem::new(
+            format!(
+                "sqlc reported parameter {} (\"{}\"), but the SQL has no placeholder for it outside \
+             strings and comments",
+                engine.placeholder(bind.number),
+                bind.name
+            ),
             bindings::misnumbered(engine)
-        );
+        ));
     }
 
     let text = |range: Range<usize>| chars[range].iter().collect::<String>();
@@ -282,10 +289,10 @@ fn cut(
     for (range, number) in placeholders {
         let placeholder = text(range.clone());
         let Some(bind) = params.iter().find(|bind| bind.number == number) else {
-            bail!(
-                "the SQL uses {placeholder}, which sqlc reported no parameter for{}",
+            bail!(Problem::new(
+                format!("the SQL uses {placeholder}, which sqlc reported no parameter for"),
                 bindings::misnumbered(engine)
-            );
+            ));
         };
         let mut before = text(from..range.start);
         from = range.end;
@@ -294,6 +301,7 @@ fn cut(
             None => Piece::Param {
                 placeholder,
                 number,
+                argument: bind.argument,
                 name,
             },
             Some(slice) => {
@@ -306,6 +314,7 @@ fn cut(
                     marker,
                     placeholder,
                     number,
+                    argument: bind.argument,
                     name,
                 }
             }
@@ -327,10 +336,10 @@ fn cut(
         Piece::Slice { marker, .. } if spelt(marker) => Some(marker),
         _ => None,
     }) {
-        bail!(
-            "the SQL spells {marker} where sqlc reported no sqlc.slice, as in a string or a comment{}",
+        bail!(Problem::new(
+            format!("the SQL spells {marker} where sqlc reported no sqlc.slice, as in a string or a comment"),
             bindings::misnumbered(engine)
-        );
+        ));
     }
     Ok(Sql(pieces))
 }

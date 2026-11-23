@@ -5,6 +5,7 @@ use super::names::{self, Binding, Repeats};
 use super::queries::{RowField, Shape};
 use super::resolver::Resolver;
 use crate::plugin;
+use crate::problem::Problem;
 
 #[cfg(test)]
 #[path = "results_spec.rs"]
@@ -48,11 +49,14 @@ pub(super) fn columns(
                 let missing = match is_outer {
                     false => None,
                     true => Some(
-                        (model.fields.iter().position(|field| !field.ty.optional)).with_context(|| {
-                            format!(
-                                "sqlc.embed({table}) of a table that may be missing, as \
+                        (model.fields.iter().position(|field| !field.ty.optional)).ok_or_else(|| {
+                            Problem::new(
+                                format!(
+                                    "sqlc.embed({table}) of a table that may be missing, as \
                                      after an outer join, of whose columns none is NOT NULL to \
-                                     tell a missing row by; select its columns instead"
+                                     tell a missing row by"
+                                ),
+                                "select its columns instead",
                             )
                         })?,
                     ),

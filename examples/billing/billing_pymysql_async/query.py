@@ -557,7 +557,11 @@ async def delete_draft_invoices(
     connection: asyncmy.Connection, *, customer_id: int
 ) -> asyncmy.cursors.Cursor:
     cur = connection.cursor(asyncmy.cursors.Cursor)
-    await _typed(cur).execute(_DELETE_DRAFT_INVOICES, (customer_id,))
+    try:
+        await _typed(cur).execute(_DELETE_DRAFT_INVOICES, (customer_id,))
+    except BaseException:
+        await cur.close()
+        raise
     return cur
 
 

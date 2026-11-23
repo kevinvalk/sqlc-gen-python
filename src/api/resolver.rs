@@ -12,6 +12,7 @@ use super::names::{Binding, Repeats, names};
 use crate::config::{Config, Override};
 use crate::engine::Engine;
 use crate::plugin;
+use crate::problem::Problem;
 use crate::python::Type;
 use crate::sqlc_typing;
 
@@ -263,10 +264,13 @@ impl<'a> Resolver<'a> {
         };
         let element = match (rule, sql_enum) {
             (Some(_), Some(_)) if array_dims > 0 => {
-                bail!(
-                    "{what} is an array of enum \"{data_type}\", whose elements a driver may return as the \
-                     array's text; an override cannot replace them"
-                )
+                bail!(Problem::new(
+                    format!(
+                        "{what} is an array of enum \"{data_type}\", whose elements a driver may return as the \
+                         array's text"
+                    ),
+                    "an override cannot replace them"
+                ))
             }
             (Some(rule), _) => {
                 // A driver returns an enum label. For a type without a verified mapping only object is sound,
@@ -275,10 +279,10 @@ impl<'a> Resolver<'a> {
                     (true, _) => Type::STR,
                     (_, Some(wire)) => wire,
                     (_, None) if array_dims == 0 || rule.from_db.is_none() => Type::OBJECT,
-                    _ => bail!(
-                        "{what} is an array of \"{data_type}\", which has no verified list representation; \
-                         cast it to an array type the driver returns as a list"
-                    ),
+                    _ => bail!(Problem::new(
+                        format!("{what} is an array of \"{data_type}\", which has no verified list representation"),
+                        "cast it to an array type the driver returns as a list"
+                    )),
                 };
                 Type::Override {
                     annotation: rule.python_type.expr.clone(),
@@ -296,7 +300,9 @@ impl<'a> Resolver<'a> {
                 match sqlc_typing::is_set_column(self.engine, self.catalog, column, &sql_enum.vals) {
                     Ok(true) => Type::STR,
                     Ok(false) => Type::Enum(class),
-                    Err(problem) => return self.unknown(column, format!("{what} {problem}")),
+                    Err((reason, remedy)) => {
+                        return self.unknown(column, Problem::new(format!("{what} {reason}"), remedy));
+                    }
                 }
             }
             (None, None) => {
@@ -307,9 +313,9 @@ impl<'a> Resolver<'a> {
                     let named = data_type.strip_prefix(&default).unwrap_or(&data_type);
                     return self.unknown(
                         column,
-                        format!(
-                            "{what} has type \"{data_type}\", which has no verified Python mapping; \
-                             name its Python type with an override (db_type \"{named}\"){hint}"
+                        Problem::new(
+                            format!("{what} has type \"{data_type}\", which has no verified Python mapping"),
+                            format!("name its Python type with an override (db_type \"{named}\"){hint}"),
                         ),
                     );
                 };
@@ -325,18 +331,18 @@ impl<'a> Resolver<'a> {
         {
             return self.unknown(
                 column,
-                format!("{what} is an array of \"{data_type}\", which {problem}"),
+                Problem::new(format!("{what} is an array of \"{data_type}\", which {problem}"), ""),
             );
         }
         if matches!(element.wire(), Type::Library { .. }) && array_dims > 0 {
             let problem = format!("{what} is an array of \"{data_type}\", which has no verified Python mapping");
-            return self.unknown(column, problem);
+            return self.unknown(column, Problem::new(problem, ""));
         }
         if matches!(element, Type::Enum(_)) && array_dims > 1 {
             let problem = format!(
                 "{what} is a multi-dimensional array of enum \"{data_type}\", which has no verified Python mapping"
             );
-            return self.unknown(column, problem);
+            return self.unknown(column, Problem::new(problem, ""));
         }
 
         Ok(FieldType {
@@ -351,9 +357,15 @@ impl<'a> Resolver<'a> {
     /// What we make of a column or parameter of a type we cannot verify: the error that says why, or the annotation the
     /// user accepts for every such type (`unknown_type`). That stands for the whole column, as a driver may not even
     /// return a list for an array of it.
-    pub fn unknown(&self, column: &plugin::Column, problem: String) -> Result<FieldType> {
+    fn unknown(&self, column: &plugin::Column, mut problem: Problem) -> Result<FieldType> {
         let Some(unknown) = self.config.unknown_type else {
-            bail!("{problem}; or set unknown_type: Any to leave it unchecked");
+            if !problem.remedy.is_empty() {
+                problem.remedy.push_str("; ");
+            }
+            problem
+                .remedy
+                .push_str("or set unknown_type: Any to leave it unchecked");
+            return Err(problem.into());
         };
         Ok(FieldType {
             element: unknown.ty(),

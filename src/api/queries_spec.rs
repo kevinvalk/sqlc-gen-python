@@ -106,7 +106,7 @@ fn every_problem_is_reported_at_once() {
 fn what_to_do_about_several_problems_is_said_once_under_them() {
     let column = |name: &str, data_type: &str| plugin::Query {
         name: name.into(),
-        columns: vec![column("v", data_type, true)],
+        columns: vec![column("value; net", data_type, true)],
         ..query(":one", "SELECT v FROM t")
     };
     let queries = vec![column("A", "geometry"), column("B", "integer"), column("C", "geometry")];
@@ -114,10 +114,10 @@ fn what_to_do_about_several_problems_is_said_once_under_them() {
     assert_eq!(
         error,
         r#"3 problems:
-authors.sql: query "A": column "v" has type "geometry", which has no verified Python mapping
-authors.sql: query "C": column "v" has type "geometry", which has no verified Python mapping
+authors.sql: query "A": column "value; net" has type "geometry", which has no verified Python mapping
+authors.sql: query "C": column "value; net" has type "geometry", which has no verified Python mapping
   name its Python type with an override (db_type "geometry"), or, for a domain, declare the column with its base type and a CHECK constraint; or set unknown_type: Any to leave it unchecked
-authors.sql: query "B": column "v" has a type sqlc could not infer
+authors.sql: query "B": column "value; net" has a type sqlc could not infer
   add a cast, as <expr>::<type>, or coalesce(<expr>, <default>)::<type> if it can be NULL, as sqlc reports every cast NOT NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked"#
     );
 }
@@ -304,6 +304,22 @@ fn a_merge_cannot_count_its_rows() {
     }
     resolve(query(":exec", merge));
     resolve(query(":execrows", "DELETE FROM authors WHERE name = 'merge into'"));
+}
+
+#[test]
+fn a_mysql_comment_marker_in_a_string_preserves_the_stream_and_row_type() {
+    for marker in ["/*!", "/*M!"] {
+        let query = on(
+            "mysql",
+            plugin::Query {
+                columns: vec![of_authors(column("id", "bigint", true))],
+                ..query(":many", &format!("SELECT id FROM authors WHERE name = '{marker}'"))
+            },
+        )
+        .unwrap();
+        assert_eq!(query.stream.as_deref(), Some("stream_get_author"));
+        assert!(!query.columns[0].ty.optional);
+    }
 }
 
 #[test]

@@ -26,7 +26,7 @@ fn a_set_is_measured_in_bytes_and_one_member_is_ambiguous() {
     assert!(!set_length(&column("t_cenum", 2), &labels).unwrap());
     assert!(set_length(&column("t_missing", -1), &labels).is_err());
     let error = set_length(&column("t_one", 1), &["a".to_string()]).unwrap_err();
-    assert!(error.contains("one member"), "{error}");
+    assert!(error.0.contains("one member"), "{error:?}");
 }
 
 #[test]

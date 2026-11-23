@@ -20,6 +20,7 @@ use anyhow::{Context, Result, bail};
 
 use crate::config::Config;
 use crate::plugin;
+use crate::problem::Problem;
 use crate::python::Type;
 use queries::RowField;
 
@@ -116,49 +117,54 @@ fn used(modules: &[queries::Module]) -> BTreeSet<String> {
         .collect()
 }
 
-/// We collect every problem of the schema and queries so that one run reports them all, as sqlc only shows a plugin's
-/// output once it fails and a problem at a time would take a run each.
-///
-/// A problem says what is wrong where and, after a `; `, what to do about it. We say each fix once, under all the
-/// problems it fixes, as one override types every column of its type.
+/// sqlc shows diagnostics only after generation fails. We report every problem together and print each remedy once.
 #[derive(Default)]
-pub struct Problems(Vec<String>);
+pub struct Problems(Vec<Problem>);
 
 impl Problems {
-    /// The value of `result`, or `None` after noting its error under `what`.
     pub fn take<T>(&mut self, what: &str, result: Result<T>) -> Option<T> {
-        result.map_err(|error| self.0.push(format!("{what}: {error:#}"))).ok()
+        result.map_err(|error| self.note(error.context(what.to_owned()))).ok()
     }
 
-    pub fn note(&mut self, error: anyhow::Error) {
-        self.0.push(format!("{error:#}"));
+    pub fn note(&mut self, error: impl Into<anyhow::Error>) {
+        let error = error.into();
+        let mut context = Vec::new();
+        for cause in error.chain() {
+            if let Some(problem) = cause.downcast_ref::<Problem>() {
+                context.push(problem.message.clone());
+                self.0.push(Problem::new(context.join(": "), &problem.remedy));
+                return;
+            }
+            context.push(cause.to_string());
+        }
+        self.0.push(Problem::new(context.join(": "), ""));
     }
 
-    /// Fails with every problem we noted, if there is any.
     pub fn check(self) -> Result<()> {
-        let all = match self.0.as_slice() {
+        match self.0.as_slice() {
             [] => return Ok(()),
             [one] => bail!("{one}"),
-            all => all,
-        };
-
-        // We group the problems by their fix, keeping both in the order we found them.
-        let mut fixes: Vec<(&str, Vec<&str>)> = Vec::new();
-        for problem in all {
-            let (wrong, fix) = problem.split_once("; ").unwrap_or((problem, ""));
-            match fixes.iter_mut().find(|(known, _)| *known == fix) {
-                Some((_, problems)) => problems.push(wrong),
-                None => fixes.push((fix, vec![wrong])),
+            _ => {}
+        }
+        let mut groups: Vec<(&str, Vec<&str>)> = Vec::new();
+        for problem in &self.0 {
+            match groups.iter_mut().find(|(remedy, _)| *remedy == problem.remedy) {
+                Some((_, messages)) => messages.push(&problem.message),
+                None => groups.push((&problem.remedy, vec![&problem.message])),
             }
         }
-
-        let lines: Vec<String> = (fixes.iter())
-            .flat_map(|(fix, problems)| {
-                let fix = (!fix.is_empty()).then(|| format!("  {fix}"));
-                problems.iter().map(|wrong| wrong.to_string()).chain(fix)
-            })
-            .collect();
-        bail!("{} problems:\n{}", all.len(), lines.join("\n"))
+        let mut message = format!("{} problems:", self.0.len());
+        for (remedy, problems) in groups {
+            for problem in problems {
+                message.push('\n');
+                message.push_str(problem);
+            }
+            if !remedy.is_empty() {
+                message.push_str("\n  ");
+                message.push_str(remedy);
+            }
+        }
+        bail!("{message}")
     }
 }
 

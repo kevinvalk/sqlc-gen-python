@@ -17,13 +17,13 @@ fn placeholders_become_the_parameters_python_names() {
     );
     let names: Vec<&str> = query.params.iter().map(|p| p.name.as_str()).collect();
     assert_eq!(names, ["from_", "column_2"]);
-    let placeholders: Vec<&str> = (query.sql.0.iter())
+    let placeholders: Vec<_> = (query.sql.0.iter())
         .filter_map(|piece| match piece {
-            Piece::Param { name, .. } => Some(name.as_str()),
+            Piece::Param { name, argument, .. } => Some((name.as_str(), *argument)),
             _ => None,
         })
         .collect();
-    assert_eq!(placeholders, ["from_", "column_2", "from_"]);
+    assert_eq!(placeholders, [("from_", 0), ("column_2", 1), ("from_", 0)]);
     assert_eq!(query.sql.text(), "SELECT $1, $2::int, $1");
 }
 
@@ -253,6 +253,7 @@ fn a_slice_is_a_list_of_its_type_bound_one_placeholder_per_item() {
         marker: "/*SLICE:ids*/".into(),
         placeholder: "?".into(),
         number: 1,
+        argument: 0,
         name: "ids".into(),
     }));
     let error = on(

@@ -248,6 +248,20 @@ MUTANTS = {
 """,
         "",
     ),
+    "ordered rows reversed": Mutant(
+        SWEEP,
+        "but sqlc's SQL run directly returned",
+        "invoices.py",
+        "SELECT DISTINCT status FROM invoices ORDER BY status",
+        "SELECT DISTINCT status FROM invoices ORDER BY status DESC",
+    ),
+    "generated query raises after direct SQL succeeds": Mutant(
+        SWEEP,
+        "generated call raised",
+        "invoices.py",
+        "SELECT DISTINCT status FROM invoices ORDER BY status",
+        "SELECT DISTINCT status FROM invoices WHERE 1 / 0 = 0 ORDER BY status",
+    ),
     # Two swapped values of one type type-check and run, so at runtime only a known value tells: the scenario's, where it
     # asserts one, or sqlc's SQL run directly, which the sweep holds every function to. We swap them in a query's row,
     # as a model's the sweep catches earlier.

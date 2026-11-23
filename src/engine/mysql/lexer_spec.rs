@@ -40,3 +40,22 @@ fn a_placeholder_is_only_code() {
     // A backslash escapes the quote in a string, never in an identifier
     assert_eq!(bound(r"SELECT `a\`, ?", 1), ["p1"]);
 }
+
+#[test]
+fn only_an_executable_comment_makes_a_projection_unknown() {
+    let engine = crate::engine::Engine::MySql;
+    for marker in ["/*!", "/*M!"] {
+        for sql in [
+            format!("SELECT '{marker}'"),
+            format!("SELECT 1 -- {marker}"),
+            format!("SELECT `{marker}`"),
+        ] {
+            assert!(!engine.words(&sql).is_empty(), "{sql}");
+        }
+        assert!(
+            engine
+                .words(&format!("SELECT {marker} DISTINCT */ id FROM t"))
+                .is_empty()
+        );
+    }
+}

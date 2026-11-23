@@ -31,6 +31,9 @@ fn every_case_matches_its_expected_output() {
     if let Some(directory) = support::gen_dir() {
         fs::create_dir_all(&directory).unwrap();
         fs::write(directory.join("changed"), changed.join("\n")).unwrap();
+        if std::env::var_os("SQLC_EXPORT_DIFFERENCES").is_some() {
+            return;
+        }
     }
 
     assert!(

@@ -27,6 +27,7 @@ fn query(command: Command, parameters: Vec<Field>) -> Query {
         pieces.push(Piece::Param {
             placeholder: format!("${}", i + 1),
             number: i as i32 + 1,
+            argument: i,
             name: parameter.name.clone(),
         });
     }
@@ -170,6 +171,7 @@ fn pymysql_takes_percent_s_and_every_other_percent_doubled() {
     query.sql.0[1] = Piece::Param {
         placeholder: "?".into(),
         number: 1,
+        argument: 0,
         name: "p".into(),
     };
     query.sql.0.push(Piece::Text(" LIKE '%:x%'".into()));
@@ -284,7 +286,7 @@ def _typed(cursor: asyncmy.cursors.Cursor) -> _Cursor:
     assert_eq!(
         body,
         "cur = connection.cursor(asyncmy.cursors.Cursor)\n\
-         await _typed(cur).execute(_GET)\n\
+         try:\n    await _typed(cur).execute(_GET)\nexcept BaseException:\n    await cur.close()\n    raise\n\
          return cur"
     );
 }
@@ -296,6 +298,7 @@ fn a_slice_is_one_placeholder_per_item_and_a_subquery_of_none_when_empty() {
         marker: "/*SLICE:ids*/".into(),
         placeholder: "?".into(),
         number: 1,
+        argument: 0,
         name: "ids".into(),
     };
     let body = Backend::Pymysql.body(&query, false);

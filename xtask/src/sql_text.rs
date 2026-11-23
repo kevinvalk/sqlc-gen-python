@@ -13,7 +13,9 @@ pub fn serve() -> Result<()> {
     for line in io::stdin().lock().lines() {
         let (sql, parameters): (String, Vec<(i32, String)>) = serde_json::from_str(&line?)?;
         let binds: Vec<Bind> = (parameters.iter())
-            .map(|(number, name)| Bind {
+            .enumerate()
+            .map(|(argument, (number, name))| Bind {
+                argument,
                 number: *number,
                 name,
                 slice: None,

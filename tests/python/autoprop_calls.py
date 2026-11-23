@@ -74,6 +74,8 @@ class Call:
     # parameters than the options' `max_params`.
     record: Any = None
     bundled: bool = False
+    ordered: bool = False
+    raise_on_none: bool = False
 
     async def run(
         self,
@@ -115,9 +117,19 @@ class Call:
 
             # A `:one` without a row raises, as Go's `ErrNoRows`.
             if is_error(error, sqlalchemy.exc.NoResultFound, "NoRowError"):
-                if cmd not in {":one", ":batchone"}:
+                if cmd not in {":one", ":batchone"} or not self.raise_on_none:
                     raise
                 return "empty", self.compare(expected, [])
+            if isinstance(expected, (int, list)):
+                if (
+                    cmd == ":one"
+                    and isinstance(expected, list)
+                    and len(expected) > 1
+                    and is_error(error, sqlalchemy.exc.MultipleResultsFound, "MultipleRowsError")
+                ):
+                    return "inconclusive", True
+                message = f"{self.name}: direct SQL returned {expected!r}, generated call raised {error!r}"
+                raise AssertionError(message) from error
             if refused(error) or rejected(error, url, self.query["text"]):
                 return "inconclusive", False
             raise
@@ -144,11 +156,14 @@ class Call:
             # `None` is no row or a row of one NULL, whichever the direct run found, so a value where there is none
             # still differs.
             case ":one" if result is None and expected == []:
+                if self.raise_on_none:
+                    message = f"{self.name}: returned None for a missing row with raise_on_none enabled"
+                    raise AssertionError(message)
                 returned: object = []
             case ":one":
                 returned = [repr(flat(result))]
             case ":many":
-                returned = sorted(repr(flat(row)) for row in typing.cast("list[object]", result))
+                returned = [repr(flat(row)) for row in typing.cast("list[object]", result)]
             case _:
                 returned = result
 
@@ -170,7 +185,7 @@ class Call:
     ) -> object:
         """sqlc's text, run twice with ``rows`` by psycopg's ``RawCursor`` and rolled back each time.
 
-        Returns its rows as a sorted list of their reprs or its row count, ``"unstable"`` when the two runs differ, or
+        Returns its rows as a list of their reprs or its row count, ``"unstable"`` when the two runs differ, or
         ``"unrunnable"`` when it raised.
         """
         parameters = sorted(zip(self.query["params"], self.arguments, strict=True), key=lambda pair: pair[0]["number"])
@@ -190,18 +205,24 @@ class Call:
                         runs.append(
                             cursor.rowcount
                             if self.query["cmd"] == ":execrows"
-                            else sorted(repr(tuple(map(plain, row))) for row in cursor.fetchall())
+                            else [repr(tuple(map(plain, row))) for row in cursor.fetchall()]
                         )
             except psycopg.Error:
                 return "unrunnable"
             finally:
                 nested.rollback()
+        if not self.ordered:
+            for run in runs:
+                if isinstance(run, list):
+                    run.sort()
         return runs[0] if runs[0] == runs[1] else "unstable"
 
     def compare(self, expected: object, returned: object) -> bool:
         """Whether we compared ``returned`` with ``expected`` from ``direct``, raising when they differ."""
         if expected is None or expected in ("unstable", "unrunnable"):
             return False
+        if not self.ordered and isinstance(returned, list):
+            returned = sorted(returned)
         if returned != expected:
             message = f"{self.name}: returned {returned!r}, but sqlc's SQL run directly returned {expected!r}"
             raise AssertionError(message)
@@ -294,6 +315,9 @@ def calls(
     connection: sqlalchemy.Connection,
     module: ModuleType,
     queries: list[Json],
+    *,
+    ordered_queries: set[str],
+    raise_on_none: bool,
 ) -> list[Call]:
     """The functions of a query file's module, paired with its queries in sqlc's order."""
     functions = [
@@ -334,10 +358,11 @@ def calls(
         ]
         name = f"{module.__name__.split('.')[-1]}.{function.__name__}"
         call = checked(function, set())
-        found.append(Call(name, call, query, arguments, record, bundled))
+        ordered = query["name"] in ordered_queries
+        found.append(Call(name, call, query, arguments, record, bundled, ordered, raise_on_none))
         if (stream := streams.get(function.__name__)) is not None:
             name = f"{module.__name__.split('.')[-1]}.{stream.__name__}"
-            found.append(Call(name, streamed(stream, set()), query, arguments, record, bundled))
+            found.append(Call(name, streamed(stream, set()), query, arguments, record, bundled, ordered, raise_on_none))
     return sorted(found, key=_writes_first)
 
 

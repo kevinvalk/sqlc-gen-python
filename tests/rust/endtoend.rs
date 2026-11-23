@@ -182,6 +182,9 @@ fn check_ledger(path: &Path, outcomes: &BTreeMap<Key, String>) {
         fs::create_dir_all(&directory).unwrap();
         fs::write(directory.join("ledger.tsv"), &rendered).unwrap();
         fs::write(directory.join("regressions"), &regressions).unwrap();
+        if std::env::var_os("SQLC_EXPORT_DIFFERENCES").is_some() {
+            return;
+        }
     }
 
     let counts: Vec<String> = (by_kind.iter())

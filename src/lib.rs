@@ -5,6 +5,7 @@ pub mod backend;
 pub mod config;
 pub mod engine;
 pub mod plugin;
+mod problem;
 pub mod python;
 pub mod render;
 pub mod sqlc_typing;

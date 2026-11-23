@@ -11,6 +11,7 @@ use super::tokens::is;
 use super::{Column, QueryResult};
 use crate::engine::Engine;
 use crate::plugin;
+use crate::problem::Problem;
 
 pub(super) fn refine(
     result: &mut QueryResult,
@@ -39,17 +40,18 @@ pub(super) fn refine(
         // IMPORTANT: Nothing tells which column sqlc typed by one operand then, and sqlc reports a cast one no
         // differently, so we cannot take its type for any of them.
         if holds_operand_typed(&words, &query.text) {
-            bail!(
+            bail!(Problem::new(
                 "has a result list we could not read, so its coalesce, nullif or CASE, which sqlc types by one \
-                 operand whatever the others are, may be any of its columns; if a column is named as a keyword, as \
-                 \"offset\", quote it"
-            );
+                 operand whatever the others are, may be any of its columns",
+                "if a column is named as a keyword, as \"offset\", quote it"
+            ));
         }
 
         if select::is_set_operation(&words) {
-            bail!(
-                "has a set-operation result list we could not read; select and cast each column explicitly in every branch"
-            );
+            bail!(Problem::new(
+                "has a set-operation result list we could not read",
+                "select and cast each column explicitly in every branch"
+            ));
         }
 
         for column in &mut result.columns {

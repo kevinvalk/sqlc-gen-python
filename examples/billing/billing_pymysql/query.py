@@ -549,7 +549,11 @@ def delete_draft_invoices(
     connection: _Connection, *, customer_id: int
 ) -> pymysql.cursors.Cursor:
     cur = connection.cursor(pymysql.cursors.Cursor)
-    cur.execute(_DELETE_DRAFT_INVOICES, (customer_id,))
+    try:
+        cur.execute(_DELETE_DRAFT_INVOICES, (customer_id,))
+    except BaseException:
+        cur.close()
+        raise
     return cur
 
 

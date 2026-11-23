@@ -101,7 +101,8 @@ A query selecting one column returns that column’s value per row. Selecting al
 | `:exec` / `:execrows` / `:execresult` | `None`, a row count, or the driver’s result or cursor, respectively. |
 | `:execlastid` | The generated integer ID, or `0` when no row was inserted (MySQL). |
 | `:copyfrom` | The number of rows written from an iterable of `<Query>Params` records. |
-| `:batchexec` / `:batchone` / `:batchmany` | A list with one result per input (PostgreSQL). |
+| `:batchexec` | `None` after executing the PostgreSQL batch. |
+| `:batchone` / `:batchmany` | A list in input order, with one `:one` result or one list of rows per input (PostgreSQL). |
 
 [Rows and parameters](docs/reference.md#rows-and-parameters) · [Streaming](docs/reference.md#streaming) · [Bulk inserts and timings](docs/reference.md#bulk-inserts)
 

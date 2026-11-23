@@ -413,6 +413,7 @@ fn cut(query: &plugin::Query, engine: Engine, names: &[&str]) -> Option<Sql> {
             let at = firsts.iter().position(|f| f == first);
             let column = parameter.column.as_ref();
             Bind {
+                argument: at.unwrap_or(i),
                 number: match engine {
                     Engine::PostgreSql => parameter.number,
                     _ => i as i32 + 1,

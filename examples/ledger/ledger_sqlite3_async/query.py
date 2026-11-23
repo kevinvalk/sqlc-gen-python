@@ -635,8 +635,12 @@ async def delete_entries(
     connection: aiosqlite.Connection, *, account_id: int
 ) -> aiosqlite.Cursor:
     cur = await connection.cursor()
-    cur.row_factory = None
-    await cur.execute(_DELETE_ENTRIES, (account_id,))
+    try:
+        cur.row_factory = None
+        await cur.execute(_DELETE_ENTRIES, (account_id,))
+    except BaseException:
+        await cur.close()
+        raise
     return cur
 
 

@@ -336,8 +336,8 @@ column_as/sqlite/request.json	sqlite3	ok	d14bc806
 column_as/sqlite/request.json	sqlite3_async	ok	4066f01e
 column_as/sqlite/request.json	unknown_any	ok	bb203394
 comment_godoc/postgresql/pgx/v4/request.json	exact_names	ok	a8878a31
-comment_godoc/postgresql/pgx/v4/request.json	psycopg	ok	1e5a6d42
-comment_godoc/postgresql/pgx/v4/request.json	psycopg_async	ok	29aa20f7
+comment_godoc/postgresql/pgx/v4/request.json	psycopg	ok	d67b85aa
+comment_godoc/postgresql/pgx/v4/request.json	psycopg_async	ok	487fb499
 comment_godoc/postgresql/pgx/v4/request.json	sqlalchemy	ok	a8878a31
 comment_godoc/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	1d886832
 comment_godoc/postgresql/pgx/v4/request.json	unknown_any	ok	b1f13917
@@ -420,8 +420,8 @@ copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlalchemy	error:query.sql: q
 copyfrom/postgresql/pgx/v4/request.managed-db.json	sqlalchemy_async	error:query.sql: query "InsertValues": parameter $2 ("b") has a type sqlc could not infer; add a cast, as @b::<type>, or sqlc.narg('b')::<type> if it can be NULL; with a database block in sqlc.yaml, also set analyzer: {database: false}, as only sqlc's static analysis can be told from a guess; or set unknown_type: Any to leave it unchecked	-
 copyfrom/postgresql/pgx/v4/request.managed-db.json	unknown_any	ok	95258a2f
 copyfrom_imports/postgresql/pgx/v4/request.json	exact_names	ok	daf16161
-copyfrom_imports/postgresql/pgx/v4/request.json	psycopg	ok	5cfef722
-copyfrom_imports/postgresql/pgx/v4/request.json	psycopg_async	ok	4ca20cf5
+copyfrom_imports/postgresql/pgx/v4/request.json	psycopg	ok	f52068e7
+copyfrom_imports/postgresql/pgx/v4/request.json	psycopg_async	ok	8d05b236
 copyfrom_imports/postgresql/pgx/v4/request.json	sqlalchemy	ok	daf16161
 copyfrom_imports/postgresql/pgx/v4/request.json	sqlalchemy_async	ok	7b2ba503
 copyfrom_imports/postgresql/pgx/v4/request.json	unknown_any	ok	70c1e4b1
@@ -1434,8 +1434,8 @@ exec_no_return_struct/postgresql/pgx/request.json	sqlalchemy	ok	408c078b
 exec_no_return_struct/postgresql/pgx/request.json	sqlalchemy_async	ok	4bca3c6d
 exec_no_return_struct/postgresql/pgx/request.json	unknown_any	ok	e6a483ee
 exec_result/go_postgresql_pgx/v4/request.json	exact_names	ok	759101c6
-exec_result/go_postgresql_pgx/v4/request.json	psycopg	ok	2642ce56
-exec_result/go_postgresql_pgx/v4/request.json	psycopg_async	ok	73875c40
+exec_result/go_postgresql_pgx/v4/request.json	psycopg	ok	3f90d367
+exec_result/go_postgresql_pgx/v4/request.json	psycopg_async	ok	6652f28b
 exec_result/go_postgresql_pgx/v4/request.json	sqlalchemy	ok	759101c6
 exec_result/go_postgresql_pgx/v4/request.json	sqlalchemy_async	ok	ad9e9baf
 exec_result/go_postgresql_pgx/v4/request.json	unknown_any	ok	e2b4d2a0
@@ -1674,8 +1674,8 @@ identical_tables/sqlite/request.json	sqlite3	ok	dd2f6907
 identical_tables/sqlite/request.json	sqlite3_async	ok	e4afc151
 identical_tables/sqlite/request.json	unknown_any	ok	a6ce94e6
 identifier_case_sensitivity/request.json	exact_names	ok	8036b9d0
-identifier_case_sensitivity/request.json	pymysql	ok	9d4fa27d
-identifier_case_sensitivity/request.json	pymysql_async	ok	b39513a4
+identifier_case_sensitivity/request.json	pymysql	ok	8fe3ace0
+identifier_case_sensitivity/request.json	pymysql_async	ok	a1e71660
 identifier_case_sensitivity/request.json	sqlalchemy	ok	76cf25bb
 identifier_case_sensitivity/request.json	sqlalchemy_async	ok	97678f8f
 identifier_case_sensitivity/request.json	unknown_any	ok	64a32204
@@ -2700,14 +2700,14 @@ pointer_type_import/postgresql/pgx/v5/request.json	sqlalchemy	ok	c217a64f
 pointer_type_import/postgresql/pgx/v5/request.json	sqlalchemy_async	ok	5a48cc49
 pointer_type_import/postgresql/pgx/v5/request.json	unknown_any	ok	5fafcd7f
 prepared_queries/mysql/request.json	exact_names	ok	cd0ab6cb
-prepared_queries/mysql/request.json	pymysql	ok	4684142a
-prepared_queries/mysql/request.json	pymysql_async	ok	ee5f12a2
+prepared_queries/mysql/request.json	pymysql	ok	ebc44473
+prepared_queries/mysql/request.json	pymysql_async	ok	e7e01703
 prepared_queries/mysql/request.json	sqlalchemy	ok	fa2f1074
 prepared_queries/mysql/request.json	sqlalchemy_async	ok	6af3fdc3
 prepared_queries/mysql/request.json	unknown_any	ok	dc6300d6
 prepared_queries/postgresql/stdlib/request.json	exact_names	ok	cd0ab6cb
-prepared_queries/postgresql/stdlib/request.json	psycopg	ok	d31f0f19
-prepared_queries/postgresql/stdlib/request.json	psycopg_async	ok	c0d9e915
+prepared_queries/postgresql/stdlib/request.json	psycopg	ok	a5ed15e2
+prepared_queries/postgresql/stdlib/request.json	psycopg_async	ok	5a4ec05c
 prepared_queries/postgresql/stdlib/request.json	sqlalchemy	ok	fa2f1074
 prepared_queries/postgresql/stdlib/request.json	sqlalchemy_async	ok	6af3fdc3
 prepared_queries/postgresql/stdlib/request.json	unknown_any	ok	dc6300d6
@@ -2802,8 +2802,8 @@ returning/sqlite/request.json	sqlite3	ok	29881d75
 returning/sqlite/request.json	sqlite3_async	ok	bc6aed3c
 returning/sqlite/request.json	unknown_any	ok	ffd0113c
 schema_scoped_create/mysql/request.json	exact_names	ok	48b65b8c
-schema_scoped_create/mysql/request.json	pymysql	ok	3f1a028f
-schema_scoped_create/mysql/request.json	pymysql_async	ok	76e5f3c0
+schema_scoped_create/mysql/request.json	pymysql	ok	7dff7a01
+schema_scoped_create/mysql/request.json	pymysql_async	ok	2d929baa
 schema_scoped_create/mysql/request.json	sqlalchemy	ok	48b65b8c
 schema_scoped_create/mysql/request.json	sqlalchemy_async	ok	f265e0ce
 schema_scoped_create/mysql/request.json	unknown_any	ok	291bc9da
@@ -3594,8 +3594,8 @@ where_collate/sqlite/request.json	sqlite3	ok	f57a3df0
 where_collate/sqlite/request.json	sqlite3_async	ok	39ab0385
 where_collate/sqlite/request.json	unknown_any	ok	761d1d14
 wrap_errors/mysql/request.json	exact_names	ok	73c8e0c1
-wrap_errors/mysql/request.json	pymysql	ok	d8519bf8
-wrap_errors/mysql/request.json	pymysql_async	ok	171aa109
+wrap_errors/mysql/request.json	pymysql	ok	17cedea7
+wrap_errors/mysql/request.json	pymysql_async	ok	40c4113f
 wrap_errors/mysql/request.json	sqlalchemy	ok	30ccd307
 wrap_errors/mysql/request.json	sqlalchemy_async	ok	2289e7fe
 wrap_errors/mysql/request.json	unknown_any	ok	9792bbb0

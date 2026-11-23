@@ -124,8 +124,7 @@ fn check(generated: &GenDir) -> Result<(), String> {
 fn bless(generated: &GenDir, flags: &[&str]) -> Result<(), String> {
     run(&mut generated.test("--quiet --lib"))?;
 
-    // These tests fail on exactly the differences we are blessing, so we ignore their verdict and read what they wrote.
-    let _ = run(&mut generated.test("--test rust"));
+    generated.export()?;
     let read = |name: &str, failure: &str| {
         fs::read_to_string(generated.0.join(name)).map_err(|_| format!("{failure} (see above)"))
     };
@@ -171,15 +170,7 @@ fn bless(generated: &GenDir, flags: &[&str]) -> Result<(), String> {
 /// The runtime proof over what the generator emits: `cargo test` exports every golden and endtoend output, which
 /// `tests/python/verify.py` then proves.
 fn verify(generated: &GenDir, options: &[&str]) -> Result<(), String> {
-    // We ignore whether the output matches what is committed, as that is `check`'s question and a case awaiting bless
-    // is still output to prove. We do need everything exported, and each test writes its file last.
-    let _ = run(&mut generated.test("--test rust"));
-    if !["changed", "ledger.tsv", "packages.tsv"]
-        .iter()
-        .all(|file| generated.0.join(file).is_file())
-    {
-        return Err("cargo test stopped before exporting every output (see above)".into());
-    }
+    generated.export()?;
     run(uv_python("tests/python/verify.py").arg(&generated.0).args(options))
 }
 
@@ -236,8 +227,12 @@ impl GenDir {
     /// `cargo test <args>`, set to write every output here (see `tests/rust/support/`).
     fn test(&self, args: &str) -> Command {
         let mut test = cargo(&format!("test --no-fail-fast {args}"));
-        test.env("GEN_DIR", &self.0);
+        test.env("GEN_DIR", &self.0).env_remove("SQLC_EXPORT_DIFFERENCES");
         test
+    }
+
+    fn export(&self) -> Result<(), String> {
+        run(self.test("--test rust").env("SQLC_EXPORT_DIFFERENCES", "1"))
     }
 
     fn gate(&self) -> Result<(), String> {

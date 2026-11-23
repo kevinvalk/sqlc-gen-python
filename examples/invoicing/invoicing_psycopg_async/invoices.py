@@ -676,8 +676,12 @@ async def void_invoice(
     connection: psycopg.AsyncConnection[Any], *, id: UUID
 ) -> psycopg.AsyncRawCursor[tuple[Any, ...]]:
     cur = psycopg.AsyncRawCursor(connection, row_factory=tuple_row)
-    async with connection.pipeline():
-        await cur.execute(_VOID_INVOICE, (id,))
+    try:
+        async with connection.pipeline():
+            await cur.execute(_VOID_INVOICE, (id,))
+    except BaseException:
+        await cur.close()
+        raise
     return cur
 
 

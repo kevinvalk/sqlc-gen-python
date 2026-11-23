@@ -4,7 +4,9 @@ As in `test_runtime.py`, every call is checked against its annotations and every
 """
 
 import asyncio
+import contextlib
 import dataclasses
+import importlib
 import sqlite3
 from typing import Any
 
@@ -41,6 +43,22 @@ class _Dict(dict[str, Any]):
     def __init__(self, cursor: sqlite3.Cursor, row: tuple[Any, ...]) -> None:
         names = (column[0] for column in cursor.description)
         super().__init__(zip(names, row, strict=True))
+
+
+def test_failed_execresult_closes_its_cursor() -> None:
+    class ObservedConnection(sqlite3.Connection):
+        opened: sqlite3.Cursor
+
+        def cursor(self, *args: Any, **kwargs: Any) -> Any:
+            self.opened = super().cursor(*args, **kwargs)
+            return self.opened
+
+    query = importlib.import_module("ledger_sqlite3.query")
+    with contextlib.closing(sqlite3.connect(":memory:", factory=ObservedConnection)) as connection:
+        with pytest.raises(sqlite3.OperationalError, match="no such table"):
+            query.delete_entries(connection, account_id=1)
+        with pytest.raises(sqlite3.ProgrammingError, match="closed cursor"):
+            connection.opened.execute("SELECT 1")
 
 
 async def _sqlite3(case: GoldenCase, called: set[str]) -> None:

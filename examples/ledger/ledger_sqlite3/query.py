@@ -612,8 +612,12 @@ def delete_entries(
     connection: sqlite3.Connection, *, account_id: int
 ) -> sqlite3.Cursor:
     cur = connection.cursor()
-    cur.row_factory = None
-    cur.execute(_DELETE_ENTRIES, (account_id,))
+    try:
+        cur.row_factory = None
+        cur.execute(_DELETE_ENTRIES, (account_id,))
+    except BaseException:
+        cur.close()
+        raise
     return cur
 
 

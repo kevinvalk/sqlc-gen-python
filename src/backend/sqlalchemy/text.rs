@@ -10,6 +10,7 @@
 use anyhow::{Result, bail};
 
 use crate::engine::{Piece, Sql};
+use crate::problem::Problem;
 
 #[cfg(test)]
 #[path = "text_spec.rs"]
@@ -74,7 +75,10 @@ pub fn check(sql: &Sql) -> Result<()> {
             .filter(|&c| is_word(c))
             .map(|c| ("before", c));
         if let Some((side, c)) = before.or(after) {
-            bail!("SQLAlchemy text() cannot bind parameter {placeholder} directly {side} {c:?}; add a space");
+            bail!(Problem::new(
+                format!("SQLAlchemy text() cannot bind parameter {placeholder} directly {side} {c:?}"),
+                "add a space"
+            ));
         }
     }
     Ok(())

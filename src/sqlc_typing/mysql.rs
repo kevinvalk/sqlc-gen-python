@@ -33,7 +33,7 @@ pub(crate) fn is_set_column(
     catalog: &plugin::Catalog,
     column: &plugin::Column,
     labels: &[String],
-) -> Result<bool, &'static str> {
+) -> Result<bool, (&'static str, &'static str)> {
     if engine != Engine::MySql {
         return Ok(false);
     }
@@ -48,17 +48,21 @@ pub(crate) fn is_set_column(
     set_length(column, labels)
 }
 
-fn set_length(column: &plugin::Column, labels: &[String]) -> Result<bool, &'static str> {
+fn set_length(column: &plugin::Column, labels: &[String]) -> Result<bool, (&'static str, &'static str)> {
     if labels.len() == 1 {
-        return Err(
-            "has one member, which sqlc reports alike for an ENUM and a SET; use a str override or give it a second member",
-        );
+        return Err((
+            "has one member, which sqlc reports alike for an ENUM and a SET",
+            "use a str override or give it a second member",
+        ));
     }
     let longest = labels.iter().map(String::len).max().unwrap_or(0);
     let joined = labels.iter().map(String::len).sum::<usize>() + labels.len().saturating_sub(1);
     match usize::try_from(column.length) {
         Ok(length) if length == longest => Ok(false),
         Ok(length) if length == joined => Ok(true),
-        _ => Err("has no length that distinguishes its ENUM or SET labels; use a str override"),
+        _ => Err((
+            "has no length that distinguishes its ENUM or SET labels",
+            "use a str override",
+        )),
     }
 }

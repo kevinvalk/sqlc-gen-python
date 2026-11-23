@@ -6,6 +6,7 @@ use ruff_python_ast as ast;
 use crate::api::models::{Field, FieldType};
 use crate::api::queries::{Command, Query, Shape};
 use crate::engine::Engine;
+use crate::problem::Problem;
 use crate::python::vocabulary::{
     ANY, ASYNC_CONNECTION, CONNECTION, COUNT, CUR, DICT, LIST, MODELS, PARAMS, POSTGRESQL, R, ROW, ROWS, SQLALCHEMY,
     STR, VALUE, VALUES,
@@ -26,10 +27,13 @@ pub fn check(engine: Engine, query: &Query) -> Result<()> {
         _ => return Ok(()),
     };
     if engine.merges(&query.sql.text()) {
-        bail!(
-            "{command} counts -1 rows for a MERGE on asyncpg, whose row count SQLAlchemy cannot read, \
-             and the real count on psycopg; use :exec"
-        );
+        bail!(Problem::new(
+            format!(
+                "{command} counts -1 rows for a MERGE on asyncpg, whose row count SQLAlchemy cannot read, and the \
+                 real count on psycopg"
+            ),
+            "use :exec"
+        ));
     }
     Ok(())
 }
