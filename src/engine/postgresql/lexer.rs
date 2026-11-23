@@ -1,6 +1,7 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 use crate::engine::{Bind, Engine, Sql, cut};
+use crate::problem::Problem;
 use crate::sqlc_typing::bindings;
 
 #[cfg(test)]
@@ -13,6 +14,12 @@ pub fn sql(text: &str, params: &[Bind]) -> Result<Sql> {
     let tokens = tokens(&chars);
     if let Some(param) = adjacent_at_name(&chars, &tokens) {
         return Err(bindings::named_placeholder(Engine::PostgreSql, &param));
+    }
+    if let Some((operator, name)) = operator_at_name(&chars, &tokens) {
+        bail!(Problem::new(
+            format!("PostgreSQL reads {operator}{name} as the operator {operator}, so sqlc saw no parameter there"),
+            format!("write a space before @{name}")
+        ));
     }
     let placeholders = (tokens.iter()).filter_map(|token| match token.kind {
         Kind::Placeholder(number) => Some((token.start..token.end, number)),
@@ -53,6 +60,21 @@ fn adjacent_at_name(sql: &[char], tokens: &[Token]) -> Option<String> {
             && text(at) == "@"
             && (sql.get(at.end)).is_some_and(|&c| c == '"' || starts_identifier(c));
         is_name.then(|| format!("@{}", text(next)))
+    })
+}
+
+/// The first `@name` that PostgreSQL reads into the operator before it, with that operator: `id=@id` is the operator
+/// `=@`, which does not exist. An operator of PostgreSQL's own that ends in `@` is that operator (`tags <@allowed`).
+fn operator_at_name(sql: &[char], tokens: &[Token]) -> Option<(String, String)> {
+    const OPERATORS: &[&str] = &["<@", "@@", "@@@", "@-@"];
+    tokens.windows(2).find_map(|pair| {
+        let (operator, name) = (pair[0].text(sql), pair[1].text(sql));
+        let is_name = pair[0].kind == Kind::Operator
+            && operator.len() > 1
+            && operator.ends_with('@')
+            && !OPERATORS.contains(&operator.as_str())
+            && (sql.get(pair[0].end)).is_some_and(|&c| c == '"' || starts_identifier(c));
+        is_name.then_some((operator, name))
     })
 }
 

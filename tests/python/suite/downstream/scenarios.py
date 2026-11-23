@@ -179,6 +179,8 @@ async def bookings(queries: Queries) -> None:
     assert row.datetime == when
     await queries.call("update_and_confirm", stripe_payment_id="paid", id=ident)
     rows = await queries.call("get_confirmed_bookings_by_date_and_course", course_id=8, datetime=when)
+    # MySQL finds no booking when an afternoon datetime is compared with `DATE(datetime)` and MariaDB finds it, so we
+    # take what to expect from the same statement run directly.
     expected = queries.sql(
         "SELECT id FROM bookings WHERE status='confirmed' AND course_id=8 AND DATE(datetime)=%s",
         (when,),

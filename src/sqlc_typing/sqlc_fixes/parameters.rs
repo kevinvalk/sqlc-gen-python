@@ -43,6 +43,9 @@ fn check_parameters(engine: Engine, query: &plugin::Query) -> Result<()> {
 
 /// Plain placeholders compared positionally to columns in a PostgreSQL row comparison. A cast on the
 /// placeholder gives sqlc its own type, so we leave those out.
+///
+/// TODO: We do not read a row compared with `IN`, `IS DISTINCT FROM` or `BETWEEN`, nor one in parentheses of its
+/// own, where sqlc types each parameter by the first column just the same.
 fn row_parameters(words: &[String]) -> Vec<(i32, String)> {
     let tokens = leveled(words);
     let mut parameters = Vec::new();

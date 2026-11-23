@@ -1,19 +1,22 @@
 # Development
 
-| Command | When to use it |
-| --- | --- |
-| `cargo test` | Run the Rust tests locally. They need no Python, Docker or network. |
-| `cargo xtask check` | Check formatting and lint, run the Rust tests and check the generated Python and test scripts. |
-| `cargo xtask verify` | Run the Python against PostgreSQL, MySQL and SQLite. The default setup uses Docker. |
-| `cargo xtask bless` | Update expected output in `examples/` and the end-to-end ledger after reviewing what changed. |
-| `cargo xtask capture` | Refresh `tests/sqlc/` from the pinned sqlc and run the WASM through sqlc. This needs network access. |
-| `cargo wasm` | Build the WASM plugin. |
+```sh
+cargo test                    # Rust only: the examples byte for byte, and the rules every output must hold
+cargo xtask check             # also ruff, pyright strict and mypy strict over every generated package
+cargo xtask verify            # also runs the generated code on PostgreSQL, MySQL and SQLite
+cargo xtask bless             # accepts changed output, once verify passes on it
+cargo xtask capture --check   # the pinned sqlc still sends what tests/sqlc/ holds, and runs the WASM under it
+cargo wasm                    # builds the plugin
+```
 
-The `xtask/` Rust program runs these checks. It uses uv for the Python tools. [Test inputs and checks](testing.md) · [Cargo xtask convention](https://github.com/matklad/cargo-xtask) · [uv](https://docs.astral.sh/uv/)
+Each check sees what the one before cannot. `cargo xtask help` says what each needs: `verify` and `capture` start their databases in Docker.
 
-To investigate one query, start with what sqlc sent. Put this `sqlc.yaml` beside `schema.sql` and `query.sql`. The first command writes sqlc’s request as JSON. The second runs this checkout against that request.
+## Looking at one query
+
+To see what the plugin makes of a statement, let sqlc write the request it sends with its own `json` codegen, and run this checkout on that. When a type is wrong, read the request first, as what sqlc reports decides most of it.
 
 ```yaml
+# sqlc.yaml, beside a schema.sql and a query.sql
 version: "2"
 sql:
   - engine: postgresql
@@ -28,61 +31,37 @@ sqlc generate
 cargo xtask generate out/request.json '{"backend": "psycopg", "async": false}'
 ```
 
-## Architecture
+## How the parts fit
 
-sqlc sends a request on stdin. `generate` reads the options, resolves the Python API, then renders it. If a query gets the wrong type, inspect the request and the resolved API before changing how the function is written. [Entry point](../src/lib.rs) · [Plugin protocol](../protos/sqlc.proto)
+`generate` in `src/lib.rs` is the whole plugin: it reads the options (`config`), decides the API once (`api`) and writes that as Python (`render`, `python`). The API asks the `engine` what the database's types are in Python and how its SQL reads, the `backend` how its library runs a statement, and `sqlc_typing` for what sqlc leaves out or gets wrong. Each module says what it owns in its opening lines.
 
-| Where | What belongs here |
-| --- | --- |
-| [sqlc_typing](../src/sqlc_typing/) | Facts that sqlc omits or misreports. `inference/select/` follows result columns through joins, CTEs and aggregates. `sqlc_fixes/` handles ambiguous types, misreported parameters and damaged SQL. |
-| [engine](../src/engine/) | Each dialect’s lexer, placeholders and driver-verified Python type map. |
-| [backend](../src/backend/) | How the Python library executes a query and which types its driver returns differently. SQLAlchemy rewrites statements for `text()`. The native drivers share function bodies in `dbapi.rs`. |
-| [api](../src/api/) | The names, models, parameters and return types the caller sees. This is where we apply explicit overrides, match projections to table models and singularise names as sqlc does. |
-| [render](../src/render/) | The resolved API as Python modules, including model definitions, query functions and file headers. |
-| [python](../src/python/) | Ruff syntax nodes, Python names, annotations, imports and formatting. |
+## Replaying other projects
 
-We build each Python expression and statement as a Ruff syntax node. Names owned by the generated code live in `python/vocabulary.rs`. For example, `CUR.attr("execute")` uses our name for the cursor and the driver’s own method name. We parse override annotations as Python expressions. For quoted types in `typing.cast`, we collect imports under `typing.TYPE_CHECKING`. The renderer handles header comments, import spacing, docstrings and multiline SQL, then Ruff formats the module.
+`tests/python/suite/downstream/replay.py` runs the sqlc queries of other projects through the built WASM and calls the generated Python on real databases. `projects.tsv` beside it pins each project and says why an entry did not generate.
 
-`Engine` and `Backend` use exhaustive matches so adding a variant points to every decision it needs. Each module’s `_spec.rs` records its rules.
-
-### When sqlc changes
-
-Use sqlc’s column order, parameter numbers, command and catalog. For row-returning queries, `QueryResult::read` starts with one entry per reported column. `inference::refine` adds facts the Python signature needs. Without evidence to narrow the type, a `:one` can return no row, an embedded table can be absent and an array can contain NULL elements. [Result inference](../src/sqlc_typing/mod.rs)
-
-Before adding a correction, capture the request and reproduce the disagreement on the database. For a fact the protocol omits, identify the Python signature that depends on it. A driver returning PostgreSQL `money` as text belongs in the type map even if sqlc reports the database type perfectly.
-
-| What sqlc sends today | When to remove the rule |
-| --- | --- |
-| `GetCustomerContact` marks `contact_address` required through two CTEs. PostgreSQL returns NULL for a customer without an email. | Once sqlc marks it nullable, remove the projection correction and rerun both the NULL and populated cases. |
-| MySQL’s `FilterCustomers` reports one named parameter as both `any` and `varchar`. In some PostgreSQL row comparisons a parameter gets a different column’s type. | Once the uses have the correct type, remove the recovery or diagnostic. Run both valid and ambiguous predicates through sqlc. |
-| An uncast `coalesce(quantity, 0.5)` can get the type of the integer column. A numeric `sum` can get the result type of the first overload. | When sqlc resolves the operand types, remove the cast diagnostic and run the uncast expression against the driver. |
-| The protocol omits row presence, array element nullability and whether a `:many` only reads. An ungrouped `count(*)`, for example, returns a row even on an empty table. | Use each fact as the protocol adds it. Removing an inference before then can widen a return type or change which queries have streams. |
-| MySQL represents `SET` and `ENUM` as catalog enums. We use length to distinguish multi-label columns, but a slice parameter reports length `-1`. | Once sqlc reports the slice length, remove the column lookup. Once it names the type, remove the distinction in `mysql.rs`. |
-| An unexpanded macro or mixed numbered and anonymous SQLite placeholders can disagree with the parameter list. | Remove the diagnostic when the captured SQL and parameter list agree. The lexer still matches placeholders to arguments. |
-| On SQLite, `x & 6`, `x \| 8` and the shifts are reported as `bool`, like a comparison. MySQL reports a binary literal (`0x41`) as text. | Once sqlc types them as an integer and as bytes, remove the two diagnostics in `inference/select/mod.rs` and read the values back through each driver. |
-| SQLite cuts statements short after a UTF-8 comment and can drop a placeholder. | When both statements in the capture arrive whole, update the capture expectation and remove `checked_queries` and the ASCII restriction. [Upstream regression test](https://github.com/sqlc-dev/sqlc/pull/4568) |
-
-On a sqlc upgrade, run `cargo xtask capture` and `cargo test`. The raw-request tests catch changes to the CTE and repeated-parameter cases even if the generated Python is identical. Remove the affected rule and rerun its database cases. If sqlc supplies all the result facts, `inference::refine` and its private `inference/` directory can go. Driver mappings still belong in the engine and backend. The API still owns explicit overrides, shared Python arguments and the construction of embedded rows. [Raw-request tests](../tests/rust/golden.rs)
+```sh
+cargo wasm
+cd tests/python
+uv run --locked python -m suite.downstream.replay --server sqlite  # or mysql, mariadb, postgresql
+```
 
 ## Releasing
 
-Each passing commit on `main` publishes the moving `unstable` tag. If Git reports “would clobber existing tag”, configure the clone once to allow that tag to move.
+Every commit on `main` that passes CI is published as the `unstable` prerelease, a tag that moves. Git will not move a tag it already has, so allow it once in each clone:
 
 ```sh
 git config --add remote.origin.fetch '+refs/tags/unstable:refs/tags/unstable'
 ```
 
-To release a version, tag the commit on `main`.
+A version is only its tag, on a commit of `main`. CI then publishes the WASM with its attestation and the release notes, and commits the release's URL and sha256 into the README.
 
 ```sh
 git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z
 ```
 
-CI publishes the WASM, its build attestation and the release notes, then updates the pinned URL and SHA-256 in the README. [Release notes template](../.github/release-notes.md)
+Renovate merges an update once its release is a week old and CI passes on it. One that fails becomes a pull request, to finish by hand:
 
-Renovate updates direct dependencies after a release is at least a week old. Once CI passes, it merges the update to `main`. A failed update opens a pull request. These upgrades also require local work. [Renovate configuration](../.github/renovate.json5)
-
-- For sqlc, update `POSTGRES` in `tests/python/capture.py` to the version upstream tests use and run `cargo xtask capture`.
-- For Ruff, update the crate tag and Python pin together. Run `cargo update`, review any formatter changes, then run `cargo xtask bless` if needed.
-- For a PostgreSQL, MySQL or driver minor-version change, run `cargo xtask verify` to refresh the driver type map.
-- For a uv minor-version change, widen `required-version` in `tests/python/pyproject.toml`.
+- sqlc: `cargo xtask capture`, with `POSTGRES` in `tests/python/capture.py` at the version sqlc's own tests run;
+- ruff: the crates' tag and the Python pin move together, then `cargo update`, and `cargo xtask bless` if the formatter writes anything differently;
+- PostgreSQL, MySQL or a driver: `cargo xtask verify`, to rewrite `docs/typemap.md`;
+- uv: widen `required-version` in `tests/python/pyproject.toml`.

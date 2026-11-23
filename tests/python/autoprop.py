@@ -1,10 +1,10 @@
 """The runtime sweep: run what the generator emits for PostgreSQL against PostgreSQL.
 
-``docs/testing.md`` describes it. Each example seeds every table in foreign-key order and then calls every generated
-function once (writers first, deletes last), in a transaction it rolls back, checking every argument and result against
-its annotation (``deep.check``). A call returned ``rows``, came back ``empty`` (``None``, ``NoResultFound`` or the
-models' ``NoRowError`` for a ``:one``), ``ran`` (``:exec`` and ``:copyfrom``), or was ``inconclusive`` because the
-database refused the drawn data or the SQL itself. Anything else fails the package.
+Each example seeds every table in foreign-key order and then calls every generated function once (writers first, deletes
+last), in a transaction it rolls back, checking every argument and result against its annotation (``deep.check``). A
+call returned ``rows``, came back ``empty`` (``None``, ``NoResultFound`` or the models' ``NoRowError`` for a ``:one``),
+``ran`` (``:exec`` and ``:copyfrom``), or was ``inconclusive`` because the database refused the drawn data or the SQL
+itself. Anything else fails the package.
 
 A function is "exercised" once a call of it checked everything it can return: rows, or for a command that returns none,
 any call that was not inconclusive. Each ``:one``, ``:many`` and ``:execrows`` call is also compared with sqlc's own

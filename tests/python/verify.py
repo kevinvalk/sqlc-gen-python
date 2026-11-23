@@ -2,9 +2,9 @@
 
 usage: verify.py [-h] [--mutants] [--check] GENERATED
 
-GENERATED is what ``cargo test`` exported (``cargo xtask verify`` fills it). Each layer, a row of the summary at the
-end, is described in ``docs/testing.md``. Every layer runs on copies in a temporary directory, against one
-PostgreSQL (Docker, or ``SQLC_TEST_DATABASE_URL``) and one MySQL (Docker, or ``SQLC_TEST_MYSQL_URL``).
+GENERATED is what ``cargo test`` exported (``cargo xtask verify`` fills it). Each layer is a row of the summary at the
+end. Every layer runs on copies in a temporary directory, against one PostgreSQL (Docker, or ``SQLC_TEST_DATABASE_URL``)
+and one MySQL (Docker, or ``SQLC_TEST_MYSQL_URL``).
 """
 
 from __future__ import annotations

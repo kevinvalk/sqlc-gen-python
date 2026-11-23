@@ -1,5 +1,5 @@
 """Prove the SQL rewriting for SQLAlchemy's ``text()`` (``src/backend/sqlalchemy/text.rs``) against PostgreSQL's own
-scanner, as ``docs/testing.md`` describes. No database is needed, so ``cargo xtask check`` runs it.
+scanner. No database is needed, so ``cargo xtask check`` runs it.
 
 usage: scanner.py
 """

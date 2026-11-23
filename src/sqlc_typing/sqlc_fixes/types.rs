@@ -121,6 +121,9 @@ fn cast_hint(engine: Engine, parameter: Option<&str>) -> String {
 /// any arithmetic is `int` (`price * 1.1` too), MySQL's `1.0` (a `DECIMAL`) is `float` and its `BINARY x` (bytes)
 /// is `char`. Neither a cast nor a column lands here, as a cast keeps its declared spelling (`INTEGER`, `SIGNED`,
 /// `REAL`, `DOUBLE`) and a column has its table.
+///
+/// NOTE: A view's expression column gets past this. sqlc reports it as a column of the view, with a table and its
+/// guess as the type (`price * qty` as `int`), and the request does not say which relation is a view.
 fn is_untyped_expression(engine: Engine, column: &plugin::Column) -> bool {
     let forms: &[&str] = match engine {
         Engine::PostgreSql => &[],

@@ -122,8 +122,8 @@ def mistakes(conn: sqlalchemy.Connection, some: UUID, now: dt.datetime) -> None:
 def known_holes(
     conn: sqlalchemy.Connection, some: UUID, now: dt.datetime, customer: models.Customer
 ) -> None:
-    # We document these calls in docs/limitations.md because type checkers accept them. If one becomes a type
-    # error, move it to `mistakes`.
+    # Type checkers accept these calls, which fail or surprise at runtime. If one becomes a type error, move it to
+    # `mistakes`.
 
     # A `datetime` is a `date`; the drivers store different days.
     invoices.issue_invoice(conn, issued_on=now, id=some)

@@ -39,7 +39,7 @@ commands:
           prove what the generator emits against PostgreSQL and MySQL (docker,
           or SQLC_TEST_DATABASE_URL and SQLC_TEST_MYSQL_URL) and SQLite, on the
           oldest and the newest supported Python, and rewrite docs/typemap.md
-          and tests/python/exercised.tsv (docs/testing.md). Sweeps again only
+          and tests/python/exercised.tsv. Sweeps again only
           what changed since target/sweep/. With --mutants also plant bugs
           that must each be caught; with --check fail instead of writing a
           document that would change

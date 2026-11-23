@@ -112,9 +112,15 @@ fn a_named_parameter_sqlc_left_as_written_is_an_error() {
             "{sql}: {error}"
         );
     }
+    // PostgreSQL reads `=@` as one operator, so sqlc saw no parameter and left the name as written
+    let glued = error("SELECT id FROM t WHERE id=@id", &[]);
+    assert!(
+        glued.contains("as the operator =@") && glued.contains("write a space before @id"),
+        "{glued}"
+    );
     // Operators holding `@`, and what is not code
     for sql in [
-        "SELECT tags @> '{a}', tags <@ tags, a @@ b, @-x, @ x, @1",
+        "SELECT tags @> '{a}', tags <@ tags, tags <@tags, a @@ b, @-x, @ x, @1",
         "SELECT '@a', \"@a\", $$@a$$ -- @a\n",
         "SELECT x@--a\n",
     ] {

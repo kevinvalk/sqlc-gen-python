@@ -162,7 +162,9 @@ pub fn body(query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
         Command::Exec => return vec![expression(executed)],
         Command::CopyFrom => {
             // asyncpg's executemany returns no count. We count single executions there because a BEFORE INSERT
-            // trigger can skip a row on PostgreSQL too.
+            // trigger can skip a row on PostgreSQL too. We tried two faster ways: an INSERT of many rows fires a
+            // statement trigger once per batch instead of once per row, and a pipeline of `INSERT ... RETURNING 1`
+            // is refused on a view whose rule takes the INSERT as it is written.
             let one = CONNECTION
                 .attr("execute")
                 .call([name(&query.constant), ROW.into()])

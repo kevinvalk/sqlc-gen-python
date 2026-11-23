@@ -1,4 +1,14 @@
-"""Run the pinned downstream SQL through the WASM plugin and check its Python on a real database."""
+"""Run other projects' sqlc queries through the WASM plugin and check the generated Python on a real database.
+
+From ``tests/python``, after ``cargo wasm``::
+
+    uv run --locked python -m suite.downstream.replay --server sqlite
+
+``projects.tsv`` beside this file pins each project: its repository and revision, the sqlc entry, and the scenario of
+``scenarios.py`` that calls its functions. An entry without a scenario did not generate, and its ``detail`` says why.
+We fetch each revision from GitHub into ``target/downstream``, so a run needs the network, and for all but SQLite
+Docker or the servers ``postgres.py`` and ``mysql.py`` take from the environment.
+"""
 
 from __future__ import annotations
 
@@ -44,7 +54,7 @@ if TYPE_CHECKING:
     from sqlalchemy.engine import URL, Engine
 
 WORK = ROOT / "target/downstream"
-LEDGER = ROOT / "docs/audits/external-sqlc-projects.tsv"
+LEDGER = Path(__file__).with_name("projects.tsv")
 DRIVER = {"sqlite": "sqlite3", "postgresql": "psycopg", "mysql": "pymysql"}
 
 
@@ -107,6 +117,8 @@ def generate(row: dict[str, str], repository: Path, work: Path, sqlc: Path, wasm
             destination = work / filename
             destination.parent.mkdir(parents=True, exist_ok=True)
             data = git(repository, "show", f"{pin}:{filename}")
+            # The one query we change: its leaderboard reads `ROW_NUMBER() ... AS rn` from a subquery, a type sqlc
+            # cannot establish, so we add the cast the plugin asks for.
             if row["scenario"] == "rankings" and filename.endswith("/analytics.sql"):
                 before = b"    tasks_created,\n    rn\nFROM ("
                 assert data.count(before) == 1
@@ -293,12 +305,16 @@ def main() -> None:
     )
     captured = ROOT / f"target/capture/v{pinned}/bin/sqlc"
     parser.add_argument(
-        "--sqlc", type=Path, default=captured if captured.is_file() else Path(shutil.which("sqlc") or captured)
+        "--sqlc",
+        type=Path,
+        default=captured if captured.is_file() else Path(shutil.which("sqlc") or captured),
+        help="the sqlc to run: by default the one `cargo xtask capture` keeps, else `sqlc` on PATH",
     )
     parser.add_argument(
         "--wasm",
         type=Path,
         default=ROOT / "target/wasm32-wasip1/release/sqlc-gen-python.wasm",
+        help="the plugin: by default what `cargo wasm` builds",
     )
     args = parser.parse_args()
     if not __debug__:

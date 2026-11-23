@@ -1,6 +1,6 @@
 # Project rules for agents
 
-A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates Python 3.11+ for PostgreSQL, MySQL and SQLite. It builds a ruff Python AST and renders it with ruff's formatter. Read `docs/development.md` for the architecture, and `docs/testing.md` for how it is proven.
+A sqlc codegen plugin, in Rust compiled to `wasm32-wasip1`, that generates Python 3.11+ for PostgreSQL, MySQL and SQLite. It builds a ruff Python AST and renders it with ruff's formatter. Read `docs/development.md` for the commands and how the parts fit. `cargo xtask help` says what each check proves.
 
 ## Non-negotiables
 
@@ -48,6 +48,7 @@ Ideas we weighed and do not want, so nobody proposes them again:
 - Indent or other formatting options, as ruff's formatter decides.
 - A turso backend, as sqlc has no engine of its own for it.
 - A shared `one` / `one_or_none` helper in `models.py`, as each `:one` reads its own rows.
+- Documents that restate the code, the tests or an error message, and dated reports or run logs in `docs/`, as nobody reads them and they are wrong within a month. A fact is written once, where it is checked.
 
 ## Workarounds
 
@@ -61,11 +62,14 @@ Each is for someone else's bug, and goes when the bug does.
   - Upstream added a [regression test](https://github.com/sqlc-dev/sqlc/pull/4568). On a sqlc upgrade, `sqlite_query_text` in `cargo xtask capture` flags when both statements around a non-ASCII comment reach us whole.
   - Then remove the check, its spec and the README limitation, and re-bless.
 
+- **Every other correction of what sqlc reports** lives in `src/sqlc_typing/`, with what sqlc sends in the comment at the rule. Before adding one, write the request sqlc sends (`docs/development.md`) and reproduce the disagreement on the database.
+  - On a sqlc upgrade, run `cargo xtask capture` and `cargo test`: a failing `pinned_sqlc_*` test, a capture check or a changed line of the ledger names the correction to look at again.
+
 ## Testing conventions
 
 - Unit specs live in a `_spec.rs` sibling (`foo.rs` / `foo_spec.rs`, `mod.rs` / `spec.rs`). Each spec names one rule and checks it.
 - Golden output pins exact bytes: each `examples/<example>/` is a sqlc project (`sqlc.yaml`, its SQL), and each `codegen` entry's `out` beside it holds what the plugin generates, which the tests compare against. What sqlc sends for each example is captured in `tests/sqlc/examples/`. Only re-bless when you have verified the new output is *more correct*, and say why. Never bless to make a red check green.
 - Every rule in the generator should be traceable to a source of truth above, said in a comment where it is implemented and specified in its `_spec.rs`.
-- The README is what users are promised: what a query returns, the options and the known limitations. Change it with the behaviour.
+- The README is what users are promised: what a query returns, the options and the known limitations. Change it with the behaviour. `docs/reference.md` adds only what a user acts on and neither the README, a generation error nor the generated signature tells them.
 - An example's `out` directories hold only what the generator produces, and `cargo xtask bless` owns them. The invoicing cases are the acceptance fixture: `cargo xtask verify` proves them with the runtime suite in `tests/python/suite/`, and bless will not accept a change that it fails.
 - An unknown or unprobed type is an error, never `Any`; the tests reject an `Any` field. A type joins an engine's map (`src/engine/*/types.rs`), or a backend's own (`src/backend/psycopg.rs`), only with driver evidence, proven by `tests/python/typemap.py`, which records it in `docs/typemap.md`: a Rust spec holds each map to an example with a column of every type in it.

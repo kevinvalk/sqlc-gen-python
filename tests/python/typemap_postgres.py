@@ -175,7 +175,7 @@ async def _drive(url: sqlalchemy.URL, driver: str, probes: list[Typed]) -> None:
 def expressions(pg: Pg) -> list[tuple[str, str]]:
     """Each edge of a type and the SQL that selects it, alone or in an array as deep as the type's.
 
-    We probe NULL and empty arrays here. PostgreSQL also allows NULL elements (docs/limitations.md).
+    We probe NULL and empty arrays here. PostgreSQL also allows NULL elements.
     """
 
     def nested(sql: str) -> str:
