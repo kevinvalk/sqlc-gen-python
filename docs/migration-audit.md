@@ -11,6 +11,8 @@ On 22 November 2026, 100 of 104 downstream sqlc entries generated Python on all 
 
 The inventory covers 136 public checkouts. GitHub searches used the generated-file header, plugin names and URLs, configuration options, repository descriptions and READMEs. Seven repositories contain generator fixtures or copies of upstream tests. The downstream population includes applications, libraries, templates and tutorials. Private repositories, unpublished inputs and projects absent from the search results are outside these totals. A successful generation says that the query interface builds. The database and application checks below give the evidence for its behavior.
 
+The follow-up audit measures caller changes and repeats the same upstream tests with both generators. Its expanded search screened 147 candidates. [Application migration results by engine](application-migration-audit.md)
+
 ## What changes at a call site
 
 The official generator puts queries on a `Querier` bound to a connection. This plugin takes the connection as a function argument. Supply named arguments or the configured `Params` record, consume a `:many` result as a list or use its `stream_` context manager, and read record fields by name. The application still owns the transaction. The community generator already emits functions, so a port can often keep its call structure. [Official generator](https://github.com/sqlc-dev/sqlc-gen-python/tree/53fa0b2e3d10c4201f7a5a344d00a560330da3bb) · [Community generator and driver support](https://github.com/rayakame/sqlc-gen-better-python/blob/dab99a8c1418c9a13c9621998029d50bc2aed6c7/docs/content/docs/reference/feature-support.md)

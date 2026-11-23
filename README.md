@@ -3,7 +3,7 @@
 A [sqlc](https://sqlc.dev) plugin that generates typed Python 3.11+ for PostgreSQL, MySQL and SQLite.
 
 > [!IMPORTANT]
-> This was fully LLM written using Fable 5.2. I used all my expertise and knowledge to get this into the best shape I can imagine. For example, I let this be cross checked against all open-source projects using SQLC. So this might even be the "best" Python SQLC generator, but I feel you, and I don't even know what my own stance is on LLM software...
+> This was fully LLM written using Fable 5.2. I used all my expertise and knowledge to get this into the best shape I can imagine. For example, I let this be cross checked against public projects using SQLC. So this might even be the "best" Python SQLC generator, but I feel you, and I don't even know what my own stance is on LLM software...
 
 v1.0.0 was tested on 1,166 open-source sqlc projects: each generated as it was, or got an error saying what to cast or override. All 2,874 packages it generated passed ruff, pyright strict and mypy strict, and 1,847 ran on real databases with every value checked against its annotation (two [known limitations](#known-limitations) aside).
 
@@ -178,6 +178,57 @@ The generator uses sqlc's result metadata and widens a column to `| None` where 
 - **SQLite** types are affinities, not constraints: another program may store a `str` in an `INTEGER` column. Use `STRICT` tables, and declare a `TEXT` primary key `NOT NULL`, as SQLite lets it be NULL. A comparison against a nullable operand preserves SQL NULL as `None`. sqlc reads no parameter in a `HAVING`, an `ORDER BY` or an `ON CONFLICT ... DO UPDATE`, and misnumbers a `sqlc.slice` used twice; we refuse each. It writes a `*` out without quoting a column name that needs it (`order id`), so the statement fails at its first call: list the columns. A query file must be ASCII, comments included, as sqlc cuts every statement after a non-ASCII character short ([sqlc#4235](https://github.com/sqlc-dev/sqlc/issues/4235)); we refuse it.
 - **SQLAlchemy on asyncpg** raises asyncpg's own error, not a `DBAPIError`, for what fails while a stream reads.
 - **An override's module** is sorted with the third-party imports: list it under ruff's `known-third-party`.
+
+## Migrating from another Python sqlc generator
+
+On 22 November 2026 we screened **147 public GitHub repositories** and found **85 downstream projects** with a Python sqlc configuration. We excluded 7 generator fixture repositories and 55 other hits. Of the 85, **53 had Python test files** and 32 had none. The tables distinguish generating a package from running its callers against a real database. One project uses all three engines. [Project inventory and test selections](docs/application-migration-audit.md)
+
+| Engine | Projects | With Python test files | Entries generated¹ | Used original SQL | Edited or recovered SQL | Missing inputs |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| PostgreSQL | 78 | 51 | 92 / 95 | 67 | 25 | 3 |
+| SQLite | 7 | 2 | 6 / 7 | 3 | 3 | 1 |
+| MySQL / MariaDB | 2 | 0 | 2 / 2 | 2 | 0 | 0 |
+
+Of the 53 projects with test files, we ran 37 and established 36 passing baselines. Of those, 35 exercised generated queries and one used generated models with handwritten SQL. **34 of the 35 query-backed selections passed after migration**, including nine copies of the same two-test workload. Excluding those copies gives **25 of 26**, with **444 tests passing on each generator** across the 25 successful ports.
+
+¹ Each successful entry generated with SQLAlchemy and its native backend, both sync and async. **72 entries retained their SQL**, including three that needed additional configuration or a converter. A change of generator can still require Python edits, since generated functions take a connection and return typed records or lists.
+
+### PostgreSQL
+
+Of 24 independently evaluated projects with a passing original query-backed suite, **23 passed the same selected tests after migration**. Those 23 projects account for **399 passing tests on each generator**. Some selections cover a whole application, others a single persistence path. Nine additional repositories carry the same MCP-Universe user API. We regenerated each and ran its two tests on both generators. They add 18 passes on each side and are shown separately from the figures below.
+
+| Change needed by the tested callers | Projects | Passing tests before → after | Example |
+| --- | ---: | ---: | --- |
+| Drop-in after choosing the plugin | 0 | — | Every tested query caller needed an edit. |
+| Mechanical Python edits | 9 | 200 → 200 | Replace a bound querier with functions, pass the connection, consume a list. |
+| Targeted SQL, configuration or value handling | 12 | 196 → 196 | Name a nullable argument, distinguish enum members or pass a Python object for JSON. |
+| Connection or adapter changes | 2 | 3 → 3 | Nixbot changed transaction handling. An asyncpg shim changed bind and result handling. |
+| Existing platform incompatible | 1 | 15 → collection failed | The template runs Python 3.9. Its port stops when importing a Python 3.11 enum. |
+
+A further project's **11 persistence tests passed without caller edits**. It uses generated model records and executes handwritten SQL, so it supplies evidence for model compatibility. One project's original smoke test could not import its own worker. We could not establish generated-query coverage in 16 other projects with test files. [PostgreSQL scopes, fixture repairs and results](docs/application-migration-audit.md#postgresql)
+
+### SQLite
+
+| Change needed by the tested callers | Projects | Passing tests before → after | What ran |
+| --- | ---: | ---: | --- |
+| Drop-in or mechanical edits alone | 0 | — | Both tested projects also needed SQL changes. |
+| Targeted SQL and caller edits | 2 | 45 → 45 | Clanker's 24 feedback-store tests and X-Ray Proxy's 21 tests, including ship-graphics writes and reads. |
+| Failed ports | 0 | — | Both original suites passed. |
+
+Five other SQLite projects had no Python test files. Separately, project-specific scenarios we supplied passed on all four profiles for each of the six entries with available SQL. [SQLite test evidence](docs/application-migration-audit.md#sqlite)
+
+### MySQL and MariaDB
+
+| Server | Projects | Entries using original SQL | Upstream suites available | Our project-specific scenarios passed |
+| --- | ---: | ---: | ---: | ---: |
+| MySQL | 2 | 2 / 2 | 0 | 8 / 8 |
+| MariaDB | 2 | 2 / 2 | 0 | 8 / 8 |
+
+These are the **same two projects** on both servers. Each ran with SQLAlchemy and PyMySQL/asyncmy across sync and async profiles. Neither project supplied Python tests, so application-level drop-in, edited and failed port counts are **unmeasured** for this engine. [MySQL and MariaDB test evidence](docs/application-migration-audit.md#mysql-and-mariadb)
+
+### SQL from additional projects
+
+We also checked sqlc configurations from 32 other public projects. Of 43 entries, 21 generated on all four profiles from the original SQL, 16 received generator diagnostics, and six stopped in sqlc. A cast made one more entry runnable. **All 22 runnable entries passed populated checks** across 20 projects, including 64 profile runs on MySQL, 64 on MariaDB, 16 on SQLite and eight on PostgreSQL. These checks cover generated Python behavior independently of the application migration counts above. [Results, original Go baselines and replay commands](docs/downstream-workloads.md)
 
 ## Develop
 

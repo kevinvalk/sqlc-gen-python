@@ -1,0 +1,44 @@
+repository	revision	configuration	entry	engine	go	python_original	scenario	sql_change	detail
+aidityasadhakim/fastship	6f8bb543c766dfb51ee400d087be56c65314ceea	backend/sqlc.yaml	1	sqlite	failed	sqlc failed			The pinned file contains a commented example without an active query declaration.
+ankorstore/yokai-petstore-demo	42c50f838ab21e28d164ed29e409191e27a9b261	sqlc.yaml	1	mysql	generated	generated	pets		
+BRF-Tech/filex	dee613e3205a1789c9753b707c991d1f2010677a	backend/sqlc.yaml	1	sqlite	failed	sqlc failed			"db/queries/node_versions.sql:33:1: column ""key"" does not exist"
+BRF-Tech/filex	dee613e3205a1789c9753b707c991d1f2010677a	backend/sqlc.yaml	2	postgresql	failed	sqlc failed			"db/queries/audit_log.sql:3:12: syntax error at or near "","""
+BRF-Tech/filex	dee613e3205a1789c9753b707c991d1f2010677a	backend/sqlc.yaml	3	mysql	failed	sqlc failed			"db/migrations/mysql/00045_app_plugin_locks.sql:11:10: syntax error near ""until       DATETIME,"""
+censys/cencli	c575487188918aee7da82a09256e38bc14fdfc17	internal/store/db/sqlc.yaml	1	sqlite	generated	generated	global_settings		
+danielmesquitta/products-api	ea9c6864404821b8a2a485b052e3b6a3434400ea	sqlc.yaml	1	mysql	generated	generated	products		
+de-wan/robust_todo	855761a1c2b61b5b02250f736695a3bdc428c1fd	sqlc.yaml	1	mysql	generated	generated	todos		
+eminetto/post-sqlc	636b04e04e87d12d6c130d6ec11c2de8cd0d08ff	sqlc.yaml	1	mysql	generated	generated	people		
+go-kratos/examples	61daed1ec4d5a94d689bc8fab9bc960c6af73ead	transaction/sqlc/sqlc.yaml	1	mysql	generated	generated	bank		
+gosuda/telemetry.gosuda.org	eabb7b3a4e7e868c56b45de6637188aa2f582d96	sqlc.yaml	1	mysql	generated	diagnostic			"bulk_counts.sql: query ""BulkCountsByUrls"": column ""view_count"" is a coalesce, a nullif or a CASE, which sqlc types by one operand whatever the others are; add a cast, as CAST(<expr> AS <type>), or CAST(coalesce(<expr>, <default>) AS <type>) if it can be NULL, as sqlc reports every cast NOT NULL; or set unknown_type: Any to leave it unchecked"
+Incheat/go-production-backend	d5aa775a2847f4c3bbed4d64eb2a7baa7e58c957	services/user/db/mysql/sqlc.yaml	1	mysql	generated	generated	login		
+jamiewhitney/fairways-core	3a572683017ffe02f8815e02aea03337318b2c99	sqlc.yaml	1	mysql	generated	generated	courses		
+jamiewhitney/fairways-core	3a572683017ffe02f8815e02aea03337318b2c99	sqlc.yaml	2	mysql	generated	diagnostic			"query.sql: query ""GetSchedule"": column ""start_time"" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint)"
+jamiewhitney/fairways-core	3a572683017ffe02f8815e02aea03337318b2c99	sqlc.yaml	3	mysql	generated	generated	bookings		
+jbeshir/alignment-research-feed	70842974c4fbabd7e3764d4f4c5e15570e80e51e	internal/datasources/mysql/sqlc.yaml	1	mysql	generated	diagnostic			"queries.sql: query ""FetchArticlesByID"": column ""text_start"" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint); add a cast, as CAST(<expr> AS <type>), or CAST(coalesce(<expr>, <default>) AS <type>) if it can be NULL, as sqlc reports every cast NOT NULL; or set unknown_type: Any to leave it unchecked"
+kw3a/spotted-server	bebfc5f0ec604c595a2f8f2a3834031f447863bb	seeders/sqlc.yaml	1	mysql	generated	generated	languages		
+kw3a/spotted-server	bebfc5f0ec604c595a2f8f2a3834031f447863bb	sqlc.yaml	1	mysql	generated	diagnostic			"companies.sql: query ""GetCompaniesByQuery"": parameter ? #1 (""concat"") has a type sqlc could not infer"
+leapmux/leapmux	331a7065e4ff9958021007a41a8ec8de5f18667c	backend/internal/hub/store/mysql/sqlc.yaml	1	mysql	generated	diagnostic			"api_tokens.sql: query ""ListAllAPITokens"": column ""owner_username"" is a coalesce, a nullif or a CASE, which sqlc types by one operand whatever the others are"
+leapmux/leapmux	331a7065e4ff9958021007a41a8ec8de5f18667c	backend/internal/hub/store/postgres/sqlc.yaml	1	postgresql	generated	diagnostic			"api_tokens.sql: query ""ListAllAPITokens"": column ""owner_username"" is a coalesce, a nullif or a CASE, which sqlc types by one operand whatever the others are"
+leapmux/leapmux	331a7065e4ff9958021007a41a8ec8de5f18667c	backend/internal/hub/store/sqlite/sqlc.yaml	1	sqlite	generated	diagnostic			"table ""users"": column ""pending_email_expires_at"" has type ""DATETIME"", which has no verified Python mapping"
+libraz/nodate-time	c180750a106218e667b2e5892faa51496d6fc99b	sql/sqlc.yaml	1	mysql	generated	diagnostic			"album_photos.sql: query ""ListAlbumPhotosFirstPage"": column ""image_storage_key"" is a coalesce, a nullif or a CASE, which sqlc types by one operand whatever the others are"
+litriggy/accounts-api	b125b828929db30d27a7d946285651207b0eb1fd	sqlc.yaml	1	mysql	generated	generated	accounts		
+maacarma/scheduler	1857495c0c87ae2859062b05edb10da90dafb4dd	sqlc.yaml	1	postgresql	generated	generated	schedule		
+mdhender/xpat	8bbde594ed2622fca35fa68a1a4a6c973f10f2a1	stores/sqlite/sqlc.yaml	1	sqlite	generated	diagnostic			"table ""tasks"": column ""due_date"" has type ""DATETIME"", which has no verified Python mapping"
+micaelcf/roda-belem-service	84f0ca8982a91a131bd42bfd9f9ba044de7899b8	sqlc.yaml	1	mysql	generated	diagnostic			"reviews.sql: query ""AddAccessibilityFeatureByReviewID"": parameter ? #1 (""concat"") has a type sqlc could not infer; add a cast, as CAST(sqlc.arg(concat) AS <type>), or CAST(sqlc.narg('concat') AS <type>) if it can be NULL; or set unknown_type: Any to leave it unchecked"
+micromdm/nanocmd	c571ad2907d68b9f01175d7f7105e3d366b1e0cc	engine/storage/mysql/sqlc.yaml	1	mysql	generated	generated	events		
+micromdm/nanocmd	c571ad2907d68b9f01175d7f7105e3d366b1e0cc	subsystem/profile/storage/mysql/sqlc.yaml	1	mysql	generated	generated	profiles		
+micromdm/nanodep	a40e6977cbe11973536c21a02671215694e8f6ab	storage/mysql/sqlc.yaml	1	mysql	failed	sqlc failed			"query.sql:97:26: syntax error near ""AS new ON DUPLICATE KEY"""
+micromdm/nanodep	a40e6977cbe11973536c21a02671215694e8f6ab	storage/pgsql/sqlc.yaml	1	postgresql	generated	generated	dep		
+mizmorr/task_system	0f831c2d6156ba7ea81d97c43dbb8b021888c36e	sqlc.yaml	1	mysql	generated	diagnostic	rankings	Cast the derived row number to UNSIGNED.	"analytics.sql: query ""TopCreatorsByTeam"": column ""rn"" comes from a derived expression whose type sqlc cannot establish; cast the expression in its SELECT; or set unknown_type: Any to leave it unchecked"
+munaycacao/chocode	ed2c4e1e021c91d2c20eda76c806eb99117ba4e8	sqlc.yaml	1	mysql	generated	generated	chocode		
+panxiao81/e5renew	8d067f2ffb03a895dff7de6bd01b10f72e04fe46	sqlc.yaml	1	mysql	generated	diagnostic			"query.sql: query ""GetAPILogStats"": column ""avg_duration_ms"" is a function's result, which sqlc types by the function's first overload whatever its arguments (sum() of a numeric column as bigint)"
+panxiao81/e5renew	8d067f2ffb03a895dff7de6bd01b10f72e04fe46	sqlc.yaml	2	postgresql	generated	diagnostic			"query.postgres.sql: ""query.postgres"" is not a lowercase Python module name"
+peng225/kakeibodb	cbb1dca5814b2d2e21f8b736f4b8df03ea37ac39	internal/repository/mysql/sqlc/sqlc.yaml	1	mysql	generated	generated	ledger		
+potproject/uchinoko-studio	1b531b3faf2b385f3b8ae19c65da59156d361420	server/db/sqlc.yaml	1	sqlite	generated	generated	characters		
+respawn-llc/kent	c4d2b7d16a6137a60fcd2b027863d231c999b335	sqlc.yaml	1	sqlite	failed	sqlc failed			The upstream build renders server/metadata/queries.sql before invoking sqlc.
+rokoucha/Mahiron	4d9541449aa84b3283a2650094eda0e1964c3579	sqlc.yaml	1	sqlite	generated	diagnostic			"services.sql: query ""GetServiceByChannelAndID"": column ""has_logo_data"" has set-operation branches without one verified SQL type"
+rokoucha/Mahiron	4d9541449aa84b3283a2650094eda0e1964c3579	sqlc.yaml	2	sqlite	generated	generated	broadcast		
+seb-sep/cropmeister	89bc38a351e8e857ef7dd5d458ae2b3151488540	sqlc.yaml	1	mysql	generated	diagnostic			"query.sql: query ""GetCropData"": column ""calculatedprice"" is an expression sqlc typed by its form, not its operands; add a cast, as CAST(<expr> AS <type>); or set unknown_type: Any to leave it unchecked"
+SlotifyApp/api	c573f4d1172c2eaebf509b45d9556b0c1028280b	sqlc.yaml	1	mysql	generated	diagnostic			"query.sql: query ""SearchUsersByName"": parameter ? #1 (""name"") has a type sqlc could not infer"
+songjiangfeng/iris-blog	7c8cf5d579c1d4bf2d3c5c8fb4a2bce49a0b734c	sqlc.yaml	1	mysql	generated	generated	blog		
+ubugeeei-prod/uf	c6bb21161b155e748443d896971285b11828d772	examples/simple-sns/sqlc.yaml	1	sqlite	generated	generated	social		
