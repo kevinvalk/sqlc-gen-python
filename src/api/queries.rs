@@ -11,7 +11,7 @@ use super::models::{Field, FieldType, Model};
 use super::resolver::Resolver;
 use super::{Problems, params, results};
 use crate::config::Config;
-use crate::engine::{Engine, Piece, Sql};
+use crate::engine::{Piece, Sql};
 use crate::problem::Problem;
 use crate::python::vocabulary::{FROM_ROW, MODELS};
 use crate::python::{self, Expression, Scope, int, name};
@@ -284,9 +284,9 @@ fn module_name(file: &str) -> Result<String> {
 fn resolve(query: &plugin::Query, resolver: &Resolver, models: &[Model], config: &Config) -> Result<Query> {
     let cmd = query.cmd.as_str();
     let class = query.name.to_upper_camel_case();
-    // A batch runs a command once per row, on PostgreSQL alone, as pgx does.
+    // A batch runs a command once per row
     let (cmd, batch) = match cmd.strip_prefix(":batch") {
-        Some(_) if resolver.engine != Engine::PostgreSql => {
+        Some(_) if !resolver.engine.has_batches() => {
             bail!(Problem::new(
                 format!("{cmd} is PostgreSQL only, as sqlc's pgx"),
                 "use :copyfrom or a :exec per row"

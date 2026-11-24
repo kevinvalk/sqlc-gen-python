@@ -11,7 +11,7 @@ fn field(element: Type, array_dims: usize, optional: bool) -> FieldType {
         array_dims,
         optional,
         collects_nulls: false,
-        as_text: false,
+        registered_type: None,
     }
 }
 
@@ -239,13 +239,6 @@ fn arrays_check_their_dimensions_and_enums_decode_each_label() {
         read(field(status(), 1, true), Scope::Models),
         "None if row[3] is None else [Status(_v1) for _v1 in _checked_array(row[3], 1)]"
     );
-    // psycopg returns an array of enums as its text.
-    let as_text = FieldType {
-        as_text: true,
-        collects_nulls: true,
-        ..field(status(), 1, false)
-    };
-    assert_eq!(read(as_text, Scope::Queries), "models.Status.from_array(row[3])");
 }
 
 #[test]
@@ -277,10 +270,20 @@ fn a_type_nothing_declares_is_an_error_naming_the_column() {
 }
 
 #[test]
+fn an_array_of_a_type_the_function_registers_names_it() {
+    // psycopg loads a `citext[]` as a list once the type is registered on the connection, which the function does
+    let mut emails = column("emails", "public.citext", true);
+    (emails.is_array, emails.array_dims) = (true, 1);
+    let api = resolve(public(vec![table("customers", vec![emails])]), &ModelConfig::default());
+    let ty = &api.models[0].fields[0].ty;
+    assert_eq!(ty.registered_type.as_deref(), Some("public.citext"));
+    assert_eq!(ty.describe(crate::python::Scope::Models), "list[str | None]");
+}
+
+#[test]
 fn an_array_the_drivers_do_not_load_as_a_list_is_an_error() {
-    // `citext` is a `str`, but psycopg returns a `citext[]` as its text, and
-    // asyncpg corrupts an empty item of a `tsvector[]`.
-    for data_type in ["citext", "tsvector"] {
+    // psycopg returns an `hstore[]` as its text even registered, and asyncpg corrupts an empty item of a `tsvector[]`.
+    for data_type in ["hstore", "tsvector"] {
         let mut tags = column("tags", data_type, true);
         (tags.is_array, tags.array_dims) = (true, 1);
         let error = try_resolve(public(vec![table("posts", vec![tags])])).unwrap_err();

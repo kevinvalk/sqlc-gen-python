@@ -8,8 +8,19 @@ from typing import Any, Final
 import psycopg
 import pydantic
 from psycopg.rows import tuple_row
+from psycopg.types import TypeInfo
 
 from . import models
+
+
+def _register_types(connection: psycopg.Connection[Any], *names: str) -> None:
+    for name in names:
+        if connection.adapters.types.get(name.rpartition(".")[2]) is None:
+            info = TypeInfo.fetch(connection, name)
+            if info is None:
+                raise LookupError(name)
+            info.register(connection)
+
 
 _GET_SCALARS: Final = "SELECT id, small, regular, big, approximate, exact, price, flag, label, fixed, varying, raw, identifier, document, day, clock, moment, duration, address, feeling, object, single, title, email, mac, mac8, markup, search, wall, naive, plain_json, network, pairs, tree, pattern, text_query, relation, span, big_span, amounts, days, times, moments FROM scalars WHERE id = $1"
 
@@ -153,3 +164,25 @@ def stream_find_scalars(
             ),
         )
         yield (row[0] for row in cur)
+
+
+_LIST_ARRAYS: Final = "SELECT int2s, int4s, int8s, oids, float4s, float8s, numerics, moneys, bools, texts, varchars, bpchars, names, macaddrs, macaddr8s, xmls, byteas, dates, times, timetzs, timestamps, timestamptzs, intervals, uuids, jsons, jsonbs, inets, cidrs, citexts, ltrees, lqueries FROM arrays"
+
+
+def list_arrays(connection: psycopg.Connection[Any]) -> list[models.Array]:
+    _register_types(connection, "citext", "lquery", "ltree")
+    with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
+        cur.execute(_LIST_ARRAYS)
+        return [models.Array.from_row(row) for row in cur.fetchall()]
+
+
+@contextlib.contextmanager
+def stream_list_arrays(
+    connection: psycopg.Connection[Any],
+) -> Generator[Iterator[models.Array], None, None]:
+    _register_types(connection, "citext", "lquery", "ltree")
+    with psycopg.RawServerCursor(
+        connection, "stream_list_arrays", row_factory=tuple_row
+    ) as cur:
+        cur.execute(_LIST_ARRAYS)
+        yield (models.Array.from_row(row) for row in cur)

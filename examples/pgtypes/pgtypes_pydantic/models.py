@@ -110,6 +110,9 @@ class Array(pydantic.BaseModel):
     jsonbs: list[object | None]
     inets: list[IPv4Address | IPv6Address | IPv4Interface | IPv6Interface | None]
     cidrs: list[IPv4Network | IPv6Network | None]
+    citexts: list[str | None]
+    ltrees: list[str | None]
+    lqueries: list[str | None]
 
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "Array":
@@ -142,6 +145,9 @@ class Array(pydantic.BaseModel):
             jsonbs=_checked_array(row[25], 1, list_leaves=True),
             inets=_checked_array(row[26], 1),
             cidrs=_checked_array(row[27], 1),
+            citexts=_checked_array(row[28], 1),
+            ltrees=_checked_array(row[29], 1),
+            lqueries=_checked_array(row[30], 1),
         )
 
 

@@ -16,7 +16,7 @@ pub(crate) mod fixtures;
 
 use std::collections::BTreeSet;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 
 use crate::config::Config;
 use crate::plugin;
@@ -96,10 +96,6 @@ pub fn resolve(request: &plugin::GenerateRequest, config: &Config) -> Result<Api
         );
     }
 
-    let arrays = api.text_array_enums();
-    for sql_enum in (api.enums.iter()).filter(|e| arrays.contains(e.name.as_str())) {
-        crate::backend::check_text_array(sql_enum).with_context(|| format!("enum class `{}`", sql_enum.name))?;
-    }
     Ok(api)
 }
 
@@ -165,22 +161,5 @@ impl Problems {
             }
         }
         bail!("{message}")
-    }
-}
-
-impl Api {
-    /// The enum classes of which some field reads an array from the array's text (`from_array`).
-    pub fn text_array_enums(&self) -> BTreeSet<&str> {
-        let models = self.models.iter().flat_map(|model| &model.fields);
-        let columns = (self.modules.iter())
-            .flat_map(|module| &module.queries)
-            .flat_map(|query| &query.columns);
-        (models.chain(columns))
-            .filter(|field| field.ty.as_text)
-            .filter_map(|field| match &field.ty.element {
-                Type::Enum(class) => Some(class.as_str()),
-                _ => None,
-            })
-            .collect()
     }
 }

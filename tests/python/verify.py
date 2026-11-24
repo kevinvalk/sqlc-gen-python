@@ -173,22 +173,6 @@ MUTANTS = {
         "preferred_method=None if row[4] is None else BillingPaymentMethod(row[4])",
         "preferred_method=BillingPaymentMethod(row[4])",
     ),
-    # PostgreSQL names the column `coalesce`, so a type given by name misses it.
-    "enum arrays typed by name": Mutant(
-        RUNTIME,
-        "PostgreSQL returned an array with a different number of dimensions than declared",
-        "customers.py",
-        """WHERE id = :id"
-).columns(
-    sqlalchemy.column(
-        "column_1", postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod))
-    )
-)""",
-        """WHERE id = :id"
-).columns(
-    column_1=postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod))
-)""",
-    ),
     # `.first()` is `Row | None`, which `from_row` refuses.
     ":one takes the first row": Mutant(
         GATE,
@@ -242,11 +226,11 @@ MUTANTS = {
         RUNTIME,
         "cannot adapt type 'dict'",
         "customers.py",
-        """    .bindparams(
-        sqlalchemy.bindparam("metadata", type_=postgresql.JSONB(none_as_null=True))
-    )
+        """.bindparams(
+    sqlalchemy.bindparam("metadata", type_=postgresql.JSONB(none_as_null=True))
+)
 """,
-        "",
+        "\n",
     ),
     "ordered rows reversed": Mutant(
         SWEEP,
@@ -382,14 +366,15 @@ MUTANTS = {
         "    if not params:\n        return 0\n",
         "",
     ),
-    # psycopg returns an enum array as its text, which only the enum parses.
-    "enum array text left unparsed": Mutant(
+    # psycopg returns an array of a type it does not know, the schema's enum, as its text.
+    "enum array read before its type is registered": Mutant(
         RUNTIME,
-        ".accepted_methods: str is not a list",
-        "models.py",
-        "accepted_methods=BillingPaymentMethod.from_array(row[5])",
-        "accepted_methods=row[5]",
-        case="invoicing_models",
+        "PostgreSQL returned an array with a different number of dimensions than declared",
+        "customers.py",
+        '    _register_types(connection, "billing.payment_method")\n',
+        "",
+        case="invoicing_psycopg",
+        everywhere=True,
     ),
     # A statement's backslashes are Python escapes unless doubled: a `\n` would reach PostgreSQL as a line break.
     "backslashes of a statement left undoubled": Mutant(

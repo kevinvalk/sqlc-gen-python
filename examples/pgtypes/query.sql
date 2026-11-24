@@ -17,3 +17,6 @@ WHERE email = ANY(@emails::citext[])
   OR tree ? @patterns::lquery[]
   OR ltxtq_exec(tree, @text_query::ltxtquery)
   OR search = ANY(@searches::tsvector[]);
+
+-- name: ListArrays :many
+SELECT * FROM arrays;

@@ -11,7 +11,9 @@ What the README leaves out. When generation fails, the message says what to chan
 | `pymysql` | MySQL, MariaDB | PyMySQL | asyncmy |
 | `sqlite3` | SQLite | sqlite3 | aiosqlite |
 
-asyncpg has no backend of its own: pass a SQLAlchemy async connection. The `psycopg` backend needs libpq 14 or newer, as it reads a row count through a pipeline. sqlc never deletes a file it wrote before, so after you rename a query file you remove its old Python module yourself.
+asyncpg has no backend of its own: pass a SQLAlchemy async connection.
+
+psycopg reads an array of a type outside PostgreSQL's own, an extension's such as `citext` or your own enum, as its text until the type is registered on the connection. So a function that reads one registers its types first, once per connection, with one query to the catalog per type, as [psycopg recommends](https://www.psycopg.org/psycopg3/docs/basic/pgtypes.html). On SQLAlchemy it does so on the psycopg connection underneath, so such a module imports psycopg. asyncpg returns a broken item for an empty string in an array of `citext`, `ltree` or `lquery`, so async SQLAlchemy refuses those arrays: use the `psycopg` backend, or cast the array to `text[]`.
 
 ## Rows and parameters
 

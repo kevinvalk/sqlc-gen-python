@@ -1,5 +1,5 @@
 use super::*;
-use crate::api::models::{Field, FieldType, Member};
+use crate::api::models::{Field, FieldType};
 use crate::api::queries::{Command, Takes};
 use crate::backend::Backend;
 use crate::engine::{Piece, Sql};
@@ -15,7 +15,7 @@ fn field(name: &str, element: Type) -> Field {
             array_dims: 0,
             optional: false,
             collects_nulls: false,
-            as_text: false,
+            registered_type: None,
         },
     }
 }
@@ -144,25 +144,6 @@ fn a_one_raises_without_exactly_one_row_on_a_driver_if_asked() {
          case []:\n            raise models.NoRowError\n        \
          case _:\n            raise models.MultipleRowsError"
     );
-}
-
-#[test]
-fn psycopg_reads_an_array_of_an_enum_only_if_no_label_is_quoted_in_it() {
-    let sql_enum = |labels: &[&str]| Enum {
-        name: "Method".into(),
-        comment: String::new(),
-        members: (labels.iter())
-            .map(|label| Member {
-                name: label.to_uppercase(),
-                value: (*label).into(),
-            })
-            .collect(),
-    };
-    assert!(check_text_array(&sql_enum(&["card", "direct-debit", "a_b"])).is_ok());
-    for label in ["", "null", "NULL", "with space", "a,b", "{a}", "\"q\"", "back\\slash"] {
-        let error = check_text_array(&sql_enum(&["card", label])).unwrap_err();
-        assert!(error.to_string().contains("quotes the label"), "{label:?}: {error}");
-    }
 }
 
 #[test]
@@ -404,4 +385,27 @@ fn a_stream_reads_each_row_from_the_connection_as_it_is_iterated() {
          await _typed(cur).execute(_GET, (id,))\n    \
          yield (row[0] async for row in _typed(cur))"
     );
+}
+
+#[test]
+fn a_function_registers_each_extension_type_it_reads_an_array_of_before_its_cursor() {
+    let mut emails = field("emails", Type::STR);
+    (emails.ty.array_dims, emails.ty.registered_type) = (1, Some("public.citext".into()));
+    let shape = Shape::Scalar(emails.ty.clone());
+    let mut many = query(Command::Many(shape.clone()), Vec::new());
+    many.columns = vec![emails];
+    for (backend, asynchronous) in [
+        (Backend::Psycopg, false),
+        (Backend::Psycopg, true),
+        (Backend::SqlAlchemy, true),
+    ] {
+        let awaited = if asynchronous { "await " } else { "" };
+        let register = format!("{awaited}_register_types(connection, \"public.citext\")");
+        let body = python::unparse_stmts(&backend.body(&many, asynchronous));
+        let stream = python::unparse_stmts(&backend.stream(&many, ("stream_get", &shape), asynchronous));
+        assert!(
+            body.starts_with(&register) && stream.starts_with(&register),
+            "{backend:?}: {body}\n{stream}"
+        );
+    }
 }

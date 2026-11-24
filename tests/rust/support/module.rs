@@ -41,7 +41,7 @@ pub(super) const ASYNCMY: &[&str] = &[
 ];
 
 /// The driver returns each PostgreSQL array as one row value. Only its leaves may have an unknown Python type here.
-pub(super) const CHECKED_ARRAY: &[&str] = &[r#"def _checked_array(
+pub(super) const CHECKED_ARRAY: &str = r#"def _checked_array(
     value: object, dimensions: int, *, list_leaves: bool = False
 ) -> list[Any]:
     if isinstance(value, list):
@@ -53,15 +53,29 @@ pub(super) const CHECKED_ARRAY: &[&str] = &[r#"def _checked_array(
         if (list_leaves or not items) or not isinstance(items[0], list):
             return items
     message = "PostgreSQL returned an array with a different number of dimensions than declared"
-    raise TypeError(message)"#];
+    raise TypeError(message)"#;
 
-/// The prelude `body` holds and where it starts. A query module holds one between its imports and its queries when its
-/// library's stubs need it, and only these statements, to the letter, may be private, annotate with an `Any` that is not
-/// the library's own, or be a class that is no record.
-pub(super) fn prelude(body: &[Stmt], source: &str) -> Option<(usize, &'static [&'static str])> {
-    [PYMYSQL, ASYNCMY, CHECKED_ARRAY].into_iter().find_map(|prelude| {
-        let held = |stmts: &[Stmt]| (stmts.iter().map(|stmt| &source[stmt.range()])).eq(prelude.iter().copied());
-        Some((body.windows(prelude.len()).position(held)?, prelude))
+/// The prelude `body` holds, each statement as written, and where it starts. A query module holds one between its
+/// imports and its queries when its library's stubs need it or it reads a PostgreSQL array, and only these statements,
+/// to the letter, may be private, annotate with an `Any` that is not the library's own, or be a class that is no record.
+/// `_register_types` takes the backend's connection, so we know it here by its name and the query checks hold it to the
+/// generator's own.
+pub(super) fn prelude<'a>(body: &[Stmt], source: &'a str) -> Option<(usize, Vec<&'a str>)> {
+    let written = |stmt: &Stmt| &source[stmt.range()];
+    let library = [PYMYSQL, ASYNCMY].into_iter().find_map(|prelude| {
+        let held = |stmts: &[Stmt]| stmts.iter().map(written).eq(prelude.iter().copied());
+        Some((body.windows(prelude.len()).position(held)?, prelude.to_vec()))
+    });
+    let is_postgresql = |stmt: &&Stmt| {
+        written(stmt) == CHECKED_ARRAY
+            || (stmt.as_function_def_stmt()).is_some_and(|function| function.name.as_str() == "_register_types")
+    };
+    library.or_else(|| {
+        let start = body.iter().position(|stmt| is_postgresql(&stmt))?;
+        Some((
+            start,
+            body[start..].iter().take_while(is_postgresql).map(written).collect(),
+        ))
     })
 }
 

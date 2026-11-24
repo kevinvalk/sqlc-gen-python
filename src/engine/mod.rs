@@ -148,9 +148,36 @@ impl Engine {
         }
     }
 
-    pub fn array_problem(self, data_type: &str, is_parameter: bool) -> Option<&'static str> {
+    /// Whether a `sqlc.slice` is how a query takes a list. PostgreSQL takes the list itself, as an array: `= ANY(@ids)`.
+    pub fn has_slices(self) -> bool {
         match self {
-            Self::PostgreSql => postgresql::array_problem(data_type, is_parameter),
+            Self::PostgreSql => false,
+            Self::Sqlite | Self::MySql => true,
+        }
+    }
+
+    /// Whether the batch commands run here, which sqlc's Go runs on pgx alone.
+    pub fn has_batches(self) -> bool {
+        match self {
+            Self::PostgreSql => true,
+            Self::Sqlite | Self::MySql => false,
+        }
+    }
+
+    /// Whether a driver reads an array of `data_type` only once generated code registers the type on the connection.
+    pub fn is_registered(self, data_type: &str) -> bool {
+        match self {
+            Self::PostgreSql => postgresql::is_registered(data_type),
+            // Neither has arrays.
+            Self::Sqlite | Self::MySql => false,
+        }
+    }
+
+    /// What the drivers do with an array of `data_type` that is not a list, of those `asyncpg` adds when the backend may
+    /// run on it.
+    pub fn array_problem(self, data_type: &str, is_parameter: bool, asyncpg: bool) -> Option<&'static str> {
+        match self {
+            Self::PostgreSql => postgresql::array_problem(data_type, is_parameter, asyncpg),
             Self::Sqlite => Some("SQLite does not have"),
             Self::MySql => Some("MySQL does not have"),
         }

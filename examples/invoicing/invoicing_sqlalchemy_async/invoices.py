@@ -4,16 +4,35 @@
 import contextlib
 import dataclasses
 import datetime as dt
+import typing
 from collections.abc import AsyncGenerator, AsyncIterator, Iterable, Sequence
 from decimal import Decimal
 from typing import Any, Final
 from uuid import UUID
 
 import sqlalchemy
-from sqlalchemy.dialects import postgresql
+from psycopg.types import TypeInfo
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from . import models
+
+if typing.TYPE_CHECKING:
+    import psycopg
+
+
+async def _register_types(connection: AsyncConnection, *names: str) -> None:
+    if connection.dialect.driver == "psycopg":
+        driver = typing.cast(
+            "psycopg.AsyncConnection[Any]",
+            (await connection.get_raw_connection()).driver_connection,
+        )
+        for name in names:
+            if driver.adapters.types.get(name.rpartition(".")[2]) is None:
+                info = await TypeInfo.fetch(driver, name)
+                if info is None:
+                    raise LookupError(name)
+                info.register(driver)
+
 
 _CREATE_INVOICE: Final = sqlalchemy.text("""INSERT INTO invoices (customer_id, number, currency, issued_on, due_on, notes)
 VALUES (:customer_id, :number, :currency, :issued_on, :due_on, :notes)
@@ -88,29 +107,7 @@ async def get_invoice_due_date(
 
 _GET_INVOICE_WITH_CUSTOMER: Final = sqlalchemy.text("""SELECT invoices.id, invoices.customer_id, invoices.number, invoices.status, invoices.currency, invoices.issued_on, invoices.due_on, invoices.notes, invoices.created_at, invoices.paid_at, customers.id, customers.name, customers.email, customers.tags, customers.preferred_method, customers.accepted_methods, customers.metadata, customers.created_at
 FROM invoices JOIN customers ON customers.id = invoices.customer_id
-WHERE invoices.id = :id""").columns(
-    sqlalchemy.column("id"),
-    sqlalchemy.column("customer_id"),
-    sqlalchemy.column("number"),
-    sqlalchemy.column("status"),
-    sqlalchemy.column("currency"),
-    sqlalchemy.column("issued_on"),
-    sqlalchemy.column("due_on"),
-    sqlalchemy.column("notes"),
-    sqlalchemy.column("created_at"),
-    sqlalchemy.column("paid_at"),
-    sqlalchemy.column("id"),
-    sqlalchemy.column("name"),
-    sqlalchemy.column("email"),
-    sqlalchemy.column("tags"),
-    sqlalchemy.column("preferred_method"),
-    sqlalchemy.column(
-        "accepted_methods",
-        postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
-    ),
-    sqlalchemy.column("metadata"),
-    sqlalchemy.column("created_at"),
-)
+WHERE invoices.id = :id""")
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
@@ -129,6 +126,7 @@ class GetInvoiceWithCustomerRow:
 async def get_invoice_with_customer(
     connection: AsyncConnection, *, id: UUID
 ) -> GetInvoiceWithCustomerRow | None:
+    await _register_types(connection, "billing.payment_method")
     row = (
         await connection.execute(_GET_INVOICE_WITH_CUSTOMER, {"id": id})
     ).one_or_none()

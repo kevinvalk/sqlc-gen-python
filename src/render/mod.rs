@@ -13,8 +13,8 @@ use crate::config::{Config, Records};
 use crate::plugin;
 use crate::python::vocabulary::{
     ANY, BOOL, CHECKED_ARRAY, CHILD, CLASSMETHOD, CLS, DATACLASSES, DIMENSIONS, FROM_ROW, INT, ISINSTANCE, ITEMS, LIST,
-    LIST_LEAVES, LOOKUP_ERROR, MESSAGE, MODEL_CONFIG, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, OBJECT, PYDANTIC, ROW,
-    SEQUENCE, Symbol, TYPE_ERROR, TYPING, VALUE,
+    LIST_LEAVES, LOOKUP_ERROR, MESSAGE, MODEL_CONFIG, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, OBJECT, PYDANTIC,
+    REGISTER_TYPES, ROW, SEQUENCE, Symbol, TYPE_ERROR, TYPING, VALUE,
 };
 use crate::python::{
     self, Expression, Function, Scope, ann_assign, annotate, assign, class, docstring, each, expression, false_, for_,
@@ -84,9 +84,11 @@ pub fn files(api: &Api, config: &Config, sqlc_version: &str) -> Vec<plugin::File
     let header = header(sqlc_version, config);
     let modules = config.modules();
     let file = |name: String, body: &[ast::Stmt]| {
-        // Only a module that reads an array defines the reader, as an import defines only what is read.
+        // Only a module that reads an array defines the reader, as an import defines only what is read, and so with
+        // registering a type
         let reader = reads(body, CHECKED_ARRAY).then(checked_array);
-        let body = &[reader.as_slice(), body].concat();
+        let register = (reads(body, REGISTER_TYPES)).then(|| config.backend.register_types(config.asynchronous));
+        let body = &[reader.as_slice(), register.as_slice(), body].concat();
         let exempt = match python::trips_s105(body) {
             true => "# ruff: noqa: S105\n",
             false => "",

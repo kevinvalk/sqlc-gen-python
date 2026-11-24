@@ -1,10 +1,9 @@
 //! A DB-API driver (PEP 249) takes parameters by position. psycopg's raw cursors take sqlc's SQL as written, `$N` and
 //! all, while `sqlite3` and PyMySQL take one placeholder per value in the text's order.
 
-use anyhow::{Result, bail};
 use ruff_python_ast as ast;
 
-use crate::api::models::{Enum, Field};
+use crate::api::models::Field;
 use crate::api::queries::{Command, CopyInto, Query, Shape};
 use crate::engine::Piece;
 use crate::python::vocabulary::{
@@ -35,8 +34,6 @@ pub struct Driver {
     pub pipelines: bool,
     /// A parameter's value, from the expression holding it.
     pub bind: fn(&Field, ast::Expr) -> ast::Expr,
-    /// Whether an array of enums comes back as the array's text.
-    pub text_arrays: bool,
     /// Whether a `:copyfrom` runs PostgreSQL's `COPY` through the cursor's `copy()` rather than one `INSERT` per row.
     pub copies: bool,
     /// What makes the cursor's rows tuples, for a driver where making the cursor does not.
@@ -453,22 +450,4 @@ impl<'a> Body<'a> {
             ],
         )
     }
-}
-
-/// `from_array` splits an array's text at its commas, so for a driver of [`Driver::text_arrays`] we refuse a label that
-/// PostgreSQL quotes there: an empty one, `NULL`, or one holding whitespace, a quote, a backslash, a brace or a comma.
-pub fn check_text_array(sql_enum: &Enum) -> Result<()> {
-    let quoted = |label: &str| {
-        label.is_empty()
-            || label.eq_ignore_ascii_case("null")
-            || (label.chars()).any(|c| "{},\"\\ \t\n\r\x0b\x0c".contains(c))
-    };
-    if let Some(member) = sql_enum.members.iter().find(|member| quoted(&member.value)) {
-        bail!(
-            "psycopg returns an array of this enum as its text, in which PostgreSQL quotes the \
-             label {:?}; rename the label, or use the sqlalchemy backend",
-            member.value
-        );
-    }
-    Ok(())
 }

@@ -12,6 +12,19 @@ from uuid import UUID
 import psycopg
 from invoicing_models import models
 from psycopg.rows import tuple_row
+from psycopg.types import TypeInfo
+
+
+async def _register_types(
+    connection: psycopg.AsyncConnection[Any], *names: str
+) -> None:
+    for name in names:
+        if connection.adapters.types.get(name.rpartition(".")[2]) is None:
+            info = await TypeInfo.fetch(connection, name)
+            if info is None:
+                raise LookupError(name)
+            info.register(connection)
+
 
 _CREATE_INVOICE: Final = """INSERT INTO invoices (customer_id, number, currency, issued_on, due_on, notes)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -125,6 +138,7 @@ class GetInvoiceWithCustomerRow:
 async def get_invoice_with_customer(
     connection: psycopg.AsyncConnection[Any], *, id: UUID
 ) -> GetInvoiceWithCustomerRow | None:
+    await _register_types(connection, "billing.payment_method")
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_GET_INVOICE_WITH_CUSTOMER, (id,))
         match await cur.fetchmany(2):

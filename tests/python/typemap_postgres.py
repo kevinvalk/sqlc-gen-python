@@ -19,12 +19,13 @@ import typing
 from typing import Any
 
 import sqlalchemy
+from psycopg.types import TypeInfo
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import postgres
 from examples import EXAMPLES
 from pgvalues import Pg, json_type, sqlalchemy_type, tables
-from postgres import aw, database
+from postgres import EXTENSIONS, aw, database
 from suite.deep import failure, strip_none
 from typemap_probe import Probe, Section, describe, raised, short, versions
 
@@ -160,11 +161,22 @@ async def _drive(url: sqlalchemy.URL, driver: str, probes: list[Typed]) -> None:
     engine: Any = create_async_engine(url) if is_async else sqlalchemy.create_engine(url)
     try:
         connection = await aw(engine.connect())
+        if driver != "asyncpg":
+            # As generated code registers them before it reads an array of one
+            raw = (connection.sync_connection if is_async else connection).connection.driver_connection
+            for name in EXTENSIONS:
+                if (info := await aw(TypeInfo.fetch(raw, name))) is not None:
+                    info.register(raw)
         for pg, probe in probes:
             probe.seen[driver] = set()
             if pg.name not in EDGES:
                 probe.notes["-"][driver] = "MISMATCH: no edge values to probe"
             for edge, sql in expressions(pg):
+                # asyncpg counts an empty item of such an array, but reading it never returns, so we note it unread.
+                # Generated code on a backend that may run on asyncpg refuses these arrays.
+                if driver == "asyncpg" and pg.dims > 0 and pg.name in EXTENSIONS and edge == "''":
+                    probe.notes[edge][driver] = "corrupt: the empty item never returns"
+                    continue
                 if (note := await _edge(connection, (pg, probe), driver, edge, sql)) != "":
                     probe.notes[edge][driver] = note
         await aw(connection.close())

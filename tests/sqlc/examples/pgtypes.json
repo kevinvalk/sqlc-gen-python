@@ -2013,6 +2013,84 @@
                 "original_name": "",
                 "unsigned": false,
                 "array_dims": 1
+              },
+              {
+                "name": "citexts",
+                "not_null": true,
+                "is_array": true,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "arrays"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "citext"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 1
+              },
+              {
+                "name": "ltrees",
+                "not_null": true,
+                "is_array": true,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "arrays"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "ltree"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 1
+              },
+              {
+                "name": "lqueries",
+                "not_null": true,
+                "is_array": true,
+                "comment": "",
+                "length": -1,
+                "is_named_param": false,
+                "is_func_call": false,
+                "scope": "",
+                "table": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "arrays"
+                },
+                "table_alias": "",
+                "type": {
+                  "catalog": "",
+                  "schema": "",
+                  "name": "lquery"
+                },
+                "is_sqlc_slice": false,
+                "embed_table": null,
+                "original_name": "",
+                "unsigned": false,
+                "array_dims": 1
               }
             ],
             "comment": ""
@@ -3913,6 +3991,823 @@
           }
         }
       ],
+      "comments": [],
+      "filename": "query.sql",
+      "insert_into_table": null
+    },
+    {
+      "text": "SELECT int2s, int4s, int8s, oids, float4s, float8s, numerics, moneys, bools, texts, varchars, bpchars, names, macaddrs, macaddr8s, xmls, byteas, dates, times, timetzs, timestamps, timestamptzs, intervals, uuids, jsons, jsonbs, inets, cidrs, citexts, ltrees, lqueries FROM arrays",
+      "name": "ListArrays",
+      "cmd": ":many",
+      "columns": [
+        {
+          "name": "int2s",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "int2"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "int2s",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "int4s",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "int4"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "int4s",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "int8s",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "int8"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "int8s",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "oids",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "oid"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "oids",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "float4s",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "float4"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "float4s",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "float8s",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "float8"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "float8s",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "numerics",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "pg_catalog",
+            "name": "numeric"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "numerics",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "moneys",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "money"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "moneys",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "bools",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bool"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "bools",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "texts",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "text"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "texts",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "varchars",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "pg_catalog",
+            "name": "varchar"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "varchars",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "bpchars",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bpchar"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "bpchars",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "names",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "name"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "names",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "macaddrs",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "macaddr"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "macaddrs",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "macaddr8s",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "macaddr8"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "macaddr8s",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "xmls",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "xml"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "xmls",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "byteas",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "bytea"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "byteas",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "dates",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "date"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "dates",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "times",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "pg_catalog",
+            "name": "time"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "times",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "timetzs",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "timetz"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "timetzs",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "timestamps",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "pg_catalog",
+            "name": "timestamp"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "timestamps",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "timestamptzs",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "timestamptz"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "timestamptzs",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "intervals",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "pg_catalog",
+            "name": "interval"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "intervals",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "uuids",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "uuid"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "uuids",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "jsons",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "pg_catalog",
+            "name": "json"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "jsons",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "jsonbs",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "jsonb"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "jsonbs",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "inets",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "inet"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "inets",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "cidrs",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "cidr"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "cidrs",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "citexts",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "citext"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "citexts",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "ltrees",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "ltree"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "ltrees",
+          "unsigned": false,
+          "array_dims": 1
+        },
+        {
+          "name": "lqueries",
+          "not_null": true,
+          "is_array": true,
+          "comment": "",
+          "length": -1,
+          "is_named_param": false,
+          "is_func_call": false,
+          "scope": "",
+          "table": {
+            "catalog": "",
+            "schema": "",
+            "name": "arrays"
+          },
+          "table_alias": "",
+          "type": {
+            "catalog": "",
+            "schema": "",
+            "name": "lquery"
+          },
+          "is_sqlc_slice": false,
+          "embed_table": null,
+          "original_name": "lqueries",
+          "unsigned": false,
+          "array_dims": 1
+        }
+      ],
+      "params": [],
       "comments": [],
       "filename": "query.sql",
       "insert_into_table": null

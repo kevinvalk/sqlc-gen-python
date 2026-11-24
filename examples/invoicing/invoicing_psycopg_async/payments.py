@@ -4,6 +4,7 @@
 import contextlib
 import dataclasses
 import datetime as dt
+import typing
 from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 from decimal import Decimal
 from typing import Any, Final
@@ -12,6 +13,34 @@ from uuid import UUID
 import psycopg
 from invoicing_models import models
 from psycopg.rows import tuple_row
+from psycopg.types import TypeInfo
+
+
+def _checked_array(
+    value: object, dimensions: int, *, list_leaves: bool = False
+) -> list[Any]:
+    if isinstance(value, list):
+        items = typing.cast("list[object]", value)
+        if dimensions != 1:
+            for child in items:
+                _checked_array(child, dimensions - 1, list_leaves=list_leaves)
+            return items
+        if (list_leaves or not items) or not isinstance(items[0], list):
+            return items
+    message = "PostgreSQL returned an array with a different number of dimensions than declared"
+    raise TypeError(message)
+
+
+async def _register_types(
+    connection: psycopg.AsyncConnection[Any], *names: str
+) -> None:
+    for name in names:
+        if connection.adapters.types.get(name.rpartition(".")[2]) is None:
+            info = await TypeInfo.fetch(connection, name)
+            if info is None:
+                raise LookupError(name)
+            info.register(connection)
+
 
 _RECORD_PAYMENT: Final = """INSERT INTO billing.payments (invoice_id, method, amount, "from", received_at)
 VALUES ($1, $2, $3, $4, $5)
@@ -89,14 +118,14 @@ async def list_invoice_payment_methods(
     connection: psycopg.AsyncConnection[Any], *, invoice_id: UUID
 ) -> list[models.BillingPaymentMethod] | None:
     """An unnamed column: PostgreSQL names it `array`, and sqlc nothing."""
+    await _register_types(connection, "billing.payment_method")
     async with psycopg.AsyncRawCursor(connection, row_factory=tuple_row) as cur:
         await cur.execute(_LIST_INVOICE_PAYMENT_METHODS, (invoice_id,))
         match await cur.fetchmany(2):
             case [row]:
                 return [
-                    models.BillingPaymentMethod(label)
-                    for label in row[0][1:-1].split(",")
-                    if label
+                    models.BillingPaymentMethod(_v1)
+                    for _v1 in _checked_array(row[0], 1)
                 ]
             case []:
                 return None

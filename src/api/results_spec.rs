@@ -27,7 +27,7 @@ fn a_single_column_is_returned_bare() {
         array_dims: 0,
         optional: false,
         collects_nulls: false,
-        as_text: false,
+        registered_type: None,
     };
     assert_eq!(
         returning(":one", vec![column("id", "int8", true)]),
@@ -222,7 +222,7 @@ fn an_ungrouped_aggregate_is_optional_though_sqlc_reports_its_cast_not_null() {
         array_dims: 0,
         optional,
         collects_nulls: false,
-        as_text: false,
+        registered_type: None,
     };
     // One row, whose value is NULL of no rows.
     assert_eq!(

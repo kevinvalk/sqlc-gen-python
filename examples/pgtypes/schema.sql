@@ -67,8 +67,7 @@ CREATE TABLE nullables (
     grid      integer[][]
 );
 
--- One array column per mapped type but `citext` and `tsvector`, whose arrays
--- are an error.
+-- One array column per mapped type but `tsvector`, whose arrays are an error.
 CREATE TABLE arrays (
     int2s         int2[] NOT NULL,
     int4s         int4[] NOT NULL,
@@ -97,7 +96,10 @@ CREATE TABLE arrays (
     jsons         json[] NOT NULL,
     jsonbs        jsonb[] NOT NULL,
     inets         inet[] NOT NULL,
-    cidrs         cidr[] NOT NULL
+    cidrs         cidr[] NOT NULL,
+    citexts       citext[] NOT NULL,
+    ltrees        ltree[] NOT NULL,
+    lqueries      lquery[] NOT NULL
 );
 
 CREATE SCHEMA analytics;

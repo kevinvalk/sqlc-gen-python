@@ -2,13 +2,34 @@
 # versions:
 #   sqlc v1.31.1
 import contextlib
+import typing
 from collections.abc import Generator, Iterator
 from typing import Final
 
 import sqlalchemy
+from psycopg.types import TypeInfo
 from sqlalchemy.dialects import postgresql
 
 from . import models
+
+if typing.TYPE_CHECKING:
+    from typing import Any
+
+    import psycopg
+
+
+def _register_types(connection: sqlalchemy.Connection, *names: str) -> None:
+    if connection.dialect.driver == "psycopg":
+        driver = typing.cast(
+            "psycopg.Connection[Any]", connection.connection.driver_connection
+        )
+        for name in names:
+            if driver.adapters.types.get(name.rpartition(".")[2]) is None:
+                info = TypeInfo.fetch(driver, name)
+                if info is None:
+                    raise LookupError(name)
+                info.register(driver)
+
 
 _GET_SCALARS: Final = sqlalchemy.text(
     "SELECT id, small, regular, big, approximate, exact, price, flag, label, fixed, varying, raw, identifier, document, day, clock, moment, duration, address, feeling, object, single, title, email, mac, mac8, markup, search, wall, naive, plain_json, network, pairs, tree, pattern, text_query, relation, span, big_span, amounts, days, times, moments FROM scalars WHERE id = :id"
@@ -186,3 +207,24 @@ def stream_find_scalars(
         execution_options={"stream_results": True},
     ) as cur:
         yield (row[0] for row in cur)
+
+
+_LIST_ARRAYS: Final = sqlalchemy.text(
+    "SELECT int2s, int4s, int8s, oids, float4s, float8s, numerics, moneys, bools, texts, varchars, bpchars, names, macaddrs, macaddr8s, xmls, byteas, dates, times, timetzs, timestamps, timestamptzs, intervals, uuids, jsons, jsonbs, inets, cidrs, citexts, ltrees, lqueries FROM arrays"
+)
+
+
+def list_arrays(connection: sqlalchemy.Connection) -> list[models.Array]:
+    _register_types(connection, "citext", "lquery", "ltree")
+    return [models.Array.from_row(row) for row in connection.execute(_LIST_ARRAYS)]
+
+
+@contextlib.contextmanager
+def stream_list_arrays(
+    connection: sqlalchemy.Connection,
+) -> Generator[Iterator[models.Array], None, None]:
+    _register_types(connection, "citext", "lquery", "ltree")
+    with connection.execute(
+        _LIST_ARRAYS, execution_options={"stream_results": True}
+    ) as cur:
+        yield (models.Array.from_row(row) for row in cur)

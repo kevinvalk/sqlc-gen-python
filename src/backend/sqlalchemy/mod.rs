@@ -8,12 +8,12 @@ use crate::api::queries::{Command, Query, Shape};
 use crate::engine::Engine;
 use crate::problem::Problem;
 use crate::python::vocabulary::{
-    ANY, ASYNC_CONNECTION, CONNECTION, COUNT, CUR, DICT, LIST, MODELS, PARAMS, POSTGRESQL, R, ROW, ROWS, SQLALCHEMY,
-    STR, VALUE, VALUES,
+    ANY, ASYNC_CONNECTION, CONNECTION, COUNT, CUR, DICT, DRIVER, LIST, PARAMS, POSTGRESQL, PSYCOPG, R, ROW, ROWS,
+    SQLALCHEMY, STR, TYPING, VALUE, VALUES,
 };
 use crate::python::{
-    Expression, Json, Scope, Type, add_assign, ann_assign, assign, dict, each, expression, for_, generator_of, if_,
-    int, keyword, list, list_of, name, return_, starred, stmts, string, true_, unless_none, with, yield_,
+    Expression, Json, Scope, Type, add_assign, ann_assign, assign, dict, each, expression, for_, forward, generator_of,
+    if_, int, keyword, list, list_of, name, return_, stmts, string, true_, unless_none, with, yield_,
 };
 
 pub fn check(engine: Engine, query: &Query) -> Result<()> {
@@ -109,10 +109,6 @@ pub fn scalar_type(pg_type: &str) -> Option<Type> {
 /// class, which SQLAlchemy instantiates, as SQLAlchemy 2.0's `HSTORE()` is untyped.
 fn column_type(column: &Field) -> Option<ast::Expr> {
     match (column.ty.element.wire(), column.ty.array_dims) {
-        (Type::Enum(class), 1..) => {
-            let labels = SQLALCHEMY.attr("Enum").call([starred(MODELS.attr(class))]);
-            Some(POSTGRESQL.attr("ARRAY").call([labels]))
-        }
         (
             Type::Library {
                 sql_type: Some(sql_type),
@@ -270,4 +266,27 @@ fn named(query: &Query) -> ast::Expr {
         })
         .collect();
     dict(items)
+}
+
+/// The body of `_register_types` on SQLAlchemy, which registers the types on the psycopg connection under it
+/// ([`super::psycopg::register_types`]). Every other driver loads such an array as a list by itself.
+pub fn register_types(asynchronous: bool) -> ast::Stmt {
+    let on_psycopg = CONNECTION.attr("dialect").attr("driver").equals(string("psycopg"));
+    let (raw, class) = match asynchronous {
+        true => (
+            CONNECTION.attr("get_raw_connection").call([]).awaited(true),
+            "AsyncConnection",
+        ),
+        false => (CONNECTION.attr("connection"), "Connection"),
+    };
+    let driver = TYPING
+        .attr("cast")
+        .call([forward(PSYCOPG.attr(class).index(ANY)), raw.attr("driver_connection")]);
+    if_(
+        on_psycopg,
+        vec![
+            assign(DRIVER, driver),
+            super::psycopg::register_types(DRIVER.into(), asynchronous),
+        ],
+    )
 }

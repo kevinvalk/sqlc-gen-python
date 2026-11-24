@@ -11,6 +11,7 @@ from uuid import UUID
 import psycopg
 from invoicing_models import models
 from psycopg.rows import tuple_row
+from psycopg.types import TypeInfo
 from psycopg.types.json import Jsonb
 
 
@@ -27,6 +28,15 @@ def _checked_array(
             return items
     message = "PostgreSQL returned an array with a different number of dimensions than declared"
     raise TypeError(message)
+
+
+def _register_types(connection: psycopg.Connection[Any], *names: str) -> None:
+    for name in names:
+        if connection.adapters.types.get(name.rpartition(".")[2]) is None:
+            info = TypeInfo.fetch(connection, name)
+            if info is None:
+                raise LookupError(name)
+            info.register(connection)
 
 
 _CREATE_CUSTOMER: Final = """INSERT INTO customers (name, email, tags, preferred_method, accepted_methods, metadata)
@@ -49,6 +59,7 @@ def create_customer(
     | float
     | None = None,
 ) -> models.Customer:
+    _register_types(connection, "billing.payment_method")
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(
             _CREATE_CUSTOMER,
@@ -74,6 +85,7 @@ _GET_CUSTOMER: Final = "SELECT id, name, email, tags, preferred_method, accepted
 
 
 def get_customer(connection: psycopg.Connection[Any], *, id: UUID) -> models.Customer:
+    _register_types(connection, "billing.payment_method")
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_CUSTOMER, (id,))
         match cur.fetchmany(2):
@@ -127,6 +139,7 @@ def get_customer_by_name(
     connection: psycopg.Connection[Any], *, name: str
 ) -> models.Customer:
     """Names are not unique: more than one match is an error, never a guess."""
+    _register_types(connection, "billing.payment_method")
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_CUSTOMER_BY_NAME, (name,))
         match cur.fetchmany(2):
@@ -165,11 +178,15 @@ def get_accepted_methods(
     """PostgreSQL names this column `coalesce`, and sqlc nothing. It is cast, as
     sqlc types a coalesce as its first argument whatever the others are.
     """
+    _register_types(connection, "billing.payment_method")
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_GET_ACCEPTED_METHODS, (id,))
         match cur.fetchmany(2):
             case [row]:
-                return models.BillingPaymentMethod.from_array(row[0])
+                return [
+                    None if _v1 is None else models.BillingPaymentMethod(_v1)
+                    for _v1 in _checked_array(row[0], 1)
+                ]
             case []:
                 raise models.NoRowError
             case _:
@@ -189,8 +206,14 @@ class CompareAcceptedMethodsRow:
     @classmethod
     def from_row(cls, row: Sequence[Any]) -> "CompareAcceptedMethodsRow":
         return cls(
-            accepted_methods=models.BillingPaymentMethod.from_array(row[0]),
-            accepted_methods_2=models.BillingPaymentMethod.from_array(row[1]),
+            accepted_methods=[
+                None if _v1 is None else models.BillingPaymentMethod(_v1)
+                for _v1 in _checked_array(row[0], 1)
+            ],
+            accepted_methods_2=[
+                None if _v1 is None else models.BillingPaymentMethod(_v1)
+                for _v1 in _checked_array(row[1], 1)
+            ],
         )
 
 
@@ -198,6 +221,7 @@ def compare_accepted_methods(
     connection: psycopg.Connection[Any], *, first: UUID, second: UUID
 ) -> CompareAcceptedMethodsRow:
     """Two columns of one name, as when merging two customers."""
+    _register_types(connection, "billing.payment_method")
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_COMPARE_ACCEPTED_METHODS, (first, second))
         match cur.fetchmany(2):
@@ -230,6 +254,7 @@ def search_customers(
     connection: psycopg.Connection[Any], *, query: str
 ) -> list[models.Customer]:
     """Case-insensitive search on name or email."""
+    _register_types(connection, "billing.payment_method")
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_SEARCH_CUSTOMERS, (query,))
         return [models.Customer.from_row(row) for row in cur.fetchall()]
@@ -240,6 +265,7 @@ def stream_search_customers(
     connection: psycopg.Connection[Any], *, query: str
 ) -> Generator[Iterator[models.Customer], None, None]:
     """Case-insensitive search on name or email."""
+    _register_types(connection, "billing.payment_method")
     with psycopg.RawServerCursor(
         connection, "stream_search_customers", row_factory=tuple_row
     ) as cur:
@@ -401,6 +427,7 @@ def merge_customer_metadata(
     id: UUID,
 ) -> models.Customer:
     """A partial update: what is NULL leaves its column as it is, and a document merges into the stored one"""
+    _register_types(connection, "billing.payment_method")
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(
             _MERGE_CUSTOMER_METADATA,
@@ -472,13 +499,17 @@ class ListLastEmailsByNameRow:
             emails=None if row[2] is None else _checked_array(row[2], 1),
             methods=None
             if row[3] is None
-            else models.BillingPaymentMethod.from_array(row[3]),
+            else [
+                None if _v1 is None else models.BillingPaymentMethod(_v1)
+                for _v1 in _checked_array(row[3], 1)
+            ],
         )
 
 
 def list_last_emails_by_name(
     connection: psycopg.Connection[Any],
 ) -> list[ListLastEmailsByNameRow]:
+    _register_types(connection, "billing.payment_method")
     with psycopg.RawCursor(connection, row_factory=tuple_row) as cur:
         cur.execute(_LIST_LAST_EMAILS_BY_NAME)
         return [ListLastEmailsByNameRow.from_row(row) for row in cur.fetchall()]
@@ -488,6 +519,7 @@ def list_last_emails_by_name(
 def stream_list_last_emails_by_name(
     connection: psycopg.Connection[Any],
 ) -> Generator[Iterator[ListLastEmailsByNameRow], None, None]:
+    _register_types(connection, "billing.payment_method")
     with psycopg.RawServerCursor(
         connection, "stream_list_last_emails_by_name", row_factory=tuple_row
     ) as cur:

@@ -11,9 +11,12 @@ from typing import Any, Final
 from uuid import UUID
 
 import sqlalchemy
-from sqlalchemy.dialects import postgresql
+from psycopg.types import TypeInfo
 
 from . import models
+
+if typing.TYPE_CHECKING:
+    import psycopg
 
 
 def _checked_array(
@@ -29,6 +32,19 @@ def _checked_array(
             return items
     message = "PostgreSQL returned an array with a different number of dimensions than declared"
     raise TypeError(message)
+
+
+def _register_types(connection: sqlalchemy.Connection, *names: str) -> None:
+    if connection.dialect.driver == "psycopg":
+        driver = typing.cast(
+            "psycopg.Connection[Any]", connection.connection.driver_connection
+        )
+        for name in names:
+            if driver.adapters.types.get(name.rpartition(".")[2]) is None:
+                info = TypeInfo.fetch(driver, name)
+                if info is None:
+                    raise LookupError(name)
+                info.register(driver)
 
 
 _RECORD_PAYMENT: Final = sqlalchemy.text("""INSERT INTO billing.payments (invoice_id, method, amount, "from", received_at)
@@ -93,17 +109,14 @@ def stream_list_payments_by_methods(
 
 _LIST_INVOICE_PAYMENT_METHODS: Final = sqlalchemy.text("""SELECT ARRAY(
     SELECT DISTINCT method FROM billing.payments WHERE invoice_id = :invoice_id ORDER BY method
-)\\:\\:billing.payment_method[]""").columns(
-    sqlalchemy.column(
-        "column_1", postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod))
-    )
-)
+)\\:\\:billing.payment_method[]""")
 
 
 def list_invoice_payment_methods(
     connection: sqlalchemy.Connection, *, invoice_id: UUID
 ) -> list[models.BillingPaymentMethod]:
     """An unnamed column: PostgreSQL names it `array`, and sqlc nothing."""
+    _register_types(connection, "billing.payment_method")
     value = connection.execute(
         _LIST_INVOICE_PAYMENT_METHODS, {"invoice_id": invoice_id}
     ).scalar_one()

@@ -37,7 +37,6 @@ pub const DRIVER: Driver = Driver {
     execute_counts: true,
     pipelines: false,
     bind: |field, value| field.ty.bind(value, None),
-    text_arrays: false,
     copies: false,
     plain_rows: None,
 };

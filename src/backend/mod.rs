@@ -11,16 +11,19 @@ mod sqlite3;
 #[cfg(test)]
 mod spec;
 
+use std::collections::BTreeSet;
+
 use anyhow::{Result, bail};
 use ruff_python_ast as ast;
 use serde::Deserialize;
 
 use crate::api::queries::{Command, Query, Shape, Takes};
 use crate::engine::Engine;
-use crate::python::vocabulary::{DATE, DATETIME, DECIMAL, INT, LIST, PARAMS, R, Symbol};
-use crate::python::{Expression, Type, name, none};
+use crate::python::vocabulary::{
+    CONNECTION, DATE, DATETIME, DECIMAL, INT, LIST, NAMES, PARAMS, R, REGISTER_TYPES, STR, Symbol,
+};
+use crate::python::{Expression, Function, Type, expression, name, none, parameter, string};
 use dbapi::Driver;
-pub use dbapi::check_text_array;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -101,12 +104,6 @@ impl Backend {
         }
     }
 
-    /// Whether the library returns an array of enums as the array's text, which the enum's class then parses
-    /// (`from_array`).
-    pub fn text_arrays(self) -> bool {
-        self.driver().is_some_and(|driver| driver.text_arrays)
-    }
-
     /// A driver has no errors for a `:one` to raise, so the package defines its own. We always define both, so what a
     /// package exports does not change with its queries.
     pub fn defines_errors(self) -> bool {
@@ -143,19 +140,52 @@ impl Backend {
     }
 
     pub fn body(self, query: &Query, asynchronous: bool) -> Vec<ast::Stmt> {
-        match self.driver() {
+        let body = match self.driver() {
             None => sqlalchemy::body(query, asynchronous),
             Some(driver) => dbapi::body(driver, query, asynchronous),
-        }
+        };
+        registering(query, asynchronous, body)
     }
 
     /// The body of a `:many`'s [stream](Query::stream) `name`, which yields an iterator of its rows of `shape`.
     pub fn stream(self, query: &Query, (name, shape): (&str, &Shape), asynchronous: bool) -> Vec<ast::Stmt> {
-        match self.driver() {
+        let body = match self.driver() {
             None => sqlalchemy::stream(query, shape, asynchronous),
             Some(driver) => dbapi::stream(driver, query, (name, shape), asynchronous),
-        }
+        };
+        registering(query, asynchronous, body)
     }
+
+    /// `_register_types`, which registers each type it is given on the connection unless it already is, so that psycopg
+    /// loads an array of it as a list. Only a query module that reads such an array defines it.
+    pub fn register_types(self, asynchronous: bool) -> ast::Stmt {
+        let body = match self.driver() {
+            None => sqlalchemy::register_types(asynchronous),
+            Some(_) => psycopg::register_types(CONNECTION.into(), asynchronous),
+        };
+        Function {
+            parameters: vec![parameter(CONNECTION, self.connection(asynchronous))],
+            vararg: Some(parameter(NAMES, STR)),
+            body: vec![body],
+            is_async: asynchronous,
+            ..Function::new(REGISTER_TYPES, none())
+        }
+        .into()
+    }
+}
+
+/// `body`, after it registers the types whose arrays the query reads. That has to come first, as a cursor keeps the
+/// types its connection had when it was made.
+fn registering(query: &Query, asynchronous: bool, body: Vec<ast::Stmt>) -> Vec<ast::Stmt> {
+    let types: BTreeSet<&str> = (query.columns.iter())
+        .filter_map(|column| column.ty.registered_type.as_deref())
+        .collect();
+    if types.is_empty() {
+        return body;
+    }
+    let arguments = std::iter::once(CONNECTION.into()).chain(types.into_iter().map(string));
+    let register = expression(REGISTER_TYPES.call(arguments).awaited(asynchronous));
+    std::iter::once(register).chain(body).collect()
 }
 
 /// What one run of the query's command returns, or a list of that for a batch of rows. sqlc decides it, except for an

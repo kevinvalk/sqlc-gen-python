@@ -195,6 +195,11 @@ impl Config {
         Ok(config)
     }
 
+    /// Whether the generated code may run on asyncpg, which only an async SQLAlchemy reaches.
+    pub fn may_run_asyncpg(&self) -> bool {
+        self.backend == Backend::SqlAlchemy && self.asynchronous
+    }
+
     /// The modules the overrides' types read from, which generated code has to import.
     pub fn modules(&self) -> Vec<String> {
         (self.overrides.iter())

@@ -7,7 +7,8 @@ use ruff_python_parser::parse_module;
 use ruff_text_size::TextRange;
 
 use super::imports::imports;
-use super::unparse_stmt;
+use super::vocabulary::TYPE_CHECKING;
+use super::{unparse as unparse_expr, unparse_stmt};
 
 #[cfg(test)]
 #[path = "render_spec.rs"]
@@ -31,10 +32,20 @@ pub fn render(body: &[ast::Stmt], modules: &[String], models: Option<&str>) -> S
             })
             .collect()
     };
-    let imports: Vec<String> = (imports(body, modules, models).iter())
-        .map(|section| unparse(section))
-        .collect();
-    let unparsed = imports.join("\n") + &unparse(body);
+    let [runtime, checked] = imports(body, modules, models);
+    let runtime: Vec<String> = runtime.iter().map(|section| unparse(section)).collect();
+    // One block for the type checker's imports, its sections apart as at the top
+    let checked: Vec<String> = checked.iter().map(|section| unparse(section)).collect();
+    let checked = match checked.is_empty() {
+        true => String::new(),
+        false => {
+            let indented: String = (checked.join("\n").lines())
+                .map(|line| format!("    {line}\n"))
+                .collect();
+            format!("if {}:\n{indented}\n", unparse_expr(&TYPE_CHECKING.into()))
+        }
+    };
+    let unparsed = runtime.join("\n") + &checked + &unparse(body);
     format_module_source(&respell_strings(&unparsed), PyFormatOptions::default())
         .expect("respelt strings are valid Python")
         .into_code()

@@ -333,7 +333,8 @@ impl<'a> Resolver<'a> {
             bail!("{what} is an array, but sqlc reported no array depth for it")
         }
         if array_dims > 0
-            && let Some(problem) = self.engine.array_problem(&data_type, parameter.is_some())
+            && let Some(problem) =
+                (self.engine).array_problem(&data_type, parameter.is_some(), self.config.may_run_asyncpg())
         {
             return self.unknown(
                 column,
@@ -353,7 +354,7 @@ impl<'a> Resolver<'a> {
 
         Ok(FieldType {
             collects_nulls: facts.nullable_elements(self.engine, array_dims),
-            as_text: array_dims > 0 && matches!(element, Type::Enum(_)) && self.config.backend.text_arrays(),
+            registered_type: (array_dims > 0 && self.engine.is_registered(&data_type)).then_some(data_type),
             element,
             array_dims,
             optional: !column.not_null,
@@ -378,7 +379,7 @@ impl<'a> Resolver<'a> {
             array_dims: 0,
             optional: !column.not_null,
             collects_nulls: false,
-            as_text: false,
+            registered_type: None,
         })
     }
 

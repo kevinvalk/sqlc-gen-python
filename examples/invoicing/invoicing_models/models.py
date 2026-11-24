@@ -39,17 +39,6 @@ class BillingPaymentMethod(enum.StrEnum):
     CARD = "card"
     DIRECT_DEBIT = "direct-debit"
 
-    @classmethod
-    def from_array(cls, text: str) -> "list[BillingPaymentMethod | None]":
-        """The members of an array of this enum, as PostgreSQL writes one: `{a,b}`."""
-        if text.startswith("["):
-            text = text.partition("=")[2]
-        return [
-            None if label == "NULL" else cls(label)
-            for label in text[1:-1].split(",")
-            if label
-        ]
-
 
 class InvoiceStatus(enum.StrEnum):
     """Lifecycle of an invoice. Only drafts may be deleted."""
@@ -102,7 +91,10 @@ class Customer:
             email=row[2],
             tags=_checked_array(row[3], 1),
             preferred_method=None if row[4] is None else BillingPaymentMethod(row[4]),
-            accepted_methods=BillingPaymentMethod.from_array(row[5]),
+            accepted_methods=[
+                None if _v1 is None else BillingPaymentMethod(_v1)
+                for _v1 in _checked_array(row[5], 1)
+            ],
             metadata=row[6],
             created_at=row[7],
         )

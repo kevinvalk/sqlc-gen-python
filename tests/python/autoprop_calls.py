@@ -14,8 +14,6 @@ from typing import TYPE_CHECKING, Any
 import psycopg
 import sqlalchemy
 from hypothesis import strategies as st
-from psycopg import sql as pgsql
-from psycopg.types.enum import EnumInfo, register_enum
 from psycopg.types.json import Json as PgJson
 from psycopg.types.json import Jsonb
 from psycopg.types.range import Range as PgRange
@@ -30,6 +28,8 @@ from suite.deep import checked, failure, is_stream, record_fields, streamed, str
 if TYPE_CHECKING:
     from collections.abc import Callable
     from types import ModuleType
+
+    from psycopg.types import TypeInfo
 
     from autoprop_pool import Pool
 
@@ -85,11 +85,11 @@ class Call:
         *,
         pool: Pool,
         url: str,
-        enums: list[Labels] | None,
+        types: list[TypeInfo] | None,
     ) -> tuple[str, bool]:
         """Call once with drawn arguments on ``callee`` (the connection the function takes), in ``connection``'s
         transaction. Return the outcome, and whether it returned what sqlc's SQL run directly did, which we only compare
-        when given the catalog's ``enums`` to read them.
+        when given the ``types`` psycopg needs registered to read them: the catalog's enums and the extensions' types.
         """
         fields = st.fixed_dictionaries({a.name: a.values(pool) for a in self.arguments})
         if self.bundled:
@@ -108,7 +108,7 @@ class Call:
             return "inconclusive", False
 
         cmd = self.query["cmd"]
-        expected = self.direct(connection, rows, enums) if enums is not None and cmd in COMPARED else None
+        expected = self.direct(connection, rows, types) if types is not None and cmd in COMPARED else None
         nested = await aw(connection.begin_nested())
         try:
             result = await aw(self.function(callee, **kwargs))
@@ -181,7 +181,7 @@ class Call:
         self,
         connection: sqlalchemy.Connection,
         rows: list[dict[str, object]],
-        enums: list[Labels],
+        types: list[TypeInfo],
     ) -> object:
         """sqlc's text, run twice with ``rows`` by psycopg's ``RawCursor`` and rolled back each time.
 
@@ -195,8 +195,10 @@ class Call:
             nested = connection.begin_nested()
             try:
                 with psycopg.RawCursor(driver(connection)) as cursor:
-                    for info, labelled in enums:
-                        register_enum(info, cursor, labelled)
+                    # On the cursor alone, as registering on the connection would do for the generated call what it
+                    # has to do itself
+                    for info in types:
+                        info.register(cursor)
                     if self.query["cmd"] == ":copyfrom":
                         cursor.executemany(self.query["text"], positional)
                         runs.append(cursor.rowcount)
@@ -237,26 +239,9 @@ def driver(connection: sqlalchemy.Connection) -> psycopg.Connection[Any]:
     return raw
 
 
-Labels = tuple[EnumInfo, type[enum.Enum]]
-
-
-def labels(connection: psycopg.Connection[Any], schema: str, name: str) -> Labels:
-    """What psycopg needs to read the catalog's enum ``schema.name`` as its labels: its type, and an enum whose members
-    are named and valued by them (psycopg's own numbers its values, and cannot have no members).
-    """
-    info = EnumInfo.fetch(connection, pgsql.Identifier(schema, name))
-    if info is None:
-        message = f"enum {schema}.{name} of the catalog is not in the database"
-        raise AssertionError(message)
-    # We go through `Any` as mypy only accepts an `Enum()` call with literal members.
-    make: Any = enum.Enum
-    labelled = make("Labels", {label: label for label in info.labels})
-    return info, typing.cast("type[enum.Enum]", labelled)
-
-
 def plain(value: object) -> object:
-    """A value as psycopg reads it without the generated code: an enum as its label, which is its value in ours and in
-    ``labels``', in a list too.
+    """A value as psycopg reads it without the generated code: an enum as its label, which is its value, in a list
+    too.
     """
     if isinstance(value, enum.Enum):
         return value.value

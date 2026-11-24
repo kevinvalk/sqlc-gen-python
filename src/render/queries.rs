@@ -150,6 +150,7 @@ fn functions(query: &Query, config: &Config) -> Vec<ast::Stmt> {
                 backend.stream(query, (stream, shape), asynchronous)
             ],
             parameters: function.parameters.clone(),
+            vararg: None,
             keyword_only: function.keyword_only.clone(),
             is_async: asynchronous,
         }

@@ -55,9 +55,14 @@ const TYPES: &[(&str, Type)] = &[
     ("cidr", Type::CIDR),
 ];
 
-/// Types beside [`EXTENSIONS`] whose arrays the drivers do not all load as a list of the type, and what one of them
-/// does instead.
+/// Types whose arrays the drivers do not all load as a list of the type, and what one of them does instead.
 const NO_ARRAYS: &[(&str, &str)] = &[
+    // Registered, psycopg loads an array of it as a list of the text of each, not of a `dict`
+    (
+        "hstore",
+        "psycopg, and SQLAlchemy on it, returns as text, not a list of dict",
+    ),
+    ("ltxtquery", "nobody has probed"),
     ("regclass", "nobody has probed"),
     ("tsvector", "asyncpg decodes with a corrupt item when one is empty"),
 ];
@@ -76,20 +81,32 @@ pub fn scalar_type(data_type: &str) -> Option<Type> {
         .map(|(_, python)| python.clone())
 }
 
-/// Of [`EXTENSIONS`] and [`NO_ARRAYS`], those every driver binds a list of `str` to, as a parameter, which no driver
-/// then reads back. An extension's array is a filter's (`= ANY(@emails::citext[])`, `tree ? @patterns::lquery[]`) more
-/// often than a column's. `examples/pgtypes` has a query of each, which the runtime sweep calls.
-const BOUND_AS_LISTS: &[&str] = &["citext", "lquery", "ltree", "tsvector"];
+/// Of [`NO_ARRAYS`], those every driver binds a list of `str` to, as a parameter, which no driver then reads back.
+/// `examples/pgtypes` has a query of each, which the runtime sweep calls.
+const BOUND_AS_LISTS: &[&str] = &["tsvector"];
 
-/// What a driver does with an array of `data_type`, if that is not a list.
-pub fn array_problem(data_type: &str, is_parameter: bool) -> Option<&'static str> {
+/// Whether generated code registers `data_type` on a psycopg connection before it reads an array of it: any type but
+/// PostgreSQL's own, so an extension's or the schema's. psycopg knows the OID of PostgreSQL's own types only, as every
+/// other type has a different one in every database, so until then it returns an array of one as the array's text
+/// (https://www.psycopg.org/psycopg3/docs/basic/pgtypes.html). asyncpg looks such a type up itself.
+pub fn is_registered(data_type: &str) -> bool {
+    !is_own(&type_name(data_type))
+}
+
+/// Types whose array asyncpg reads with a corrupt item where one is empty (`ARRAY[''::citext]`): it counts the item,
+/// but reading it never returns. Registering the type with asyncpg (`set_type_codec`) changes nothing, and psycopg reads
+/// them.
+const ASYNCPG_CORRUPTS: &[&str] = &["citext", "lquery", "ltree"];
+
+/// What a driver does with an array of `data_type`, if that is not a list, on a backend that may run on asyncpg when
+/// `asyncpg`.
+pub fn array_problem(data_type: &str, is_parameter: bool, asyncpg: bool) -> Option<&'static str> {
     let name = type_name(data_type);
     if is_parameter && BOUND_AS_LISTS.contains(&name.as_str()) {
         return None;
     }
-    // An extension's type has a different OID in every database, so psycopg has no loader for an array of one
-    if EXTENSIONS.contains(&name.as_str()) {
-        return Some("psycopg, and SQLAlchemy on it, returns as text, not a list");
+    if asyncpg && !is_parameter && ASYNCPG_CORRUPTS.contains(&name.as_str()) {
+        return Some("asyncpg, which an async SQLAlchemy may run on, reads with a corrupt item where one is empty");
     }
     (NO_ARRAYS.iter())
         .find(|(known, _)| *known == name)

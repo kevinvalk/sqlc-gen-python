@@ -327,7 +327,7 @@ fn a_bare_override_names_an_extensions_type_in_any_schema_but_no_declared_one() 
 
 #[test]
 fn unknown_type_annotates_every_type_we_cannot_verify_as_asked() {
-    let mut tags = column("tags", "citext", true);
+    let mut tags = column("tags", "hstore", true);
     (tags.is_array, tags.array_dims) = (true, 1);
     let schemas = || {
         let columns = vec![

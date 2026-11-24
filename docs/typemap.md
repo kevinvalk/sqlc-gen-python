@@ -22,6 +22,7 @@ Observed on PostgreSQL 18, session TimeZone Europe/Amsterdam, with psycopg 3.3, 
 | `cidr` | `IPv4Network \| IPv6Network` | `IPv4Network` `IPv6Network` | `IPv4Network` `IPv6Network` | `IPv4Network` `IPv6Network` | ok |
 | `cidr[]` | `list[IPv4Network \| IPv6Network \| None]` | `list` `list[IPv4Network]` `list[IPv6Network]` | `list` `list[IPv4Network]` `list[IPv6Network]` | `list` `list[IPv4Network]` `list[IPv6Network]` | ok |
 | `citext` | `str` | `str` | `str` | `str` | ok |
+| `citext[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `date` | `date` | `date` | `date` | `date` | ok |
 | `date[]` | `list[date \| None]` | `list` `list[date]` | `list` `list[date]` | `list` `list[date]` | ok |
 | `daterange` | `Range[date]` | `Range` | `Range` | `Range` | ok |
@@ -48,7 +49,9 @@ Observed on PostgreSQL 18, session TimeZone Europe/Amsterdam, with psycopg 3.3, 
 | `jsonb` | `object` | `dict` `int` `list` `str` | `dict` `int` `list` `str` | `dict` `int` `list` `str` | ok |
 | `jsonb[]` | `list[object \| None]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | `list` `list[NoneType]` `list[dict]` `list[int]` `list[list]` `list[str]` | ok |
 | `lquery` | `str` | `str` | `str` | `str` | ok |
+| `lquery[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `ltree` | `str` | `str` | `str` | `str` | ok |
+| `ltree[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
 | `ltxtquery` | `str` | `str` | `str` | `str` | ok |
 | `macaddr` | `str` | `str` | `str` | `str` | ok |
 | `macaddr[]` | `list[str \| None]` | `list` `list[str]` | `list` `list[str]` | `list` `list[str]` | ok |
@@ -88,6 +91,7 @@ Observed on PostgreSQL 18, session TimeZone Europe/Amsterdam, with psycopg 3.3, 
 
 | PostgreSQL | Edge | psycopg | psycopg async | asyncpg |
 |---|---|---|---|---|
+| `citext[]` | `''` |  |  | corrupt: the empty item never returns |
 | `date` | `'infinity'` | raises DataError | raises DataError |  |
 | `date` | `'-infinity'` | raises DataError | raises DataError |  |
 | `date` | `'4713-01-01 BC'` | raises DataError | raises DataError | raises ValueError |
@@ -112,6 +116,7 @@ Observed on PostgreSQL 18, session TimeZone Europe/Amsterdam, with psycopg 3.3, 
 | `json[]` | `'1e400'` | binding back raises InvalidTextRepresentation | binding back raises InvalidTextRepresentation | binding back raises Error |
 | `jsonb` | `'null'` | lossy: `null` comes back as `NULL` | lossy: `null` comes back as `NULL` | lossy: `null` comes back as `NULL` |
 | `jsonb[]` | `'null'` | lossy: `{"null"}` comes back as `{NULL}` | lossy: `{"null"}` comes back as `{NULL}` | lossy: `{"null"}` comes back as `{NULL}` |
+| `ltree[]` | `''` |  |  | corrupt: the empty item never returns |
 | `time` | `'24:00:00'` | raises DataError | raises DataError | raises ValueError |
 | `time[]` | `'24:00:00'` | raises DataError | raises DataError | raises ValueError |
 | `timestamp` | `'infinity'` | raises DataError | raises DataError |  |

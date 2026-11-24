@@ -26,26 +26,27 @@ use signature::function_follows_sqlc;
 pub(super) fn queries_follow_sqlc(
     (request, config): (&plugin::GenerateRequest, &Config),
     stem: &str,
-    (body, prelude): (&[Stmt], Option<(usize, &[&str])>),
+    (body, prelude): (&[Stmt], Option<(usize, Vec<&str>)>),
     models: &[Stmt],
     problems: &mut Vec<String>,
 ) {
     let (backend, asynchronous) = (config.backend, config.asynchronous);
-    let expected_prelude = match (backend, asynchronous) {
+    let held = prelude.as_ref().map(|(_, held)| held.as_slice());
+    let expected_prelude: Option<&[&str]> = match (backend, asynchronous) {
         (Backend::Pymysql, false) => Some(PYMYSQL),
         (Backend::Pymysql, true) => Some(ASYNCMY),
-        (Backend::SqlAlchemy | Backend::Psycopg, _)
-            if prelude.is_some_and(|(_, held)| held == CHECKED_ARRAY)
-                && Engine::of(request).ok() == Some(Engine::PostgreSql) =>
-        {
-            Some(CHECKED_ARRAY)
+        (Backend::SqlAlchemy | Backend::Psycopg, _) if Engine::of(request).ok() == Some(Engine::PostgreSql) => {
+            // The generator's own, after the imports `render` writes it with
+            let rendered = sqlc_gen_python::python::render(&[backend.register_types(asynchronous)], &[], None);
+            let registering = rendered.trim_end().rsplit("\n\n\n").next().unwrap_or_default();
+            held.filter(|held| [&[CHECKED_ARRAY][..], &[registering], &[CHECKED_ARRAY, registering]].contains(held))
         }
         (Backend::SqlAlchemy | Backend::Psycopg | Backend::Sqlite3, _) => None,
     };
-    if prelude.map(|(_, held)| held) != expected_prelude {
+    if held != expected_prelude {
         problems.push("its prelude is not the one its library's stubs need".into());
     }
-    let body = &body[prelude.map_or(0, |(start, held)| start + held.len())..];
+    let body = &body[prelude.as_ref().map_or(0, |(start, held)| start + held.len())..];
 
     let engine = Engine::of(request).expect("an engine generate accepted");
     let queries: Vec<&plugin::Query> = (request.queries.iter())

@@ -239,6 +239,8 @@ pub struct Function {
     pub name: String,
     pub decorators: Vec<ast::Expr>,
     pub parameters: Vec<ast::ParameterWithDefault>,
+    /// `*name`, after the parameters.
+    pub vararg: Option<ast::ParameterWithDefault>,
     pub keyword_only: Vec<ast::ParameterWithDefault>,
     pub returns: ast::Expr,
     pub body: Vec<ast::Stmt>,
@@ -251,6 +253,7 @@ impl Function {
             name: name.as_ref().into(),
             decorators: vec![],
             parameters: vec![],
+            vararg: None,
             keyword_only: vec![],
             returns: returns.into(),
             body: vec![],
@@ -269,7 +272,7 @@ impl From<Function> for ast::Stmt {
             parameters: Box::new(node!(ast::Parameters {
                 posonlyargs: ThinVec::new(),
                 args: function.parameters.into(),
-                vararg: None,
+                vararg: function.vararg.map(|vararg| Box::new(vararg.parameter)),
                 kwonlyargs: function.keyword_only.into(),
                 kwarg: None,
             })),

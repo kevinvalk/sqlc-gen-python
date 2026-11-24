@@ -2,8 +2,12 @@ use ruff_python_ast as ast;
 
 use super::dbapi::{Driver, Flavor};
 use crate::api::models::Field;
-use crate::python::vocabulary::{ANY, CONNECTION, JSON, JSONB, PSYCOPG, RANGE, TUPLE, TUPLE_ROW};
-use crate::python::{Expression, Json, Type, ellipsis, keyword, string};
+use crate::python::vocabulary::{
+    ANY, CONNECTION, INFO, JSON, JSONB, LOOKUP_ERROR, NAME, NAMES, PSYCOPG, RANGE, TUPLE, TUPLE_ROW, TYPE_INFO,
+};
+use crate::python::{
+    Expression, Json, Type, assign, each, ellipsis, expression, for_, if_, int, keyword, raise, string,
+};
 
 /// We run each statement on a raw cursor, as it takes PostgreSQL's own `$N` placeholders as sqlc writes them, and ask
 /// for tuples whatever the connection's row factory.
@@ -30,7 +34,6 @@ pub const DRIVER: Driver = Driver {
     execute_counts: false,
     pipelines: true,
     bind,
-    text_arrays: true, // psycopg knows no type the schema declares
     copies: true,
     plain_rows: None,
 };
@@ -97,4 +100,28 @@ fn bind(parameter: &Field, value: ast::Expr) -> ast::Expr {
         Json::Jsonb => JSONB,
     });
     parameter.ty.bind(value, wrapper)
+}
+
+/// `for name in names: ...`, registering each type of `names` that the psycopg connection `driver` has no loader for
+/// yet. We fetch it from the catalog, after which psycopg loads an array of it as a list
+/// (https://www.psycopg.org/psycopg3/docs/api/types.html#psycopg.types.TypeInfo.register). psycopg keys a registered
+/// type by its bare name.
+pub fn register_types(driver: ast::Expr, asynchronous: bool) -> ast::Stmt {
+    let bare = NAME.attr("rpartition").call([string(".")]).index(int(2));
+    let registered = driver.clone().attr("adapters").attr("types").attr("get").call([bare]);
+    let fetched = TYPE_INFO
+        .attr("fetch")
+        .call([driver.clone(), NAME.into()])
+        .awaited(asynchronous);
+    for_(
+        each(NAME, NAMES),
+        vec![if_(
+            registered.absent(),
+            vec![
+                assign(INFO, fetched),
+                if_(INFO.absent(), vec![raise(LOOKUP_ERROR.call([NAME.into()]))]),
+                expression(INFO.attr("register").call([driver])),
+            ],
+        )],
+    )
 }

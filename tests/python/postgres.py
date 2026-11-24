@@ -26,6 +26,9 @@ READY_SECONDS = 60
 ENV = "SQLC_TEST_DATABASE_URL"
 BACKEND_MEMORY = 2**30  # The data memory in bytes each server process may use
 NEWEST = "postgres:18"
+# The extensions' types the examples use, which a test registers on a psycopg connection as generated code does before
+# it reads an array of one.
+EXTENSIONS = ("citext", "lquery", "ltree")
 
 
 @contextmanager

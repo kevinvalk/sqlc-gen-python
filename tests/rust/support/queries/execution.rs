@@ -42,8 +42,10 @@ pub(super) fn runs_its_statement(
                 {
                     self.calls.push(call)
                 }
-                // psycopg runs a batch in a pipeline of its own, which is no second use of the connection.
+                // psycopg runs a batch in a pipeline of its own, and loads an extension's array only once its type
+                // is registered, neither of which is a second use of the connection.
                 Expr::Attribute(_) if unparse(expr) == "connection.pipeline" => return,
+                Expr::Call(call) if is_name(&call.func, "_register_types") => return,
                 Expr::Name(name) if name.id.as_str() == "connection" => self.connections += 1,
                 _ => {}
             }

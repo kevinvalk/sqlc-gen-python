@@ -9,7 +9,7 @@ use super::resolver::Resolver;
 use crate::plugin;
 use crate::problem::Problem;
 use crate::python::vocabulary::{
-    CHECKED_ARRAY, FROM_ARRAY, LIST, LIST_LEAVES, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, Symbol, TYPING, V,
+    CHECKED_ARRAY, LIST, LIST_LEAVES, MULTIPLE_ROWS_ERROR, NO_ROW_ERROR, Symbol, TYPING, V,
 };
 use crate::python::{self, Expression, Scope, Type, each, forward, list_of, name, unless_none};
 
@@ -55,10 +55,11 @@ pub struct FieldType {
     pub element: Type,
     pub array_dims: usize,
     pub optional: bool,
-    /// The backend returns this array of enums as its text, which the enum's class then parses (`from_array`).
-    pub as_text: bool,
     /// PostgreSQL allows NULL leaves unless a SELECT expression proves every element present.
     pub collects_nulls: bool,
+    /// The type, as sqlc names it, that a function registers on the connection before it reads this array, as psycopg
+    /// returns the array's text until it is registered ([`crate::engine::Engine::is_registered`]).
+    pub registered_type: Option<String>,
 }
 
 /// The classes of the models module, or those of them `used` names. A table with a problem still becomes a model,
@@ -261,7 +262,7 @@ impl FieldType {
         if !self.converts() {
             return value;
         }
-        let raw = if self.array_dims > 0 && !self.as_text {
+        let raw = if self.array_dims > 0 {
             // A JSON decoder or the application's loader for an unmapped type can return a list for one element.
             let wire = self.element.wire();
             let list_leaves = (matches!(wire, Type::Json(_)) || *wire == Type::OBJECT)
@@ -282,13 +283,6 @@ impl FieldType {
                 };
                 converters.from_db.clone().call([raw])
             })
-        } else if self.as_text {
-            let class = self.element.annotation(scope);
-            if self.collects_nulls {
-                class.attr(FROM_ARRAY).call([raw])
-            } else {
-                enum_array(raw, class, false)
-            }
         } else if matches!(self.element, Type::Enum(_) | Type::Converted(_)) {
             required.map_elements(raw, |leaf| self.element.annotation(scope).call([leaf]))
         } else {
@@ -296,21 +290,4 @@ impl FieldType {
         };
         if self.optional { unless_none(value, read) } else { read }
     }
-}
-
-/// The enum labels we support in PostgreSQL's array text need no quoting. The unquoted word NULL denotes a missing
-/// element.
-pub(crate) fn enum_array(value: ast::Expr, class: ast::Expr, nullable: bool) -> ast::Expr {
-    use crate::python::vocabulary::LABEL;
-    let labels = value
-        .slice(python::int(1), python::minus(python::int(1)))
-        .attr("split")
-        .call([python::string(",")]);
-    let member = class.call([LABEL.into()]);
-    let member = if nullable {
-        python::none_if(LABEL.equals(python::string("NULL")), member)
-    } else {
-        member
-    };
-    list_of(member, each(LABEL, labels).when(LABEL))
 }

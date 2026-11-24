@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use ruff_python_ast as ast;
 use ruff_python_ast::visitor::{Visitor, walk_expr};
 
-use super::vocabulary::{Import, MODELS, TYPE_CHECKING, VOCABULARY};
-use super::{if_, import, import_from};
+use super::vocabulary::{Import, MODELS, VOCABULARY};
+use super::{import, import_from};
 
 #[cfg(test)]
 #[path = "imports_spec.rs"]
@@ -14,7 +14,9 @@ mod spec;
 /// result is one list per isort section, holding the [vocabulary](VOCABULARY) the body reads and each of an override's
 /// `modules` it reads a name from. `models` is the module a package of query modules alone reads its models from, which
 /// isort cannot know to be the application's own any more than an override's module.
-pub(super) fn imports(body: &[ast::Stmt], modules: &[String], models: Option<&str>) -> Vec<Vec<ast::Stmt>> {
+///
+/// Returns the sections imported at runtime, then those only a type checker needs, for under `typing.TYPE_CHECKING`.
+pub(super) fn imports(body: &[ast::Stmt], modules: &[String], models: Option<&str>) -> [Vec<Vec<ast::Stmt>>; 2] {
     // We keep dotted names in full (`a.b.C`) so a module's read can be told from another's.
     #[derive(Default)]
     struct Reads {
@@ -54,14 +56,8 @@ pub(super) fn imports(body: &[ast::Stmt], modules: &[String], models: Option<&st
     }
     let mut reads = Reads::default();
     reads.visit_body(body);
-    let mut runtime = sections(&reads.names, modules, models);
     let checked = reads.casts.difference(&reads.names).cloned().collect();
-    runtime.extend(
-        sections(&checked, &[], None)
-            .into_iter()
-            .map(|section| vec![if_(TYPE_CHECKING, section)]),
-    );
-    runtime
+    [sections(&reads.names, modules, models), sections(&checked, &[], None)]
 }
 
 fn sections(reads: &BTreeSet<String>, modules: &[String], models: Option<&str>) -> Vec<Vec<ast::Stmt>> {

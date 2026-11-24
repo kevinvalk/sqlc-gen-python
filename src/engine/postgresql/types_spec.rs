@@ -22,8 +22,8 @@ fn an_extension_type_reads_the_same_in_whichever_schema_it_was_created_in() {
     for qualified in ["public.citext", "extensions.citext", "data.citext"] {
         assert_eq!(scalar_type(qualified), Some(Type::STR), "{qualified}");
         assert_eq!(
-            array_problem(qualified, false),
-            array_problem("citext", false),
+            array_problem(qualified, false, false),
+            array_problem("citext", false, false),
             "{qualified}"
         );
     }
@@ -84,24 +84,59 @@ fn a_declared_or_cast_type_reads_as_the_type_it_names() {
 
 #[test]
 fn an_array_a_driver_does_not_load_as_a_list_says_what_it_does() {
-    // psycopg returns `ARRAY['x'::citext]` as the text `'{x}'`, and asyncpg decodes `ARRAY[''::tsvector]` as
-    // `[<NULL>]` (`docs/typemap.md`)
-    assert_eq!(scalar_type("citext"), Some(Type::STR));
-    assert!(array_problem("citext", false).unwrap().contains("psycopg"));
-    assert!(array_problem("pg_catalog.tsvector", false).unwrap().contains("asyncpg"));
-    assert_eq!(array_problem("pg_catalog.text", false), None);
+    // psycopg returns `ARRAY['a=>b'::hstore]` as its text, registered or not, and asyncpg decodes `ARRAY[''::tsvector]`
+    // as `[<NULL>]` (`docs/typemap.md`)
+    assert!(array_problem("hstore", false, false).unwrap().contains("psycopg"));
+    assert!(
+        array_problem("pg_catalog.tsvector", false, false)
+            .unwrap()
+            .contains("asyncpg")
+    );
+    assert_eq!(array_problem("pg_catalog.text", false, false), None);
+}
+
+#[test]
+fn every_type_but_postgresqls_own_is_registered_before_its_array_is_read() {
+    // psycopg returns `ARRAY['x'::citext]` as the text `'{x}'` until the type is registered on the connection, as it knows
+    // the OID of PostgreSQL's own types alone
+    for name in [
+        "citext",
+        "public.citext",
+        "extensions.ltree",
+        "lquery",
+        "hstore",
+        "mood",
+        "billing.payment_method",
+    ] {
+        assert!(is_registered(name), "{name}");
+    }
+    for name in [
+        "text",
+        "pg_catalog.int4",
+        "integer",
+        "jsonb",
+        "timestamp with time zone",
+    ] {
+        assert!(!is_registered(name), "{name}");
+    }
+    for name in ["citext", "ltree", "lquery"] {
+        assert_eq!(array_problem(name, false, false), None, "{name}");
+        // asyncpg counts an empty item of one, and never returns it
+        assert!(array_problem(name, false, true).unwrap().contains("asyncpg"), "{name}");
+    }
 }
 
 #[test]
 fn an_array_a_driver_does_not_read_as_a_list_still_binds_as_a_parameter() {
+    // Whichever driver binds it, asyncpg included
     for name in ["citext", "public.citext", "lquery", "ltree", "tsvector"] {
-        assert_eq!(array_problem(name, true), None, "{name}");
+        assert_eq!(array_problem(name, true, true), None, "{name}");
     }
     // A list of dicts, and names of relations a value must name, which nobody has probed
-    assert!(array_problem("hstore", true).is_some());
-    assert!(array_problem("regclass", true).is_some());
+    assert!(array_problem("hstore", true, false).is_some());
+    assert!(array_problem("regclass", true, false).is_some());
     // `ltree` has no operator that takes a list of them, so nobody has probed one
-    assert!(array_problem("ltxtquery", true).is_some());
+    assert!(array_problem("ltxtquery", true, false).is_some());
 }
 
 /// The runtime proof (`tests/python/typemap.py`) reads this fixture back through every driver.
@@ -123,7 +158,7 @@ fn every_mapped_type_has_a_column_the_runtime_proof_reads() {
             .map(|column| type_name(&column.data_type()).to_owned())
             .collect();
         let missing: Vec<&str> = (TYPES.iter().map(|(name, _)| *name))
-            .filter(|name| !(array && array_problem(name, false).is_some()) && !probed.contains(*name))
+            .filter(|name| !(array && array_problem(name, false, false).is_some()) && !probed.contains(*name))
             .collect();
         assert!(missing.is_empty(), "no column (array: {array}) of {missing:?}");
     }

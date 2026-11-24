@@ -9,10 +9,14 @@ from typing import Any, Final
 from uuid import UUID
 
 import sqlalchemy
+from psycopg.types import TypeInfo
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from . import models
+
+if typing.TYPE_CHECKING:
+    import psycopg
 
 
 def _checked_array(
@@ -30,26 +34,24 @@ def _checked_array(
     raise TypeError(message)
 
 
-_CREATE_CUSTOMER: Final = (
-    sqlalchemy.text("""INSERT INTO customers (name, email, tags, preferred_method, accepted_methods, metadata)
+async def _register_types(connection: AsyncConnection, *names: str) -> None:
+    if connection.dialect.driver == "psycopg":
+        driver = typing.cast(
+            "psycopg.AsyncConnection[Any]",
+            (await connection.get_raw_connection()).driver_connection,
+        )
+        for name in names:
+            if driver.adapters.types.get(name.rpartition(".")[2]) is None:
+                info = await TypeInfo.fetch(driver, name)
+                if info is None:
+                    raise LookupError(name)
+                info.register(driver)
+
+
+_CREATE_CUSTOMER: Final = sqlalchemy.text("""INSERT INTO customers (name, email, tags, preferred_method, accepted_methods, metadata)
 VALUES (:name, :email, :tags, :preferred_method, :accepted_methods, :metadata)
-RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, created_at""")
-    .bindparams(
-        sqlalchemy.bindparam("metadata", type_=postgresql.JSONB(none_as_null=True))
-    )
-    .columns(
-        sqlalchemy.column("id"),
-        sqlalchemy.column("name"),
-        sqlalchemy.column("email"),
-        sqlalchemy.column("tags"),
-        sqlalchemy.column("preferred_method"),
-        sqlalchemy.column(
-            "accepted_methods",
-            postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
-        ),
-        sqlalchemy.column("metadata"),
-        sqlalchemy.column("created_at"),
-    )
+RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, created_at""").bindparams(
+    sqlalchemy.bindparam("metadata", type_=postgresql.JSONB(none_as_null=True))
 )
 
 
@@ -68,6 +70,7 @@ async def create_customer(
     | float
     | None = None,
 ) -> models.Customer | None:
+    await _register_types(connection, "billing.payment_method")
     row = (
         await connection.execute(
             _CREATE_CUSTOMER,
@@ -86,24 +89,13 @@ async def create_customer(
 
 _GET_CUSTOMER: Final = sqlalchemy.text(
     "SELECT id, name, email, tags, preferred_method, accepted_methods, metadata, created_at FROM customers WHERE id = :id"
-).columns(
-    sqlalchemy.column("id"),
-    sqlalchemy.column("name"),
-    sqlalchemy.column("email"),
-    sqlalchemy.column("tags"),
-    sqlalchemy.column("preferred_method"),
-    sqlalchemy.column(
-        "accepted_methods",
-        postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
-    ),
-    sqlalchemy.column("metadata"),
-    sqlalchemy.column("created_at"),
 )
 
 
 async def get_customer(
     connection: AsyncConnection, *, id: UUID
 ) -> models.Customer | None:
+    await _register_types(connection, "billing.payment_method")
     row = (await connection.execute(_GET_CUSTOMER, {"id": id})).one_or_none()
     return None if row is None else models.Customer.from_row(row)
 
@@ -138,18 +130,6 @@ async def get_quoted_text(
 
 _GET_CUSTOMER_BY_NAME: Final = sqlalchemy.text(
     "SELECT id, name, email, tags, preferred_method, accepted_methods, metadata, created_at FROM customers WHERE name = :name"
-).columns(
-    sqlalchemy.column("id"),
-    sqlalchemy.column("name"),
-    sqlalchemy.column("email"),
-    sqlalchemy.column("tags"),
-    sqlalchemy.column("preferred_method"),
-    sqlalchemy.column(
-        "accepted_methods",
-        postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
-    ),
-    sqlalchemy.column("metadata"),
-    sqlalchemy.column("created_at"),
 )
 
 
@@ -157,6 +137,7 @@ async def get_customer_by_name(
     connection: AsyncConnection, *, name: str
 ) -> models.Customer | None:
     """Names are not unique: more than one match is an error, never a guess."""
+    await _register_types(connection, "billing.payment_method")
     row = (
         await connection.execute(_GET_CUSTOMER_BY_NAME, {"name": name})
     ).one_or_none()
@@ -179,10 +160,6 @@ async def get_customer_id_by_email(
 
 _GET_ACCEPTED_METHODS: Final = sqlalchemy.text(
     "SELECT coalesce(accepted_methods, '{}')\\:\\:billing.payment_method[] FROM customers WHERE id = :id"
-).columns(
-    sqlalchemy.column(
-        "column_1", postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod))
-    )
 )
 
 
@@ -192,6 +169,7 @@ async def get_accepted_methods(
     """PostgreSQL names this column `coalesce`, and sqlc nothing. It is cast, as
     sqlc types a coalesce as its first argument whatever the others are.
     """
+    await _register_types(connection, "billing.payment_method")
     value = (
         await connection.execute(_GET_ACCEPTED_METHODS, {"id": id})
     ).scalar_one_or_none()
@@ -207,16 +185,7 @@ async def get_accepted_methods(
 
 _COMPARE_ACCEPTED_METHODS: Final = sqlalchemy.text("""SELECT a.accepted_methods, b.accepted_methods
 FROM customers a, customers b
-WHERE a.id = :first AND b.id = :second""").columns(
-    sqlalchemy.column(
-        "accepted_methods",
-        postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
-    ),
-    sqlalchemy.column(
-        "accepted_methods_2",
-        postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
-    ),
-)
+WHERE a.id = :first AND b.id = :second""")
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
@@ -242,6 +211,7 @@ async def compare_accepted_methods(
     connection: AsyncConnection, *, first: UUID, second: UUID
 ) -> CompareAcceptedMethodsRow | None:
     """Two columns of one name, as when merging two customers."""
+    await _register_types(connection, "billing.payment_method")
     row = (
         await connection.execute(
             _COMPARE_ACCEPTED_METHODS, {"first": first, "second": second}
@@ -265,25 +235,14 @@ async def update_customer_email(
 
 _SEARCH_CUSTOMERS: Final = sqlalchemy.text("""SELECT id, name, email, tags, preferred_method, accepted_methods, metadata, created_at FROM customers
 WHERE name ILIKE '%' || :query\\:\\:text || '%' OR email ILIKE '%' || :query\\:\\:text || '%'
-ORDER BY name""").columns(
-    sqlalchemy.column("id"),
-    sqlalchemy.column("name"),
-    sqlalchemy.column("email"),
-    sqlalchemy.column("tags"),
-    sqlalchemy.column("preferred_method"),
-    sqlalchemy.column(
-        "accepted_methods",
-        postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
-    ),
-    sqlalchemy.column("metadata"),
-    sqlalchemy.column("created_at"),
-)
+ORDER BY name""")
 
 
 async def search_customers(
     connection: AsyncConnection, *, query: str
 ) -> list[models.Customer]:
     """Case-insensitive search on name or email."""
+    await _register_types(connection, "billing.payment_method")
     return [
         models.Customer.from_row(row)
         for row in await connection.execute(_SEARCH_CUSTOMERS, {"query": query})
@@ -295,6 +254,7 @@ async def stream_search_customers(
     connection: AsyncConnection, *, query: str
 ) -> AsyncGenerator[AsyncIterator[models.Customer], None]:
     """Case-insensitive search on name or email."""
+    await _register_types(connection, "billing.payment_method")
     async with connection.stream(_SEARCH_CUSTOMERS, {"query": query}) as cur:
         yield (models.Customer.from_row(row) async for row in cur)
 
@@ -419,28 +379,12 @@ async def set_customer_metadata(
     ).rowcount
 
 
-_MERGE_CUSTOMER_METADATA: Final = (
-    sqlalchemy.text("""UPDATE customers SET
+_MERGE_CUSTOMER_METADATA: Final = sqlalchemy.text("""UPDATE customers SET
     metadata = CASE WHEN :metadata\\:\\:jsonb IS NULL THEN metadata ELSE coalesce(metadata, '{}') || :metadata END,
     email = coalesce(:email\\:\\:text, email)
 WHERE id = :id
-RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, created_at""")
-    .bindparams(
-        sqlalchemy.bindparam("metadata", type_=postgresql.JSONB(none_as_null=True))
-    )
-    .columns(
-        sqlalchemy.column("id"),
-        sqlalchemy.column("name"),
-        sqlalchemy.column("email"),
-        sqlalchemy.column("tags"),
-        sqlalchemy.column("preferred_method"),
-        sqlalchemy.column(
-            "accepted_methods",
-            postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod)),
-        ),
-        sqlalchemy.column("metadata"),
-        sqlalchemy.column("created_at"),
-    )
+RETURNING id, name, email, tags, preferred_method, accepted_methods, metadata, created_at""").bindparams(
+    sqlalchemy.bindparam("metadata", type_=postgresql.JSONB(none_as_null=True))
 )
 
 
@@ -456,6 +400,7 @@ async def merge_customer_metadata(
     id: UUID,
 ) -> models.Customer | None:
     """A partial update: what is NULL leaves its column as it is, and a document merges into the stored one"""
+    await _register_types(connection, "billing.payment_method")
     row = (
         await connection.execute(
             _MERGE_CUSTOMER_METADATA, {"metadata": metadata, "email": email, "id": id}
@@ -501,14 +446,7 @@ async def stream_list_customer_referrals(
 _LIST_LAST_EMAILS_BY_NAME: Final = sqlalchemy.text("""SELECT name, max(email)\\:\\:text AS last_email,
        array_agg(email ORDER BY id)\\:\\:text[] AS emails,
        CAST(array_agg(preferred_method ORDER BY id) AS billing.payment_method[]) AS methods
-FROM customers GROUP BY name ORDER BY name""").columns(
-    sqlalchemy.column("name"),
-    sqlalchemy.column("last_email"),
-    sqlalchemy.column("emails"),
-    sqlalchemy.column(
-        "methods", postgresql.ARRAY(sqlalchemy.Enum(*models.BillingPaymentMethod))
-    ),
-)
+FROM customers GROUP BY name ORDER BY name""")
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
@@ -536,6 +474,7 @@ class ListLastEmailsByNameRow:
 async def list_last_emails_by_name(
     connection: AsyncConnection,
 ) -> list[ListLastEmailsByNameRow]:
+    await _register_types(connection, "billing.payment_method")
     return [
         ListLastEmailsByNameRow.from_row(row)
         for row in await connection.execute(_LIST_LAST_EMAILS_BY_NAME)
@@ -546,6 +485,7 @@ async def list_last_emails_by_name(
 async def stream_list_last_emails_by_name(
     connection: AsyncConnection,
 ) -> AsyncGenerator[AsyncIterator[ListLastEmailsByNameRow], None]:
+    await _register_types(connection, "billing.payment_method")
     async with connection.stream(_LIST_LAST_EMAILS_BY_NAME) as cur:
         yield (ListLastEmailsByNameRow.from_row(row) async for row in cur)
 

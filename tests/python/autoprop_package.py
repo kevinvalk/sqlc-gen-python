@@ -15,14 +15,16 @@ import psycopg
 import sqlalchemy
 from hypothesis import HealthCheck, Phase, given, settings
 from hypothesis import strategies as st
+from psycopg import sql as pgsql
+from psycopg.types import TypeInfo
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from autoprop_calls import calls, driver, labels
+from autoprop_calls import calls, driver
 from autoprop_pool import Pool
 from autoprop_refusals import refused
 from autoprop_seeds import draw_row, insert, read
 from pgvalues import tables
-from postgres import SchemaRejectedError, aw, conninfo, database
+from postgres import EXTENSIONS, SchemaRejectedError, aw, conninfo, database
 
 if TYPE_CHECKING:
     from types import ModuleType
@@ -138,12 +140,14 @@ class Sweep:
         try:
             with oracle.connect() as connection:
                 self.tables = tables(connection, models)
-                self.enums = [
-                    labels(driver(connection), schema["name"], enum["name"])
+                names: list[str | pgsql.Identifier] = [*EXTENSIONS]
+                names += [
+                    pgsql.Identifier(schema["name"], enum["name"])
                     for schema in request["catalog"]["schemas"]
                     for enum in schema.get("enums", [])
-                    if len(enum["vals"]) > 0  # An enum without labels has no value to read
                 ]
+                found = (TypeInfo.fetch(driver(connection), name) for name in names)
+                self.types = [info for info in found if info is not None]
                 ordered = ORDERED_INVOICE_QUERIES if target.request.name == "invoicing.json" else set()
                 self.calls = [
                     call
@@ -221,9 +225,9 @@ class Sweep:
 
             for call in self.calls:
                 # We only compare the calls of functions, as a coroutine runs the same SQL (see ``autoprop``).
-                enums = None if self.asynchronous else self.enums
+                types = None if self.asynchronous else self.types
                 try:
-                    outcome, same = await call.run(connection, callee, data, pool=pool, url=self.conninfo, enums=enums)
+                    outcome, same = await call.run(connection, callee, data, pool=pool, url=self.conninfo, types=types)
                 except AssertionError as error:
                     if not self.expected(error):
                         raise

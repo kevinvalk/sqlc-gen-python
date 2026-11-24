@@ -6,7 +6,7 @@ use heck::ToSnakeCase;
 use super::models::{Field, FieldType};
 use super::names::{self, Binding, Repeats};
 use super::resolver::Resolver;
-use crate::engine::{Bind, Engine, Sql};
+use crate::engine::{Bind, Sql};
 use crate::plugin;
 use crate::problem::Problem;
 
@@ -76,7 +76,7 @@ pub(super) fn resolve(query: &plugin::Query, resolver: &Resolver) -> Result<(Vec
             "parameter {} (\"{name}\")",
             resolver.engine.placeholder(parameter.number)
         );
-        if column.is_sqlc_slice && resolver.engine == Engine::PostgreSql {
+        if column.is_sqlc_slice && !resolver.engine.has_slices() {
             bail!(Problem::new(
                 "sqlc.slice is MySQL/SQLite only",
                 format!("on PostgreSQL use = ANY(@{name}::type[])")

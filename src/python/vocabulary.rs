@@ -78,6 +78,7 @@ pub const MODEL_CONFIG: Symbol = Symbol("model_config");
 pub const PYMYSQL: Symbol = Symbol("pymysql");
 pub const SQLALCHEMY: Symbol = Symbol("sqlalchemy");
 pub const TUPLE_ROW: Symbol = Symbol("tuple_row");
+pub const TYPE_INFO: Symbol = Symbol("TypeInfo");
 pub const JSON: Symbol = Symbol("Json");
 pub const JSONB: Symbol = Symbol("Jsonb");
 pub const RANGE: Symbol = Symbol("Range");
@@ -137,6 +138,7 @@ pub(super) const VOCABULARY: [&[Import]; 3] = [
         Import::plain(PYMYSQL),
         Import::plain(SQLALCHEMY),
         Import::From("psycopg.rows", TUPLE_ROW),
+        Import::From("psycopg.types", TYPE_INFO),
         Import::From("psycopg.types.json", JSON),
         Import::From("psycopg.types.json", JSONB),
         Import::From("psycopg.types.range", RANGE),
@@ -194,10 +196,6 @@ pub const COPY: Symbol = Symbol("copy");
 pub const CLS: Symbol = Symbol("cls");
 pub const SELF: Symbol = Symbol("self");
 pub const FROM_ROW: Symbol = Symbol("from_row");
-/// An enum's constructor of its members from an array's [`TEXT`], which is what psycopg returns for an enum array.
-pub const FROM_ARRAY: Symbol = Symbol("from_array");
-pub const TEXT: Symbol = Symbol("text");
-pub const LABEL: Symbol = Symbol("label");
 pub const V: Symbol = Symbol("v");
 
 /// What reads an array a driver returned as lists and fails for one of another depth than its column declares, with
@@ -209,6 +207,13 @@ pub const LIST_LEAVES: Symbol = Symbol("list_leaves");
 pub const ITEMS: Symbol = Symbol("items");
 pub const CHILD: Symbol = Symbol("child");
 pub const MESSAGE: Symbol = Symbol("message");
+
+/// What registers the types a function reads arrays of on the connection, with its parameter and locals.
+pub const REGISTER_TYPES: Symbol = Symbol("_register_types");
+pub const NAMES: Symbol = Symbol("names");
+pub const NAME: Symbol = Symbol("name");
+pub const INFO: Symbol = Symbol("info");
+pub const DRIVER: Symbol = Symbol("driver");
 
 /// The connection's class, for where it is only generic in the library's stubs.
 pub const CONNECTION_TYPE: Symbol = Symbol("_Connection");
